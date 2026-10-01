@@ -14,6 +14,7 @@ from experiments.protocols.morris_water_maze import MorrisWaterMazeProtocol
 from experiments.protocols.survival_arena import SurvivalArenaProtocol
 from metrics.hash import RunHash
 from metrics.logger import JsonlLogger
+from metrics.scene import write_scene
 from metrics.schema import SCHEMA_VERSION, TickData
 from core.engine import Engine
 
@@ -52,6 +53,7 @@ def run(protocol_name: str, seed: int, ticks: int, outdir: Path, protocol_config
     outdir.mkdir(parents=True, exist_ok=True)
     tick_path = outdir / "ticks.jsonl"
     summary_path = outdir / "summary.json"
+    write_scene(engine, outdir / "scene.json", {"protocol": protocol_name})
 
     logger = JsonlLogger(tick_path)
     rh = RunHash()

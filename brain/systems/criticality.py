@@ -109,6 +109,32 @@ class CriticalityField:
         self._cur_size = 0
         self._sizes: List[int] = []
 
+    # --- Read-only views for instrumentation / visualisation (no behavioural effect) ---
+
+    @property
+    def active_cells(self) -> Tuple[Cell, ...]:
+        """Cells firing in the current generation of the ongoing avalanche."""
+        return tuple(sorted(self._active))
+
+    @property
+    def avalanche_cells(self) -> Tuple[Cell, ...]:
+        """Every cell that has fired so far in the ongoing avalanche (its footprint)."""
+        return tuple(sorted(self._fired))
+
+    @property
+    def avalanche_sizes(self) -> Tuple[int, ...]:
+        """Sizes of completed avalanches retained for the kappa statistic."""
+        return tuple(self._sizes)
+
+    def reset_statistics(self) -> None:
+        """Forget the avalanche-size history so kappa is re-measured from scratch.
+
+        Used when the coupling is changed mid-run, so kappa reflects the new
+        regime instead of averaging over thousands of avalanches from the old one.
+        """
+        self._sizes = []
+        self.kappa = 1.0
+
     def _neighbors(self, i: int, j: int) -> Tuple[Cell, ...]:
         n = self.config.field_size
         return (((i + 1) % n, j), ((i - 1) % n, j), (i, (j + 1) % n), (i, (j - 1) % n))

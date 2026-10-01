@@ -8,7 +8,7 @@ visible "target" and turns away from a close wall ahead.
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from brain.contracts import Action, Observation
 from core.config import BasalGangliaConfig
@@ -107,7 +107,20 @@ def _channel_scores(
     return scores
 
 
-def select_action(
+ACTION_ORDER = ("FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST")
+
+
+def _action_for(name: str) -> Action:
+    if name == "FORWARD":
+        return Action(name="FORWARD", thrust=1.0, turn=0.0)
+    if name == "TURN_LEFT":
+        return Action(name="TURN_LEFT", thrust=0.3, turn=TURN_STEP)
+    if name == "TURN_RIGHT":
+        return Action(name="TURN_RIGHT", thrust=0.3, turn=-TURN_STEP)
+    return Action(name="REST", thrust=0.0, turn=0.0)
+
+
+def select_action_with_scores(
     observation: Observation,
     wm_novelty: float,
     trn_gain: float,
@@ -118,7 +131,12 @@ def select_action(
     value_left: float = 0.0,
     value_right: float = 0.0,
     criticality_gain: float = 1.0,
-) -> Action:
+) -> Tuple[Action, Dict[str, float]]:
+    """Select an action and also return the channel scores that produced it.
+
+    The scores are what a "decision" readout displays; returning them does not
+    change which action is chosen.
+    """
     config = config if config is not None else BasalGangliaConfig()
     modulators = modulators if modulators is not None else {}
     scores = _channel_scores(
@@ -134,15 +152,36 @@ def select_action(
         criticality_gain,
     )
     # Deterministic tie-break order.
-    order = ["FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST"]
+    order = list(ACTION_ORDER)
     best = max(order, key=lambda name: (scores.get(name, float("-inf")), -order.index(name)))
-    if best == "FORWARD":
-        return Action(name="FORWARD", thrust=1.0, turn=0.0)
-    if best == "TURN_LEFT":
-        return Action(name="TURN_LEFT", thrust=0.3, turn=TURN_STEP)
-    if best == "TURN_RIGHT":
-        return Action(name="TURN_RIGHT", thrust=0.3, turn=-TURN_STEP)
-    return Action(name="REST", thrust=0.0, turn=0.0)
+    return _action_for(best), scores
 
 
-__all__ = ["select_action", "TURN_STEP"]
+def select_action(
+    observation: Observation,
+    wm_novelty: float,
+    trn_gain: float,
+    microsleep_active: bool,
+    config: Optional[BasalGangliaConfig] = None,
+    modulators: Optional[Dict[str, float]] = None,
+    value_ahead: float = 0.0,
+    value_left: float = 0.0,
+    value_right: float = 0.0,
+    criticality_gain: float = 1.0,
+) -> Action:
+    action, _ = select_action_with_scores(
+        observation,
+        wm_novelty,
+        trn_gain,
+        microsleep_active,
+        config,
+        modulators,
+        value_ahead,
+        value_left,
+        value_right,
+        criticality_gain,
+    )
+    return action
+
+
+__all__ = ["select_action", "select_action_with_scores", "ACTION_ORDER", "TURN_STEP"]

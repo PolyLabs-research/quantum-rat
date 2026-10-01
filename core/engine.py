@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import math
 
 from brain.contracts import Action, Observation
-from brain.systems.basal_ganglia import TURN_STEP, select_action
+from brain.systems.basal_ganglia import TURN_STEP, select_action_with_scores
 from brain.systems.criticality import CriticalityField, near_critical_gain
 from brain.systems.spatial import SpatialSystem
 from brain.systems.trn_microsleep_replay import TRNGate
@@ -21,7 +21,7 @@ from core.physiology import Astrocyte
 from core.pipeline import PIPELINE_ORDER, Pipeline
 from core.rng import RNG, RNGStream
 from core.sensors import gather_observation, observation_checksum
-from core.world import World
+from core.world import World, WorldObject
 from metrics.schema import TickData
 
 
@@ -60,6 +60,11 @@ class EngineContext:
     energy_scale: float = 1.0
     protocol_name: str = "no_op"
     trial_number: int = 1
+    # Display-only readouts (not logged to TickData, so they never affect the
+    # determinism hash): the decision that was made and what drove it.
+    action_scores: Dict[str, float] = field(default_factory=dict)
+    value_signals: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    criticality_gain: float = 1.0
     tick_data: TickData | None = None
 
 
@@ -103,6 +108,7 @@ class Engine:
             generalization_falloff=c.value_memory.generalization_falloff,
         )
         self._prev_target_dist: float | None = None
+        self._prev_target: Tuple[Any, float, float] | None = None  # (object, x, y) the shaping distance refers to
         self.criticality = CriticalityField(stream=self.streams["criticality"], config=c.criticality)
         self.trn_gate = TRNGate(
             trigger_atp=c.trn.trigger_atp,
@@ -207,37 +213,66 @@ class Engine:
         ctx.wm_load = wm_state.load
         ctx.wm_novelty = wm_state.novelty
 
+    def _nearest_target(self, pos: Tuple[float, float]) -> Tuple[float, WorldObject] | None:
+        """(surface distance, object) of the nearest rewarding object, if any.
+
+        A "hidden" goal still rewards on contact (it is physically present),
+        but it is invisible to vision (see brain.systems.basal_ganglia).
+        """
+        best: Tuple[float, WorldObject] | None = None
+        for o in self.world.objects:
+            if o.kind not in ("target", "hidden"):
+                continue
+            d = ((pos[0] - o.x) ** 2 + (pos[1] - o.y) ** 2) ** 0.5 - o.radius
+            if best is None or d < best[0]:
+                best = (d, o)
+        return best
+
     def _nearest_target_distance(self, pos: Tuple[float, float]) -> float | None:
-        # A "hidden" goal still rewards on contact (it is physically present),
-        # but it is invisible to vision (see brain.systems.basal_ganglia).
-        targets = [o for o in self.world.objects if o.kind in ("target", "hidden")]
-        if not targets:
-            return None
-        return min(
-            ((pos[0] - o.x) ** 2 + (pos[1] - o.y) ** 2) ** 0.5 - o.radius for o in targets
-        )
+        nearest = self._nearest_target(pos)
+        return None if nearest is None else nearest[0]
 
     def _compute_reward(self, ctx: EngineContext) -> float:
         r = self.config.reward
         pain = ctx.observation.pain_signal if ctx.observation else 0.0
         reward = -r.pain_weight * pain
-        dist = self._nearest_target_distance(ctx.pos)
-        if dist is not None:
-            if self._prev_target_dist is not None:
-                reward += r.approach_weight * (self._prev_target_dist - dist)
-            if dist <= 0.0:
-                reward += r.contact_bonus
-            self._prev_target_dist = dist
+        nearest = self._nearest_target(ctx.pos)
+        if nearest is None:
+            self._prev_target_dist = None
+            self._prev_target = None
+            return reward
+        dist, obj = nearest
+        # Approach shaping rewards closing the distance to the *same* target.
+        # When the target set changes under the agent (food eaten, a beacon
+        # moved), the distance jumps for reasons that are not the agent's
+        # doing; charging that jump would punish every successful collection.
+        same = (
+            self._prev_target is not None
+            and self._prev_target[0] is obj
+            and self._prev_target[1:] == (obj.x, obj.y)
+        )
+        if self._prev_target_dist is not None and same:
+            reward += r.approach_weight * (self._prev_target_dist - dist)
+        if dist <= 0.0:
+            reward += r.contact_bonus
+        self._prev_target_dist = dist
+        self._prev_target = (obj, obj.x, obj.y)
         return reward
+
+    # Directions (relative to heading) the value map is consulted along. The side
+    # fans reach ~80 degrees so a value peak off to the side reads as "turn that
+    # way" rather than a false local maximum where every sampled step is downhill.
+    VALUE_FAN_OFFSETS = (TURN_STEP, 0.8, 1.4)
 
     def _value_signals(self, ctx: EngineContext) -> Tuple[float, float, float]:
         """Normalized steer toward higher-value directions (memory-guided navigation).
 
-        Reads the learned place value a step ahead / left / right of the current
-        estimate, takes the advantage over the current place, and normalizes by
-        the largest-magnitude advantage so the steer is decisive whenever a real
-        gradient exists and silent when the map is locally flat. Magnitude-robust,
-        so it does not need to be re-tuned to the reward scale.
+        Reads the learned place value one lookahead step away along the heading
+        and along a fan on each side, takes the advantage over the current place,
+        and returns (ahead, best-left, best-right) normalized by the largest
+        magnitude, so the steer is decisive whenever a real gradient exists and
+        silent when the map is locally flat. Magnitude-robust, so it does not need
+        re-tuning to the reward scale.
         """
         look = self.config.value_memory.lookahead
         here = self.value_memory.value_of(self.spatial.bins_at(ctx.grid_x, ctx.grid_y))
@@ -248,11 +283,13 @@ class Engine:
             return self.value_memory.value_of(self.spatial.bins_at(gx, gy)) - here
 
         hd = ctx.hd_angle
-        raw = (advantage(hd), advantage(hd + TURN_STEP), advantage(hd - TURN_STEP))
-        scale = max(abs(x) for x in raw)
+        ahead = advantage(hd)
+        left = [advantage(hd + off) for off in self.VALUE_FAN_OFFSETS]
+        right = [advantage(hd - off) for off in self.VALUE_FAN_OFFSETS]
+        scale = max(abs(x) for x in [ahead, *left, *right])
         if scale < 1e-3:  # locally flat map -> no steer
             return 0.0, 0.0, 0.0
-        return raw[0] / scale, raw[1] / scale, raw[2] / scale
+        return ahead / scale, max(left) / scale, max(right) / scale
 
     def _brain_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
@@ -272,7 +309,7 @@ class Engine:
         crit_gain = near_critical_gain(ctx.kappa, self.config.criticality.gain_width)
 
         # Deterministic action selection; dopamine modulates exploration.
-        action = select_action(
+        action, scores = select_action_with_scores(
             observation=ctx.observation,
             wm_novelty=ctx.wm_novelty,
             trn_gain=ctx.trn_gate_value,
@@ -284,6 +321,9 @@ class Engine:
             value_right=value_right,
             criticality_gain=crit_gain,
         )
+        ctx.action_scores = scores
+        ctx.value_signals = (value_ahead, value_left, value_right)
+        ctx.criticality_gain = crit_gain
         self.last_action = action
         ctx.action_name = action.name
         ctx.action_thrust = action.thrust
@@ -325,13 +365,28 @@ class Engine:
             trial_number=ctx.trial_number,
         )
 
+    @property
+    def context(self) -> EngineContext | None:
+        """The live tick context (read-only use: instrumentation and visualisation)."""
+        return getattr(self, "_ctx", None)
+
+    def begin_episode(self) -> None:
+        """Start a new episode without resetting the tick counter.
+
+        Clears the pending action, the reward-shaping distance and the value
+        map's episode boundary, so nothing learned links across a reset or a
+        teleport. Memories (value map, neuromodulator baselines) are kept.
+        """
+        self.last_action = Action(name="REST", thrust=0.0, turn=0.0)
+        self._prev_target_dist = None
+        self._prev_target = None
+        self.value_memory.reset_episode()
+
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:
         """Execute the pipeline for N ticks and return TickData stream."""
         if reset or not hasattr(self, "_ctx"):
             self._ctx = EngineContext(tick=-1)
-            self.last_action = Action(name="REST", thrust=0.0, turn=0.0)
-            self._prev_target_dist = None
-            self.value_memory.reset_episode()
+            self.begin_episode()
         ctx: EngineContext = self._ctx
         trace: List[TickData] = []
         for _ in range(ticks):

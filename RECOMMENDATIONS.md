@@ -312,3 +312,20 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
   + bootstrapping), so zero-reward recall steps reinforce the gradient instead of decaying it.
   Repeated recall stays stable, and replay is correctly reframed as a data-efficiency speed-up
   (~16 vs ~66 ticks to recall after one demonstration), not a precondition.
+
+### Lab console + two model fixes (2026-10-01)
+- **Lab console** (`python -m ui`): a local, offline web app with a Live view (five scenarios
+  running on the real engine, with brain panels, live parameters, an event log and
+  record-to-replay) and a refreshed Replay view. It replaces the CDN-dependent Plotly replay
+  page. See the README section "Run the lab console locally" and `docs/decisions.md` DEC-3.
+- **Repeated-recall claim corrected and fixed** (G12): the earlier "keeps reaching" claim was
+  overstated (one arm timed out on trial 4). The cause was a too-narrow value lookahead, now
+  widened; 6/6 recalls across 5 seeds in both arms.
+- **Reward-shaping bug fixed** (G13), found by watching the console: eating food, or a beacon
+  hopping, was charged as a −2 to −14 reward. Foraging and the hazard field improve. Beacon
+  chasing gets worse at the default memory steering (perseveration on old beacon spots), which
+  is documented rather than tuned away.
+- **Still worth doing next:** the model is very sensitive to memory steering (`value_gain`),
+  with different scenarios preferring very different values. Fatigue also degrades path
+  integration quickly (drift of several metres after one gate-narrowing episode). Both are
+  easy to explore in the console and are good candidates for the next modelling pass.
