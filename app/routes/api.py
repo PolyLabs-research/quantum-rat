@@ -9,8 +9,7 @@ from flask import current_app, jsonify, request
 from app.routes import bp
 from core.engine import Engine
 from metrics.hash import RunHash, tick_hash
-from tests.determinism.test_trace_hash import BASELINE_PATH, DEFAULT_TICKS
-from tests.determinism.trace import generate_trace
+from core.determinism import BASELINE_PATH, DEFAULT_TICKS, generate_trace
 
 
 class EngineState:

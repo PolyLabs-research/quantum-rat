@@ -186,6 +186,7 @@ class Engine:
             score=ctx.score,
             kappa=ctx.kappa,
             avalanche_size=ctx.avalanche_size,
+            criticality_active=ctx.criticality_active,
             neuromodulators=ctx.neuromodulators,
             atp=ctx.atp,
             glycogen=ctx.glycogen,

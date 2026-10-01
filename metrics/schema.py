@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Tuple
 
-SCHEMA_VERSION = "2.1.4"
+SCHEMA_VERSION = "2.1.5"
 
 
 @dataclass
