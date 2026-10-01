@@ -17,7 +17,7 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
   - [~] Document exact command + seed — cut (DEC-1)
 
 ## 1) Repo skeleton matches v2.1 spec (Milestone 0.1)
-- [x] Directory tree exists: `app/ core/ brain/ experiments/ metrics/ tests/ docs/`
+- [x] Directory tree exists: `core/ brain/ experiments/ metrics/ tournaments/ agents/ analysis/ ui/ tests/ docs/` (the original `app/` server was later removed — see `docs/decisions.md` DEC-2)
 - [x] Imports resolve (no circular deps)
 - [x] Placeholder README updated to point to v2.1 spec + backlog
 
@@ -40,12 +40,12 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 - [x] Deterministic world stepping (`core/world.py`, `core/entities.py`)
 - [x] Sensors produce normalized Observation (`core/sensors.py`, `brain/contracts.py`) — proof: `artifacts/agentC_observation_proof.md`
 - [x] Observation includes egomotion/proprioception (no position cheating) — real egomotion test in `tests/egomotion/test_egomotion_stub.py`
-  - Note: vision/whisker/pain channels are currently noise and the world has no features, so the perception loop is open. Tracked in `RECOMMENDATIONS.md` (close-the-loop).
+  - Done (2026-10-01): the perception loop is now closed. Sensors raycast real world geometry (walls + `WorldObject` targets/hazards) and the brain steers on it; proof is `tests/experiments/test_beacon_perception.py` (a sighted agent reaches a beacon, a blind one does not). See `docs/decisions.md` G2.
 
 ## 6) Physiology + neuromodulation (Milestone 2)
 - [x] ATP/glycogen dynamics implemented, logged in TickData (`core/physiology.py`)
 - [x] DA/5HT/NE/ACh updates deterministic + logged (`core/neuromodulation.py`)
-  - Note: neuromodulators are logged but inert (no downstream coupling); physiology drains to collapse under constant demand. Tracked in `RECOMMENDATIONS.md`.
+  - Partly done (2026-10-01): physiology no longer collapses — effort-scaled demand + glycogen regeneration give a sustainable rest state (`tests/physiology/test_energy_equilibrium.py`). Neuromodulators are still logged but inert (no downstream coupling); tracked in `RECOMMENDATIONS.md` (LATER).
 
 ## 7) Criticality core (Milestone 3 — highest priority)
 - [x] CriticalityField lattice implemented (`brain/systems/criticality.py`)
@@ -70,13 +70,13 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 - [x] Headless experiment runner works (`experiments/runner.py`, `tests/experiments/test_protocol_lifecycle.py`) — proof: `artifacts/agentG_milestone6_proof.md`, `artifacts/agentH_milestone6_proof.md`
 - [x] Open Field / T-Maze / Water Maze / Survival implemented as protocols (`experiments/protocols/`)
 - [x] Flask UI reads from Engine history / run logs (no direct World access) — replay GUI proof: `artifacts/agentR_replay_gui_proof.md`
-  - Note: assay position references are inconsistent (t_maze scores off the internal estimate `grid_x`, others off true `pos`). Tracked in `RECOMMENDATIONS.md`.
+  - Done (2026-10-01): assay position references are now consistent — t_maze scores off true `pos`, like the other assays. A `beacon` assay was added that genuinely depends on sensing its target.
 
 ## 11) Agent container + tournaments (Milestone 7)
 - [x] AgentDNA + Agent container implemented (`agents/dna.py`, `agents/agent.py`) — proof: `artifacts/agentJ_milestone7_proof.md`
 - [x] TournamentManager runs N agents fairly + reproducibly (`tests/tournaments/test_fairness.py`, `test_tournament_determinism.py`)
 - [x] Leaderboard output stable under same seed (`tests/tournaments/`)
-  - Note: `Agent.configure_engine` is currently a no-op, so AgentDNA parameters are never applied — agents do not yet differ behaviourally and the leaderboard reflects RNG offset, not genome. `generate_population` also ignores its `seed`. Tracked in `RECOMMENDATIONS.md` (the make-DNA-real unlock).
+  - Done (2026-10-01): `Agent.configure_engine` now applies DNA to the basal-ganglia config (read every tick via the `EngineConfig` seam), so genes change behaviour and the leaderboard spreads across agents; `generate_population` now uses its `seed`. Proof: `tests/tournaments/test_dna_effect.py`.
 
 ## 12) Regression + analysis tooling (Milestone 8)
 - [x] Regression harness exists and compares against a committed v2 baseline (`regression/run_regression.py`, `regression/compare.py`, `regression/baseline/`) — proof: `artifacts/agentL_regression_proof.md`. Legacy comparison cut (DEC-1).

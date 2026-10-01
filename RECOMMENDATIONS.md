@@ -218,3 +218,44 @@ README, and the spec to it. If you choose the scientific framing, the "NEXT" and
 are the gap you are committing to close. If you choose the sandbox framing, you are most of the way done
 and the honest relabelling is cheap. Either is a fine project. The only bad option is leaving the gap
 undeclared.
+
+---
+
+## Progress update (2026-10-01)
+
+The findings above are the original review. The **NOW** and **NEXT** lists have since
+been implemented on this branch; the **LATER** list remains open.
+
+### NOW — done
+- CI/deps fixed: `pytest` added, duplicate Flask removed, unused `scipy`/`numpy`/`tabulate`
+  dropped (`pyarrow` kept for Parquet); CI runs `python -m pytest`.
+- Legacy zip removed; v1 preserved at commit `0b81d62` (tag `legacy-v0.9`). Generated
+  outputs untracked and gitignored.
+- Spec exported to `docs/spec.md`; `CHECKLIST_V2.md` reconciled; decisions recorded.
+- Stale xfail replaced with real egomotion tests; `criticality_active` now logged (was
+  silently 0); determinism helpers moved to `core/determinism.py`.
+
+### NEXT — done (the unlock)
+- **EngineConfig seam** (`core/config.py`): every subsystem is now configurable; the brain
+  reads `config.basal_ganglia` each tick.
+- **Perception loop closed**: the World holds `WorldObject` targets/hazards, sensors raycast
+  real geometry (vision/pain/whiskers), and the basal ganglia steer toward visible targets
+  and away from walls. A new `beacon` assay plus `tests/experiments/test_beacon_perception.py`
+  prove a sighted agent reaches the target and a blind one does not.
+- **AgentDNA wired end-to-end**: `configure_engine` applies genes to behaviour, the leaderboard
+  spreads across agents, and `generate_population` uses its seed
+  (`tests/tournaments/test_dna_effect.py`).
+- **Energy equilibrium**: effort-scaled demand + glycogen regeneration — a resting agent
+  sustains, sustained effort still triggers microsleep (`tests/physiology/test_energy_equilibrium.py`).
+- **Assay positions consistent**: `t_maze` now scores off true `pos`.
+- **Vestigial `app/` server removed** (see `docs/decisions.md` DEC-2).
+
+Test count went from 40 to 50, all passing.
+
+### LATER — still open (earn the science claims)
+- Make the criticality κ/avalanche metrics correct and re-derive a non-trivial sweep assertion.
+- Make neuromodulators causal (they are still logged but inert) and give replay a plastic
+  substrate to consolidate — or relabel both as toys.
+- Add behavioural assertions to the other assays (does t_maze beat chance? does path
+  integration track truth?), and wire the regression harness into CI.
+- Decide and state, in the README, whether this is an engineering sandbox or a scientific model.

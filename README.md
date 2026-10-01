@@ -25,15 +25,19 @@ This repo is built around strict boundaries and reproducibility:
 * **Spatial system** driven purely by egomotion (HD + grid integrator + place id).
 * **Working memory** (bounded) + deterministic basal ganglia action selection.
 * **Action-driven world movement** (no random wandering).
+* **Closed perception loop:** sensors raycast real world geometry (walls + `WorldObject`
+  targets/hazards); the brain steers toward visible targets and away from walls.
+* **`EngineConfig` seam** (`core/config.py`): every subsystem is tunable without editing source.
 
 ### Assays / Protocols (headless)
+* `beacon` — navigate to a visible target (a direct test that sensing drives behaviour)
 * `open_field`
 * `t_maze`
 * `morris_water_maze`
 * `survival_arena`
 
 ### Tournaments
-* **AgentDNA** + deterministic fingerprinting.
+* **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.
 * **TournamentManager** + CLI runner.
 * **Fairness:** Same environment/protocol seeds across agents; only agent offsets differ.
 * **Stable leaderboard** ordering with explicit tie-break.
