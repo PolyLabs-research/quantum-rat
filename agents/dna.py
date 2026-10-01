@@ -21,15 +21,21 @@ class AgentDNA:
         return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
 def generate_population(seed: int, n: int) -> list[AgentDNA]:
+    """Generate a deterministic population of agents.
+
+    A structured sweep of ``exploration_bias`` spans the population, and the
+    seed adds reproducible per-agent jitter so different seeds yield different
+    (but still deterministic) populations.
     """
-    Generates a deterministic population of agents.
-    NOTE: seed is currently unused, but kept for future compatibility.
-    """
+    from core.rng import RNG
+
+    rng = RNG(seed=seed).stream("population")
     population = []
     for i in range(n):
-        exploration_bias = i / (n - 1) if n > 1 else 0.5
+        base = i / (n - 1) if n > 1 else 0.5
+        exploration_bias = min(1.0, max(0.0, base + rng.uniform(-0.1, 0.1)))
         pain_avoidance = 1.0 - exploration_bias
-        turn_bias = (-1)**i * 0.1
+        turn_bias = rng.uniform(-0.2, 0.2)
 
         population.append(
             AgentDNA(
