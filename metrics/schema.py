@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Tuple
 
-SCHEMA_VERSION = "2.1.5"
+SCHEMA_VERSION = "2.1.6"
 
 
 @dataclass
@@ -23,6 +23,7 @@ class TickData:
     criticality_active: int = 0
     atp: float = 0.0
     glycogen: float = 0.0
+    reward: float = 0.0
     neuromodulators: Dict[str, float] = field(default_factory=dict)
     # Observation summary
     obs_forward_delta: float = 0.0

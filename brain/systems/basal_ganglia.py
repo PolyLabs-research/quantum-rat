@@ -47,6 +47,7 @@ def _channel_scores(
     trn_gain: float,
     microsleep_active: bool,
     config: BasalGangliaConfig,
+    dopamine: float,
 ) -> Dict[str, float]:
     if microsleep_active:
         return {"REST": 1.0}
@@ -54,11 +55,15 @@ def _channel_scores(
     pain = observation.pain_signal
     c_target, c_wall, l_target, r_target, l_open, r_open = _vision_signals(observation)
 
+    # Dopamine modulates exploration: below-baseline dopamine (worse-than-expected
+    # reward) boosts the novelty-seeking drive; above-baseline damps it.
+    novelty_gain = config.novelty_gain * (1.0 + config.dopamine_explore_gain * (0.5 - dopamine))
+
     scores: Dict[str, float] = {}
     scores["FORWARD"] = (
         config.forward_bias * trn_gain
         - config.pain_avoidance * pain
-        + config.novelty_gain * wm_novelty
+        + novelty_gain * wm_novelty
         + config.vision_gain * c_target
         - config.wall_avoid_gain * c_wall
     )
@@ -86,9 +91,10 @@ def select_action(
     trn_gain: float,
     microsleep_active: bool,
     config: Optional[BasalGangliaConfig] = None,
+    dopamine: float = 0.5,
 ) -> Action:
     config = config if config is not None else BasalGangliaConfig()
-    scores = _channel_scores(observation, wm_novelty, trn_gain, microsleep_active, config)
+    scores = _channel_scores(observation, wm_novelty, trn_gain, microsleep_active, config, dopamine)
     # Deterministic tie-break order.
     order = ["FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST"]
     best = max(order, key=lambda name: (scores.get(name, float("-inf")), -order.index(name)))

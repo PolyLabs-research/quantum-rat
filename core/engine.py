@@ -10,6 +10,7 @@ from brain.systems.basal_ganglia import select_action
 from brain.systems.criticality import CriticalityField
 from brain.systems.spatial import SpatialSystem
 from brain.systems.trn_microsleep_replay import TRNGate
+from brain.systems.value_memory import ValueMemory
 from brain.systems.working_memory import WorkingMemory
 from core.config import EngineConfig
 from core.entities import Agent
@@ -53,6 +54,7 @@ class EngineContext:
     action_turn: float = 0.0
     atp: float = 0.0
     glycogen: float = 0.0
+    reward: float = 0.0
     energy_scale: float = 1.0
     protocol_name: str = "no_op"
     trial_number: int = 1
@@ -88,7 +90,15 @@ class Engine:
             glycogen_regen=c.astrocyte.glycogen_regen,
             atp_floor=c.astrocyte.atp_floor,
         )
-        self.neuromod_system = NeuromodulatorSystem(drift=c.neuromod.drift)
+        self.neuromod_system = NeuromodulatorSystem(
+            reward_lr=c.neuromod.reward_lr, rpe_scale=c.neuromod.rpe_scale
+        )
+        self.value_memory = ValueMemory(
+            learning_rate=c.value_memory.learning_rate,
+            discount=c.value_memory.discount,
+            capacity=c.value_memory.capacity,
+        )
+        self._prev_target_dist: float | None = None
         self.criticality = CriticalityField(stream=self.streams["criticality"], config=c.criticality)
         self.trn_gate = TRNGate(
             trigger_atp=c.trn.trigger_atp,
@@ -171,6 +181,11 @@ class Engine:
         ctx.replay_active = replay_active
         ctx.replay_index = replay_index
 
+        # Offline consolidation: replay propagates value backward along the
+        # trajectory (only during microsleep, via the same replay gating).
+        if replay_active:
+            self.value_memory.replay_transition(replay_index)
+
     def _spatial_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
             raise RuntimeError("Observation missing before spatial step")
@@ -188,18 +203,46 @@ class Engine:
         ctx.wm_load = wm_state.load
         ctx.wm_novelty = wm_state.novelty
 
+    def _nearest_target_distance(self, pos: Tuple[float, float]) -> float | None:
+        targets = [o for o in self.world.objects if o.kind == "target"]
+        if not targets:
+            return None
+        return min(
+            ((pos[0] - o.x) ** 2 + (pos[1] - o.y) ** 2) ** 0.5 - o.radius for o in targets
+        )
+
+    def _compute_reward(self, ctx: EngineContext) -> float:
+        r = self.config.reward
+        pain = ctx.observation.pain_signal if ctx.observation else 0.0
+        reward = -r.pain_weight * pain
+        dist = self._nearest_target_distance(ctx.pos)
+        if dist is not None:
+            if self._prev_target_dist is not None:
+                reward += r.approach_weight * (self._prev_target_dist - dist)
+            if dist <= 0.0:
+                reward += r.contact_bonus
+            self._prev_target_dist = dist
+        return reward
+
     def _brain_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
             raise RuntimeError("Observation missing before brain step")
-        ctx.neuromodulators = self.neuromod_system.update(self.streams["neuromod"], throttle=ctx.energy_scale)
 
-        # Deterministic action selection
+        ctx.reward = self._compute_reward(ctx)
+        ctx.neuromodulators = self.neuromod_system.update(
+            reward=ctx.reward, novelty=ctx.wm_novelty, pain=ctx.observation.pain_signal
+        )
+        # Plasticity: value of the current place moves toward reward received there.
+        self.value_memory.record(ctx.place_id, ctx.reward)
+
+        # Deterministic action selection; dopamine modulates exploration.
         action = select_action(
             observation=ctx.observation,
             wm_novelty=ctx.wm_novelty,
             trn_gain=ctx.trn_gate_value,
             microsleep_active=ctx.microsleep_active,
             config=self.config.basal_ganglia,
+            dopamine=ctx.neuromodulators.get("DA", 0.5),
         )
         self.last_action = action
         ctx.action_name = action.name
@@ -219,6 +262,7 @@ class Engine:
             neuromodulators=ctx.neuromodulators,
             atp=ctx.atp,
             glycogen=ctx.glycogen,
+            reward=ctx.reward,
             obs_forward_delta=ctx.observation.forward_delta if ctx.observation else 0.0,
             obs_turn_delta=ctx.observation.turn_delta if ctx.observation else 0.0,
             obs_pain=ctx.observation.pain_signal if ctx.observation else 0.0,
@@ -246,6 +290,7 @@ class Engine:
         if reset or not hasattr(self, "_ctx"):
             self._ctx = EngineContext(tick=-1)
             self.last_action = Action(name="REST", thrust=0.0, turn=0.0)
+            self._prev_target_dist = None
         ctx: EngineContext = self._ctx
         trace: List[TickData] = []
         for _ in range(ticks):

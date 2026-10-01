@@ -1,7 +1,7 @@
 {
   "seed": 1337,
   "ticks": 200,
-  "schema_version": "2.1.5",
+  "schema_version": "2.1.6",
   "generated_by": "update_determinism_baseline.py",
-  "generated_at_utc": "2026-10-01T17:41:32.178724+00:00"
+  "generated_at_utc": "2026-10-01T17:48:01.146108+00:00"
 }

@@ -56,7 +56,22 @@ class AstrocyteConfig:
 
 @dataclass
 class NeuromodConfig:
-    drift: float = 0.05
+    reward_lr: float = 0.1  # EMA rate for expected reward (dopamine RPE baseline)
+    rpe_scale: float = 1.0  # reward-prediction-error scale for dopamine
+
+
+@dataclass
+class RewardConfig:
+    approach_weight: float = 1.0  # reward per unit distance closed toward the nearest target
+    contact_bonus: float = 1.0  # reward for touching a target
+    pain_weight: float = 1.0  # penalty per unit pain signal
+
+
+@dataclass
+class ValueMemoryConfig:
+    learning_rate: float = 0.2
+    discount: float = 0.9
+    capacity: int = 200  # trajectory length retained for replay
 
 
 @dataclass
@@ -92,6 +107,7 @@ class BasalGangliaConfig:
     turn_bias: float = 0.0  # constant bias: >0 favours TURN_LEFT, <0 favours TURN_RIGHT
     vision_gain: float = 0.6  # drive toward a visible target (0 => blind to vision)
     wall_avoid_gain: float = 0.6  # drive to turn away from a close wall ahead
+    dopamine_explore_gain: float = 0.6  # how strongly low dopamine boosts exploration
 
 
 @dataclass
@@ -102,6 +118,8 @@ class EngineConfig:
     sensors: SensorConfig = field(default_factory=SensorConfig)
     astrocyte: AstrocyteConfig = field(default_factory=AstrocyteConfig)
     neuromod: NeuromodConfig = field(default_factory=NeuromodConfig)
+    reward: RewardConfig = field(default_factory=RewardConfig)
+    value_memory: ValueMemoryConfig = field(default_factory=ValueMemoryConfig)
     criticality: CriticalityConfig = field(default_factory=CriticalityConfig)
     spatial: SpatialConfig = field(default_factory=SpatialConfig)
     trn: TRNConfig = field(default_factory=TRNConfig)
@@ -114,6 +132,8 @@ __all__ = [
     "SensorConfig",
     "AstrocyteConfig",
     "NeuromodConfig",
+    "RewardConfig",
+    "ValueMemoryConfig",
     "SpatialConfig",
     "TRNConfig",
     "WorkingMemoryConfig",
