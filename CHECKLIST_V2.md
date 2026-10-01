@@ -10,7 +10,7 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 > hidden by a ticked box.
 
 ## 0) Legacy preservation + baseline capture
-- [x] Preserve legacy state — v1 is tagged `legacy-v0.9` (commit `0b81d62`, last commit with the monolithic `app.py`). The old `critical-rat.zip` was a 421 KB archive of the same commit and has been removed. Recover v1 with `git checkout legacy-v0.9`.
+- [x] Preserve legacy state — the v1 source lives in git history at commit `0b81d62` (the last commit with the monolithic `app.py`, reachable from `main`). The old `critical-rat.zip` was a 421 KB archive of that same commit and has been removed. Recover v1 with `git checkout 0b81d62`. A local tag `legacy-v0.9` marks it; run `git push origin legacy-v0.9` to publish the friendly name (the automated session could not push tag refs — GitHub returned 403).
 - [~] Capture legacy baseline trace for drift comparison — **CUT.** v2 is a fresh model, not a port; no v1 drift gate. See `docs/decisions.md` DEC-1.
   - [~] Run legacy for 2000 frames in deterministic mode — cut (DEC-1)
   - [~] Save `tests/fixtures/legacy_baseline.json` — cut (DEC-1)
