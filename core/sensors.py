@@ -1,15 +1,23 @@
-"""Sensor outputs and Observation construction."""
+"""Sensor outputs and Observation construction.
+
+Vision, whiskers and pain are computed from real world geometry (walls and
+circular objects), not from noise. Egomotion stays derived from the agent's
+own motion. Sensors are allowed to read the World (that is their job); the
+Brain only ever sees the resulting immutable Observation.
+"""
 
 from __future__ import annotations
 
 import hashlib
 import math
 from dataclasses import asdict
-from typing import Iterable, Tuple
+from typing import List, Optional, Tuple
 
 from brain.contracts import Observation, VisionRay
+from core.config import SensorConfig
 from core.entities import Agent
 from core.rng import RNGStream
+from core.world import World
 
 
 def _normalize(value: float, low: float, high: float) -> float:
@@ -27,21 +35,109 @@ def _compute_egomotion(agent: Agent) -> Tuple[float, float]:
     return _normalize(distance, -1.0, 1.0), _normalize(turn_delta, -math.pi, math.pi)
 
 
-def gather_observation(agent: Agent, vision_stream: RNGStream, noise_stream: RNGStream) -> Observation:
-    """Collect normalized sensor outputs for the agent."""
-    rays = tuple(
-        VisionRay(
-            dist=_normalize(vision_stream.uniform(0.0, 1.0), 0.0, 1.0),
-            obj_type="",
-            angle=_normalize(vision_stream.uniform(-math.pi, math.pi), -math.pi, math.pi),
-        )
-        for _ in range(3)
-    )
-    whisker_hits = (noise_stream.random() > 0.8, noise_stream.random() > 0.8)
-    pain_signal = _normalize(noise_stream.uniform(0.0, 1.0), 0.0, 1.0)
+def _ray_wall_distance(px: float, py: float, dx: float, dy: float, bounds: Tuple[float, float]) -> float:
+    """Distance to the bounding box exit for a ray starting inside the box."""
+    bx, by = bounds
+    best = math.inf
+    if dx > 1e-12:
+        best = min(best, (bx - px) / dx)
+    elif dx < -1e-12:
+        best = min(best, (-bx - px) / dx)
+    if dy > 1e-12:
+        best = min(best, (by - py) / dy)
+    elif dy < -1e-12:
+        best = min(best, (-by - py) / dy)
+    return max(0.0, best)
+
+
+def _ray_circle_distance(
+    px: float, py: float, dx: float, dy: float, cx: float, cy: float, r: float
+) -> Optional[float]:
+    """Nearest non-negative distance along a unit ray to a circle, or None."""
+    ox, oy = px - cx, py - cy
+    c = ox * ox + oy * oy - r * r
+    if c <= 0.0:
+        return 0.0  # starting inside the circle
+    b = 2.0 * (dx * ox + dy * oy)
+    disc = b * b - 4.0 * c
+    if disc < 0.0:
+        return None
+    sqrt_disc = math.sqrt(disc)
+    t1 = (-b - sqrt_disc) / 2.0
+    if t1 >= 0.0:
+        return t1
+    t2 = (-b + sqrt_disc) / 2.0
+    if t2 >= 0.0:
+        return t2
+    return None
+
+
+def _cast_ray(agent: Agent, world: World, rel_angle: float, max_range: float) -> Tuple[float, str]:
+    """Cast one ray; return (normalized distance in [0,1], object kind or "")."""
+    phi = agent.heading + rel_angle
+    dx, dy = math.cos(phi), math.sin(phi)
+    px, py = agent.pos
+    nearest = _ray_wall_distance(px, py, dx, dy, world.bounds)
+    kind = "wall"
+    for obj in world.objects:
+        t = _ray_circle_distance(px, py, dx, dy, obj.x, obj.y, obj.radius)
+        if t is not None and t < nearest:
+            nearest = t
+            kind = obj.kind
+    if nearest > max_range:
+        return 1.0, ""  # nothing within sensing range
+    return _normalize(nearest / max_range, 0.0, 1.0), kind
+
+
+def _ray_angles(n: int, fov: float) -> List[float]:
+    if n <= 1:
+        return [0.0]
+    step = fov / (n - 1)
+    return [(-fov / 2.0) + step * i for i in range(n)]
+
+
+def _pain_from_hazards(agent: Agent, world: World, pain_zone: float) -> float:
+    px, py = agent.pos
+    pain = 0.0
+    for obj in world.objects:
+        if obj.kind != "hazard":
+            continue
+        surface = max(0.0, math.hypot(px - obj.x, py - obj.y) - obj.radius)
+        if surface < pain_zone:
+            pain = max(pain, 1.0 - surface / pain_zone)
+    return _normalize(pain, 0.0, 1.0)
+
+
+def gather_observation(
+    agent: Agent,
+    world: Optional[World] = None,
+    *,
+    config: Optional[SensorConfig] = None,
+    vision_stream: Optional[RNGStream] = None,
+    noise_stream: Optional[RNGStream] = None,
+) -> Observation:
+    """Collect normalized sensor outputs for the agent from world geometry."""
+    world = world if world is not None else World()
+    config = config if config is not None else SensorConfig()
+
+    rays = []
+    for angle in _ray_angles(config.vision_rays, config.fov):
+        dist, kind = _cast_ray(agent, world, angle, config.vision_range)
+        if config.noise > 0.0 and vision_stream is not None:
+            dist = _normalize(dist + vision_stream.uniform(-config.noise, config.noise), 0.0, 1.0)
+        rays.append(VisionRay(dist=dist, obj_type=kind, angle=_normalize(angle, -math.pi, math.pi)))
+
+    left = _cast_ray(agent, world, config.whisker_angle, config.vision_range)[0] * config.vision_range
+    right = _cast_ray(agent, world, -config.whisker_angle, config.vision_range)[0] * config.vision_range
+    whisker_hits = (left < config.whisker_range, right < config.whisker_range)
+
+    pain_signal = _pain_from_hazards(agent, world, config.pain_zone)
+    if config.noise > 0.0 and noise_stream is not None:
+        pain_signal = _normalize(pain_signal + noise_stream.uniform(-config.noise, config.noise), 0.0, 1.0)
+
     forward_delta, turn_delta = _compute_egomotion(agent)
     obs = Observation(
-        vision_rays=rays,
+        vision_rays=tuple(rays),
         whisker_hits=whisker_hits,
         pain_signal=pain_signal,
         forward_delta=forward_delta,
@@ -54,7 +150,7 @@ def gather_observation(agent: Agent, vision_stream: RNGStream, noise_stream: RNG
 def observation_checksum(obs: Observation) -> str:
     """Compute a stable checksum of an observation."""
     data = asdict(obs)
-    # Ensure deterministic ordering via sorted items of nested structures.
+
     def _normalize_obj(obj):
         if isinstance(obj, dict):
             return {k: _normalize_obj(obj[k]) for k in sorted(obj)}

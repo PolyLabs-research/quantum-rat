@@ -11,6 +11,7 @@ from brain.systems.criticality import CriticalityField
 from brain.systems.spatial import SpatialSystem
 from brain.systems.trn_microsleep_replay import TRNGate
 from brain.systems.working_memory import WorkingMemory
+from core.config import EngineConfig
 from core.entities import Agent
 from core.neuromodulation import NeuromodulatorSystem
 from core.physiology import Astrocyte
@@ -61,9 +62,11 @@ class EngineContext:
 class Engine:
     """No-op engine scaffold; emits TickData each tick."""
 
-    def __init__(self, seed: int, *, agent_offset: int = 0) -> None:
+    def __init__(self, seed: int, *, agent_offset: int = 0, config: EngineConfig | None = None) -> None:
         self.seed = seed
         self.agent_offset = agent_offset
+        self.config = config or EngineConfig()
+        c = self.config
         self.rng = RNG(seed=seed, agent_offset=agent_offset)
         self.streams: Dict[str, RNGStream] = {
             "neuromod": self.rng.stream("neuromod"),
@@ -71,15 +74,34 @@ class Engine:
             "sensors_vision": self.rng.stream("sensors_vision"),
             "sensors_noise": self.rng.stream("sensors_noise"),
         }
-        self.world = World()
+        self.world = World(bounds=c.world.bounds)
         self.agent = Agent(id=agent_offset, pos=(0.0, 0.0))
         self.world.add_agent(self.agent)
-        self.astrocyte = Astrocyte()
-        self.neuromod_system = NeuromodulatorSystem()
-        self.criticality = CriticalityField(stream=self.streams["criticality"])
-        self.trn_gate = TRNGate()
-        self.spatial = SpatialSystem()
-        self.working_memory = WorkingMemory()
+        self.astrocyte = Astrocyte(
+            atp=c.astrocyte.atp,
+            glycogen=c.astrocyte.glycogen,
+            glycogen_max=c.astrocyte.glycogen_max,
+            atp_baseline=c.astrocyte.atp_baseline,
+            atp_cost=c.astrocyte.atp_cost,
+            glycogen_to_atp_yield=c.astrocyte.glycogen_to_atp_yield,
+            glycogen_recharge=c.astrocyte.glycogen_recharge,
+            glycogen_regen=c.astrocyte.glycogen_regen,
+            atp_floor=c.astrocyte.atp_floor,
+        )
+        self.neuromod_system = NeuromodulatorSystem(drift=c.neuromod.drift)
+        self.criticality = CriticalityField(stream=self.streams["criticality"], config=c.criticality)
+        self.trn_gate = TRNGate(
+            trigger_atp=c.trn.trigger_atp,
+            trigger_streak=c.trn.trigger_streak,
+            duration=c.trn.duration,
+            recovery_atp=c.trn.recovery_atp,
+            recovery_streak_needed=c.trn.recovery_streak_needed,
+            replay_window=c.trn.replay_window,
+        )
+        self.spatial = SpatialSystem(
+            turn_gain=c.spatial.turn_gain, decay=c.spatial.decay, bin_size=c.spatial.bin_size
+        )
+        self.working_memory = WorkingMemory(capacity=c.working_memory.capacity)
         self.last_action: Action = Action(name="REST", thrust=0.0, turn=0.0)
         self.pipeline = Pipeline(
             handlers={
@@ -100,7 +122,10 @@ class Engine:
         ctx.tick_data = None
 
     def _physiology_step(self, ctx: EngineContext) -> None:
-        ctx.energy_scale = self.astrocyte.tick()
+        # Demand scales with the agent's current effort so rest is cheap.
+        a = self.config.astrocyte
+        demand = a.rest_demand + a.motion_demand * min(1.0, abs(self.last_action.thrust))
+        ctx.energy_scale = self.astrocyte.tick(demand=demand)
         ctx.atp = self.astrocyte.atp
         ctx.glycogen = self.astrocyte.glycogen
 
@@ -111,7 +136,11 @@ class Engine:
 
     def _sensors_step(self, ctx: EngineContext) -> None:
         obs = gather_observation(
-            self.agent, vision_stream=self.streams["sensors_vision"], noise_stream=self.streams["sensors_noise"]
+            self.agent,
+            self.world,
+            config=self.config.sensors,
+            vision_stream=self.streams["sensors_vision"],
+            noise_stream=self.streams["sensors_noise"],
         )
         ctx.observation = obs
         ctx.observation_checksum = observation_checksum(obs)
@@ -170,7 +199,7 @@ class Engine:
             wm_novelty=ctx.wm_novelty,
             trn_gain=ctx.trn_gate_value,
             microsleep_active=ctx.microsleep_active,
-            place_id=ctx.place_id,
+            config=self.config.basal_ganglia,
         )
         self.last_action = action
         ctx.action_name = action.name
