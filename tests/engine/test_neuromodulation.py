@@ -40,3 +40,48 @@ def test_engine_dopamine_responds_to_reaching_a_target():
         if proto.is_done(engine, tick, i):
             break
     assert max(das) > 0.5  # dopamine rose as the agent approached and reached the beacon
+
+
+# --- Neuromodulators as control signals (NE/ACh/5HT now change behaviour) ---
+
+from brain.contracts import Observation, VisionRay  # noqa: E402
+from brain.systems.basal_ganglia import _channel_scores  # noqa: E402
+from core.config import BasalGangliaConfig  # noqa: E402
+
+
+def _obs_target_and_pain():
+    return Observation(
+        vision_rays=(VisionRay(0.3, "target", 0.5), VisionRay(0.9, "wall", 0.0), VisionRay(0.9, "wall", -0.5)),
+        whisker_hits=(False, False),
+        pain_signal=0.5,
+        forward_delta=0.0,
+        turn_delta=0.0,
+    )
+
+
+def test_acetylcholine_sharpens_vision_precision():
+    cfg, obs = BasalGangliaConfig(), _obs_target_and_pain()
+    base = _channel_scores(obs, 0.0, 1.0, False, cfg, {})
+    ach = _channel_scores(obs, 0.0, 1.0, False, cfg, {"ACh": 1.0})
+    assert ach["TURN_LEFT"] > base["TURN_LEFT"]  # the target-driven turn is strengthened
+
+
+def test_norepinephrine_raises_threat_response():
+    cfg, obs = BasalGangliaConfig(), _obs_target_and_pain()
+    base = _channel_scores(obs, 0.0, 1.0, False, cfg, {})
+    ne = _channel_scores(obs, 0.0, 1.0, False, cfg, {"NE": 1.0})
+    assert ne["REST"] > base["REST"]
+
+
+def test_serotonin_raises_patience():
+    cfg, obs = BasalGangliaConfig(), _obs_target_and_pain()
+    base = _channel_scores(obs, 0.0, 1.0, False, cfg, {})
+    ht = _channel_scores(obs, 0.0, 1.0, False, cfg, {"5HT": 1.0})
+    assert ht["REST"] > base["REST"]
+
+
+def test_baseline_modulator_levels_are_noops():
+    cfg, obs = BasalGangliaConfig(), _obs_target_and_pain()
+    assert _channel_scores(obs, 0.0, 1.0, False, cfg, {}) == _channel_scores(
+        obs, 0.0, 1.0, False, cfg, {"DA": 0.5, "NE": 0.0, "ACh": 0.0, "5HT": 0.5}
+    )

@@ -108,6 +108,11 @@ class BasalGangliaConfig:
     vision_gain: float = 0.6  # drive toward a visible target (0 => blind to vision)
     wall_avoid_gain: float = 0.6  # drive to turn away from a close wall ahead
     dopamine_explore_gain: float = 0.6  # how strongly low dopamine boosts exploration
+    # Neuromodulator control couplings (0 disables; defaults are no-ops at baseline
+    # modulator levels NE=0, ACh=0, 5HT=0.5, so default behaviour is unchanged).
+    ach_precision_gain: float = 0.5  # acetylcholine sharpens sensory (vision) precision
+    ne_threat_gain: float = 0.5  # norepinephrine raises arousal / threat sensitivity
+    fiveht_patience_gain: float = 0.4  # serotonin raises patience (willingness to rest)
 
 
 @dataclass

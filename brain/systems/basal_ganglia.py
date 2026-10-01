@@ -47,7 +47,7 @@ def _channel_scores(
     trn_gain: float,
     microsleep_active: bool,
     config: BasalGangliaConfig,
-    dopamine: float,
+    modulators: Dict[str, float],
 ) -> Dict[str, float]:
     if microsleep_active:
         return {"REST": 1.0}
@@ -55,33 +55,45 @@ def _channel_scores(
     pain = observation.pain_signal
     c_target, c_wall, l_target, r_target, l_open, r_open = _vision_signals(observation)
 
-    # Dopamine modulates exploration: below-baseline dopamine (worse-than-expected
-    # reward) boosts the novelty-seeking drive; above-baseline damps it.
-    novelty_gain = config.novelty_gain * (1.0 + config.dopamine_explore_gain * (0.5 - dopamine))
+    # Neuromodulatory control (all no-ops at baseline levels DA=0.5, NE=0, ACh=0, 5HT=0.5):
+    da = modulators.get("DA", 0.5)
+    ne = modulators.get("NE", 0.0)
+    ach = modulators.get("ACh", 0.0)
+    fiveht = modulators.get("5HT", 0.5)
+
+    # Dopamine: below-baseline (worse-than-expected reward) boosts exploration.
+    novelty_gain = config.novelty_gain * (1.0 + config.dopamine_explore_gain * (0.5 - da))
+    # Acetylcholine: sharpens sensory precision (trust vision more under uncertainty).
+    vision_gain = config.vision_gain * (1.0 + config.ach_precision_gain * ach)
+    # Norepinephrine: arousal raises threat sensitivity (pain avoidance / freezing).
+    pain_avoidance = config.pain_avoidance * (1.0 + config.ne_threat_gain * ne)
+    rest_pain_gain = config.rest_pain_gain * (1.0 + config.ne_threat_gain * ne)
+    # Serotonin: mood above baseline raises patience (willingness to rest / wait).
+    rest_patience = config.fiveht_patience_gain * (fiveht - 0.5)
 
     scores: Dict[str, float] = {}
     scores["FORWARD"] = (
         config.forward_bias * trn_gain
-        - config.pain_avoidance * pain
+        - pain_avoidance * pain
         + novelty_gain * wm_novelty
-        + config.vision_gain * c_target
+        + vision_gain * c_target
         - config.wall_avoid_gain * c_wall
     )
     # The 0.5 floor guarantees a turn (not a futile forward) when a wall is close
     # ahead but both sides read blocked, e.g. when pinned on a boundary.
     scores["TURN_LEFT"] = (
         0.3 * wm_novelty
-        + config.vision_gain * l_target
+        + vision_gain * l_target
         + max(config.turn_bias, 0.0)
         + config.wall_avoid_gain * c_wall * (0.5 + l_open)
     )
     scores["TURN_RIGHT"] = (
         0.3 * wm_novelty
-        + config.vision_gain * r_target
+        + vision_gain * r_target
         + max(-config.turn_bias, 0.0)
         + config.wall_avoid_gain * c_wall * (0.5 + r_open)
     )
-    scores["REST"] = config.rest_pain_gain * pain + 0.1 * (1.0 - trn_gain)
+    scores["REST"] = rest_pain_gain * pain + 0.1 * (1.0 - trn_gain) + rest_patience
     return scores
 
 
@@ -91,10 +103,11 @@ def select_action(
     trn_gain: float,
     microsleep_active: bool,
     config: Optional[BasalGangliaConfig] = None,
-    dopamine: float = 0.5,
+    modulators: Optional[Dict[str, float]] = None,
 ) -> Action:
     config = config if config is not None else BasalGangliaConfig()
-    scores = _channel_scores(observation, wm_novelty, trn_gain, microsleep_active, config, dopamine)
+    modulators = modulators if modulators is not None else {}
+    scores = _channel_scores(observation, wm_novelty, trn_gain, microsleep_active, config, modulators)
     # Deterministic tie-break order.
     order = ["FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST"]
     best = max(order, key=lambda name: (scores.get(name, float("-inf")), -order.index(name)))

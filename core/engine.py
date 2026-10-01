@@ -242,7 +242,7 @@ class Engine:
             trn_gain=ctx.trn_gate_value,
             microsleep_active=ctx.microsleep_active,
             config=self.config.basal_ganglia,
-            dopamine=ctx.neuromodulators.get("DA", 0.5),
+            modulators=ctx.neuromodulators,
         )
         self.last_action = action
         ctx.action_name = action.name
