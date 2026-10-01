@@ -308,3 +308,7 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
   claimed (navigation time is not a monotonic function of sensory gain in the simple policy).
 - **Multi-landmark foraging assay added** (`experiments/protocols/foraging.py`): a sighted agent
   collects all scattered targets, a blind one almost none. The assay suite is no longer single-target.
+- **Repeated-recall erosion fixed**: the value map is now learned by online TD(0) (reward-on-arrival
+  + bootstrapping), so zero-reward recall steps reinforce the gradient instead of decaying it.
+  Repeated recall stays stable, and replay is correctly reframed as a data-efficiency speed-up
+  (~16 vs ~66 ticks to recall after one demonstration), not a precondition.

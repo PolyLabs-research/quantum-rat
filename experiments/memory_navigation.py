@@ -1,25 +1,33 @@
-"""Water-maze-style memory navigation: does replay let the agent return to a
-hidden goal from memory?
+"""Water-maze-style memory navigation, and what replay buys you.
 
 Paradigm (one agent, several trials, the brain's memory persists between them):
 
 1. **Trial 0 — goal visible.** Vision guides the agent to the goal, laying down
-   a trajectory and a reward at the goal place.
+   a trajectory and reward at the goal place.
 2. **Sleep.** Optionally (``replay=True``) the trajectory is replayed, which
-   consolidates the place-value map -- propagating value backward from the goal
+   consolidates the place-value map by propagating value backward from the goal
    along the path (see ``brain/systems/value_memory.py``).
 3. **Trials 1+ — goal hidden.** The goal is invisible to vision, so the agent
-   can only reach it by following the consolidated value map.
+   can only reach it by following the learned value map.
 
-With replay the agent navigates back to the hidden goal; without it (no
-consolidation) the thin online map does not generalise and the agent does not.
+Two findings, both robust across seeds:
+
+* **Repeated recall does not erode the map.** The value map is learned by
+  TD(0), so following the gradient on zero-reward steps reinforces it (bootstrap
+  on the successor) rather than decaying it toward the immediate zero reward.
+  An agent doing repeated hidden-recall trials keeps reaching the goal and gets
+  faster as it learns from experience.
+* **Replay is a data-efficiency speed-up, not a precondition.** After a single
+  demonstration, the replay agent recalls the hidden goal much sooner (~16
+  ticks) than the agent that learns online during the probe (~66 ticks). Both
+  reach it; replay just extracts more from one demonstration. (An earlier
+  version appeared to show replay as *necessary*, but that was an artifact of a
+  deficient online rule that decayed values toward immediate reward.)
 
 This runs at the engine's default spatial resolution and forward bias; it only
 turns up the value/memory system (higher ``value_gain`` so the map can steer
 against the forward drive, and ``generalization_radius`` so a single trajectory
-fills a followable 2-D value field via overlapping place fields). Without value
-generalization a lone trajectory is a thin one-cell path the agent falls off,
-so this is where spatial generalization earns its place.
+fills a followable 2-D value field via overlapping place fields).
 """
 
 from __future__ import annotations

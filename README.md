@@ -27,17 +27,17 @@ honestly at different stages of maturity:
   super-critical regimes. The perception loop is closed (vision/pain/whiskers come from real
   world geometry and drive behaviour). All four neuromodulators are causal: dopamine (reward-
   prediction error → exploration), norepinephrine (threat sensitivity), acetylcholine (sensory
-  precision), serotonin (patience). Replay consolidates a plastic place-value map via TD
-  backups, and the agent uses it for memory-guided navigation — in a water-maze-style assay
-  (`experiments/memory_navigation.py`) it returns to a hidden goal from memory with replay but
-  not without.
-  Place values generalise to neighbouring cells (overlapping place fields), so memory navigation
-  works at the engine's default spatial resolution and forward bias.
-  Criticality is coupled to cognition too: a near-critical cortical gain (peaking at κ≈1) scales
-  sensory precision, so the field is not just an instrumented side-process.
-* **Honest limits / in progress.** Repeated memory recall gradually erodes the consolidated map
-  (online recall learning muddies it), and whether the criticality gain improves a given behaviour
-  is task-dependent (navigation time is not a clean function of it).
+  precision), serotonin (patience). A plastic place-value map is learned by TD(0) and consolidated
+  by replay; the agent uses it for memory-guided navigation back to a now-hidden goal
+  (`experiments/memory_navigation.py`). Repeated recall reinforces the map rather than eroding it,
+  and replay is a data-efficiency speed-up (one demonstration + replay recalls in ~16 ticks vs ~66
+  for online learning alone). Place values generalise to neighbouring cells (overlapping place
+  fields), so this works at the engine's default spatial resolution and forward bias. Criticality
+  is coupled to cognition too: a near-critical cortical gain (peaking at κ≈1) scales sensory
+  precision, so the field is not just an instrumented side-process.
+* **Honest limits / in progress.** Whether the criticality gain improves a given behaviour is
+  task-dependent (navigation time is not a clean function of it), and the assays remain simple
+  single-episode or few-trial tasks.
 
 So: **this is not a validated model of a real rodent brain.** It's a place to build such
 models one defensible piece at a time, with the engineering guaranteeing that whatever you

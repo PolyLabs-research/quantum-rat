@@ -1,21 +1,30 @@
-"""A plastic place-value map consolidated by replay, with spatial generalization.
+"""A plastic place-value map learned by temporal-difference updates and replay.
 
 Each place cell ``(bx, by)`` (the spatial system's integer bin coordinates)
-carries a scalar value. Online, value moves toward the reward received there.
-During microsleep the recent trajectory is replayed as temporal-difference
-updates, propagating value *backward* from rewarding places to the places that
-precede them -- replay consolidation.
+carries a value: the expected (discounted) future reward from that place. Values
+are learned by TD(0): on each transition ``s -> s'`` with reward ``r`` received
+on arriving at ``s'``,
 
-Values generalize to neighbouring cells with a decaying kernel (overlapping
-place fields), so a single trajectory fills a smooth 2-D field the agent can
-follow instead of a thin one-cell-wide path. ``generalization_radius = 0``
-disables this and recovers an exact one-cell map.
+    V(s) <- V(s) + alpha * (r + gamma * V(s') - V(s))
+
+so a place that leads toward reward keeps a high value even on zero-reward
+steps (it bootstraps on its successor). This is what makes the map survive
+repeated memory recall: following the learned gradient *reinforces* it rather
+than decaying it toward the immediate (zero) reward -- the bug that an
+"update toward immediate reward" rule had.
+
+The same TD update is applied online (as the agent moves) and offline during
+microsleep replay (``replay_transition`` / ``consolidate``), which propagates
+value backward along the stored trajectory. Values generalize to neighbouring
+cells with a decaying kernel (overlapping place fields;
+``generalization_radius`` 0 disables it), so a single trajectory fills a
+followable 2-D field instead of a thin one-cell path.
 """
 
 from __future__ import annotations
 
 from collections import deque
-from typing import Deque, Dict, Iterable, Tuple
+from typing import Deque, Dict, Iterable, Optional, Tuple
 
 Cell = Tuple[int, int]
 
@@ -35,6 +44,7 @@ class ValueMemory:
         self.gen_falloff = generalization_falloff
         self.values: Dict[Cell, float] = {}
         self.trajectory: Deque[Tuple[Cell, float]] = deque(maxlen=capacity)
+        self._prev_cell: Optional[Cell] = None  # last place, for the online TD transition
 
     def _kernel(self, cell: Cell) -> Iterable[Tuple[Cell, float]]:
         """Yield (cell, weight) over a neighbourhood; just the centre if radius 0."""
@@ -45,24 +55,35 @@ class ValueMemory:
                 weight = self.gen_falloff ** (abs(dx) + abs(dy))
                 yield (bx + dx, by + dy), weight
 
-    def _update(self, cell: Cell, target: float) -> None:
+    def _td_update(self, cell: Cell, target: float) -> None:
+        """Move V(cell) (and its neighbourhood) toward a TD target."""
         for nb, weight in self._kernel(cell):
             v = self.values.get(nb, 0.0)
             self.values[nb] = v + weight * self.lr * (target - v)
 
     def record(self, cell: Cell, reward: float) -> None:
-        """Online update toward immediate reward, and log the step for replay."""
+        """Observe arrival at ``cell`` with ``reward``; log it and do the online TD backup.
+
+        The reward is credited to the transition that led here (reward-on-arrival),
+        so V(previous) bootstraps on V(cell). The first step of an episode has no
+        predecessor and only logs.
+        """
+        if self._prev_cell is not None:
+            self._td_update(self._prev_cell, reward + self.gamma * self.values.get(cell, 0.0))
         self.trajectory.append((cell, reward))
-        self._update(cell, reward)
+        self._prev_cell = cell
+
+    def reset_episode(self) -> None:
+        """Mark an episode boundary so no transition links across a reset/teleport."""
+        self._prev_cell = None
 
     def replay_transition(self, index: int) -> None:
         """Offline TD(0) backup for one stored transition (used during replay)."""
         if index < 0 or index + 1 >= len(self.trajectory):
             return
-        cell, reward = self.trajectory[index]
-        next_cell, _ = self.trajectory[index + 1]
-        v_next = self.values.get(next_cell, 0.0)
-        self._update(cell, reward + self.gamma * v_next)
+        from_cell, _ = self.trajectory[index]
+        to_cell, reward_on_arrival = self.trajectory[index + 1]
+        self._td_update(from_cell, reward_on_arrival + self.gamma * self.values.get(to_cell, 0.0))
 
     def consolidate(self, passes: int = 1) -> None:
         """Replay the whole trajectory backward ``passes`` times (offline sweep)."""

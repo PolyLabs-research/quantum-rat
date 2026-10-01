@@ -331,6 +331,7 @@ class Engine:
             self._ctx = EngineContext(tick=-1)
             self.last_action = Action(name="REST", thrust=0.0, turn=0.0)
             self._prev_target_dist = None
+            self.value_memory.reset_episode()
         ctx: EngineContext = self._ctx
         trace: List[TickData] = []
         for _ in range(ticks):
