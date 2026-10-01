@@ -306,3 +306,5 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
   sensory precision (`experiments/criticality_cognition.py`); the field is no longer a side-process.
   The gain-peaks-at-criticality prediction is asserted; a clean end-to-end behavioural peak is not
   claimed (navigation time is not a monotonic function of sensory gain in the simple policy).
+- **Multi-landmark foraging assay added** (`experiments/protocols/foraging.py`): a sighted agent
+  collects all scattered targets, a blind one almost none. The assay suite is no longer single-target.

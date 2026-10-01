@@ -65,6 +65,7 @@ measure is reproducible. See `RECOMMENDATIONS.md` for what's done and what's nex
 
 ### Assays / Protocols (headless)
 * `beacon` — navigate to a visible target (a direct test that sensing drives behaviour)
+* `foraging` — collect several scattered targets (sighted agents collect them all, blind ones almost none)
 * `open_field`
 * `t_maze`
 * `morris_water_maze`

@@ -70,7 +70,7 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 - [x] Headless experiment runner works (`experiments/runner.py`, `tests/experiments/test_protocol_lifecycle.py`) — proof: `artifacts/agentG_milestone6_proof.md`, `artifacts/agentH_milestone6_proof.md`
 - [x] Open Field / T-Maze / Water Maze / Survival implemented as protocols (`experiments/protocols/`)
 - [x] Flask UI reads from Engine history / run logs (no direct World access) — replay GUI proof: `artifacts/agentR_replay_gui_proof.md`
-  - Done (2026-10-01): assay position references are now consistent — t_maze scores off true `pos`, like the other assays. A `beacon` assay was added that genuinely depends on sensing its target.
+  - Done (2026-10-01): assay position references are now consistent — t_maze scores off true `pos`, like the other assays. Added a `beacon` assay (sense a single target) and a multi-landmark `foraging` assay (collect several scattered targets); both genuinely depend on vision (`tests/experiments/test_beacon_perception.py`, `test_foraging.py`).
 
 ## 11) Agent container + tournaments (Milestone 7)
 - [x] AgentDNA + Agent container implemented (`agents/dna.py`, `agents/agent.py`) — proof: `artifacts/agentJ_milestone7_proof.md`
