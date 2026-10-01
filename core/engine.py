@@ -9,7 +9,7 @@ import math
 
 from brain.contracts import Action, Observation
 from brain.systems.basal_ganglia import TURN_STEP, select_action
-from brain.systems.criticality import CriticalityField
+from brain.systems.criticality import CriticalityField, near_critical_gain
 from brain.systems.spatial import SpatialSystem
 from brain.systems.trn_microsleep_replay import TRNGate
 from brain.systems.value_memory import ValueMemory
@@ -268,6 +268,9 @@ class Engine:
         # Memory-guided steer from the consolidated value map.
         value_ahead, value_left, value_right = self._value_signals(ctx)
 
+        # Near-critical cortical gain: criticality state feeds sensory processing.
+        crit_gain = near_critical_gain(ctx.kappa, self.config.criticality.gain_width)
+
         # Deterministic action selection; dopamine modulates exploration.
         action = select_action(
             observation=ctx.observation,
@@ -279,6 +282,7 @@ class Engine:
             value_ahead=value_ahead,
             value_left=value_left,
             value_right=value_right,
+            criticality_gain=crit_gain,
         )
         self.last_action = action
         ctx.action_name = action.name

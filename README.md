@@ -33,9 +33,11 @@ honestly at different stages of maturity:
   not without.
   Place values generalise to neighbouring cells (overlapping place fields), so memory navigation
   works at the engine's default spatial resolution and forward bias.
+  Criticality is coupled to cognition too: a near-critical cortical gain (peaking at κ≈1) scales
+  sensory precision, so the field is not just an instrumented side-process.
 * **Honest limits / in progress.** Repeated memory recall gradually erodes the consolidated map
-  (online recall learning muddies it). The criticality field is not yet coupled to the rest of
-  cognition, and the assays use single landmarks.
+  (online recall learning muddies it), and whether the criticality gain improves a given behaviour
+  is task-dependent (navigation time is not a clean function of it).
 
 So: **this is not a validated model of a real rodent brain.** It's a place to build such
 models one defensible piece at a time, with the engineering guaranteeing that whatever you

@@ -36,6 +36,7 @@ class CriticalityConfig:
     kappa_points: int = 10  # m sample points for the kappa statistic
     kappa_min_avalanches: int = 20  # avalanches needed before kappa is meaningful
     avalanche_history: int = 4000  # cap on retained avalanche sizes
+    gain_width: float = 0.3  # width of the near-critical cortical-gain curve (in kappa units)
 
 
 @dataclass
@@ -43,6 +44,17 @@ class CriticalityMetrics:
     active: int  # cells activated this generation
     avalanche_size: int  # size of an avalanche that completed this tick, else 0
     kappa: float
+
+
+def near_critical_gain(kappa: float, width: float = 0.3) -> float:
+    """Cortical gain that peaks at criticality (kappa == 1) and falls off away from it.
+
+    Near-criticality is associated with maximal dynamic range / information
+    transmission, so this is used to scale sensory processing: a near-critical
+    field processes input best; a sub- or super-critical field processes it worse.
+    Returns a value in (0, 1].
+    """
+    return math.exp(-(((kappa - 1.0) / width) ** 2))
 
 
 def compute_kappa(sizes: Sequence[int], *, exponent: float = 1.5, m: int = 10) -> float:
@@ -148,4 +160,10 @@ class CriticalityField:
         return CriticalityMetrics(active=len(next_active), avalanche_size=0, kappa=self.kappa)
 
 
-__all__ = ["CriticalityField", "CriticalityConfig", "CriticalityMetrics", "compute_kappa"]
+__all__ = [
+    "CriticalityField",
+    "CriticalityConfig",
+    "CriticalityMetrics",
+    "compute_kappa",
+    "near_critical_gain",
+]

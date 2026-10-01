@@ -52,7 +52,7 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 - [x] Avalanche detection + κ (EMA) implemented + logged; `criticality_active` now logged too (2026-10-01)
 - [x] Validation sweep script exists + has assertions (`experiments/criticality_validation.py`)
 - [x] Reduced sweep runs in CI (`tests/experiments/test_criticality_validation.py`)
-  - Done (2026-10-01): reimplemented as a driven branching process; κ is now the Shew et al. (2009) statistic over the avalanche-size distribution. The sweep asserts real physics (κ rises monotonically and crosses ~1, mean avalanche size grows with coupling). See `docs/decisions.md` G3.
+  - Done (2026-10-01): reimplemented as a driven branching process; κ is now the Shew et al. (2009) statistic over the avalanche-size distribution. The sweep asserts real physics (κ rises monotonically and crosses ~1, mean avalanche size grows with coupling). See `docs/decisions.md` G3. Criticality is now also coupled to cognition: a near-critical cortical gain (peaking at κ≈1) scales sensory precision in action selection (`experiments/criticality_cognition.py`, `docs/decisions.md` G9).
 
 ## 8) TRN, microsleep, replay, memory (Milestone 4)
 - [x] TRN gating states logged (`trn_state` in TickData) — proof: `artifacts/agentD_milestone4_proof.md`

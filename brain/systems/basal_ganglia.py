@@ -51,6 +51,7 @@ def _channel_scores(
     value_ahead: float = 0.0,
     value_left: float = 0.0,
     value_right: float = 0.0,
+    criticality_gain: float = 1.0,
 ) -> Dict[str, float]:
     if microsleep_active:
         return {"REST": 1.0}
@@ -66,8 +67,11 @@ def _channel_scores(
 
     # Dopamine: below-baseline (worse-than-expected reward) boosts exploration.
     novelty_gain = config.novelty_gain * (1.0 + config.dopamine_explore_gain * (0.5 - da))
-    # Acetylcholine: sharpens sensory precision (trust vision more under uncertainty).
-    vision_gain = config.vision_gain * (1.0 + config.ach_precision_gain * ach)
+    # Acetylcholine sharpens sensory precision; near-critical cortical gain scales it too
+    # (criticality_gain is 1.0 at criticality and <1 away from it). criticality_gain strength
+    # 0 disables the coupling.
+    crit_mod = (1.0 - config.criticality_gain) + config.criticality_gain * criticality_gain
+    vision_gain = config.vision_gain * (1.0 + config.ach_precision_gain * ach) * crit_mod
     # Norepinephrine: arousal raises threat sensitivity (pain avoidance / freezing).
     pain_avoidance = config.pain_avoidance * (1.0 + config.ne_threat_gain * ne)
     rest_pain_gain = config.rest_pain_gain * (1.0 + config.ne_threat_gain * ne)
@@ -113,6 +117,7 @@ def select_action(
     value_ahead: float = 0.0,
     value_left: float = 0.0,
     value_right: float = 0.0,
+    criticality_gain: float = 1.0,
 ) -> Action:
     config = config if config is not None else BasalGangliaConfig()
     modulators = modulators if modulators is not None else {}
@@ -126,6 +131,7 @@ def select_action(
         value_ahead,
         value_left,
         value_right,
+        criticality_gain,
     )
     # Deterministic tie-break order.
     order = ["FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST"]

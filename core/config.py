@@ -117,6 +117,7 @@ class BasalGangliaConfig:
     ne_threat_gain: float = 0.5  # norepinephrine raises arousal / threat sensitivity
     fiveht_patience_gain: float = 0.4  # serotonin raises patience (willingness to rest)
     value_gain: float = 0.8  # drive toward higher-value directions from the learned map
+    criticality_gain: float = 0.0  # how strongly near-critical cortical gain scales vision (0 = off)
 
 
 @dataclass

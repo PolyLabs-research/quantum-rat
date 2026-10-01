@@ -302,3 +302,7 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
   memory navigation works at the default spatial resolution and forward bias (not just a contrived
   regime). Remaining: repeated recall still erodes the map (online learning during recall);
   criticality is still an instrumented side-process; assays use single landmarks.
+- **Criticality coupled to cognition**: a near-critical cortical gain (peaking at κ≈1) now scales
+  sensory precision (`experiments/criticality_cognition.py`); the field is no longer a side-process.
+  The gain-peaks-at-criticality prediction is asserted; a clean end-to-end behavioural peak is not
+  claimed (navigation time is not a monotonic function of sensory gain in the simple policy).
