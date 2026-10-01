@@ -14,12 +14,12 @@ Paradigm (one agent, several trials, the brain's memory persists between them):
 With replay the agent navigates back to the hidden goal; without it (no
 consolidation) the thin online map does not generalise and the agent does not.
 
-This runs in a *value-driven* regime (low ``forward_bias``, higher
-``value_gain``, and coarse place fields via ``bin_size`` so a single trajectory
-generalises into a followable 2-D value field). The default forward-biased
-explorer does not exhibit memory navigation -- its forward drive swamps the
-value gradient. That is an honest limitation of the simple policy, not of the
-replay mechanism.
+This runs at the engine's default spatial resolution and forward bias; it only
+turns up the value/memory system (higher ``value_gain`` so the map can steer
+against the forward drive, and ``generalization_radius`` so a single trajectory
+fills a followable 2-D value field via overlapping place fields). Without value
+generalization a lone trajectory is a thin one-cell path the agent falls off,
+so this is where spatial generalization earns its place.
 """
 
 from __future__ import annotations
@@ -33,7 +33,6 @@ from core.config import (
     BasalGangliaConfig,
     EngineConfig,
     RewardConfig,
-    SpatialConfig,
     ValueMemoryConfig,
 )
 from core.engine import Engine
@@ -44,12 +43,20 @@ DEFAULT_GOAL_RADIUS = 1.5
 
 
 def memory_nav_config() -> EngineConfig:
-    """Value-driven regime in which memory navigation is demonstrable."""
+    """Config for the memory-navigation assay.
+
+    Spatial resolution (``bin_size``) and ``forward_bias`` are the engine
+    defaults; only the value/memory system is turned up: a higher ``value_gain``
+    so the learned map can steer against the forward drive, and
+    ``generalization_radius`` so a single trajectory fills a followable 2-D value
+    field (overlapping place fields) rather than a thin one-cell path. Sparse
+    reward (approach_weight 0) isolates replay's contribution: only the goal
+    place is valued online, so the backward gradient comes from consolidation.
+    """
     return EngineConfig(
         reward=RewardConfig(approach_weight=0.0, contact_bonus=1.0, pain_weight=1.0),
-        basal_ganglia=BasalGangliaConfig(forward_bias=0.4, value_gain=1.5),
-        spatial=SpatialConfig(bin_size=2.0),  # coarse place fields -> generalising value field
-        value_memory=ValueMemoryConfig(lookahead=2.0),
+        basal_ganglia=BasalGangliaConfig(value_gain=1.5),
+        value_memory=ValueMemoryConfig(generalization_radius=2),
     )
 
 
@@ -82,7 +89,7 @@ def run_memory_navigation(
     *,
     seed: int = 1337,
     n_train: int = 1,
-    n_recall: int = 2,
+    n_recall: int = 1,
     max_ticks: int = 200,
     goal: Tuple[float, float] = DEFAULT_GOAL,
     goal_radius: float = DEFAULT_GOAL_RADIUS,

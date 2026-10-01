@@ -296,3 +296,9 @@ bins does not show it, because a single trajectory is a thin, non-generalising v
 that gap needs spatial value generalisation (overlapping place fields / value smoothing) or a policy
 whose forward drive does not swamp the value gradient. Also still simple: single-landmark assays,
 and the branching-criticality field is not yet coupled to the rest of cognition. Test count is 66.
+
+### Follow-on (2026-10-01)
+- **Spatial value generalization done**: value now spreads across overlapping place fields, so
+  memory navigation works at the default spatial resolution and forward bias (not just a contrived
+  regime). Remaining: repeated recall still erodes the map (online learning during recall);
+  criticality is still an instrumented side-process; assays use single landmarks.

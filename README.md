@@ -31,9 +31,10 @@ honestly at different stages of maturity:
   backups, and the agent uses it for memory-guided navigation — in a water-maze-style assay
   (`experiments/memory_navigation.py`) it returns to a hidden goal from memory with replay but
   not without.
-* **Honest limits / in progress.** Memory navigation is shown in a value-driven regime (low
-  forward bias, coarse place fields); the default forward-biased explorer needs spatial value
-  generalisation to exhibit it. The criticality field is not yet coupled to the rest of
+  Place values generalise to neighbouring cells (overlapping place fields), so memory navigation
+  works at the engine's default spatial resolution and forward bias.
+* **Honest limits / in progress.** Repeated memory recall gradually erodes the consolidated map
+  (online recall learning muddies it). The criticality field is not yet coupled to the rest of
   cognition, and the assays use single landmarks.
 
 So: **this is not a validated model of a real rodent brain.** It's a place to build such

@@ -32,10 +32,13 @@ class SpatialSystem:
         self.decay = decay
         self.bin_size = bin_size
 
+    def bins_at(self, grid_x: float, grid_y: float) -> Tuple[int, int]:
+        """Integer place-cell bin coordinates for a grid coordinate."""
+        return math.floor(grid_x / self.bin_size), math.floor(grid_y / self.bin_size)
+
     def place_id_at(self, grid_x: float, grid_y: float) -> int:
         """Deterministic place id for an arbitrary grid coordinate (same binning)."""
-        bx = math.floor(grid_x / self.bin_size)
-        by = math.floor(grid_y / self.bin_size)
+        bx, by = self.bins_at(grid_x, grid_y)
         return (int(bx) << 16) ^ (int(by) & 0xFFFF)
 
     def step(self, observation: Observation, *, sensory_gain: float = 1.0) -> SpatialState:

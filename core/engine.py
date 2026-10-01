@@ -99,6 +99,8 @@ class Engine:
             learning_rate=c.value_memory.learning_rate,
             discount=c.value_memory.discount,
             capacity=c.value_memory.capacity,
+            generalization_radius=c.value_memory.generalization_radius,
+            generalization_falloff=c.value_memory.generalization_falloff,
         )
         self._prev_target_dist: float | None = None
         self.criticality = CriticalityField(stream=self.streams["criticality"], config=c.criticality)
@@ -238,12 +240,12 @@ class Engine:
         so it does not need to be re-tuned to the reward scale.
         """
         look = self.config.value_memory.lookahead
-        here = self.value_memory.value_of(ctx.place_id)
+        here = self.value_memory.value_of(self.spatial.bins_at(ctx.grid_x, ctx.grid_y))
 
         def advantage(theta: float) -> float:
             gx = ctx.grid_x + look * math.cos(theta)
             gy = ctx.grid_y + look * math.sin(theta)
-            return self.value_memory.value_of(self.spatial.place_id_at(gx, gy)) - here
+            return self.value_memory.value_of(self.spatial.bins_at(gx, gy)) - here
 
         hd = ctx.hd_angle
         raw = (advantage(hd), advantage(hd + TURN_STEP), advantage(hd - TURN_STEP))
@@ -261,7 +263,7 @@ class Engine:
             reward=ctx.reward, novelty=ctx.wm_novelty, pain=ctx.observation.pain_signal
         )
         # Plasticity: value of the current place moves toward reward received there.
-        self.value_memory.record(ctx.place_id, ctx.reward)
+        self.value_memory.record(self.spatial.bins_at(ctx.grid_x, ctx.grid_y), ctx.reward)
 
         # Memory-guided steer from the consolidated value map.
         value_ahead, value_left, value_right = self._value_signals(ctx)

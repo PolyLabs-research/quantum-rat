@@ -73,6 +73,8 @@ class ValueMemoryConfig:
     discount: float = 0.9
     capacity: int = 200  # trajectory length retained for replay
     lookahead: float = 1.0  # distance projected ahead to read neighbouring place values
+    generalization_radius: int = 0  # place-field spread in cells (0 = exact, no generalization)
+    generalization_falloff: float = 0.5  # per-cell weight decay for generalization
 
 
 @dataclass
