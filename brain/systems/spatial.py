@@ -32,6 +32,12 @@ class SpatialSystem:
         self.decay = decay
         self.bin_size = bin_size
 
+    def place_id_at(self, grid_x: float, grid_y: float) -> int:
+        """Deterministic place id for an arbitrary grid coordinate (same binning)."""
+        bx = math.floor(grid_x / self.bin_size)
+        by = math.floor(grid_y / self.bin_size)
+        return (int(bx) << 16) ^ (int(by) & 0xFFFF)
+
     def step(self, observation: Observation, *, sensory_gain: float = 1.0) -> SpatialState:
         # Gate egomotion by sensory_gain (e.g., TRN): CLOSED -> gain 0 freezes updates.
         fwd = observation.forward_delta * sensory_gain
@@ -46,11 +52,7 @@ class SpatialSystem:
         self.state.grid_x = (self.state.grid_x * self.decay) + dx
         self.state.grid_y = (self.state.grid_y * self.decay) + dy
 
-        # Place binning
-        bx = math.floor(self.state.grid_x / self.bin_size)
-        by = math.floor(self.state.grid_y / self.bin_size)
-        # Deterministic integer id
-        self.state.place_id = (int(bx) << 16) ^ (int(by) & 0xFFFF)
+        self.state.place_id = self.place_id_at(self.state.grid_x, self.state.grid_y)
         return self.state
 
 

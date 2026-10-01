@@ -25,11 +25,16 @@ honestly at different stages of maturity:
 * **Real models.** Criticality is a driven branching process whose avalanche-size
   distribution and κ statistic (Shew et al. 2009) behave correctly across sub-/critical/
   super-critical regimes. The perception loop is closed (vision/pain/whiskers come from real
-  world geometry and drive behaviour). Dopamine encodes a reward-prediction error and
-  modulates exploration. Replay consolidates a plastic place-value map via TD backups.
-* **Honest stubs / in progress.** Norepinephrine, acetylcholine and serotonin are computed
-  from real state but do not yet drive behaviour. The consolidated value map is not yet used
-  for navigation. The assays are simple and mostly single-trial.
+  world geometry and drive behaviour). All four neuromodulators are causal: dopamine (reward-
+  prediction error → exploration), norepinephrine (threat sensitivity), acetylcholine (sensory
+  precision), serotonin (patience). Replay consolidates a plastic place-value map via TD
+  backups, and the agent uses it for memory-guided navigation — in a water-maze-style assay
+  (`experiments/memory_navigation.py`) it returns to a hidden goal from memory with replay but
+  not without.
+* **Honest limits / in progress.** Memory navigation is shown in a value-driven regime (low
+  forward bias, coarse place fields); the default forward-biased explorer needs spatial value
+  generalisation to exhibit it. The criticality field is not yet coupled to the rest of
+  cognition, and the assays use single landmarks.
 
 So: **this is not a validated model of a real rodent brain.** It's a place to build such
 models one defensible piece at a time, with the engineering guaranteeing that whatever you

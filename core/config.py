@@ -72,6 +72,7 @@ class ValueMemoryConfig:
     learning_rate: float = 0.2
     discount: float = 0.9
     capacity: int = 200  # trajectory length retained for replay
+    lookahead: float = 1.0  # distance projected ahead to read neighbouring place values
 
 
 @dataclass
@@ -113,6 +114,7 @@ class BasalGangliaConfig:
     ach_precision_gain: float = 0.5  # acetylcholine sharpens sensory (vision) precision
     ne_threat_gain: float = 0.5  # norepinephrine raises arousal / threat sensitivity
     fiveht_patience_gain: float = 0.4  # serotonin raises patience (willingness to rest)
+    value_gain: float = 0.8  # drive toward higher-value directions from the learned map
 
 
 @dataclass

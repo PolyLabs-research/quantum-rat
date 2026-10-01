@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
+import math
+
 from brain.contracts import Action, Observation
-from brain.systems.basal_ganglia import select_action
+from brain.systems.basal_ganglia import TURN_STEP, select_action
 from brain.systems.criticality import CriticalityField
 from brain.systems.spatial import SpatialSystem
 from brain.systems.trn_microsleep_replay import TRNGate
@@ -204,7 +206,9 @@ class Engine:
         ctx.wm_novelty = wm_state.novelty
 
     def _nearest_target_distance(self, pos: Tuple[float, float]) -> float | None:
-        targets = [o for o in self.world.objects if o.kind == "target"]
+        # A "hidden" goal still rewards on contact (it is physically present),
+        # but it is invisible to vision (see brain.systems.basal_ganglia).
+        targets = [o for o in self.world.objects if o.kind in ("target", "hidden")]
         if not targets:
             return None
         return min(
@@ -224,6 +228,30 @@ class Engine:
             self._prev_target_dist = dist
         return reward
 
+    def _value_signals(self, ctx: EngineContext) -> Tuple[float, float, float]:
+        """Normalized steer toward higher-value directions (memory-guided navigation).
+
+        Reads the learned place value a step ahead / left / right of the current
+        estimate, takes the advantage over the current place, and normalizes by
+        the largest-magnitude advantage so the steer is decisive whenever a real
+        gradient exists and silent when the map is locally flat. Magnitude-robust,
+        so it does not need to be re-tuned to the reward scale.
+        """
+        look = self.config.value_memory.lookahead
+        here = self.value_memory.value_of(ctx.place_id)
+
+        def advantage(theta: float) -> float:
+            gx = ctx.grid_x + look * math.cos(theta)
+            gy = ctx.grid_y + look * math.sin(theta)
+            return self.value_memory.value_of(self.spatial.place_id_at(gx, gy)) - here
+
+        hd = ctx.hd_angle
+        raw = (advantage(hd), advantage(hd + TURN_STEP), advantage(hd - TURN_STEP))
+        scale = max(abs(x) for x in raw)
+        if scale < 1e-3:  # locally flat map -> no steer
+            return 0.0, 0.0, 0.0
+        return raw[0] / scale, raw[1] / scale, raw[2] / scale
+
     def _brain_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
             raise RuntimeError("Observation missing before brain step")
@@ -235,6 +263,9 @@ class Engine:
         # Plasticity: value of the current place moves toward reward received there.
         self.value_memory.record(ctx.place_id, ctx.reward)
 
+        # Memory-guided steer from the consolidated value map.
+        value_ahead, value_left, value_right = self._value_signals(ctx)
+
         # Deterministic action selection; dopamine modulates exploration.
         action = select_action(
             observation=ctx.observation,
@@ -243,6 +274,9 @@ class Engine:
             microsleep_active=ctx.microsleep_active,
             config=self.config.basal_ganglia,
             modulators=ctx.neuromodulators,
+            value_ahead=value_ahead,
+            value_left=value_left,
+            value_right=value_right,
         )
         self.last_action = action
         ctx.action_name = action.name

@@ -279,3 +279,20 @@ Test count went from 40 to 50, all passing.
 Still open: make NE/ACh/5HT control signals; use the consolidated value map for memory-guided
 navigation (and show replay improves navigation end-to-end); richer multi-trial assays. Test
 count is now 59, all passing.
+
+### Frontier items — now done (2026-10-01)
+- **NE/ACh/5HT are control signals**: acetylcholine sharpens sensory precision, norepinephrine
+  raises threat/arousal sensitivity, serotonin raises patience — all config-gated and no-ops at
+  baseline levels (`tests/engine/test_neuromodulation.py`).
+- **Value-guided navigation**: the brain reads the consolidated place-value map and steers toward
+  higher-value directions (normalized, magnitude-robust advantage).
+- **Replay improves navigation (end-to-end)**: `experiments/memory_navigation.py` — after one
+  visible training trial and a replay/sleep phase, the agent returns to a now-hidden goal from
+  memory; without consolidation it never does (`tests/experiments/test_memory_navigation.py`).
+
+**Honest remaining limitation.** The end-to-end memory-navigation result holds in a value-driven
+regime (low forward bias, coarse place fields). The default forward-biased explorer with fine place
+bins does not show it, because a single trajectory is a thin, non-generalising value path. Closing
+that gap needs spatial value generalisation (overlapping place fields / value smoothing) or a policy
+whose forward drive does not swamp the value gradient. Also still simple: single-landmark assays,
+and the branching-criticality field is not yet coupled to the rest of cognition. Test count is 66.

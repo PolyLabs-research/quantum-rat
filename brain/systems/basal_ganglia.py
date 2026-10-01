@@ -48,6 +48,9 @@ def _channel_scores(
     microsleep_active: bool,
     config: BasalGangliaConfig,
     modulators: Dict[str, float],
+    value_ahead: float = 0.0,
+    value_left: float = 0.0,
+    value_right: float = 0.0,
 ) -> Dict[str, float]:
     if microsleep_active:
         return {"REST": 1.0}
@@ -77,6 +80,7 @@ def _channel_scores(
         - pain_avoidance * pain
         + novelty_gain * wm_novelty
         + vision_gain * c_target
+        + config.value_gain * value_ahead
         - config.wall_avoid_gain * c_wall
     )
     # The 0.5 floor guarantees a turn (not a futile forward) when a wall is close
@@ -84,12 +88,14 @@ def _channel_scores(
     scores["TURN_LEFT"] = (
         0.3 * wm_novelty
         + vision_gain * l_target
+        + config.value_gain * value_left
         + max(config.turn_bias, 0.0)
         + config.wall_avoid_gain * c_wall * (0.5 + l_open)
     )
     scores["TURN_RIGHT"] = (
         0.3 * wm_novelty
         + vision_gain * r_target
+        + config.value_gain * value_right
         + max(-config.turn_bias, 0.0)
         + config.wall_avoid_gain * c_wall * (0.5 + r_open)
     )
@@ -104,10 +110,23 @@ def select_action(
     microsleep_active: bool,
     config: Optional[BasalGangliaConfig] = None,
     modulators: Optional[Dict[str, float]] = None,
+    value_ahead: float = 0.0,
+    value_left: float = 0.0,
+    value_right: float = 0.0,
 ) -> Action:
     config = config if config is not None else BasalGangliaConfig()
     modulators = modulators if modulators is not None else {}
-    scores = _channel_scores(observation, wm_novelty, trn_gain, microsleep_active, config, modulators)
+    scores = _channel_scores(
+        observation,
+        wm_novelty,
+        trn_gain,
+        microsleep_active,
+        config,
+        modulators,
+        value_ahead,
+        value_left,
+        value_right,
+    )
     # Deterministic tie-break order.
     order = ["FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST"]
     best = max(order, key=lambda name: (scores.get(name, float("-inf")), -order.index(name)))
