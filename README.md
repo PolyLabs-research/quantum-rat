@@ -12,6 +12,32 @@ This repo is built around strict boundaries and reproducibility:
 
 ---
 
+## What this is (and isn't)
+
+This is an **engineering instrument first**: a deterministic, reproducible, testable
+sandbox for building and measuring brain-inspired agents. The scaffolding (RNG discipline,
+the World→Observation→Brain boundary, per-tick logging, the determinism gate, reproducible
+tournaments) is the solid part and the point of the project.
+
+The cognitive components are **scientifically grounded but deliberately simplified**, and
+honestly at different stages of maturity:
+
+* **Real models.** Criticality is a driven branching process whose avalanche-size
+  distribution and κ statistic (Shew et al. 2009) behave correctly across sub-/critical/
+  super-critical regimes. The perception loop is closed (vision/pain/whiskers come from real
+  world geometry and drive behaviour). Dopamine encodes a reward-prediction error and
+  modulates exploration. Replay consolidates a plastic place-value map via TD backups.
+* **Honest stubs / in progress.** Norepinephrine, acetylcholine and serotonin are computed
+  from real state but do not yet drive behaviour. The consolidated value map is not yet used
+  for navigation. The assays are simple and mostly single-trial.
+
+So: **this is not a validated model of a real rodent brain.** It's a place to build such
+models one defensible piece at a time, with the engineering guaranteeing that whatever you
+measure is reproducible. See `RECOMMENDATIONS.md` for what's done and what's next, and
+`docs/decisions.md` for the rationale behind each step.
+
+---
+
 ## What’s in here
 
 ### Engine features (current)

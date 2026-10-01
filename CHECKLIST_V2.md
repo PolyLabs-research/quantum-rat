@@ -45,26 +45,26 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 ## 6) Physiology + neuromodulation (Milestone 2)
 - [x] ATP/glycogen dynamics implemented, logged in TickData (`core/physiology.py`)
 - [x] DA/5HT/NE/ACh updates deterministic + logged (`core/neuromodulation.py`)
-  - Partly done (2026-10-01): physiology no longer collapses — effort-scaled demand + glycogen regeneration give a sustainable rest state (`tests/physiology/test_energy_equilibrium.py`). Neuromodulators are still logged but inert (no downstream coupling); tracked in `RECOMMENDATIONS.md` (LATER).
+  - Done / partly done (2026-10-01): physiology no longer collapses — effort-scaled demand + glycogen regeneration give a sustainable rest state (`tests/physiology/test_energy_equilibrium.py`). Dopamine is now causal (reward-prediction error → exploration; `tests/engine/test_neuromodulation.py`); NE/ACh/5HT are now state readouts but do not yet drive behaviour (tracked in `RECOMMENDATIONS.md`). See `docs/decisions.md` G4.
 
 ## 7) Criticality core (Milestone 3 — highest priority)
 - [x] CriticalityField lattice implemented (`brain/systems/criticality.py`)
 - [x] Avalanche detection + κ (EMA) implemented + logged; `criticality_active` now logged too (2026-10-01)
 - [x] Validation sweep script exists + has assertions (`experiments/criticality_validation.py`)
 - [x] Reduced sweep runs in CI (`tests/experiments/test_criticality_validation.py`)
-  - Note: the current monotonic assertion is weak (passes trivially at low step counts); κ is an active-ratio EMA, not the criticality κ statistic. Tracked in `RECOMMENDATIONS.md`.
+  - Done (2026-10-01): reimplemented as a driven branching process; κ is now the Shew et al. (2009) statistic over the avalanche-size distribution. The sweep asserts real physics (κ rises monotonically and crosses ~1, mean avalanche size grows with coupling). See `docs/decisions.md` G3.
 
 ## 8) TRN, microsleep, replay, memory (Milestone 4)
 - [x] TRN gating states logged (`trn_state` in TickData) — proof: `artifacts/agentD_milestone4_proof.md`
 - [x] Microsleep episodes reproducible (determinism gate + `tests/experiments/test_runner_determinism.py`)
 - [x] Replay only occurs during microsleep (enforced by a guard in `core/engine.py` that raises otherwise)
-  - Note: replay cycles a buffer but does not yet consolidate/learn (Epic 4.3 DoD "replay improves performance" is NOT met). Tracked in `RECOMMENDATIONS.md`.
+  - Done / partly done (2026-10-01): replay now consolidates a plastic place-value map via TD backups during microsleep (`tests/engine/test_value_memory.py`), so it propagates value from rewarding places back along the trajectory. Using that consolidated map for navigation is the remaining step (tracked in `RECOMMENDATIONS.md`). See `docs/decisions.md` G4.
 
 ## 9) Spatial + action selection (Milestone 5)
 - [x] Grid/place/HD uses egomotion (`brain/systems/spatial.py`) — proof: `artifacts/agentF_milestone5_proof.md`
 - [x] Working memory bounded + logged (`brain/systems/working_memory.py`, capacity-bounded deque)
 - [x] Basal ganglia action selection deterministic (`brain/systems/basal_ganglia.py`)
-  - Note: path integration is unvalidated against ground truth; "basal ganglia" is a hand-tuned linear scorer. Tracked in `RECOMMENDATIONS.md`.
+  - Partly done (2026-10-01): path integration is now validated against ground truth (`tests/engine/test_path_integration_truth.py`). "Basal ganglia" remains a hand-tuned linear scorer (now vision- and dopamine-driven); a biologically structured version is future work.
 
 ## 10) Assays + UI parity (Milestone 6)
 - [x] Headless experiment runner works (`experiments/runner.py`, `tests/experiments/test_protocol_lifecycle.py`) — proof: `artifacts/agentG_milestone6_proof.md`, `artifacts/agentH_milestone6_proof.md`
@@ -80,7 +80,7 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 
 ## 12) Regression + analysis tooling (Milestone 8)
 - [x] Regression harness exists and compares against a committed v2 baseline (`regression/run_regression.py`, `regression/compare.py`, `regression/baseline/`) — proof: `artifacts/agentL_regression_proof.md`. Legacy comparison cut (DEC-1).
-  - Note: the harness is not yet executed by CI or the test suite, and compares with exact equality (no float tolerance). Tracked in `RECOMMENDATIONS.md`.
+  - Done (2026-10-01): the harness now runs in the test suite (hence CI) against the committed baseline (`tests/regression/test_regression_against_baseline.py`), and `regression/compare.py` compares numbers with a tolerance instead of exact equality.
 - [x] Analysis scripts reproduce κ/performance and avalanche distributions (`analysis/`) — proof: `artifacts/agentM_analysis_proof.md`
 
 ## Notes / Decisions log

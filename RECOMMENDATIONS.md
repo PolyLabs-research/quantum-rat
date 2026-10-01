@@ -259,3 +259,23 @@ Test count went from 40 to 50, all passing.
 - Add behavioural assertions to the other assays (does t_maze beat chance? does path
   integration track truth?), and wire the regression harness into CI.
 - Decide and state, in the README, whether this is an engineering sandbox or a scientific model.
+
+### LATER — mostly done (2026-10-01)
+- **Criticality made real**: reimplemented as a driven branching process; `kappa` is now
+  the Shew et al. (2009) statistic over the avalanche-size distribution, and the sweep asserts
+  κ rises through ~1 while mean avalanche size grows with the branching ratio.
+- **Dopamine made causal**: a per-tick reward (target approach/contact minus pain) now drives a
+  reward-prediction-error dopamine signal that modulates exploration. NE/ACh/5HT became
+  state-derived readouts (not yet control signals — still open).
+- **Replay consolidates**: a plastic place-value map is updated online and, during microsleep,
+  the replay gating drives TD backups that propagate value backward along the trajectory.
+  Using that map for navigation is still open.
+- **Behavioural assertions + regression gate**: path integration is validated against ground
+  truth; the regression harness now runs in the suite against the committed baseline, with a
+  numeric tolerance instead of exact equality.
+- **Framing stated**: the README now says plainly this is an engineering instrument with
+  grounded-but-simplified cognition, not a validated brain model.
+
+Still open: make NE/ACh/5HT control signals; use the consolidated value map for memory-guided
+navigation (and show replay improves navigation end-to-end); richer multi-trial assays. Test
+count is now 59, all passing.
