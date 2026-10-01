@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Type
 
 from experiments.protocols.base import Protocol
+from experiments.protocols.beacon import BeaconProtocol
 from experiments.protocols.open_field import OpenFieldProtocol
 from experiments.protocols.t_maze import TMazeProtocol
 from experiments.protocols.morris_water_maze import MorrisWaterMazeProtocol
@@ -17,6 +18,7 @@ from core.engine import Engine
 
 
 PROTOCOLS: Dict[str, Type[Protocol]] = {
+    "beacon": BeaconProtocol,
     "open_field": OpenFieldProtocol,
     "t_maze": TMazeProtocol,
     "morris_water_maze": MorrisWaterMazeProtocol,
