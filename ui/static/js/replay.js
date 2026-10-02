@@ -248,7 +248,7 @@ export class ReplayController {
     this._renderMoments();
 
     const kinds = new Set((scene?.objects || []).map((o) => o.kind));
-    const targetLabel = { beacon: 'beacon', foraging: 'food', hazard_field: 'food', memory_maze: 'goal' }[scene?.scenario?.id || scene?.protocol] || 'target';
+    const targetLabel = { beacon: 'beacon', foraging: 'food', hazard_field: 'food', hidden_food: 'food', memory_maze: 'goal' }[scene?.scenario?.id || scene?.protocol] || 'target';
     this.arena.set({
       bounds,
       objects: scene?.objects || [],

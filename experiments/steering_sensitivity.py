@@ -16,11 +16,12 @@ between success and failure as the gain moves.
 
 Options beyond the grid:
   --seeds N, --seed-start S  run seeds S .. S+N-1 (default 1..4).
-  --headings N   also vary the start heading. beacon, foraging and hazard_field
-                 start at heading 2*pi*i/N (i = 0..N-1), set on the body and on
-                 the path-integration frame after setup. memory_maze teleports to
-                 ui.scenarios.START_POSE at every trial, so it runs with
-                 START_POSE = (0, 0, h) for the fixed, memory-dependent set
+  --headings N   also vary the start heading. beacon, foraging, hazard_field
+                 and hidden_food start at heading 2*pi*i/N (i = 0..N-1), set
+                 on the body and on the path-integration frame after setup.
+                 memory_maze teleports to ui.scenarios.START_POSE at every
+                 trial, so it runs with START_POSE = (0, 0, h) for the fixed,
+                 memory-dependent set
                  h in {-0.2, -0.1, 0, 0.1, 0.2} whatever N is (0.3-0.4 face
                  the goal and need no memory). Every seed runs every heading.
   --maze-headings SET
@@ -54,6 +55,8 @@ Metrics per run (higher is better unless noted):
   beacon        beacons reached in the tick budget
   foraging      food items collected
   hazard_field  food items collected (hazard_contacts reported too, lower is better)
+  hidden_food   hidden food items found (sites_found: distinct sites found at
+                least once; blocks: finds per 500-tick block, the learning curve)
   memory_maze   hidden-goal recalls (score), attempted, recall_rate,
                 median_recall_ticks and first_hidden_ticks (ticks of the first
                 hidden trial, reached or timed out; lower is better; None if no
@@ -85,9 +88,9 @@ from brain.systems.spatial import wrap_angle
 from core.engine import Engine
 from ui.scenarios import make_scenario
 
-SCENARIOS = ("beacon", "foraging", "hazard_field", "memory_maze")
+SCENARIOS = ("beacon", "foraging", "hazard_field", "hidden_food", "memory_maze")
 DEFAULT_GAINS = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0)
-TICKS = {"beacon": 3000, "foraging": 3000, "hazard_field": 3000, "memory_maze": 1500}
+TICKS = {"beacon": 3000, "foraging": 3000, "hazard_field": 3000, "hidden_food": 3000, "memory_maze": 1500}
 # memory_maze start headings: small offsets where recall still depends on the value map.
 MAZE_HEADINGS = (-0.2, -0.1, 0.0, 0.1, 0.2)
 FULL_CIRCLE_HEADINGS = 16  # --maze-headings full
@@ -236,6 +239,10 @@ def run_job(job: Job) -> Dict[str, Any]:
     elif job.scenario == "hazard_field":
         out["score"] = scenario.collected
         out["hazard_contacts"] = scenario.hurts
+    elif job.scenario == "hidden_food":
+        out["score"] = scenario.collected
+        out["sites_found"] = scenario.sites_found()
+        out["blocks"] = scenario.blocks(job.ticks)
     elif job.scenario == "memory_maze":
         hidden = [t for t in scenario.history if not t["visible"]]
         reached = [t["ticks"] for t in hidden if t["reached"]]

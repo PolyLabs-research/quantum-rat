@@ -15,7 +15,7 @@ const SPARK = 240; // ticks in each neuromodulator sparkline
 const TELEPORT = 1.5; // metres per tick; a bigger jump is a reset, not motion
 const SERIES_KEYS = ['t', 'r', 'da', 'ne', 'ach', 'ht', 'k', 'atp', 'gly', 'ms'];
 
-const TARGET_LABEL = { beacon: 'beacon', foraging: 'food', hazard_field: 'food', memory_maze: 'goal' };
+const TARGET_LABEL = { beacon: 'beacon', foraging: 'food', hazard_field: 'food', hidden_food: 'food', memory_maze: 'goal' };
 
 export class LiveController {
   constructor({ onRecorded }) {
@@ -518,7 +518,7 @@ export class LiveController {
     $('#tick-readout').textContent = String(f.tick);
 
     const kinds = new Set(f.world.objects.map((o) => o.kind));
-    if (this.scenario && this.scenario.id === 'memory_maze') kinds.add('hidden');
+    if (this.scenario && (this.scenario.id === 'memory_maze' || this.scenario.id === 'hidden_food')) kinds.add('hidden');
     const kindKey = [...kinds].sort().join(',');
     if (kindKey !== this.legendKinds) {
       this.legendKinds = kindKey;
