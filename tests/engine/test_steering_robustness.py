@@ -336,17 +336,18 @@ def test_wall_gate_signals():
         assert max(wall_gate_signals(*sig, wall, 1.0)[:3]) >= 0.0
 
 
-def test_wall_gate_stops_memory_pinning_the_agent_against_a_wall():
-    # foraging with pacing off, seed 13, noise 0.03, gain 1.5: without the gate the
-    # agent spends hundreds of ticks pushing FORWARD into the boundary because
-    # the remembered value lies beyond it, and collects 12 items (34 with it).
-    # G16 used seed 5 (13 items without the gate, 33 with it), but that seed
-    # stopped pinning once microsleep replayed the recent path
-    # (value_memory.replay_recent; 39 items without the gate). Over seeds 1-16
-    # pinning without the gate (<= 25 items) went from 6 seeds to 2 (13 and 15);
-    # seed 13 pins under both replay rules.
+@pytest.mark.parametrize("seed", [13, 15])
+def test_wall_gate_stops_memory_pinning_the_agent_against_a_wall(seed):
+    # foraging with pacing off, noise 0.03, gain 1.5: without the gate the agent
+    # spends hundreds of ticks pushing FORWARD into the boundary because the
+    # remembered value lies beyond it. Over seeds 1-16 (measured on fix/three-final)
+    # exactly two seeds pin without the gate, 13 (12 items; 34 with the gate) and
+    # 15 (14; 28 with it, 1309 gated ticks); the other 14 collect 29-39 either way
+    # (the gate changes 2 of them, by +1 and +2). G16 used seed 5 (13 items
+    # without the gate, 33 with it), which stopped pinning once microsleep
+    # replayed the recent path (value_memory.replay_recent; 39 items).
     def run(wall_gate_gain):
-        scenario, engine = _scenario_engine("foraging", seed=13, noise=0.03, overrides={
+        scenario, engine = _scenario_engine("foraging", seed=seed, noise=0.03, overrides={
             "basal_ganglia.pace_rest_bonus": 0.0, "basal_ganglia.wall_gate_gain": wall_gate_gain})
         gated = 0
         for _ in range(3000):
@@ -356,7 +357,7 @@ def test_wall_gate_stops_memory_pinning_the_agent_against_a_wall():
 
     pinned, _ = run(0.0)
     free, gated = run(1.0)
-    assert pinned <= 20 and free >= 30 and gated > 0
+    assert pinned <= 20 and free >= 25 and free >= 1.5 * pinned and gated > 0, (pinned, free, gated)
 
 
 # --------------------------------------------------------- C6 pacing latch

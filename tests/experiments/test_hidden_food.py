@@ -7,25 +7,32 @@ site; with memory the value map learns each find and steers the agent back.
 The guard runs the scenario headless through the sensitivity harness at sensor
 noise 0, seed 1, from four start headings (0, pi/2, pi, 3pi/2), 3000 ticks
 each, and compares the summed finds with memory steering at the scenario
-default (value_gain 1.5) against memory off (value_gain 0). Measured: 45 vs 12
-finds (3.75x; per heading 14/5/16/10 vs 4/3/3/2, so memory wins all four
+default (value_gain 1.5) against memory off (value_gain 0). Measured: 47 vs 12
+finds (x3.92; per heading 16/5/16/10 vs 4/3/3/2, so memory wins all four
 pairs). The bound is >= 2x and >= 3 of 4 pairs won.
 
-Wider measurements (harness, 3000 ticks, gain 1.5 vs 0): x2.74 over seeds 1-8
-at noise 0.03 (6.50 vs 2.38 finds, 8 wins 0 losses), x2.74 on held-out seeds
-9-16 (8-0), x4.08 over 8 headings at noise 0 (12.25 vs 3.00, 8-0); gains 0.4,
-0.8 and 3.0 give x2.68-2.89 / x3.67-4.29.
+Wider measurements (harness, 3000 ticks, gain 1.5 vs 0): x2.84 over seeds 1-8
+at noise 0.03 (6.75 vs 2.38 finds, 8 wins 0 losses), x2.85 on held-out seeds
+9-16 (12.12 vs 4.25, 8-0), x4.08 over 8 headings at noise 0 (12.25 vs 3.00,
+8-0). See docs/decisions.md G21 for the controls.
 
-The benefit has to come from the learned map: with the map frozen
-(``value_memory.learning_rate`` 0, value_gain still 1.5) the value signals are
-always zero and the runs are identical to memory off, so the same bound fails
-(12 vs 12). ``test_frozen_map_gives_no_benefit`` checks that.
+The control (``test_the_benefit_needs_food_at_fixed_places``): every 150
+ticks (the regrow time) every site jumps to a fresh random place in the same
+food band, 2-3 m in from the walls, so there are no fixed places to remember.
+Reshuffled sites are easier to stumble on (memory off finds 42 instead of 12),
+so absolute finds are not the comparison; the benefit is. Measured on the same
+four headings: 37 vs 42 finds (x0.88, 1 of 4 pairs won), so the guard above
+fails, and the fixed-site benefit is 4.5 times the reshuffled one (bound 1.5).
+Over the wider blocks the reshuffled benefit is x1.08 / x1.47 / x1.25 against
+x2.84 / x2.85 / x4.08 with fixed sites (1.9-3.3 times). Memory still helps a
+little without fixed sites, near a recent find while the food is there.
 """
 
 from __future__ import annotations
 
 import functools
 import math
+import random
 from typing import Optional, Tuple
 
 from experiments.steering_sensitivity import Job, run_job
@@ -34,7 +41,7 @@ TICKS = 3000
 HEADINGS = (0.0, math.pi / 2, math.pi, 3 * math.pi / 2)
 MIN_RATIO = 2.0
 MIN_WINS = 3
-FROZEN_MAP = (("value_memory.learning_rate", 0.0),)
+MIN_BENEFIT_FACTOR = 1.5
 
 
 @functools.lru_cache(maxsize=None)
@@ -55,11 +62,51 @@ def test_memory_finds_far_more_hidden_food():
     assert _memory_beats_no_memory(with_memory, without), (with_memory, without)
 
 
-def test_frozen_map_gives_no_benefit():
-    without = _scores(0.0)
-    frozen = _scores(None, FROZEN_MAP)
-    assert frozen == without  # zero map -> zero value signals -> the same runs
-    assert not _memory_beats_no_memory(frozen, without)
+def _band_point(rng: random.Random) -> Tuple[float, float]:
+    # uniform on the band 2.0-3.0 m in from the walls (the sites sit ~2.5 m in)
+    while True:
+        x, y = rng.uniform(-8.0, 8.0), rng.uniform(-8.0, 8.0)
+        if 2.0 <= 10.0 - max(abs(x), abs(y)) <= 3.0:
+            return x, y
+
+
+@functools.lru_cache(maxsize=None)
+def _reshuffled_scores(gain: float) -> Tuple[int, ...]:
+    """Finds per heading when every site jumps to a random place in the band every REGROW ticks.
+
+    The jump happens before the tick's engine step, so the engine sees a moved
+    site first; the jumps are the same for every gain (their own RNG)."""
+    from core.engine import Engine
+    from experiments.steering_sensitivity import _apply_heading
+    from ui.scenarios import HiddenFood
+
+    scores = []
+    for heading in HEADINGS:
+        scenario = HiddenFood()
+        config = scenario.config()
+        config.sensors.noise = 0.0
+        config.basal_ganglia.value_gain = gain
+        engine = Engine(seed=1, config=config)
+        scenario.setup(engine)
+        _apply_heading(engine, heading)
+        rng = random.Random(1001)
+        for tick in range(TICKS):
+            if tick > 0 and tick % scenario.REGROW == 0:
+                for item in scenario.items:
+                    item.x, item.y = _band_point(rng)
+            scenario.on_tick(engine, engine.run(1)[0].tick)
+        scores.append(scenario.collected)
+    return tuple(scores)
+
+
+def test_the_benefit_needs_food_at_fixed_places():
+    fixed = _scores(None), _scores(0.0)
+    reshuffled = _reshuffled_scores(1.5), _reshuffled_scores(0.0)
+    assert _memory_beats_no_memory(*fixed)
+    assert not _memory_beats_no_memory(*reshuffled), reshuffled  # measured 37 vs 42
+    fixed_benefit = sum(fixed[0]) / sum(fixed[1])
+    reshuffled_benefit = sum(reshuffled[0]) / sum(reshuffled[1])
+    assert fixed_benefit >= MIN_BENEFIT_FACTOR * reshuffled_benefit, (fixed, reshuffled)  # x3.92 vs x0.88
 
 
 def test_sites_are_invisible_and_regrow_in_place():

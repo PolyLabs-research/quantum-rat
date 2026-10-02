@@ -23,10 +23,22 @@ reached the hidden goal on >= 90% of trials. Measured causes:
 The fix is two parts, both in ui.scenarios.MemoryMaze.config:
 value_memory.goal_vector (sleep replay of the rewarded arrival stores the
 goal's place cell; where the map is flat the agent turns toward it) and fatigue
-pacing with pace_low 0.6, above the gate's 0.55 threshold. Measured at 1000
-ticks (this test), all 16 headings recall on >= 90% of hidden trials (the
-tightest is heading 2.75: 14 of 15); with either part removed 7-11 of 16 do.
-The recall counts differ a lot between headings (8-128): a long, wandering
+pacing with pace_low 0.6, above the gate's 0.55 threshold. Goal extinction
+needs two misses in a row (value_memory.goal_extinction_misses; see
+tests/experiments/test_goal_extinction.py).
+
+The guard (measured at 1000 ticks on fix/three-final): at least 15 of the 16
+headings recall on >= 90% of hidden trials, and the mean recall rate over the
+16 is at least 0.95. Measured: 16 of 16, mean 0.996 (936 of 937 hidden trials).
+The tightest heading is 2.75 at 14 of 15 (0.93): one timed-out trial there
+would drop it below 0.9, which is why the guard no longer requires all 16 (it
+did before; extinction off or a single miss give the same rows here). With
+either part of the fix removed, 7-11 of 16 headings recall and the mean rate
+is 0.57-0.80 (no goal vector 11 / 0.80, pace_low 0.4 9 / 0.64, no pacing
+7 / 0.57), so both criteria fail. At noise 0.03 (seeds 1-4, not in this test)
+it is 16, 16, 15 and 16 of 16, mean 0.94-1.00; seed 3 at heading 3.53 never
+finds the visible goal (a 300-tick timeout), the one known failure.
+The recall counts differ a lot between headings (9-128): a long, wandering
 demonstration still leaves a slow route where the map is not quite flat
 (e.g. heading 5.11: 9 recalls), because the vector only steers where the map
 is flat.
@@ -55,8 +67,16 @@ def _rows(overrides: Tuple[Tuple[str, object], ...] = ()) -> Tuple[Dict, ...]:
     return tuple(run_job(Job("memory_maze", GAIN, 1, 0.0, TICKS, overrides, h)) for h in maze_heading_set("full"))
 
 
+MIN_HEADINGS = 15
+MIN_MEAN_RATE = 0.95
+
+
 def _recalls(row: Dict) -> bool:
     return row["attempted"] >= 3 and row["recall_rate"] >= 0.9
+
+
+def _guard(rows) -> Tuple[int, float]:
+    return sum(_recalls(row) for row in rows), sum(row["recall_rate"] for row in rows) / len(rows)
 
 
 def test_full_circle_heading_set():
@@ -66,13 +86,15 @@ def test_full_circle_heading_set():
 
 
 def test_maze_recalls_from_every_start_heading():
-    for row in _rows():
-        assert _recalls(row), (round(row["heading"], 2), row["score"], row["attempted"], row["train_ticks"])
+    rows = _rows()
+    recalling, mean_rate = _guard(rows)
+    detail = [(round(r["heading"], 2), r["score"], r["attempted"]) for r in rows if not _recalls(r)]
+    assert recalling >= MIN_HEADINGS and mean_rate >= MIN_MEAN_RATE, (recalling, round(mean_rate, 3), detail)
 
 
 @pytest.mark.parametrize("name", sorted(ABLATIONS))
 def test_both_parts_of_the_fix_are_needed(name):
-    # Measured: 11 / 8 / 7 of 16 headings recall without the goal vector / with
-    # pace_low 0.4 / with no pacing.
-    failing = sum(not _recalls(row) for row in _rows(ABLATIONS[name]))
-    assert failing >= 3, (name, failing)
+    # Measured: 11 / 9 / 7 of 16 headings recall (mean rate 0.80 / 0.64 / 0.57)
+    # without the goal vector / with pace_low 0.4 / with no pacing.
+    recalling, mean_rate = _guard(_rows(ABLATIONS[name]))
+    assert recalling <= 13 and mean_rate < MIN_MEAN_RATE, (name, recalling, mean_rate)  # both criteria fail
