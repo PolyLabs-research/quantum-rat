@@ -344,7 +344,7 @@ export class ArenaView {
       ctx.strokeStyle = o.kind === 'hidden' ? T['ink-2'] : alpha(T['ink-3'], 0.7);
       ctx.stroke();
       ctx.setLineDash([]);
-      if (o.kind === 'hidden') this._label(ctx, 'hidden goal', X(o.x), Y(o.y) + r + 4, 'top');
+      if (o.kind === 'hidden') this._label(ctx, `hidden ${this.s.targetLabel || 'goal'}`, X(o.x), Y(o.y) + r + 4, 'top');
     }
   }
 
@@ -406,7 +406,9 @@ export class ArenaView {
       if (!nearest || d < nearest.d) nearest = { o, d };
     }
     if (nearest) {
-      const label = nearest.o.kind === 'target' ? this.s.targetLabel : KIND_LABEL[nearest.o.kind] || nearest.o.kind;
+      const label = nearest.o.kind === 'target' ? this.s.targetLabel
+        : nearest.o.kind === 'hidden' ? `hidden ${this.s.targetLabel || 'goal'}`
+        : KIND_LABEL[nearest.o.kind] || nearest.o.kind;
       lines.push(el('div', {}, el('span', { class: 'muted', text: `${label} ` }), nearest.d <= 0 ? 'here' : `${fmt(nearest.d, 1)} m away`));
     }
     const a = this.s.agent;
@@ -507,7 +509,7 @@ export function buildArenaLegend(host, o) {
         ctx.arc(w / 2, h / 2, 5.5, 0, Math.PI * 2);
         ctx.stroke();
       }),
-      o.kinds.has('hidden') ? 'Hidden goal (invisible to the agent)' : 'Eaten food',
+      o.kinds.has('hidden') ? `Hidden ${o.targetLabel || 'goal'} (invisible to the agent)` : 'Eaten food',
     );
   }
   if (o.rays) {

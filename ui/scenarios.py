@@ -16,7 +16,7 @@ import math
 from typing import Any, Dict, List, Optional, Tuple
 
 from brain.systems.spatial import SpatialState
-from core.config import BasalGangliaConfig, EngineConfig, SensorConfig
+from core.config import BasalGangliaConfig, EngineConfig, SensorConfig, ValueMemoryConfig
 from core.engine import Engine
 from core.world import WorldObject
 from experiments.memory_navigation import memory_nav_config
@@ -30,7 +30,8 @@ START_POSE: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # x, y, heading (all s
 # hazard_field): once ATP drops below pace_low the agent rests until it has
 # recovered to pace_high, instead of running itself into microsleep. It stays
 # off in the core engine and in open_field (the microsleep/replay demo) and
-# memory_maze (the rest-off -> path-integration-drift demo).
+# memory_maze (the rest-off -> path-integration-drift demo). hidden_food uses
+# it with a higher pace_low (see HiddenFood).
 PACE_REST_BONUS = 5.0
 
 
@@ -410,7 +411,158 @@ class MemoryMaze(Scenario):
         return super().do_action(engine, action_id, tick)
 
 
-SCENARIOS = {cls.id: cls for cls in (OpenField, Beacon, Foraging, HazardField, MemoryMaze)}
+class HiddenFood(Scenario):
+    """Invisible, renewable food at fixed sites: an open task where place memory pays.
+
+    Six food sites sit about 2.5 m in from the walls, just inside the loop the
+    agent runs when nothing pulls it elsewhere (with an open sensory gate the
+    default agent heads for a wall and follows it round). The food is kind
+    "hidden": contact rewards it (``Engine._nearest_target`` includes "hidden"),
+    but vision does not treat it as food, so neither the vision drive nor the
+    cue gate ever sees it. An eaten site regrows ``REGROW`` ticks later, in
+    place. Without memory the agent finds food only when its loop happens to
+    brush a site; with memory, the value map learns the contact reward at the
+    site (primary reward only) and steers the agent back into it on later
+    passes.
+
+    Config (scenario-only, the engine defaults are untouched):
+    - pacing with ``pace_low`` 0.6: the agent rests before ATP reaches 0.55,
+      the level below which the TRN gate narrows to 0.4 and path integration
+      under-counts turns and motion. Nothing here resets the path-integration
+      frame (unlike the maze's teleport to the start), so errors accumulate.
+      With the console's usual pace_low 0.4 the gate is narrowed on about a
+      third of ticks (the agent moving on ~15%), and after 3000 ticks the
+      estimated position is on average 16 m (memory off) to 37 m (memory on)
+      from the truth (seeds 1-8, noise 0.03); the map is then useless and
+      memory costs ~36% (15.6 vs 24.4 finds). With pace_low 0.6 the gate
+      stays open and the drift is at most 1.2 m (wall contact while turning).
+      Caveat: the narrowed gate also weakens FORWARD, so the fatigued agent
+      wanders the interior and finds far more food without memory (24.4)
+      than the rested agent does with it (6.5);
+    - ``generalization_radius`` 2, as in the memory maze, so one contact values
+      a followable patch rather than a single 0.5 m cell (with 0 the benefit
+      drops from x2.7 to x1.6 at noise 0.03).
+
+    Where the benefit comes from (measured over seeds 1-8 at noise 0.03, gain 1.5):
+    site fidelity, not route planning. Positive value lies within ~3 m of a
+    site (90th percentile 2.6-2.9 m), so memory pulls only an agent that
+    passes close by; the memory agent then circles a site it knows and makes
+    ~70% of its finds at its favourite site. If the sites lie on the default
+    loop (2 m from the walls instead of 2.5 m) the agent finds them anyway and
+    memory costs ~half (x0.52), and an agent that explores the interior
+    (forward_bias 0.5) also does better without memory (37.2 vs 19.2 finds).
+    """
+
+    id = "hidden_food"
+    title = "Hidden food"
+    summary = "Invisible food at fixed sites regrows after it is eaten. The agent has to find it, then remember where it was."
+    watch = (
+        "The food is invisible to the agent: vision never reports it as food, so only a chance "
+        "brush finds a site the first time. The dashed rings show where it is",
+        "Turn Memory steering to 0 and restart: the agent runs a loop along the walls and finds "
+        "food only by luck (about 2-3 items in 3000 ticks)",
+        "With memory on, each find writes a value peak at the site (watch the value map). On later "
+        "passes the agent swerves into it, and it often keeps circling a site it knows, eating "
+        "each time the food regrows. Over many runs it finds about 3-4x as much food as with memory "
+        "off, but one run can be unlucky: until the loop brushes a site, memory has nothing to use",
+        "The memory agent tends to settle on one or two sites rather than touring all six: the value "
+        "map only pulls from a few metres away, so a site it has not visited for a while is out of reach",
+        "The agent rests when ATP falls to 60%, before the sensory gate narrows; a narrowed gate "
+        "under-counts motion, path integration drifts (the hollow ghost) and the map becomes useless. "
+        "Nothing resets the drift here, so it only grows",
+        "Lower Forward drive to 0.5 and restart: the agent wanders the interior and finds far more "
+        "food without memory, and memory steering then costs food, because circling one site beats "
+        "touring only when the tour is slow",
+    )
+    RADIUS = 1.25
+    SITES: Tuple[Tuple[float, float], ...] = (
+        (7.5, -2.0),
+        (7.5, 4.5),
+        (2.5, 7.5),
+        (-5.0, 7.5),
+        (-7.5, -1.0),
+        (-1.5, -7.5),
+    )
+    REGROW = 150  # ticks from being eaten until the site has food again
+    PACE_LOW = 0.6  # x atp_baseline: rest before the TRN gate narrows (ATP < 0.55)
+    GENERALIZATION_RADIUS = 2
+
+    def __init__(self) -> None:
+        self.collected = 0
+        self.collect_ticks: List[int] = []
+        self.items: List[WorldObject] = []
+        self.eaten_at: List[Optional[int]] = []
+        self.site_counts: List[int] = []
+        self.last_site: Optional[int] = None
+
+    def config(self) -> EngineConfig:
+        return EngineConfig(
+            basal_ganglia=BasalGangliaConfig(pace_rest_bonus=PACE_REST_BONUS, pace_low=self.PACE_LOW),
+            value_memory=ValueMemoryConfig(generalization_radius=self.GENERALIZATION_RADIUS),
+        )
+
+    def setup(self, engine: Engine) -> None:
+        super().setup(engine)
+        self.items = [WorldObject(x, y, self.RADIUS, "hidden") for (x, y) in self.SITES]
+        self.eaten_at = [None] * len(self.items)
+        self.site_counts = [0] * len(self.items)
+        for item in self.items:
+            engine.world.add_object(item)
+
+    def on_tick(self, engine: Engine, tick: int) -> List[Event]:
+        events: List[Event] = []
+        for i, item in enumerate(self.items):
+            eaten = self.eaten_at[i]
+            if item.kind == "collected" and eaten is not None and tick - eaten >= self.REGROW:
+                item.kind = "hidden"
+                self.eaten_at[i] = None
+            if item.kind == "hidden" and _dist(engine, item) <= self.RADIUS:
+                item.kind = "collected"
+                self.eaten_at[i] = tick
+                self.collected += 1
+                self.site_counts[i] += 1
+                self.collect_ticks.append(tick)
+                first = self.site_counts[i] == 1
+                again = "" if first else f", visit {self.site_counts[i]}"
+                where = "new site" if first else "known site"
+                events.append(_event(tick, f"Found hidden food at site {i + 1} ({where}{again}); {self.collected} total", "good"))
+                self.last_site = i
+        return events
+
+    def sites_found(self) -> int:
+        return sum(1 for n in self.site_counts if n > 0)
+
+    BLOCK = 500  # ticks per block of the learning curve
+
+    def blocks(self, ticks: int) -> List[int]:
+        """Collections per ``BLOCK``-tick block over the first ``ticks`` ticks (the learning curve)."""
+        out = [0] * (ticks // self.BLOCK)
+        for t in self.collect_ticks:
+            if t // self.BLOCK < len(out):
+                out[t // self.BLOCK] += 1
+        return out
+
+    def status(self) -> Dict[str, Any]:
+        ready = sum(1 for i in self.items if i.kind == "hidden")
+        return {
+            "Food found": self.collected,
+            "Sites discovered": f"{self.sites_found()}/{len(self.SITES)}",
+            "Sites with food now": f"{ready}/{len(self.items)}",
+            "Finds per site": " ".join(str(n) for n in self.site_counts) if self.site_counts else "—",
+        }
+
+    def actions(self) -> List[Dict[str, str]]:
+        return [
+            {"id": "forget", "label": "Forget the map", "help": "Erase the value map: the agent must rediscover every site."},
+        ]
+
+    def do_action(self, engine: Engine, action_id: str, tick: int) -> List[Event]:
+        if action_id == "forget":
+            engine.value_memory.values.clear()
+            return [_event(tick, "Value map erased: the agent no longer remembers any site", "warning")]
+        return super().do_action(engine, action_id, tick)
+
+SCENARIOS = {cls.id: cls for cls in (OpenField, Beacon, Foraging, HazardField, HiddenFood, MemoryMaze)}
 
 
 def make_scenario(scenario_id: str) -> Scenario:
