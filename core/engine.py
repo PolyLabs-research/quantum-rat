@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Tuple
 import math
 
 from brain.contracts import Action, Observation
-from brain.systems.basal_ganglia import TURN_STEP, select_action_with_scores
+from brain.systems.basal_ganglia import TURN_STEP, cue_gate_weight, select_action_with_scores
 from brain.systems.criticality import CriticalityField, near_critical_gain
 from brain.systems.spatial import SpatialSystem
 from brain.systems.trn_microsleep_replay import TRNGate
@@ -63,8 +63,16 @@ class EngineContext:
     # Display-only readouts (not logged to TickData, so they never affect the
     # determinism hash): the decision that was made and what drove it.
     action_scores: Dict[str, float] = field(default_factory=dict)
+    # The value signals actually fed to action selection (after cue gating).
     value_signals: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     criticality_gain: float = 1.0
+    # What the value map learns this tick: primary outcomes only (contact and
+    # real pain) unless value_memory.learn_shaping is on. ctx.reward (dopamine's
+    # input and the logged reward) is unchanged by this.
+    map_reward: float = 0.0
+    cue_gate: float = 1.0  # weight on memory steering (0 = muted by a visible target)
+    freeze_habituation: float = 1.0  # scale on the pain->REST drive (1 = not habituated)
+    pacing_active: bool = False  # homeostatic pacing is adding a REST drive this tick
     tick_data: TickData | None = None
 
 
@@ -106,7 +114,12 @@ class Engine:
             capacity=c.value_memory.capacity,
             generalization_radius=c.value_memory.generalization_radius,
             generalization_falloff=c.value_memory.generalization_falloff,
+            dwell_extinction=c.value_memory.dwell_extinction,
         )
+        # Per-engine action-selection state (never module-global: two engines
+        # stepped side by side must not see each other's history).
+        self._freeze_level = 0.0  # F: recent pain-freeze ticks (freeze habituation)
+        self._recovering = False  # homeostatic pacing latch; persists across episodes like energy does
         self._prev_target_dist: float | None = None
         self._prev_target: Tuple[Any, float, float] | None = None  # (object, x, y) the shaping distance refers to
         self.criticality = CriticalityField(stream=self.streams["criticality"], config=c.criticality)
@@ -232,14 +245,27 @@ class Engine:
         nearest = self._nearest_target(pos)
         return None if nearest is None else nearest[0]
 
+    # Observed pain below this is treated as sensor noise and kept out of the
+    # value map (it still reaches ctx.reward and dopamine).
+    MAP_PAIN_THRESHOLD = 0.05
+
     def _compute_reward(self, ctx: EngineContext) -> float:
+        """Return the full (shaped) reward and set ``ctx.map_reward``.
+
+        ``ctx.map_reward`` is what the value map learns: the contact bonus plus
+        real pain (>= MAP_PAIN_THRESHOLD), without approach shaping, unless
+        ``value_memory.learn_shaping`` is on, in which case it is the full reward.
+        """
         r = self.config.reward
         pain = ctx.observation.pain_signal if ctx.observation else 0.0
         reward = -r.pain_weight * pain
+        primary = -r.pain_weight * pain if pain >= self.MAP_PAIN_THRESHOLD else 0.0
+        learn_shaping = self.config.value_memory.learn_shaping
         nearest = self._nearest_target(ctx.pos)
         if nearest is None:
             self._prev_target_dist = None
             self._prev_target = None
+            ctx.map_reward = reward if learn_shaping else primary
             return reward
         dist, obj = nearest
         # Approach shaping rewards closing the distance to the *same* target.
@@ -255,8 +281,10 @@ class Engine:
             reward += r.approach_weight * (self._prev_target_dist - dist)
         if dist <= 0.0:
             reward += r.contact_bonus
+            primary += r.contact_bonus
         self._prev_target_dist = dist
         self._prev_target = (obj, obj.x, obj.y)
+        ctx.map_reward = reward if learn_shaping else primary
         return reward
 
     # Directions (relative to heading) the value map is consulted along. The side
@@ -299,14 +327,33 @@ class Engine:
         ctx.neuromodulators = self.neuromod_system.update(
             reward=ctx.reward, novelty=ctx.wm_novelty, pain=ctx.observation.pain_signal
         )
-        # Plasticity: value of the current place moves toward reward received there.
-        self.value_memory.record(self.spatial.bins_at(ctx.grid_x, ctx.grid_y), ctx.reward)
+        # Plasticity: TD-learn the map from the map reward (primary outcomes by default).
+        # Extinction is re-read from the config each tick so it can be tuned live.
+        self.value_memory.dwell_extinction = self.config.value_memory.dwell_extinction
+        self.value_memory.record(self.spatial.bins_at(ctx.grid_x, ctx.grid_y), ctx.map_reward)
 
-        # Memory-guided steer from the consolidated value map.
+        bg = self.config.basal_ganglia
+        # Memory-guided steer from the consolidated value map, muted while a
+        # target is in view (cue gating: what is seen beats what is remembered).
         value_ahead, value_left, value_right = self._value_signals(ctx)
+        cue_gate = cue_gate_weight(ctx.observation, bg.cue_gate_gain)
+        value_ahead *= cue_gate
+        value_left *= cue_gate
+        value_right *= cue_gate
 
         # Near-critical cortical gain: criticality state feeds sensory processing.
         crit_gain = near_critical_gain(ctx.kappa, self.config.criticality.gain_width)
+
+        # Freeze habituation: the pain->REST drive fades with recent pain-freezing.
+        freeze_h = math.exp(-self._freeze_level / bg.freeze_tau) if bg.freeze_tau > 0.0 else 1.0
+
+        # Homeostatic pacing: hysteretic latch on ATP (recover from pace_low up to pace_high).
+        if ctx.atp < bg.pace_low:
+            self._recovering = True
+        elif ctx.atp >= bg.pace_high:
+            self._recovering = False
+        pacing = self._recovering and not ctx.microsleep_active and bg.pace_rest_bonus > 0.0
+        pacing_rest = bg.pace_rest_bonus if pacing else 0.0
 
         # Deterministic action selection; dopamine modulates exploration.
         action, scores = select_action_with_scores(
@@ -320,10 +367,20 @@ class Engine:
             value_left=value_left,
             value_right=value_right,
             criticality_gain=crit_gain,
+            freeze_habituation=freeze_h,
+            pacing_rest=pacing_rest,
         )
+        pain = ctx.observation.pain_signal
+        if action.name == "REST" and not ctx.microsleep_active and pain > bg.freeze_pain_threshold:
+            self._freeze_level += 1.0
+        else:
+            self._freeze_level *= bg.freeze_decay
         ctx.action_scores = scores
         ctx.value_signals = (value_ahead, value_left, value_right)
         ctx.criticality_gain = crit_gain
+        ctx.cue_gate = cue_gate
+        ctx.freeze_habituation = freeze_h
+        ctx.pacing_active = pacing
         self.last_action = action
         ctx.action_name = action.name
         ctx.action_thrust = action.thrust
@@ -373,13 +430,16 @@ class Engine:
     def begin_episode(self) -> None:
         """Start a new episode without resetting the tick counter.
 
-        Clears the pending action, the reward-shaping distance and the value
-        map's episode boundary, so nothing learned links across a reset or a
-        teleport. Memories (value map, neuromodulator baselines) are kept.
+        Clears the pending action, the reward-shaping distance, the freeze
+        habituation level and the value map's episode boundary, so nothing
+        learned links across a reset or a teleport. Memories (value map,
+        neuromodulator baselines) and the energy-pacing latch (energy itself
+        persists) are kept.
         """
         self.last_action = Action(name="REST", thrust=0.0, turn=0.0)
         self._prev_target_dist = None
         self._prev_target = None
+        self._freeze_level = 0.0
         self.value_memory.reset_episode()
 
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:

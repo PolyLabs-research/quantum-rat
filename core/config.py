@@ -75,6 +75,16 @@ class ValueMemoryConfig:
     lookahead: float = 1.0  # distance projected ahead to read neighbouring place values
     generalization_radius: int = 0  # place-field spread in cells (0 = exact, no generalization)
     generalization_falloff: float = 0.5  # per-cell weight decay for generalization
+    # Extinction of self-made value peaks: a dwelling (same-cell) transition on a
+    # positively valued place is charged this much before the TD backup, so a peak
+    # the agent built by standing still fades instead of pinning it there. Moving
+    # transitions are never charged, so traversed paths do not become repulsive
+    # (a global living cost does that and breaks online maze learning). 0 disables.
+    dwell_extinction: float = 0.02
+    # Whether approach shaping is written into the value map. False keeps the map
+    # to primary outcomes only (contact reward and real pain >= 0.05); dopamine and
+    # the other neuromodulators still see the full shaped reward either way.
+    learn_shaping: bool = False
 
 
 @dataclass
@@ -116,8 +126,28 @@ class BasalGangliaConfig:
     ach_precision_gain: float = 0.5  # acetylcholine sharpens sensory (vision) precision
     ne_threat_gain: float = 0.5  # norepinephrine raises arousal / threat sensitivity
     fiveht_patience_gain: float = 0.4  # serotonin raises patience (willingness to rest)
-    value_gain: float = 0.8  # drive toward higher-value directions from the learned map
+    value_gain: float = 1.5  # drive toward higher-value directions from the learned map
     criticality_gain: float = 0.0  # how strongly near-critical cortical gain scales vision (0 = off)
+    # Freeze habituation: pain-driven REST habituates while the agent keeps freezing
+    # in pain, so a freeze is not an absorbing state. The pain->REST drive is scaled
+    # by exp(-F / freeze_tau), where F counts recent pain-freeze ticks (+1 per REST
+    # tick with pain > freeze_pain_threshold, otherwise F *= freeze_decay). The
+    # threshold sits above the sensor-noise amplitude, so this is an exact no-op
+    # unless real pain occurs. freeze_tau <= 0 disables it.
+    freeze_tau: float = 15.0
+    freeze_pain_threshold: float = 0.2
+    freeze_decay: float = 0.9
+    # Cue gating: memory steering is muted while a target is in view, by
+    # w = max(0, 1 - cue_gate_gain * closeness of the nearest visible target), so
+    # the value map cannot override what the agent can see. 0 disables.
+    cue_gate_gain: float = 2.0
+    # Homeostatic pacing: once ATP falls below pace_low the agent prefers REST
+    # (by pace_rest_bonus) until ATP recovers to pace_high. 0 disables (default
+    # in the core engine; the lab-console scenarios that are energy-limited
+    # turn it on).
+    pace_rest_bonus: float = 0.0
+    pace_low: float = 0.4
+    pace_high: float = 0.9
 
 
 @dataclass

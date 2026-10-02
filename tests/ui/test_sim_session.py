@@ -62,6 +62,47 @@ def test_params_are_whitelisted_clamped_and_live():
     assert keys == {p.key for p in PARAMS}
 
 
+def test_steering_robustness_params_are_live():
+    by_key = {p.key: p for p in PARAMS}
+    expected = {
+        "basal_ganglia.value_gain": ("Action selection", 0.0, 3.0, 0.1),
+        "basal_ganglia.cue_gate_gain": ("Action selection", 0.0, 4.0, 0.1),
+        "value_memory.dwell_extinction": ("Memory", 0.0, 0.1, 0.005),
+        "basal_ganglia.pace_rest_bonus": ("Energy", 0.0, 8.0, 0.5),
+    }
+    for key, (group, lo, hi, step) in expected.items():
+        p = by_key[key]
+        assert (p.group, p.min, p.max, p.step) == (group, lo, hi, step)
+    session = SimSession("foraging")
+    values = {p["key"]: p["value"] for p in session.params()}
+    assert values["basal_ganglia.pace_rest_bonus"] == 5.0  # scenario default: pacing on
+    assert values["basal_ganglia.cue_gate_gain"] == 2.0
+    assert values["value_memory.dwell_extinction"] == 0.02
+    assert session.set_param("basal_ganglia.pace_rest_bonus", 20) == 8.0
+    assert session.set_param("value_memory.dwell_extinction", 0.0) == 0.0
+    # The value map keeps its own copy of the extinction; the engine re-reads the
+    # config every tick, so the param applies from the next tick on.
+    session.step(1)
+    assert session.engine.value_memory.dwell_extinction == 0.0
+    assert SimSession("open_field").params()[[p.key for p in PARAMS].index("basal_ganglia.pace_rest_bonus")]["value"] == 0.0
+
+
+def test_frame_reports_pacing_freeze_and_cue_gate():
+    session = SimSession("hazard_field")
+    frame = session.frame()
+    assert isinstance(frame["energy"]["pacing"], bool)
+    assert 0.0 <= frame["action"]["freeze"] <= 1.0
+    assert 0.0 <= frame["action"]["cue_gate"] <= 1.0
+    seen = {"pacing": False, "freeze": False, "cue": False}
+    for _ in range(1500):
+        session.step(1)
+        f = session.frame()
+        seen["pacing"] |= f["energy"]["pacing"]
+        seen["freeze"] |= f["action"]["freeze"] < 1.0
+        seen["cue"] |= f["action"]["cue_gate"] < 1.0
+    assert seen == {"pacing": True, "freeze": True, "cue": True}
+
+
 def test_changing_coupling_restarts_kappa_measurement():
     session = SimSession("open_field")
     session.step(200)

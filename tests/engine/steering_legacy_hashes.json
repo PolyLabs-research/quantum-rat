@@ -1,0 +1,20 @@
+{
+ "_note": "Recorded on commit 6c0ea9d (before the steering-robustness redesign) by legacy_digest() in test_steering_robustness.py with no overrides. Key: scenario|noise|value_gain. Never regenerate: these pin the pre-redesign behaviour.",
+ "cases": {
+  "beacon|0.03|0.8": "9222f9848c2ea59b643623739b51e14a53e4d5d19a83aace1243aacae434f1f4",
+  "beacon|0.0|0.8": "eab6687136fe64a25ff22dfbab2d19cea15f6f3bfe77bac39fe858c3a8eef83f",
+  "foraging|0.03|0.8": "e530aa4e46e5cad418e010cc772650546518a40638a798765d5a92ac02388919",
+  "foraging|0.0|0.8": "9b998e8235f76714ae93dc1abeae4a7e3437f5a7dbffed9beab7f77d009942db",
+  "hazard_field|0.03|0.8": "e98e232d587a704e6d4a96bb774902ca8f07e899698cdc441e5731a7952844f6",
+  "hazard_field|0.0|0.8": "85577669bf6b082faaff187515d5f5cacf903a5afa018ef028e54acac2e6d82c",
+  "memory_maze|0.03|0.8": "7ba52af17dd9d1b83f73e2045d80ee007cfeb3a7f54153affb8844a1eccc842b",
+  "memory_maze|0.03|1.5": "3abb0cb631bd165da1380d82b437d0ff2a68b3004bf6c8f20f92c40ae5f459cd",
+  "memory_maze|0.0|0.8": "aaba91bdcd202344d153954f85fd5a07d7292eeb37c34a70e35139ddf463adbe",
+  "memory_maze|0.0|1.5": "ed2910e9d8b1d2221e135247846178145c7efe2327cb63d2454dd7ce3d41288d",
+  "open_field|0.03|0.8": "13e019d24be82daed3db7255cd76a88c4074a5d921b3613a6dc7d18d8d0a88c3",
+  "open_field|0.0|0.8": "8c034a0e6ab275fa6262cd84addf00043c5b9e78dcd121fa0bbd2dc96b586435"
+ },
+ "recorded_at": "6c0ea9d",
+ "seed": 1,
+ "ticks": 600
+}

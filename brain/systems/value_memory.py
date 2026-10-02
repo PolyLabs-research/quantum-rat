@@ -19,6 +19,11 @@ value backward along the stored trajectory. Values generalize to neighbouring
 cells with a decaying kernel (overlapping place fields;
 ``generalization_radius`` 0 disables it), so a single trajectory fills a
 followable 2-D field instead of a thin one-cell path.
+
+Small positive peaks that the agent builds by standing still are extinguished
+by ``dwell_extinction`` (see ``record``): without it nothing but slow decay
+removes them, and a tiny peak under the agent reads, once the steering signal is
+normalized, as "every direction is worse than here".
 """
 
 from __future__ import annotations
@@ -37,8 +42,10 @@ class ValueMemory:
         capacity: int = 200,
         generalization_radius: int = 0,
         generalization_falloff: float = 0.5,
+        dwell_extinction: float = 0.0,
     ) -> None:
         self.lr = learning_rate
+        self.dwell_extinction = dwell_extinction
         self.gamma = discount
         self.gen_radius = generalization_radius
         self.gen_falloff = generalization_falloff
@@ -67,7 +74,18 @@ class ValueMemory:
         The reward is credited to the transition that led here (reward-on-arrival),
         so V(previous) bootstraps on V(cell). The first step of an episode has no
         predecessor and only logs.
+
+        Dwell extinction: a same-cell (dwelling) transition on a positively valued
+        place is charged ``dwell_extinction`` before the backup, so a peak the
+        agent builds by standing still fades instead of holding it there. The
+        charged reward is what gets logged, so replay applies the same thing.
         """
+        if (
+            self.dwell_extinction
+            and self._prev_cell == cell
+            and self.values.get(cell, 0.0) > 0.0
+        ):
+            reward -= self.dwell_extinction
         if self._prev_cell is not None:
             self._td_update(self._prev_cell, reward + self.gamma * self.values.get(cell, 0.0))
         self.trajectory.append((cell, reward))

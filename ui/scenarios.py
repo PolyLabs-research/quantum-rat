@@ -16,7 +16,7 @@ import math
 from typing import Any, Dict, List, Optional, Tuple
 
 from brain.systems.spatial import SpatialState
-from core.config import EngineConfig, SensorConfig
+from core.config import BasalGangliaConfig, EngineConfig, SensorConfig
 from core.engine import Engine
 from core.world import WorldObject
 from experiments.memory_navigation import memory_nav_config
@@ -25,6 +25,17 @@ from experiments.protocols.foraging import DEFAULT_TARGETS as FORAGING_TARGETS
 Event = Dict[str, Any]
 
 START_POSE: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # x, y, heading (all scenarios)
+
+# Homeostatic pacing for the energy-limited task scenarios (beacon, foraging,
+# hazard_field): once ATP drops below pace_low the agent rests until it has
+# recovered to pace_high, instead of running itself into microsleep. It stays
+# off in the core engine and in open_field (the microsleep/replay demo) and
+# memory_maze (the rest-off -> path-integration-drift demo).
+PACE_REST_BONUS = 5.0
+
+
+def paced_basal_ganglia() -> BasalGangliaConfig:
+    return BasalGangliaConfig(pace_rest_bonus=PACE_REST_BONUS)
 
 
 def _event(tick: int, text: str, level: str = "info", kind: str = "scenario") -> Event:
@@ -117,8 +128,10 @@ class Beacon(Scenario):
     watch = (
         "Vision rays lock onto the beacon and steer the agent toward it",
         "Dopamine spikes on arrival (better than expected), then dips when the beacon jumps away",
-        "The value map remembers where the beacon was: at the default memory steering the agent "
-        "often goes back to an old spot first. Try memory steering 0.3 to 0.4 and it chases better",
+        "The value map remembers where the beacon was, but memory is muted while the beacon is "
+        "in view (cue gating). Set cue gating of memory to 0 and old spots can pull the agent "
+        "away from the beacon it is looking at",
+        "When ATP runs low the agent stops to recover (fatigue pacing) instead of collapsing into microsleep",
         "Turn vision drive down to 0 and the agent can no longer find it",
     )
     SPOTS = ((6.0, 3.0), (-5.0, 5.0), (-6.0, -5.0), (5.0, -6.0), (0.0, 7.5), (-7.5, 0.0))
@@ -130,6 +143,9 @@ class Beacon(Scenario):
         self.last_visit_tick = 0
         self.last_time: Optional[int] = None
         self.target: Optional[WorldObject] = None
+
+    def config(self) -> EngineConfig:
+        return EngineConfig(basal_ganglia=paced_basal_ganglia())
 
     def setup(self, engine: Engine) -> None:
         super().setup(engine)
@@ -171,7 +187,7 @@ class Foraging(Scenario):
         self.items: List[WorldObject] = []
 
     def config(self) -> EngineConfig:
-        return EngineConfig(sensors=SensorConfig(vision_rays=5, fov=2.4))
+        return EngineConfig(sensors=SensorConfig(vision_rays=5, fov=2.4), basal_ganglia=paced_basal_ganglia())
 
     def setup(self, engine: Engine) -> None:
         super().setup(engine)
@@ -210,7 +226,8 @@ class HazardField(Scenario):
     title = "Hazard field"
     summary = "Food lies beyond hazards. Contact hurts; the agent learns where not to linger."
     watch = (
-        "Pain near a hazard drives norepinephrine (arousal) and a brief freeze",
+        "Pain near a hazard drives norepinephrine (arousal) and a brief freeze; the freeze "
+        "habituates, so the agent does not stay stuck in the pain zone",
         "Reward goes negative in the pain zone; the value map turns red there",
         "Raise NE → threat sensitivity for a more cautious agent",
     )
@@ -225,7 +242,7 @@ class HazardField(Scenario):
         self.items: List[WorldObject] = []
 
     def config(self) -> EngineConfig:
-        return EngineConfig(sensors=SensorConfig(vision_rays=5, fov=2.0))
+        return EngineConfig(sensors=SensorConfig(vision_rays=5, fov=2.0), basal_ganglia=paced_basal_ganglia())
 
     def setup(self, engine: Engine) -> None:
         super().setup(engine)
