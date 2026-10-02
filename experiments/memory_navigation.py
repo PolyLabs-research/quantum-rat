@@ -121,7 +121,9 @@ def run_memory_navigation(
         ticks = _run_trial(engine, goal, goal_radius, max_ticks)
         results.append(TrialResult(trial, True, ticks, ticks < max_ticks))
         if replay:
-            engine.value_memory.consolidate(passes=consolidation_passes)
+            engine.value_memory.consolidate(
+                passes=consolidation_passes, dwell_extinction=engine.config.value_memory.dwell_extinction
+            )
         engine.value_memory.trajectory.clear()
         trial += 1
     for _ in range(n_recall):

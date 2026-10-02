@@ -133,34 +133,63 @@ def test_dwell_extinction_charges_only_dwelling_on_positive_cells():
     vm = ValueMemory(learning_rate=0.5, discount=0.9, dwell_extinction=0.1)
     vm.record((0, 0), 0.0)  # first step: no predecessor
     vm.record((0, 0), 0.0)  # dwelling, but V(0,0) == 0: not charged
-    assert vm.trajectory[-1] == ((0, 0), 0.0) and vm.value_of((0, 0)) == 0.0
+    assert vm.value_of((0, 0)) == 0.0
 
     vm.values[(0, 0)] = 0.5
     vm.record((0, 0), 0.0)  # dwelling on a positive cell: charged
-    assert vm.trajectory[-1] == ((0, 0), pytest.approx(-0.1))
     plain = 0.5 + 0.5 * (0.0 + 0.9 * 0.5 - 0.5)
     assert vm.value_of((0, 0)) == pytest.approx(plain + 0.5 * -0.1)
-    assert vm.value_of((0, 0)) < plain
+    # The trajectory keeps the reward actually received, never the charge.
+    assert vm.trajectory[-1] == ((0, 0), 0.0)
 
     vm.values[(1, 0)] = 0.5
+    before = vm.value_of((0, 0))
     vm.record((1, 0), 0.0)  # moving onto a positive cell is never charged
-    assert vm.trajectory[-1] == ((1, 0), 0.0)
+    assert vm.value_of((0, 0)) == pytest.approx(before + 0.5 * (0.9 * 0.5 - before))
 
     vm.values[(1, 0)] = -0.2
     vm.record((1, 0), 0.0)  # dwelling on a negative cell: not charged
-    assert vm.trajectory[-1] == ((1, 0), 0.0)
+    assert vm.value_of((1, 0)) == pytest.approx(-0.2 + 0.5 * (0.9 * -0.2 + 0.2))
+    assert all(reward == 0.0 for _, reward in vm.trajectory)
 
 
-def test_replay_applies_the_same_extinction():
+def test_replay_charges_dwelling_only_while_the_cell_is_still_positive():
     vm = ValueMemory(learning_rate=0.5, discount=0.9, dwell_extinction=0.1)
     vm.values[(0, 0)] = 0.5
     vm.record((0, 0), 0.0)
     vm.record((0, 0), 0.0)
-    stored = vm.trajectory[1][1]
-    assert stored == pytest.approx(-0.1)
     vm.values[(0, 0)] = 0.5
-    vm.replay_transition(0)
-    assert vm.value_of((0, 0)) == pytest.approx(0.5 + 0.5 * (stored + 0.9 * 0.5 - 0.5))
+    vm.replay_transition(0)  # positive at replay time: charged, as online
+    assert vm.value_of((0, 0)) == pytest.approx(0.5 + 0.5 * (-0.1 + 0.9 * 0.5 - 0.5))
+    vm.values[(0, 0)] = -0.05
+    vm.replay_transition(0)  # no longer positive: not charged
+    assert vm.value_of((0, 0)) == pytest.approx(-0.05 + 0.5 * (0.9 * -0.05 + 0.05))
+    vm.values[(0, 0)] = 0.5
+    vm.replay_transition(0, dwell_extinction=0.0)  # an explicit cost overrides the attribute
+    assert vm.value_of((0, 0)) == pytest.approx(0.5 + 0.5 * (0.9 * 0.5 - 0.5))
+
+
+def test_consolidating_a_dwell_trajectory_extinguishes_but_never_makes_aversion():
+    # Review finding F1: the charged reward used to be logged and replayed
+    # unconditionally, so consolidate(60) drove a dwelt-on cell to the
+    # self-transition fixed point -c / (1 - gamma) = -0.2: extinction became
+    # aversion. Now replay charges only while the cell is still positive, so the
+    # charge alone can take a cell at most one backup below zero (-lr * c, the
+    # same floor as online), after which bootstrapping relaxes it back to 0.
+    lr, c = 0.2, 0.02
+    vm = ValueMemory(learning_rate=lr, discount=0.9, dwell_extinction=c)
+    vm.values[(0, 0)] = 0.05  # a small self-made peak
+    for _ in range(10):  # the agent dwells on it for 10 ticks
+        vm.record((0, 0), 0.0)
+    online = vm.value_of((0, 0))
+    assert 0.0 <= online < 0.05
+    lowest = online
+    for _ in range(60):
+        vm.consolidate(passes=1)
+        lowest = min(lowest, vm.value_of((0, 0)))
+    assert lowest >= -lr * c - 1e-12
+    assert -1e-3 < vm.value_of((0, 0)) <= online  # extinguished to ~0, not -0.2
+    assert vm.value_of((0, 0)) > -c / (1 - 0.9) / 10
 
 
 def test_dwell_extinction_defaults_off_in_the_class_and_on_in_the_engine():
@@ -168,8 +197,25 @@ def test_dwell_extinction_defaults_off_in_the_class_and_on_in_the_engine():
     vm.values[(0, 0)] = 0.5
     vm.record((0, 0), 0.0)
     vm.record((0, 0), 0.0)
-    assert vm.trajectory[-1][1] == 0.0
-    assert Engine(seed=1).value_memory.dwell_extinction == EngineConfig().value_memory.dwell_extinction == 0.02
+    assert vm.value_of((0, 0)) == pytest.approx(0.5 + 0.2 * (0.9 * 0.5 - 0.5))  # uncharged
+    assert EngineConfig().value_memory.dwell_extinction == 0.02
+    assert Engine(seed=1).value_memory.dwell_extinction == 0.02
+
+
+def test_the_engine_passes_the_config_extinction_and_never_overwrites_the_attribute():
+    # Review nit F10: the engine used to copy the config into the attribute every
+    # tick, silently reverting a direct assignment. The config is now passed
+    # explicitly and the attribute is left alone.
+    engine = Engine(seed=1)
+    seen = []
+    record = engine.value_memory.record
+    engine.value_memory.record = lambda cell, reward, dwell_extinction=None: (
+        seen.append(dwell_extinction), record(cell, reward, dwell_extinction))[1]
+    engine.value_memory.dwell_extinction = 0.07
+    engine.config.value_memory.dwell_extinction = 0.03
+    engine.run(3)
+    assert seen == [0.03, 0.03, 0.03]
+    assert engine.value_memory.dwell_extinction == 0.07
 
 
 # ------------------------------------------------- C3 primary-only map content

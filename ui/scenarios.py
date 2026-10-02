@@ -319,7 +319,9 @@ class MemoryMaze(Scenario):
         n = len(engine.value_memory.trajectory)
         if n == 0:
             return _event(tick, "Nothing to replay yet: no trajectory since this trial started", "info", "replay")
-        engine.value_memory.consolidate(passes=self.CONSOLIDATION_PASSES)
+        engine.value_memory.consolidate(
+            passes=self.CONSOLIDATION_PASSES, dwell_extinction=engine.config.value_memory.dwell_extinction
+        )
         return _event(tick, f"Sleep: replayed a {n}-step trajectory {self.CONSOLIDATION_PASSES}× — value map consolidated", "info", "replay")
 
     def _end_trial(self, engine: Engine, tick: int, reached: bool) -> List[Event]:

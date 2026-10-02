@@ -207,7 +207,9 @@ class Engine:
         # Offline consolidation: replay propagates value backward along the
         # trajectory (only during microsleep, via the same replay gating).
         if replay_active:
-            self.value_memory.replay_transition(replay_index)
+            self.value_memory.replay_transition(
+                replay_index, dwell_extinction=self.config.value_memory.dwell_extinction
+            )
 
     def _spatial_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
@@ -334,9 +336,13 @@ class Engine:
             reward=ctx.reward, novelty=ctx.wm_novelty, pain=ctx.observation.pain_signal
         )
         # Plasticity: TD-learn the map from the map reward (primary outcomes by default).
-        # Extinction is re-read from the config each tick so it can be tuned live.
-        self.value_memory.dwell_extinction = self.config.value_memory.dwell_extinction
-        self.value_memory.record(self.spatial.bins_at(ctx.grid_x, ctx.grid_y), ctx.map_reward)
+        # The extinction cost is passed from the config on every call, so it can be
+        # tuned live and the config stays the single source of truth.
+        self.value_memory.record(
+            self.spatial.bins_at(ctx.grid_x, ctx.grid_y),
+            ctx.map_reward,
+            dwell_extinction=self.config.value_memory.dwell_extinction,
+        )
 
         bg = self.config.basal_ganglia
         # Memory-guided steer from the consolidated value map, muted while a

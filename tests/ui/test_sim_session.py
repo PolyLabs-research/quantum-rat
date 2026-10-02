@@ -80,10 +80,14 @@ def test_steering_robustness_params_are_live():
     assert values["value_memory.dwell_extinction"] == 0.02
     assert session.set_param("basal_ganglia.pace_rest_bonus", 20) == 8.0
     assert session.set_param("value_memory.dwell_extinction", 0.0) == 0.0
-    # The value map keeps its own copy of the extinction; the engine re-reads the
-    # config every tick, so the param applies from the next tick on.
+    # The engine passes the config's extinction to the value map on every call,
+    # so the param applies from the next tick on.
+    seen = []
+    record = session.engine.value_memory.record
+    session.engine.value_memory.record = lambda cell, reward, dwell_extinction=None: (
+        seen.append(dwell_extinction), record(cell, reward, dwell_extinction))[1]
     session.step(1)
-    assert session.engine.value_memory.dwell_extinction == 0.0
+    assert seen == [0.0]
     assert SimSession("open_field").params()[[p.key for p in PARAMS].index("basal_ganglia.pace_rest_bonus")]["value"] == 0.0
 
 

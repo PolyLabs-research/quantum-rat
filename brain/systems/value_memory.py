@@ -20,10 +20,16 @@ cells with a decaying kernel (overlapping place fields;
 ``generalization_radius`` 0 disables it), so a single trajectory fills a
 followable 2-D field instead of a thin one-cell path.
 
-Small positive peaks that the agent builds by standing still are extinguished
-by ``dwell_extinction`` (see ``record``): without it nothing but slow decay
+Small positive peaks that the agent builds by staying put are extinguished by
+``dwell_extinction`` (see ``record``): without it nothing but slow decay
 removes them, and a tiny peak under the agent reads, once the steering signal is
-normalized, as "every direction is worse than here".
+normalized, as "every direction is worse than here". "Staying put" means a
+transition whose start and end fall in the same place-cell bin, so it covers
+REST and also the turns made in place (a TURN moves 0.3, usually inside one
+0.5 bin). The charge is never logged: the trajectory keeps the reward actually
+received, and replay re-applies the charge under the same rule as online
+(same cell, and that cell's value still positive at replay time), so repeated
+replay extinguishes a peak to zero instead of driving it negative.
 """
 
 from __future__ import annotations
@@ -45,6 +51,9 @@ class ValueMemory:
         dwell_extinction: float = 0.0,
     ) -> None:
         self.lr = learning_rate
+        # Default extinction cost for calls that do not pass one. An Engine
+        # always passes config.value_memory.dwell_extinction explicitly, so
+        # inside an Engine this attribute is not read.
         self.dwell_extinction = dwell_extinction
         self.gamma = discount
         self.gen_radius = generalization_radius
@@ -68,7 +77,17 @@ class ValueMemory:
             v = self.values.get(nb, 0.0)
             self.values[nb] = v + weight * self.lr * (target - v)
 
-    def record(self, cell: Cell, reward: float) -> None:
+    def _extinction(self, dwell_extinction: Optional[float]) -> float:
+        return self.dwell_extinction if dwell_extinction is None else dwell_extinction
+
+    def _dwell_charge(self, from_cell: Optional[Cell], to_cell: Cell, extinction: float) -> float:
+        """The extinction charge for ``from_cell -> to_cell``: ``extinction`` when the
+        agent stayed in one place cell and that cell is (still) positively valued, else 0."""
+        if extinction and from_cell == to_cell and self.values.get(to_cell, 0.0) > 0.0:
+            return extinction
+        return 0.0
+
+    def record(self, cell: Cell, reward: float, dwell_extinction: Optional[float] = None) -> None:
         """Observe arrival at ``cell`` with ``reward``; log it and do the online TD backup.
 
         The reward is credited to the transition that led here (reward-on-arrival),
@@ -76,18 +95,17 @@ class ValueMemory:
         predecessor and only logs.
 
         Dwell extinction: a same-cell (dwelling) transition on a positively valued
-        place is charged ``dwell_extinction`` before the backup, so a peak the
-        agent builds by standing still fades instead of holding it there. The
-        charged reward is what gets logged, so replay applies the same thing.
+        place is charged the extinction cost before the backup, so a peak the
+        agent builds by staying put fades instead of holding it there. The cost is
+        ``dwell_extinction`` when given (the engine passes its config value on
+        every call, so the config is the single source of truth inside an
+        Engine), else the ``self.dwell_extinction`` set at construction. Only the
+        uncharged ``reward`` is logged; replay re-applies the charge under the
+        same rule (see ``replay_transition``).
         """
-        if (
-            self.dwell_extinction
-            and self._prev_cell == cell
-            and self.values.get(cell, 0.0) > 0.0
-        ):
-            reward -= self.dwell_extinction
+        charge = self._dwell_charge(self._prev_cell, cell, self._extinction(dwell_extinction))
         if self._prev_cell is not None:
-            self._td_update(self._prev_cell, reward + self.gamma * self.values.get(cell, 0.0))
+            self._td_update(self._prev_cell, reward - charge + self.gamma * self.values.get(cell, 0.0))
         self.trajectory.append((cell, reward))
         self._prev_cell = cell
 
@@ -95,19 +113,25 @@ class ValueMemory:
         """Mark an episode boundary so no transition links across a reset/teleport."""
         self._prev_cell = None
 
-    def replay_transition(self, index: int) -> None:
-        """Offline TD(0) backup for one stored transition (used during replay)."""
+    def replay_transition(self, index: int, dwell_extinction: Optional[float] = None) -> None:
+        """Offline TD(0) backup for one stored transition (used during replay).
+
+        A dwelling transition is charged the extinction cost only if its cell is
+        still positive now, exactly as online, so replay can extinguish a
+        self-made peak but never turn it into an aversive one.
+        """
         if index < 0 or index + 1 >= len(self.trajectory):
             return
         from_cell, _ = self.trajectory[index]
         to_cell, reward_on_arrival = self.trajectory[index + 1]
-        self._td_update(from_cell, reward_on_arrival + self.gamma * self.values.get(to_cell, 0.0))
+        charge = self._dwell_charge(from_cell, to_cell, self._extinction(dwell_extinction))
+        self._td_update(from_cell, reward_on_arrival - charge + self.gamma * self.values.get(to_cell, 0.0))
 
-    def consolidate(self, passes: int = 1) -> None:
+    def consolidate(self, passes: int = 1, dwell_extinction: Optional[float] = None) -> None:
         """Replay the whole trajectory backward ``passes`` times (offline sweep)."""
         for _ in range(passes):
             for index in range(len(self.trajectory) - 2, -1, -1):
-                self.replay_transition(index)
+                self.replay_transition(index, dwell_extinction)
 
     def value_of(self, cell: Cell) -> float:
         return self.values.get(cell, 0.0)
