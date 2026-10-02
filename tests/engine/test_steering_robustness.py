@@ -343,6 +343,7 @@ ALL_OFF = {
     "value_memory.learn_shaping": True,
     "basal_ganglia.cue_gate_gain": 0.0,
     "basal_ganglia.pace_rest_bonus": 0.0,
+    "basal_ganglia.value_steer": "maxnorm",
 }
 LEGACY_HASHES = json.loads((Path(__file__).with_name("steering_legacy_hashes.json")).read_text())
 

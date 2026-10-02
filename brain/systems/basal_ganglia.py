@@ -8,6 +8,7 @@ visible "target" and turns away from a close wall ahead.
 
 from __future__ import annotations
 
+import math
 from typing import Dict, Optional, Tuple
 
 from brain.contracts import Action, Observation
@@ -135,6 +136,63 @@ def cue_gate_weight(observation: Observation, gain: float) -> float:
     return max(0.0, 1.0 - gain * closeness)
 
 
+def split_value_signals(
+    ahead: float, left: float, right: float, scale: float, config: BasalGangliaConfig
+) -> Tuple[float, float, float]:
+    """Value signals for ``value_steer == "split"``. A pure function of its arguments.
+
+    ``ahead``, ``left`` and ``right`` are the advantages (value there minus value
+    here) straight ahead and of the best fan cell on each side; ``scale`` is the
+    largest advantage magnitude over every sampled direction.
+
+    The turn signals are measured relative to ahead, so they say "which way to
+    turn", never "how good is everything". A side turns only when it beats ahead
+    by more than ``value_turn_dead_zone`` (a fraction of the local relief
+    ``scale`` when ``value_turn_relative``), ramping to full strength over
+    ``value_turn_ramp``. Because nothing is measured against here, a local maximum
+    cannot push every move below REST (the value-induced REST of max-norm), and
+    because the dead zone is relative, a 1% wobble at a peak does not command a
+    full turn (which made the agent orbit or zig-zag off the goal).
+    """
+    eps, width = config.value_turn_dead_zone, config.value_turn_ramp
+    if config.value_turn_relative:
+        if scale < 1e-3:  # locally flat map -> no steer
+            return 0.0, 0.0, 0.0
+        norm = 1.0 / scale
+    else:
+        norm = 1.0
+
+    def turn(d: float) -> float:
+        excess = abs(d) * norm - eps
+        if excess <= 0.0:
+            return 0.0
+        mag = 1.0 if width <= 0.0 else min(1.0, excess / width)
+        return mag if d > 0.0 else -mag
+
+    tl, tr = turn(left - ahead), turn(right - ahead)
+    if config.value_turn_exclusive and tl > 0.0 and tr > 0.0:
+        # Both sides beat ahead: commit to the better one (ties go left) instead
+        # of alternating L/R, which zig-zags straight on, off the remembered goal.
+        if left >= right:
+            tr = 0.0
+        else:
+            tl = 0.0
+    mode = config.value_ahead_mode
+    fwd = 0.0
+    if mode in ("oppose", "oppose_positive"):
+        # FORWARD gives up what the stronger turn gains, so a turn needs only
+        # half the gain it would against FORWARD's fixed lead.
+        fwd = -max(tl, tr, 0.0)
+    if mode in ("maxnorm", "positive", "oppose_positive") and scale >= 1e-3:
+        fwd += ahead / scale if mode == "maxnorm" else max(0.0, ahead / scale)
+    if config.value_common_mode > 0.0:
+        floor = min(ahead, left, right)
+        if floor > 0.0:  # every direction beats here: a direction-free "go"
+            cm = math.tanh(floor / config.value_common_mode)
+            fwd, tl, tr = fwd + cm, tl + cm, tr + cm
+    return fwd, tl, tr
+
+
 ACTION_ORDER = ("FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST")
 
 
@@ -220,4 +278,11 @@ def select_action(
     return action
 
 
-__all__ = ["select_action", "select_action_with_scores", "cue_gate_weight", "ACTION_ORDER", "TURN_STEP"]
+__all__ = [
+    "select_action",
+    "select_action_with_scores",
+    "cue_gate_weight",
+    "split_value_signals",
+    "ACTION_ORDER",
+    "TURN_STEP",
+]

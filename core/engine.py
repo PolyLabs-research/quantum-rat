@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Tuple
 import math
 
 from brain.contracts import Action, Observation
-from brain.systems.basal_ganglia import TURN_STEP, cue_gate_weight, select_action_with_scores
+from brain.systems.basal_ganglia import TURN_STEP, cue_gate_weight, select_action_with_scores, split_value_signals
 from brain.systems.criticality import CriticalityField, near_critical_gain
 from brain.systems.spatial import SpatialSystem
 from brain.systems.trn_microsleep_replay import TRNGate
@@ -315,6 +315,9 @@ class Engine:
         left = [advantage(hd + off) for off in self.VALUE_FAN_OFFSETS]
         right = [advantage(hd - off) for off in self.VALUE_FAN_OFFSETS]
         scale = max(abs(x) for x in [ahead, *left, *right])
+        bg = self.config.basal_ganglia
+        if bg.value_steer == "split":
+            return split_value_signals(ahead, max(left), max(right), scale, bg)
         if scale < 1e-3:  # locally flat map -> no steer
             return 0.0, 0.0, 0.0
         return ahead / scale, max(left) / scale, max(right) / scale
