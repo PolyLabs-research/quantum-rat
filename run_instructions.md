@@ -21,6 +21,8 @@ To run and check the Replay GUI, please follow these steps:
     ```
     You should see output indicating that the Flask development server is running, likely on `http://127.0.0.1:8000/`.
 
+    The server binds to `127.0.0.1` by default. Pass `--host 0.0.0.0` to reach it from other machines, and `--debug` for auto-reload while developing. Don't combine the two, because the Flask debugger can execute code. `--runs-dir` and `--port` fall back to the `CRITICAL_RAT_RUNS_DIR` and `PORT` environment variables.
+
 4.  **Access the UI in your Web Browser:**
     Open your web browser and go to `http://localhost:8000/replay`.
 

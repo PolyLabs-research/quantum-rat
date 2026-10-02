@@ -1,4 +1,5 @@
 
+import argparse
 import os
 import json
 from flask import Flask, jsonify, request, send_from_directory, redirect, url_for
@@ -128,10 +129,18 @@ def get_ticks(run_id: str, agent_id: str, protocol_id: str):
     })
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Read-only replay server for run directories")
+    parser.add_argument("--runs-dir", type=str, default=os.environ.get("CRITICAL_RAT_RUNS_DIR", "runs"), help="Directory containing run folders (env: CRITICAL_RAT_RUNS_DIR)")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Interface to bind; use 0.0.0.0 to expose on the network")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)), help="Port to listen on (env: PORT)")
+    parser.add_argument("--debug", action="store_true", help="Enable the Flask debugger and auto-reload (never combine with a public --host)")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    # Default to "runs" if not set.
-    if "CRITICAL_RAT_RUNS_DIR" not in os.environ:
-        os.environ["CRITICAL_RAT_RUNS_DIR"] = "runs"
-    
-    app.run(host="0.0.0.0", port=port, debug=True)
+    args = parse_args()
+    # get_run_root() reads this, so the flag must be exported before serving.
+    os.environ["CRITICAL_RAT_RUNS_DIR"] = args.runs_dir
+
+    app.run(host=args.host, port=args.port, debug=args.debug)
