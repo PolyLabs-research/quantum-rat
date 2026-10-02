@@ -30,14 +30,24 @@ honestly at different stages of maturity:
   precision), serotonin (patience). A plastic place-value map is learned by TD(0) and consolidated
   by replay; the agent uses it for memory-guided navigation back to a now-hidden goal
   (`experiments/memory_navigation.py`). Repeated recall reinforces the map rather than eroding it,
-  and replay is a data-efficiency speed-up (one demonstration + replay recalls in ~16 ticks vs ~66
-  for online learning alone). Place values generalise to neighbouring cells (overlapping place
-  fields), so this works at the engine's default spatial resolution and forward bias. Criticality
+  and replay is a data-efficiency speed-up: after one demonstration the replay agent is never
+  slower than online learning alone and usually faster (over six goal positions 138 vs 174 probe
+  ticks in total; 13 vs 14 at the default goal, 42 vs 65 off axis). Place values generalise to
+  neighbouring cells (overlapping place fields), so this works at the engine's default spatial
+  resolution and forward bias. Memory steering (`value_gain`, default 1.5) works over a wide band
+  (0.4-3.0) without value-induced resting, pain freezes or wall pinning (`docs/decisions.md`
+  G14-G15). Criticality
   is coupled to cognition too: a near-critical cortical gain (peaking at κ≈1) scales sensory
   precision, so the field is not just an instrumented side-process.
 * **Honest limits / in progress.** Whether the criticality gain improves a given behaviour is
   task-dependent (navigation time is not a clean function of it), and the assays remain simple
-  single-episode or few-trial tasks.
+  single-episode or few-trial tasks. Memory steering earns its keep only where the task needs
+  memory: it is everything in the memory maze (0.6 vs ~147 recalls), roughly neutral in foraging
+  and the hazard field (within about ±9% of memory off), and 3-11% negative in the beacon chase,
+  where every remembered spot is stale. The large score gains in the beacon, foraging and hazard
+  scenarios of the lab console come mostly from fatigue pacing, which is on in those scenarios
+  only, not in the core engine. The replay advantage is a single deterministic sample and breaks
+  at some gains, steering parameters and noise levels (`tests/experiments/test_replay_geometry.py`).
 
 So: **this is not a validated model of a real rodent brain.** It's a place to build such
 models one defensible piece at a time, with the engineering guaranteeing that whatever you
@@ -69,7 +79,7 @@ works offline.
 
 Panels: the arena (value map, vision rays coloured by what they hit, whiskers, pain zones, trail,
 and a dashed "ghost" where path integration *thinks* the body is), the basal-ganglia decision
-scores, memory pull from the value map, the four neuromodulators, ATP/glycogen and the sensory
+scores, memory steering from the value map, the four neuromodulators, ATP/glycogen and the sensory
 gate, the 16×16 criticality lattice with live avalanches, the κ gauge and log-log avalanche-size
 histogram against the −1.5 power law, path-integration drift, an event log and a full readout
 table. Parameters (action selection, neuromodulator gains, E/I coupling, senses, sensor noise)

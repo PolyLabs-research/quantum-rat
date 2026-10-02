@@ -35,9 +35,13 @@ Noise caveat: sensor noise (default 0.03) makes each seed a genuinely different
 run, so the numbers are distributions. At noise 0 the seed barely matters
 (different seeds usually give the identical run), so ``--seeds N`` at noise 0
 is close to N copies of one sample; vary the start heading instead
-(``--noise 0 --seeds 1 --headings 8``). Noise is also not neutral: clamped pain
-noise acts as a hidden cost on dwelling, which can mask value-induced REST, so
-check both levels (``--noise-both``).
+(``--noise 0 --seeds 1 --headings 8``). Noise is also not neutral. In the stock
+engine (6c0ea9d, max-norm steering with shaping in the map) clamped pain noise
+entered the value map and acted as a hidden cost on dwelling, which masked
+value-induced REST. Since G14 the map only learns pain above max(0.05,
+sensors.noise), so that path is closed, but noise still perturbs vision, path
+integration and the trial-level chaos of the maze; check both levels
+(``--noise-both``).
 
 Metrics per run (higher is better unless noted):
   beacon        beacons reached in the tick budget

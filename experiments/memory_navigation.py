@@ -18,16 +18,24 @@ Two findings, both robust across seeds:
   An agent doing repeated hidden-recall trials keeps reaching the goal and gets
   faster as it learns from experience.
 * **Replay is a data-efficiency speed-up, not a precondition.** After a single
-  demonstration, the replay agent recalls the hidden goal much sooner (~16
-  ticks) than the agent that learns online during the probe (~66 ticks). Both
-  reach it; replay just extracts more from one demonstration. (An earlier
-  version appeared to show replay as *necessary*, but that was an artifact of a
-  deficient online rule that decayed values toward immediate reward.)
+  demonstration both agents reach the hidden goal; the replay agent is never
+  slower and usually faster. With the default split steering, at the default
+  goal (6, 3) the margin is small (13 vs 14 ticks), because the replayed
+  gradient points along the start heading and both agents take nearly the same
+  straight path. Off axis it is larger: over six goals the replay probes total
+  138 ticks against 174 online, e.g. 42 vs 65 at (2, 6)
+  (tests/experiments/test_replay_geometry.py). The larger margin seen under
+  max-norm steering (14 vs 22 at (6, 3)) was mostly the online agent sitting
+  in value-induced REST, not replay; under max-norm replay could also hurt
+  (goal (3, 7): 76 vs 36 ticks). The result is fragile: see that test's
+  docstring for gains, dead zones and noise where it breaks. (An earlier
+  version appeared to show replay as *necessary*, but that was an artifact of
+  a deficient online rule that decayed values toward immediate reward.)
 
-This runs at the engine's default spatial resolution and forward bias; it only
-turns up the value/memory system (higher ``value_gain`` so the map can steer
-against the forward drive, and ``generalization_radius`` so a single trajectory
-fills a followable 2-D value field via overlapping place fields).
+This runs at the engine's default spatial resolution, forward bias and
+``value_gain`` (1.5); the only memory-system change is ``generalization_radius``,
+so a single trajectory fills a followable 2-D value field via overlapping place
+fields, plus sparse reward (approach_weight 0).
 """
 
 from __future__ import annotations
@@ -53,9 +61,9 @@ DEFAULT_GOAL_RADIUS = 1.5
 def memory_nav_config() -> EngineConfig:
     """Config for the memory-navigation assay.
 
-    Spatial resolution (``bin_size``) and ``forward_bias`` are the engine
-    defaults; only the value/memory system is turned up: a higher ``value_gain``
-    so the learned map can steer against the forward drive, and
+    Spatial resolution (``bin_size``), ``forward_bias`` and ``value_gain`` (1.5,
+    set explicitly here; it predates the engine default becoming 1.5 and now
+    equals it) are the engine defaults; the value/memory system only gets
     ``generalization_radius`` so a single trajectory fills a followable 2-D value
     field (overlapping place fields) rather than a thin one-cell path. Sparse
     reward (approach_weight 0) isolates replay's contribution: only the goal

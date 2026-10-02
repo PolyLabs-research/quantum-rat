@@ -1,4 +1,6 @@
-"""Multi-landmark foraging: a sighted agent collects all targets, a blind one almost none."""
+"""Multi-landmark foraging: a sighted agent clears the patch, a blind one collects
+only what it bumps into (2 of 5, then nothing more in 600 ticks), at under a
+tenth of the sighted agent's rate (measured ~18x)."""
 
 from core.config import BasalGangliaConfig, EngineConfig, SensorConfig
 from core.engine import Engine
@@ -30,8 +32,8 @@ def test_blind_agent_forages_far_fewer():
     # This used to assert the blind agent collects at most 1 item. That was
     # partly an artefact: the blind agent camped on a self-made value peak (the
     # value-induced REST trap; it rested on 87% of ticks) and so stopped bumping
-    # into food. With dwell
-    # extinction, primary-only map content and cue gating it keeps moving and
+    # into food. With dwell extinction, primary-only map content, cue gating
+    # and split steering (no value-induced REST) it keeps moving and
     # stumbles on 2 of 5 by chance, then nothing more. Vision is still what
     # makes foraging work, so assert that directly: the sighted agent clears the
     # patch, the blind one collects under half of it, and the sighted agent's

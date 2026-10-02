@@ -132,6 +132,8 @@ class Beacon(Scenario):
         "in view (cue gating). Set cue gating of memory to 0 and old spots can pull the agent "
         "away from the beacon it is looking at",
         "When ATP runs low the agent stops to recover (fatigue pacing) instead of collapsing into microsleep",
+        "Memory does not help this chase: the beacon has moved on from every remembered spot, so "
+        "memory steering at 0 scores about the same or slightly better",
         "Turn vision drive down to 0 and the agent can no longer find it",
     )
     SPOTS = ((6.0, 3.0), (-5.0, 5.0), (-6.0, -5.0), (5.0, -6.0), (0.0, 7.5), (-7.5, 0.0))
@@ -283,7 +285,9 @@ class MemoryMaze(Scenario):
         "Trial 1: vision guides the agent to the goal, laying down a trajectory",
         "Sleep: replay propagates value backward along the path (watch the value map light up)",
         "Later trials: the goal is invisible; the agent navigates from its value map",
-        "Turn replay off and restart to compare: online learning alone recalls more slowly",
+        "Turn replay off and restart to compare: online learning alone still recalls, but each "
+        "recall takes longer (median ~16 vs ~10 ticks), so fewer fit in a session. The very first "
+        "hidden trial is not faster with replay (15 vs 13 ticks at the default goal)",
         "Turn the inter-trial rest off: the agent tires, its sensory gate narrows, path "
         "integration drifts (the hollow ghost) and recall starts to fail",
     )
