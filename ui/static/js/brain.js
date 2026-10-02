@@ -41,19 +41,19 @@ export class DecisionPanel {
     }
     this.pull = {};
     const pull = el('div', { class: 'bars' });
-    for (const [key, label] of [['ahead', 'Ahead'], ['left', 'Left'], ['right', 'Right']]) {
+    for (const [key, label] of [['ahead', 'Forward'], ['left', 'Turn left'], ['right', 'Turn right']]) {
       const fill = el('div', { class: 'bar-fill' });
       const val = el('span', { class: 'bar-val num' });
       pull.append(el('div', { class: 'bar-row' }, el('span', { class: 'bar-label', text: label }), el('div', { class: 'bar-track' }, fill), val));
       this.pull[key] = { fill, val };
     }
     this.pullNote = el('span', { class: 'muted' });
-    // Why memory or pain is (partly) switched off right now; hidden when neither is.
+    // Why memory or pain is (partly) switched off right now; hidden when none is.
     this.mods = el('div', { class: 'crit-line decision-mods' });
     this.gain = el('div', { class: 'crit-line' });
     host.append(
       bars,
-      el('div', { class: 'subhead' }, el('span', { text: 'Memory pull (value map)' }), this.pullNote),
+      el('div', { class: 'subhead' }, el('span', { text: 'Memory steer (value map)' }), this.pullNote),
       pull,
       this.mods,
       el('div', { class: 'subhead' }, el('span', { text: 'Near-critical sensory gain' })),
@@ -81,8 +81,15 @@ export class DecisionPanel {
       divergingBar(p.fill, v, 1);
       p.val.textContent = any ? fmtSigned(v, 2) : '—';
     }
+    // These are the value signals added to each action's score (times Memory steering),
+    // after cue and wall gating. Under split steering they are commands: a turn toward
+    // the side that beats straight on, with Forward giving way; under max-norm they
+    // are each direction's advantage over here, scaled to the largest.
     const gate = action.cue_gate ?? 1;
-    this.pullNote.textContent = any ? 'blue = better than here' : gate <= 0 ? 'muted' : 'nothing learned nearby yet';
+    const split = (action.steer ?? 'split') === 'split';
+    this.pullNote.textContent = any
+      ? (split ? 'blue = memory favours this action' : 'blue = better than here')
+      : gate <= 0 ? 'muted' : split ? 'no steer: no clearly better direction' : 'nothing learned nearby yet';
     const lines = [];
     if (gate < 1) {
       lines.push(
@@ -90,6 +97,10 @@ export class DecisionPanel {
           ? el('div', {}, 'Memory muted: target in view')
           : el('div', {}, 'Memory dimmed: target in view ', el('span', { class: 'num', text: `×${fmt(gate, 2)}` })),
       );
+    }
+    const wall = action.wall_gate ?? 1;
+    if (wall < 0.99) {
+      lines.push(el('div', {}, 'Memory\'s push to go straight dimmed: wall ahead ', el('span', { class: 'num', text: `×${fmt(wall, 2)}` })));
     }
     const freeze = action.freeze ?? 1;
     if (freeze < 0.99) {
@@ -352,7 +363,7 @@ export function frameTableGroups(f) {
   const a = f.agent;
   return [
     ['Body', [['x, y (m)', `${fmt(a.x, 2)}, ${fmt(a.y, 2)}`], ['Heading', `${fmt(headingDeg(a.heading), 1)}°`], ['Action', f.action.name], ['Reward', fmtSigned(f.reward, 3)]]],
-    ['Decision', [['Memory weight (cue gate)', `×${fmt(f.action.cue_gate ?? 1, 2)}`], ['Pain → rest (freeze habituation)', `×${fmt(f.action.freeze ?? 1, 2)}`]]],
+    ['Decision', [['Memory steer F / L / R', (f.action.value || [0, 0, 0]).map((v) => fmtSigned(v, 2)).join(' / ')], ['Steering mode', f.action.steer ?? 'split'], ['Memory weight (cue gate)', `×${fmt(f.action.cue_gate ?? 1, 2)}`], ['Memory hold-course weight (wall gate)', `×${fmt(f.action.wall_gate ?? 1, 2)}`], ['Pain → rest (freeze habituation)', `×${fmt(f.action.freeze ?? 1, 2)}`]]],
     ['Path integration', [['Estimate x, y', `${fmt(a.est_x, 2)}, ${fmt(a.est_y, 2)}`], ['Estimated heading', `${fmt(headingDeg(a.est_heading), 1)}°`], ['Place cell', f.place_id]]],
     ['Senses', [['Vision rays', f.vision.rays.map((r) => r[2]).join(' · ') || '—'], ['Whiskers L / R', f.vision.whiskers.map((w) => (w ? 'touch' : '—')).join(' / ')], ['Pain', fmt(f.vision.pain, 2)]]],
     ['Neuromodulators', MODULATORS.map((m) => [`${m.name} (${m.mod})`, fmt(f.mod[m.mod] ?? 0, 3)])],

@@ -63,7 +63,13 @@ PARAMS: Tuple[Param, ...] = (
           "How strongly the learned value map steers the agent toward places that led to reward."),
     Param("basal_ganglia.cue_gate_gain", "Cue gating of memory", "Action selection", 0.0, 4.0, 0.1,
           "How strongly a visible target mutes memory steering, so what the agent sees beats what it "
-          "remembers. 0 lets memory steer even with a target in view."),
+          "remembers. The gate reads the raw vision rays, independent of Vision drive: with Vision "
+          "drive at 0 a target in view still mutes memory although vision no longer steers toward it. "
+          "0 lets memory steer even with a target in view."),
+    Param("basal_ganglia.wall_gate_gain", "Wall gating of memory", "Action selection", 0.0, 4.0, 0.1,
+          "How strongly a wall close ahead mutes memory's push to keep going straight, so a remembered "
+          "place behind a wall cannot pin the agent against it (turns toward a better side are kept). "
+          "Reads the raw centre vision ray. 0 turns it off."),
     Param("basal_ganglia.wall_avoid_gain", "Wall avoidance", "Action selection", 0.0, 1.5, 0.05,
           "How hard the agent turns away from a wall close ahead."),
     Param("value_memory.dwell_extinction", "Peak extinction", "Memory", 0.0, 0.1, 0.005,
@@ -269,6 +275,8 @@ class SimSession:
                 "crit_gain": _r(ctx.criticality_gain if ctx else 1.0),
                 "freeze": _r(ctx.freeze_habituation if ctx else 1.0),
                 "cue_gate": _r(ctx.cue_gate if ctx else 1.0),
+                "wall_gate": _r(ctx.wall_gate if ctx else 1.0),
+                "steer": eng.config.basal_ganglia.value_steer,
             },
             "vision": {
                 "rays": rays,

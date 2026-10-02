@@ -67,6 +67,7 @@ def test_steering_robustness_params_are_live():
     expected = {
         "basal_ganglia.value_gain": ("Action selection", 0.0, 3.0, 0.1),
         "basal_ganglia.cue_gate_gain": ("Action selection", 0.0, 4.0, 0.1),
+        "basal_ganglia.wall_gate_gain": ("Action selection", 0.0, 4.0, 0.1),
         "value_memory.dwell_extinction": ("Memory", 0.0, 0.1, 0.005),
         "basal_ganglia.pace_rest_bonus": ("Energy", 0.0, 8.0, 0.5),
     }
@@ -77,6 +78,7 @@ def test_steering_robustness_params_are_live():
     values = {p["key"]: p["value"] for p in session.params()}
     assert values["basal_ganglia.pace_rest_bonus"] == 5.0  # scenario default: pacing on
     assert values["basal_ganglia.cue_gate_gain"] == 2.0
+    assert values["basal_ganglia.wall_gate_gain"] == 1.0
     assert values["value_memory.dwell_extinction"] == 0.02
     assert session.set_param("basal_ganglia.pace_rest_bonus", 20) == 8.0
     assert session.set_param("value_memory.dwell_extinction", 0.0) == 0.0
@@ -97,14 +99,17 @@ def test_frame_reports_pacing_freeze_and_cue_gate():
     assert isinstance(frame["energy"]["pacing"], bool)
     assert 0.0 <= frame["action"]["freeze"] <= 1.0
     assert 0.0 <= frame["action"]["cue_gate"] <= 1.0
-    seen = {"pacing": False, "freeze": False, "cue": False}
+    assert 0.0 <= frame["action"]["wall_gate"] <= 1.0
+    assert frame["action"]["steer"] == "split"
+    seen = {"pacing": False, "freeze": False, "cue": False, "wall": False}
     for _ in range(1500):
         session.step(1)
         f = session.frame()
         seen["pacing"] |= f["energy"]["pacing"]
         seen["freeze"] |= f["action"]["freeze"] < 1.0
         seen["cue"] |= f["action"]["cue_gate"] < 1.0
-    assert seen == {"pacing": True, "freeze": True, "cue": True}
+        seen["wall"] |= f["action"]["wall_gate"] < 1.0
+    assert seen == {"pacing": True, "freeze": True, "cue": True, "wall": True}
 
 
 def test_changing_coupling_restarts_kappa_measurement():
