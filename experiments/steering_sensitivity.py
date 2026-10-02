@@ -38,7 +38,7 @@ is close to N copies of one sample; vary the start heading instead
 (``--noise 0 --seeds 1 --headings 8``). Noise is also not neutral. In the stock
 engine (6c0ea9d, max-norm steering with shaping in the map) clamped pain noise
 entered the value map and acted as a hidden cost on dwelling, which masked
-value-induced REST. Since G14 the map only learns pain above max(0.05,
+value-induced REST. Since G14 and G16 the map only learns pain above max(0.05,
 sensors.noise), so that path is closed, but noise still perturbs vision, path
 integration and the trial-level chaos of the maze; check both levels
 (``--noise-both``).

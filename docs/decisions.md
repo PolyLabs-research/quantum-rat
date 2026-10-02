@@ -150,25 +150,27 @@
 
 ## G14 — Robust memory steering: behaviour no longer hinges on `value_gain`
 **Date:** 2026-10-02  
+**Read with G15 and G16.** G16 makes G15's split steering the default, corrects the C2 replay rule and the dwell definition below, makes the pacing thresholds relative, raises the map's pain floor with sensor noise, adds wall gating, and re-reports the acceptance numbers with pacing on and off. The numbers in this entry are for max-norm steering (the G14 engine) on the grid {0, 0.4, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0}; on the harness's full default grid (with 0.2 and 0.6) some are less flattering (e.g. the noise-0 worst fraction at gain 2.0 is 0.926, not 0.959).  
 **Why:** Behaviour swung with memory steering (`basal_ganglia.value_gain`). A diagnosis found the chain: the TD value map never extinguished tiny self-made positive peaks (approach shaping and same-cell self-bootstrap, ~0.03-0.1); `_value_signals` max-normalises advantages, so at such a local maximum the signals read (-1,-1,-1) and REST, which has no value term, wins (value-induced REST, "vREST", 29-96% of ticks); pain-driven REST was an absorbing freeze that only the value signal's common mode released; the REST trap had been acting as accidental energy pacing; memory overrode visible targets; and sensor noise 0.03 hid most of this, because clamped pain noise acted as a hidden extinction cost. At noise 0 the stock engine collapsed for gains >= 0.8 (beacon 8.0 at the old default 0.8 vs 14.2 at 0.4). This corrects the trade-off described in G13: the 0.3-0.4 steering advice there is obsolete.  
 **Changes (all in config, `_channel_scores` stays pure; per-engine state lives on `Engine`):**
 - C1 freeze habituation (`freeze_tau=15`, `freeze_pain_threshold=0.2`, `freeze_decay=0.9`): the pain->REST drive is scaled by `exp(-F/tau)`, F counting recent pain-freeze ticks.
-- C2 dwell extinction (`value_memory.dwell_extinction=0.02`): a same-cell transition on a positive cell is charged before the TD backup (stored in the trajectory, so replay applies it too). Moving transitions are never charged.
-- C3 primary-only map (`value_memory.learn_shaping=False`): the map learns contact reward and real pain (>= 0.05) only; `ctx.reward`, TickData and dopamine still see the shaped reward.
+- C2 dwell extinction (`value_memory.dwell_extinction=0.02`): a same-cell transition on a positive cell is charged before the TD backup. *Corrected in G16:* as first written the charged reward was stored in the trajectory and replayed unconditionally, which drove dwelt-on cells toward -c/(1-gamma) = -0.2 (aversion, not extinction); and "same cell" means the same place-cell bin, so turns made in place are charged too, not only REST.
+- C3 primary-only map (`value_memory.learn_shaping=False`): the map learns contact reward and real pain (>= 0.05; since G16 > max(0.05, sensors.noise)) only; `ctx.reward`, TickData and dopamine still see the shaped reward.
 - C4 cue gating (`cue_gate_gain=2.0`): value signals are multiplied by `max(0, 1 - gain * closeness of the nearest visible target)`.
 - C5 `value_gain` default 0.8 -> 1.5 (the maze needs >= ~1.0-1.2 to beat FORWARD's lead).
-- C6 homeostatic pacing (`pace_rest_bonus`, latch `pace_low=0.4` / `pace_high=0.9`): off in the core engine, 5.0 in the beacon, foraging and hazard-field console scenarios.
+- C6 homeostatic pacing (`pace_rest_bonus`, latch `pace_low=0.4` / `pace_high=0.9`, since G16 fractions of `astrocyte.atp_baseline`): off in the core engine, 5.0 in the beacon, foraging and hazard-field console scenarios. Most of the absolute score gains below come from pacing, not from memory: see G16 for the pacing-off numbers.
 - C0 harness: `experiments/steering_sensitivity.py` gained `--headings`, `--noise-both`, `--seed-start`, the vREST metric, maze tick metrics and the worst-scenario band.  
 **Rejected:** a global (target-gated) living cost: visited cells turn negative, so traversed paths become repulsive and online maze learning breaks (online probe 131 vs 28 ticks; test_repeated_recall fails). Soft normalisation (`adv/(max|adv|+0.05)`) and a no-local-max veto (zero signals when all advantages are negative): neither did better than the bundle without them, and both break `test_replay_is_more_data_efficient_than_online_learning` (soft: replay 14 vs online 13; veto: replay probe times out at 200; it also drops the maze to 74 at gain 1.5).  
-**Acceptance (steering_sensitivity, 8 seeds at noise 0.03 plus held-out seeds 9-16, and 8 headings / 5 maze headings at noise 0; gains 1.2-3.0):** worst-scenario fraction of own best 0.85-0.97 (seeds 1-8), 0.89-0.92 (held-out), 0.86-0.96 (noise 0); stock 0.67-0.70, 0.56-0.77 and 0.15-0.19. At the default gain (new 1.5 / stock 0.8, maze 1.5 in both), noise 0.03 / noise 0: beacon 24.6 / 23.8 (stock 10.8 / 8.0), foraging 50.8 / 45.1 (34.0 / 17.9), hazard_field 33.4 / 34.1 (18.6 / 13.4), memory_maze 142.1 / 146.8 recalls at recall rate 1.00 (143.5 / 146.4). vREST in the open scenarios is at most 0.08 at gains 0.8-3.0 (stock up to 0.96). Hazard field at gains 0 and 0.4 is >= 0.90 of its best (stock 0 items at noise 0.03).  
-**Honest limits:** the maze still needs gain >= ~1.0 (0.46-0.68 of best at 0.8): value turns must beat FORWARD's lead, which these changes do not address. Maze vREST rises to ~0.17-0.18 at gain 3.0.  
+**Acceptance (steering_sensitivity, 8 seeds at noise 0.03 plus held-out seeds 9-16, and 8 headings / 5 maze headings at noise 0; gains 1.2-3.0):** worst-scenario fraction of own best 0.85-0.97 (seeds 1-8), 0.89-0.92 (held-out), 0.86-0.96 (noise 0); stock 0.67-0.70, 0.56-0.77 and 0.15-0.19. At the default gain (new 1.5 / stock 0.8, maze 1.5 in both), noise 0.03 / noise 0: beacon 24.6 / 23.8 (stock 10.8 / 8.0), foraging 50.8 / 45.1 (34.0 / 17.9), hazard_field 33.4 / 34.1 (18.6 / 13.4), memory_maze 142.1 / 146.8 recalls at recall rate 1.00 (143.5 / 146.4). vREST in the open scenarios is at most 0.08 at gains 0.8-3.0 (stock up to 0.96). Hazard field at gains 0 and 0.4 is >= 0.89 of its best (stock 0 items at noise 0.03). All of these are with pacing on; the G14 engine with pacing off scored about stock level (beacon 10.5, foraging 36.0, hazard 16.1 at gain 1.5, noise 0.03), with foraging vREST 0.20-0.24.  
+**Honest limits:** the maze still needs gain >= ~1.0 (0.23-0.68 of best at 0.8; 0.23 is held-out seeds 9-16, 35.9 recalls where stock got 57.1): value turns must beat FORWARD's lead, which these changes do not address (G15 does). The maze is below stock at the band edges (noise 0.03: 121.1 vs 126.8 at gain 1.2, 121.2 vs 130.6 at 3.0). Maze vREST rises to ~0.17-0.18 at gain 3.0. Resampling the 8 seeds puts the band edges at 1.2 and 3.0 above 0.85 only 56-61% of the time. Outside the maze, memory changed the chosen action on only 2-7% of ticks (stock 59-63%): the open-scenario robustness was won by muting memory (cue gating, a sparse primary-only map), not by making it useful.  
 **Tests:** `tests/engine/test_steering_robustness.py` (per-component, no-op cases, pacing hysteresis, interleaved engines, and bit-identical legacy digests of 6c0ea9d with every feature off in `tests/engine/steering_legacy_hashes.json`, which must never be re-recorded); `tests/experiments/test_steering_sensitivity.py` (harness, plus a check of the vREST counterfactual against the engine's own zero-value scores). `tests/experiments/test_foraging.py::test_blind_agent_forages_far_fewer` was restated: the blind agent used to "forage poorly" by camping on a self-made peak (resting on 87% of ticks); it now collects 2 of 5, so the test asserts the sighted agent clears the patch, the blind agent collects under half, and the sighted rate is >= 10x the blind rate.  
-**Scope:** No determinism or regression baseline change; `tests/experiments/test_memory_navigation.py` is unedited and passes (replay probe 14 ticks vs online 22; stock 14 vs 28). The Memory maze "rest off" demo still degrades (recall rate 0.71 / 0.75 vs 1.00 with rest).
+**Scope:** No determinism or regression baseline change; `tests/experiments/test_memory_navigation.py` is unedited and passes (replay probe 14 ticks vs online 22; stock 14 vs 28; G16 shows that the 8-tick margin was the online agent's value-induced REST). The determinism and regression protocols place no targets, so they never exercise the value map: "baselines unchanged" says nothing about steering. The Memory maze "rest off" demo still degrades (recall rate 0.71 / 0.75 vs 1.00 with rest).
 
-## G15 — Split memory steering (config-gated, off by default): lowers the maze's gain threshold
+## G15 — Split memory steering: lowers the maze's gain threshold (the default since G16)
 **Date:** 2026-10-02  
+**Status:** written when split was config-gated and off by default; G16 makes it the default. The numbers below are for split on the G14 engine, before G16's replay, pain-floor and wall-gating changes; G16 re-reports them.  
 **Why:** After G14 the only gain dependence left was the maze's lower band edge (RC5): max-normalised value turns compete as separate TURN channels against FORWARD's ~0.7 lead, so the maze needs `value_gain` >= ~1.0-1.2 (memory_maze at 0.4/0.6/0.8/1.0: 18.8/38.1/65.9/117.6 recalls at noise 0.03, 57.8/69.2/106.4/139.2 at noise 0).  
-**Change:** `basal_ganglia.value_steer = "split"` replaces the three value signals with `split_value_signals` (pure, in `brain/systems/basal_ganglia.py`): turn signals measured relative to ahead, `sign(d) * clip((|d|/s - 0.1)/0.2, 0, 1)` with `d = side - ahead` and `s = max|advantage|`; when both sides beat ahead only the better one turns (ties left); FORWARD's term is `max(0, ahead/s) - max(turns)` ("oppose_positive"); no common mode. Default stays `"maxnorm"`, so no trace, baseline or default behaviour changes.  
+**Change:** `basal_ganglia.value_steer = "split"` replaces the three value signals with `split_value_signals` (pure, in `brain/systems/basal_ganglia.py`): turn signals measured relative to ahead, `sign(d) * clip((|d|/s - 0.1)/0.2, 0, 1)` with `d = side - ahead` and `s = max|advantage|`; when both sides beat ahead only the better one turns (ties left); FORWARD's term is `max(0, ahead/s) - max(turns)` ("oppose_positive"); no common mode. As first committed the default stayed `"maxnorm"`; G16 flips it to `"split"`.  
 **Why each part (measured; prototypes in raw value units, as first proposed):**
 - Plain split (ahead 0, step turns) moves the noise-0.03 edge to 0.4 but collapses above it: 63 recalls and a 300-tick (timed-out) first hidden trial at every gain >= 0.8. The raw-unit dead zone (0.01/0.02) gives 101-132 with first-trial latency 30-66 ticks and is non-monotone. Cause: at the value peak (end of the demonstration, at the goal-disk edge) every direction is downhill and the side fans beat ahead by ~1-5% of the relief; a raw-unit threshold turns that into a full turn, so the agent zig-zags L/R straight off the map or orbits. Max-norm never did this because its turn must beat FORWARD's lead by a fraction of the relief, i.e. its dead zone is implicitly relative. Hence the dead zone in units of `s`.
 - Exclusive turns: with both sides +1 the agent alternated L/R (each TURN moves 0.3 forward) and walked out of the map (seed 2: 4 recalls).
@@ -180,3 +182,91 @@
 **Costs if adopted:** memory becomes roughly neutral in the open scenarios (foraging -2.0 / +3.8 / -5.1 and hazard_field -0.8 / -2.7 / +0.1 at gain 1.5); one held-out seed (13) times out 3-4 hidden trials at gains 0.6-1.5 (fatigue-driven path-integration drift plus an orbit around the shifted peak), giving the 0.870 held-out minimum. Flipping the default would also need `tests/experiments/test_steering_sensitivity.py::test_is_value_rest_matches_the_engine_no_value_scores[beacon]` to run longer (its precondition that the value path fires within 1500 ticks fails: memory is silent in beacon until tick ~1500).  
 **Tests:** `tests/engine/test_split_steering.py`. `ALL_OFF` in `tests/engine/test_steering_robustness.py` now pins `value_steer="maxnorm"` so the legacy digests do not depend on the default.  
 **Impact:** `brain/systems/basal_ganglia.py` (`split_value_signals`), `core/engine.py` (`_value_signals`), `core/config.py` (`BasalGangliaConfig.value_steer`, `value_turn_*`, `value_ahead_mode`, `value_common_mode`).
+
+## G16 — Split steering is the default; replay extinction, pacing and pain-floor fixes; wall gating; final acceptance
+**Date:** 2026-10-02  
+**Why:** G14 and G15 left review findings open: replayed dwell charges turned extinction into aversion, the pacing latch could become absorbing, console-level noise wrote pain into the map, no test guarded the behavioural outcome, the core engine (pacing off) was never measured, and the replay-test margin under split was 1 tick. Split steering (G15) gave the widest band at both noise levels with no value-induced REST, so it becomes the default.  
+**Changes:**
+- `BasalGangliaConfig.value_steer = "split"` (default). `"maxnorm"` stays available; the legacy all-off digests pin it and are bit-identical.
+- Replay extinction (fixes G14 C2): the trajectory stores the reward actually received; `replay_transition` charges a transition only when it stays in one place-cell bin and that cell is still positive at replay time, the same rule as online. `consolidate(60)` on a 10-tick dwell trajectory now ends at ~0 instead of -0.2, and never goes below the one-backup online floor -lr*c = -0.004. In the pain-free scenarios over 3000 ticks, min V is -0.003 at worst and no cell is below -0.01 (it was -0.06 to -0.08, with 2-11 such cells). `record`, `replay_transition` and `consolidate` take the extinction cost explicitly. The engine passes `config.value_memory.dwell_extinction` and no longer overwrites the `ValueMemory` attribute each tick.
+- Dwell definition: "dwelling" is a transition within one place-cell bin, so turns made in place are charged as well as REST. Charging only zero-thrust (REST) dwelling was measured under split (full grid, both noise levels). Every cell was within 1% except the maze at gain 0.4 (129.1 vs 125.1 at noise 0.03, 136.4 vs 136.8 at noise 0). That is not clearly better, so the bin rule stays.
+- Pacing thresholds: `pace_low` and `pace_high` are now fractions of `astrocyte.atp_baseline`, which is bit-identical at baseline 1.0. With absolute thresholds and `atp_baseline` 0.85 the latch never released (REST on 3926 of 4000 ticks); now it releases.
+- Map pain floor: only pain > max(0.05, `sensors.noise`) enters the value map. This is a sensory-reliability floor: pain noise is uniform in ±noise, so anything at or below that level may be noise alone. At console noise 0.1 the open field used to get noise pain in its map on 132 of 500 ticks.
+- Wall gating (new; `wall_gate_gain=1.0`, 0 disables). Let c be the centre-ray wall closeness that wall avoidance already uses, and `w = max(0, 1 - gain*c)`. The gate scales FORWARD's positive value signal and the negative turn signals by w. Turns toward a better side are kept, so `max(signals) >= 0` still holds.
+  - How it was found: while writing the guards, with pacing off, the remembered value lay beyond the wall (or path-integration drift had put it there). FORWARD's memory pull beat wall avoidance, and the agent pressed into the wall until microsleep. In foraging seeds 5-7 at noise 0.03 and gain 1.5 this took 500-745 ticks and the agent collected 13-21 items, against 34-36 at gain 0.
+  - Rejected variants: gating FORWARD only (vREST 0.003-0.006); gating all three signals (maze at gain 0.4 falls to 110-119); discounting the ahead advantage before split (the maze's first hidden trial times out at noise 0.03).
+- Console:
+  - The decision panel shows the split steering commands ("Memory steer") and the wall gate.
+  - The cue-gate help is corrected: the gates read raw vision rays, independent of vision drive.
+  - New live parameter: "Wall gating of memory".  
+**Acceptance:** measured with `experiments/steering_sensitivity.py` on the grid {0, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0}, in three runs:
+- (a) `--noise-both`: seeds 1-8 at noise 0.03, plus seed 1 over 8 headings at noise 0 (maze: 5 headings);
+- (b) held-out seeds 9-16 at noise 0.03;
+- (c) as (a) with `--set basal_ganglia.pace_rest_bonus=0`, the core engine's energy policy.
+
+The table gives the worst-scenario fraction: the minimum over scenarios of mean / own best.
+
+| gain | 0 | 0.4 | 0.6 | 0.8 | 1.0 | 1.2 | 1.5 | 2.0 | 3.0 |
+|---|---|---|---|---|---|---|---|---|---|
+| (a) noise 0.03, pacing on | 0.004 | 0.860 | 0.980 | 0.963 | 0.959 | 0.959 | 0.956 | 0.955 | 0.963 |
+| (a) noise 0, pacing on | 0.001 | 0.864 | 0.902 | 0.944 | 0.936 | 0.936 | 0.936 | 0.940 | 0.929 |
+| (b) held-out, pacing on | 0.003 | 0.885 | 0.943 | 0.915 | 0.872 | 0.876 | 0.872 | 0.905 | 0.905 |
+| (c) noise 0.03, pacing off | 0.004 | 0.860 | 0.917 | 0.917 | 0.952 | 0.893 | 0.893 | 0.881 | 0.881 |
+| (c) noise 0, pacing off | 0.001 | 0.864 | 0.902 | 0.975 | 0.921 | 0.952 | 0.951 | 0.897 | 0.889 |
+
+The good band (worst >= 0.80, and also >= 0.85) is 0.4-3.0 in all five blocks. For comparison, G14 (max-norm, pacing on) had 1.0-3.0 at >= 0.80 and 1.2-3.0 at >= 0.85. Before wall gating, pacing off at noise 0.03 had 0.4-2.0 at >= 0.80 and only 0.6 at >= 0.85.  
+**Bootstrap caveat:** the seeds (or headings) of each scenario were resampled 2000 times; the figures are P(worst >= 0.85).
+- (a) at noise 0.03: 1.00 for gains 0.6-3.0, but only 0.60 at gain 0.4.
+- (a) at noise 0: 0.61 at gain 0.4 and 0.84 at gain 0.6.
+- (b) held-out: 0.72-0.73 at gains 1.0-1.5, because of one seed (see below).
+- (c) pacing off: 0.56-0.92 at gains 1.2-3.0 at noise 0.03, and 0.71 at gain 3.0 at noise 0.
+
+Cells near 0.85 are thin, and with 8 samples the band edges cannot be located more sharply than this.  
+**Floors at the default gain 1.5:**
+
+| scenario | (a) noise 0.03, pacing on | (a) noise 0, pacing on | (b) held-out, pacing on | (c) noise 0.03, pacing off | (c) noise 0, pacing off |
+|---|---|---|---|---|---|
+| beacon | 24.6 | 23.4 | 24.2 | 9.4 | 9.6 |
+| foraging | 48.4 | 48.6 | 47.0 | 35.2 | 31.4 |
+| hazard_field | 31.8 | 31.2 | 34.0 | 14.9 | 15.4 |
+| memory_maze | 147.1 | 157.8 | 130.4 | 147.1 | 157.8 |
+
+Pacing is off in the maze in every block, so its (c) numbers equal (a). Maze recall rate is 1.00 / 1.00 / 0.977 and median recall 10 / 9 / 10 ticks in (a) noise 0.03 / (a) noise 0 / (b). Stock (6c0ea9d at its defaults, noise 0.03) scored 10.75 / 34.0 / 18.6 / 143.5.
+- Flatness (max/min mean over gains 0.4-3.0) is at most 1.07 with pacing on and at most 1.12 with pacing off.
+- vREST is 0.000 in every cell of every block, maze included. G14 had maze vREST 0.17-0.18 at gain 3.0; stock reached 0.96.  
+**What memory buys:** score at value_gain 1.5 minus score at 0, paired by seed or heading. Each line gives pacing on, (a) noise 0.03 / (a) noise 0 / (b), then pacing off, (c) noise 0.03 / (c) noise 0.
+- memory_maze: everything. 0.2-0.6 recalls without memory, 130-158 with it.
+- hazard_field: +2.8% / -1.2% / +8.8%; -7.0% / -2.4%. Only the held-out block is clearly positive (7 wins, 0 losses).
+- foraging: -2.5% / +6.0% / -4.1%; -3.1% / -3.1%. Neutral within the paired spread (sd 2-6 items).
+- beacon: -3.4% / -5.6% / -8.1%; -10.7% / -4.9%. Slightly negative in every block (0-1 wins). The beacon has always moved on from a remembered spot, so memory there is stale.
+
+Most of the console scenarios' gains over stock come from fatigue pacing, not from memory. With pacing off at gain 1.5 the scores are 9.4 / 35.2 / 14.9, about stock level. In the open scenarios, split steering and wall gating buy one thing: memory no longer hurts much at any gain, with pacing on or off.  
+**Memory maze at low gains** (recalls at gains 0.4 / 0.6 / 0.8 / 1.0, G14 in brackets):
+- (a) noise 0.03: 132.4 / 153.9 / 148.1 / 147.6 (18.8 / 38.1 / 65.9 / 117.6). At gain 0.4 the recall rate is 1.00 and the median first hidden trial 14.5 ticks.
+- (a) noise 0: 137.6 / 143.6 / 157.6 / 158.8 (57.8 / 69.2 / 106.4 / 139.2). First hidden trial 10-11 ticks.
+- (b) held-out: 132.2 / 149.5 / 148.6 / 130.4 (24.8 / 34.4 / 35.9 / 145.4).
+
+The held-out dip at gains 1.0-1.5 is one seed. Seed 13 gets 7-13 recalls, with 3-4 timed-out hidden trials: fatigue narrows the sensory gate, path integration drifts, and the agent orbits the shifted peak. The other seven seeds get 147-148. This seed sets the held-out floor (130.4) and the 0.872 cells.  
+**Replay finding:**
+- Under max-norm (G14), `test_replay_is_more_data_efficient_than_online_learning` passed by 14 vs 22 ticks. But 9 of the online probe's 22 ticks were REST, so the margin was the value-induced REST trap, not replay. Max-norm replay could also hurt: at goal (3, 7) replay took 76 ticks (34 of them REST) against 36 online.
+- Under the final defaults the replay probe never rests. Over six goals (start heading 0, `memory_nav_config`), replay / online probe ticks are:
+  - (6, 3): 13 / 14
+  - (6, -3): 11 / 14
+  - (4, 5): 30 / 36
+  - (2, 6): 42 / 65
+  - (7, 0): 9 / 9
+  - (3, 7): 33 / 36
+  - total: 138 / 174
+- This is a single deterministic sample, and it is fragile. At value_gain 0.8, or with a split dead zone of 0.12, the replay probe to (6, -3) times out. At sensor noise 0.03 the off-axis demonstrations wander (104-123 ticks) and both arms time out on three goals.
+- In the maze scenario (1500 ticks), replay on / off gives 147 / 91 recalls, with median recall 10 / 16 ticks. The first hidden trial is not faster with replay: 15 / 13 ticks.  
+**Tests:**
+- `tests/experiments/test_steering_guards.py` tests behaviour:
+  - foraging and hazard_field at gains 1.5 and 3.0 score within 80% of gain 0, with pacing on and off;
+  - vREST <= 0.15;
+  - maze recall rate >= 0.9 at gains 0.8-3.0.
+  
+  5 of its 11 tests fail on stock-like steering (max-norm, no extinction), and wall_gate_gain=0 alone fails the pacing-off foraging case. The maze guard does not discriminate.
+- `tests/experiments/test_replay_geometry.py` checks the six-goal replay result.
+- `tests/engine/test_steering_robustness.py` has new unit tests for replay extinction, the explicit extinction argument, relative pacing, the noise pain floor and wall gating.  
+**Scope:** Determinism and regression baselines are unchanged, because the value map stays flat there. The legacy all-off digests pin `value_steer="maxnorm"` and `wall_gate_gain=0` and are bit-identical. `test_is_value_rest_matches_the_engine_no_value_scores[beacon]` now runs 2000 ticks, because under split, memory is silent in beacon until about tick 1500.  
+**Impact:** `core/config.py`, `core/engine.py`, `brain/systems/basal_ganglia.py` (`wall_gate_signals`), `brain/systems/value_memory.py`, `ui/sim_session.py`, `ui/static/js/brain.js`, `ui/scenarios.py`, `experiments/memory_navigation.py`, `experiments/steering_sensitivity.py`, README.

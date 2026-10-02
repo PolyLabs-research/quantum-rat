@@ -36,7 +36,7 @@ honestly at different stages of maturity:
   neighbouring cells (overlapping place fields), so this works at the engine's default spatial
   resolution and forward bias. Memory steering (`value_gain`, default 1.5) works over a wide band
   (0.4-3.0) without value-induced resting, pain freezes or wall pinning (`docs/decisions.md`
-  G14-G15). Criticality
+  G14-G16). Criticality
   is coupled to cognition too: a near-critical cortical gain (peaking at κ≈1) scales sensory
   precision, so the field is not just an instrumented side-process.
 * **Honest limits / in progress.** Whether the criticality gain improves a given behaviour is
