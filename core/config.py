@@ -75,11 +75,16 @@ class ValueMemoryConfig:
     lookahead: float = 1.0  # distance projected ahead to read neighbouring place values
     generalization_radius: int = 0  # place-field spread in cells (0 = exact, no generalization)
     generalization_falloff: float = 0.5  # per-cell weight decay for generalization
-    # Extinction of self-made value peaks: a dwelling (same-cell) transition on a
-    # positively valued place is charged this much before the TD backup, so a peak
-    # the agent built by standing still fades instead of pinning it there. Moving
-    # transitions are never charged, so traversed paths do not become repulsive
-    # (a global living cost does that and breaks online maze learning). 0 disables.
+    # Extinction of self-made value peaks: a dwelling transition on a positively
+    # valued place is charged this much before the TD backup, so a peak the agent
+    # built by staying put fades instead of pinning it there. "Dwelling" means the
+    # transition starts and ends in the same place-cell bin, so REST and turns made
+    # in place (a TURN moves 0.3, usually inside one 0.5 bin) are charged alike;
+    # transitions that cross into another bin are never charged, so traversed
+    # paths do not become repulsive (a global living cost does that and breaks
+    # online maze learning). Replay re-applies the charge under the same rule
+    # (the cell must still be positive), so it extinguishes but never makes a
+    # cell aversive. 0 disables.
     dwell_extinction: float = 0.02
     # Whether approach shaping is written into the value map. False keeps the map
     # to primary outcomes only (contact reward and pain above the sensory-reliability

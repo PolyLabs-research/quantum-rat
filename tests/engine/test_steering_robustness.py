@@ -144,7 +144,7 @@ def test_dwell_extinction_charges_only_dwelling_on_positive_cells():
 
     vm.values[(1, 0)] = 0.5
     before = vm.value_of((0, 0))
-    vm.record((1, 0), 0.0)  # moving onto a positive cell is never charged
+    vm.record((1, 0), 0.0)  # crossing into another (positive) cell is never charged
     assert vm.value_of((0, 0)) == pytest.approx(before + 0.5 * (0.9 * 0.5 - before))
 
     vm.values[(1, 0)] = -0.2

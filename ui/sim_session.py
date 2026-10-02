@@ -67,8 +67,10 @@ PARAMS: Tuple[Param, ...] = (
     Param("basal_ganglia.wall_avoid_gain", "Wall avoidance", "Action selection", 0.0, 1.5, 0.05,
           "How hard the agent turns away from a wall close ahead."),
     Param("value_memory.dwell_extinction", "Peak extinction", "Memory", 0.0, 0.1, 0.005,
-          "Cost charged when the agent lingers on a positively valued place, so value peaks it "
-          "built by standing still fade instead of trapping it there. 0 turns extinction off."),
+          "Cost charged when the agent stays in one place cell (resting or turning on the spot) "
+          "while that place is positively valued, so value peaks it built by staying put fade "
+          "instead of trapping it there. Sleep replay applies the same rule, so a peak fades to "
+          "zero but never turns aversive. 0 turns extinction off."),
     Param("basal_ganglia.dopamine_explore_gain", "Dopamine → exploration", "Neuromodulation", 0.0, 1.5, 0.05,
           "Below-baseline dopamine (disappointment) boosts novelty seeking."),
     Param("basal_ganglia.ach_precision_gain", "Acetylcholine → precision", "Neuromodulation", 0.0, 1.5, 0.05,
