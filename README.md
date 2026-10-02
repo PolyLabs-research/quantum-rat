@@ -38,7 +38,12 @@ honestly at different stages of maturity:
   values generalise to neighbouring cells (overlapping place fields), so this works at the
   engine's default spatial resolution and forward bias. Memory steering (`value_gain`, default 1.5) works over a wide band
   (0.4-3.0) without value-induced resting, pain freezes or wall pinning (`docs/decisions.md`
-  G14-G16). Criticality
+  G14-G16, re-measured in G20). Microsleep replay backs up the recent path in reverse and never
+  links transitions across an episode reset (G17). In the memory maze the agent now recalls the
+  hidden goal from every start heading (16 of 16, was 4 of 16): sleep replay also stores the
+  goal's place, and where the replayed gradient has faded to nothing the agent turns toward it by
+  path integration (G18). In the hidden-food task, where food is invisible and regrows at fixed
+  sites, memory finds 2.7-4.1x as much food as memory off and loses no paired run (G19). Criticality
   is coupled to cognition too: a near-critical cortical gain (peaking at κ≈1) scales sensory
   precision, so the field is not just an instrumented side-process.
 * **Honest limits / in progress.** Whether the criticality gain improves a given behaviour is
@@ -46,7 +51,15 @@ honestly at different stages of maturity:
   single-episode or few-trial tasks. Memory steering earns its keep only where the task needs
   memory: it is everything in the memory maze (0.6 vs ~147 recalls), roughly neutral in foraging
   and the hazard field (within about ±9% of memory off), and 3-11% negative in the beacon chase,
-  where every remembered spot is stale. The large score gains in the beacon, foraging and hazard
+  where every remembered spot is stale. In hidden food the gain is site fidelity, not route
+  planning: the agent circles one remembered site and never tours the six, and memory costs food
+  when the agent's own exploration would find the sites anyway (sites on its wall loop, an interior
+  explorer). Hidden food's score also varies by up to ~30% with the gain, so with it included the
+  harness band where every scenario stays within 20% of its best shrinks (held-out seeds 0.4-0.8;
+  pacing off 1.0-1.5 or 1.5-3.0); the 0.4-3.0 band holds for the other four scenarios. Microsleep
+  replay of the "recent path" mostly replays one place, because a closed sensory gate freezes path
+  integration before sleep. The maze and hidden-food fixes rely on resting before ATP reaches a
+  gate threshold hard-coded in the TRN, and a visible-trial search can still fail. The large score gains in the beacon, foraging and hazard
   scenarios of the lab console come mostly from fatigue pacing, which is on in those scenarios
   only, not in the core engine. The replay advantage is a single deterministic sample and breaks
   at some gains, steering parameters and noise levels (`tests/experiments/test_replay_geometry.py`).
@@ -69,7 +82,7 @@ Options: `--port 8000`, `--runs-dir runs` (where recordings are read and written
 It needs nothing beyond Flask: the page is plain HTML/CSS/JS with no CDN or build step, so it
 works offline.
 
-**Live tab.** Pick a scenario and watch the brain think while it runs:
+**Live tab.** Pick one of six scenarios and watch the brain think while it runs:
 
 | Scenario | What it shows |
 |---|---|
@@ -77,6 +90,7 @@ works offline.
 | Beacon chase | Vision-driven pursuit; dopamine spikes on arrival; the value map's memory of old beacon spots |
 | Foraging patch | Five food items, wide field of view; reward builds the value map |
 | Hazard field | Food behind hazards; pain drives norepinephrine and the value map turns red there |
+| Hidden food | Invisible food at six fixed sites regrows after it is eaten; the value map learns where it was |
 | Memory maze | Water-maze recall: one visible trial, sleep/replay, then navigate to the hidden goal from memory |
 
 Panels: the arena (value map, vision rays coloured by what they hit, whiskers, pain zones, trail,
@@ -140,7 +154,7 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 * Generate `analysis/report/report.md` + plots.
 
 ### Lab console (`python -m ui`)
-* **Live**: five scenarios run on the real engine with live brain panels and live parameters.
+* **Live**: six scenarios run on the real engine with live brain panels and live parameters.
 * **Replay**: browse runs, play/scrub trajectories with the arena scene, charts and a tick inspector.
 * See "Run the lab console locally" above.
 

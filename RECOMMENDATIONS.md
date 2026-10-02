@@ -343,7 +343,33 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
 - **Result.** Every scenario stays within 20% of its own best at gains 0.4-3.0, at both noise levels, on held-out seeds, and with pacing off. Measured value-induced REST is 0. Determinism and regression baselines are unchanged, and the all-off configuration reproduces the old engine bit for bit.
 - **What memory buys** (stated plainly): everything in the memory maze, roughly nothing in foraging and the hazard field, and a few percent loss in the beacon chase, where remembered spots are always stale.
 - **Next candidates:**
-  - Microsleep replay indexes the trajectory from its oldest end, so it replays old transitions. Fix in its own change.
-  - Off-axis maze starts (heading >= pi/2) fail for every design, because the value fans see only about ±80°.
-  - A task where memory should help outside the maze, e.g. foraging with hidden food.
+  - ~~Microsleep replay indexes the trajectory from its oldest end, so it replays old transitions. Fix in its own change.~~ Done (G17).
+  - ~~Off-axis maze starts (heading >= pi/2) fail for every design, because the value fans see only about ±80°.~~ Done (G18). The fan width was not the cause.
+  - ~~A task where memory should help outside the maze, e.g. foraging with hidden food.~~ Done (G19).
   - The replay advantage is real but fragile. A more demanding replay assay would test it properly.
+
+### Replay, off-axis recall and hidden food (2026-10-02)
+- **Microsleep replay fixed** (`docs/decisions.md` G17).
+  - What changed: sleep now replays the newest transitions in reverse from a snapshot taken at sleep onset, and no replay links transitions across an episode reset.
+  - Effect at console defaults: none. Every scored scenario paces fatigue, so it never microsleeps.
+  - Effect with pacing off (core engine): small and mixed. Beacon is +1.0 at gain 1.5 (7 seeds better, 0 worse); hazard_field at noise 0 is -1.4 (1 better, 5 worse).
+  - Honest finding: the "recent path" is mostly one place. A closed sensory gate freezes path integration for the ~30-50 ticks before sleep, so recent replay writes value into fewer cells than the stale rule did. It mostly extinguishes the cell the agent sleeps in.
+- **Off-axis maze starts fixed** (G18).
+  - Over 16 start headings at noise 0, 16 now recall (was 4). At noise 0.03, 97% of runs recall (was 22%). Recalls rose from 42.6 to 85.9 at gain 1.5.
+  - The cause was not the fan width. The replayed gradient decays to nothing (gamma per step) after a long visible-trial search, and fatigue during that search narrows the gate and makes path integration drift by up to 12 m.
+  - The fix has two parts: a goal-place memory written by replay that steers only where the map is flat, plus resting before ATP reaches the gate threshold (`pace_low` 0.6). It is on in the maze only.
+  - Replay now matters off axis: 85.9 vs 32.4 recalls with replay on vs off.
+- **Hidden-food scenario** (G19). Invisible food at six fixed sites regrows after it is eaten. Memory finds x2.74 (seeds 1-8 and held-out 9-16, noise 0.03) to x4.08 (noise 0) as much food, and never loses a paired run.
+  - It is site fidelity, not planning: the agent circles one remembered site.
+  - Memory costs food when the agent's own exploration would find the sites anyway.
+- **Joint acceptance** (G20).
+  - Determinism and regression baselines and the legacy digests are unchanged, and all 228 tests pass.
+  - The four G16 scenarios keep the 0.4-3.0 band in all five blocks. Their floors at gain 1.5 equal G16's with pacing on; held-out maze 130.4 → 145.8.
+  - With hidden_food included, the band where every scenario stays within 20% of its best narrows: held-out 0.4-0.8, pacing off 1.5-3.0 at noise 0.03 and 1.0-1.5 at noise 0. That reflects hidden_food's own gain profile; it is still x1.8-4.3 over memory off at every gain.
+- **Next candidates:**
+  - Keep place cells updating until sleep (or replay the recent sequence of *places*), so that reverse replay can carry value along a real path. A scratch variant of the latter was slightly better with pacing off, on one sample.
+  - Make the TRN narrowing threshold (0.55) a config value; gate-safe pacing (`GATE_SAFE_PACE_LOW`) is tied to it. Consider gate-safe pacing in beacon, foraging and hazard_field, which pace at 0.4 and can drift on long runs.
+  - Decide whether the harness band should include hidden_food or report it separately: its score varies with the gain more than the other scenarios'.
+  - Searching for a goal that starts out of view on the visible maze trial (one noise-0.03 full-circle run never finds it).
+  - A memory task where the agent must tour several remembered places; the value gradient reaches only about 3 m.
+  - Make `steering_sensitivity --set` reject or accept Python-style `False`; it currently parses JSON, so `False` becomes a truthy string.

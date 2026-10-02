@@ -142,7 +142,7 @@
 - Instrumentation only: scenarios arrange the world and run the protocol, while the brain still sees only its `Observation`. Engine additions are read-only accessors (`Engine.context`, decision scores, value signals, criticality cells) that were verified to leave the determinism and regression baselines unchanged.
 - Secure local defaults: binds to `127.0.0.1`, rejects non-loopback `Host` headers, POSTs must be JSON, request size and steps per call are capped, parameters are whitelisted and clamped, and a strict CSP is set. `debug=False` is used, where the old entry point ran `debug=True` on `0.0.0.0`.
 - Runs now save a `scene.json` (bounds, objects, start pose, glycogen store) from the experiment runner, tournaments (`--include-ticks`) and live recordings, so a replay can draw the world.
-- The Memory maze rests the agent between trials (40 ticks of resting physiology, no brain ticks) as real water-maze protocols do, and the rest can be toggled. Over 1500 ticks: 149/149 recalls with rest and replay (median 10 ticks), 87/87 with rest and no replay (median 17), and 7/11 without rest in either arm, because fatigue narrows the sensory gate and path integration drifts.
+- The Memory maze rests the agent between trials (40 ticks of resting physiology, no brain ticks) as real water-maze protocols do, and the rest can be toggled. Over 1500 ticks: 149/149 recalls with rest and replay (median 10 ticks), 87/87 with rest and no replay (median 17), and 7/11 without rest in either arm, because fatigue narrows the sensory gate and path integration drifts. *Since G18 the maze paces fatigue, so with rest off recall no longer fails (rate 1.00, 29 recalls); the failure needs fatigue pacing at 0 as well.*
 - *Sensor noise* is exposed as a live parameter. With it off (the default), behaviour is identical across seeds, since the seed then only drives the criticality lattice. With it on, seeds give different runs.
 
 `ui/replay_server.py` remains as a compatibility shim (`from ui.replay_server import app`, `python -m ui.replay_server`).  
@@ -231,7 +231,7 @@ Cells near 0.85 are thin, and with 8 samples the band edges cannot be located mo
 | hazard_field | 31.8 | 31.2 | 34.0 | 14.9 | 15.4 |
 | memory_maze | 147.1 | 157.8 | 130.4 | 147.1 | 157.8 |
 
-Pacing is off in the maze in every block, so its (c) numbers equal (a). Maze recall rate is 1.00 / 1.00 / 0.977 and median recall 10 / 9 / 10 ticks in (a) noise 0.03 / (a) noise 0 / (b). Stock (6c0ea9d at its defaults, noise 0.03) scored 10.75 / 34.0 / 18.6 / 143.5.
+Pacing is off in the maze in every block, so its (c) numbers equal (a). *(Since G18 the maze paces at `pace_low` 0.6; see G20 for the re-measured blocks.)* Maze recall rate is 1.00 / 1.00 / 0.977 and median recall 10 / 9 / 10 ticks in (a) noise 0.03 / (a) noise 0 / (b). Stock (6c0ea9d at its defaults, noise 0.03) scored 10.75 / 34.0 / 18.6 / 143.5.
 - Flatness (max/min mean over gains 0.4-3.0) is at most 1.07 with pacing on and at most 1.12 with pacing off.
 - Mode strings are validated: an unknown `value_steer` or `value_ahead_mode` raises ValueError (a misspelt "Split" used to run max-norm silently).
 - vREST is 0.000 in every cell of every block, maze included (an empirical result at gains 0.4-3.0, not a structural guarantee; see G15). G14 had maze vREST 0.17-0.18 at gain 3.0; stock reached 0.96.  
@@ -272,5 +272,240 @@ The held-out dips come from one seed failing non-monotonically in gain. Seed 13 
 - `tests/experiments/test_replay_geometry.py` checks the six-goal replay result.
 - `tests/engine/test_steering_robustness.py` has new unit tests for replay extinction, the explicit extinction argument, relative pacing, the noise pain floor and wall gating.  
 **Scope:** Determinism and regression baselines are unchanged, because the value map stays flat there. The legacy all-off digests pin `value_steer="maxnorm"` and `wall_gate_gain=0` and are bit-identical. `test_is_value_rest_matches_the_engine_no_value_scores[beacon]` now runs 2000 ticks, because under split, memory is silent in beacon until about tick 1500.
-**Known, pre-existing, not changed here:** microsleep replay passes the TRN observation-buffer index (0..replay_window-1) to `ValueMemory.replay_transition`, which indexes the trajectory deque from its oldest end. Sleep therefore replays transitions about 150-200 ticks old (every second entry, in forward order) rather than the recent path, and the replay-time extinction rule inherits that. Explicit consolidation (`consolidate`, used by the memory maze and the assay) is unaffected. Fixing it changes microsleep-replay behaviour in every long run, so it belongs in its own change.  
+**Known, pre-existing, not changed here:** microsleep replay passes the TRN observation-buffer index (0..replay_window-1) to `ValueMemory.replay_transition`, which indexes the trajectory deque from its oldest end. Sleep therefore replays transitions about 150-200 ticks old (every second entry, in forward order) rather than the recent path, and the replay-time extinction rule inherits that. Explicit consolidation (`consolidate`, used by the memory maze and the assay) is unaffected. Fixing it changes microsleep-replay behaviour in every long run, so it belongs in its own change. *Fixed in G17.*  
 **Impact:** `core/config.py`, `core/engine.py`, `brain/systems/basal_ganglia.py` (`wall_gate_signals`), `brain/systems/value_memory.py`, `ui/sim_session.py`, `ui/static/js/brain.js`, `ui/scenarios.py`, `experiments/memory_navigation.py`, `experiments/steering_sensitivity.py`, README.
+
+## G17 — Microsleep replay replays the recent path, in reverse, never across a reset
+**Date:** 2026-10-02  
+**Why:** The engine passed `TRNGate.replay_index`, a position in the TRN's observation buffer (0..`replay_window`-1), to `ValueMemory.replay_transition`. That method indexes the trajectory deque (maxlen 200) from its oldest end. So sleep replayed transitions ~150-200 ticks old, every second one, forward (the deque shifts by one per tick while the index also advances by one), and the replay-time extinction rule (G16) inherited this. `reset_episode` also left no boundary in the trajectory. G16 recorded this as a known, pre-existing problem.  
+**Change** (`value_memory.replay_recent`, default True; False in the legacy `ALL_OFF`):
+- At sleep onset `Engine._replay` snapshots `ValueMemory.recent_transitions(trn.replay_window)`. The k-th replay tick backs up transition k of the snapshot, most recent first (reverse replay, Foster & Wilson 2006), and cycles if sleep outlasts it. The deque moving during sleep does not change it.
+- `ValueMemory` records episode boundaries in a `_linked` deque beside the trajectory. The (cell, reward) entries are unchanged, and the deque is aligned at the newest end so it survives `trajectory.clear()`. `transition`, `recent_transitions`, `replay_transition` and `consolidate` never link across a boundary. This part is unflagged: every existing `consolidate` caller (maze, assay) clears the trajectory before teleporting, so it is a no-op there. The legacy digests and the six-goal replay numbers are unchanged.
+- `replay_transition` is split into `transition(index)` and `replay_backup(transition)`. Both replay rules go through `replay_backup`, which since G18 also writes the goal memory.
+- `TRNGate.replay_index` and `TickData` are unchanged, and so are the determinism and regression baselines.
+- The console highlights the cell replay actually backed up (`ctx.replay_cell`; "Replaying k of N steps back"). The old `vm.trajectory[replay_index]` lookup was the wrong cell and one tick stale.
+
+**Effect** (re-measured on the merged branch with G18 and G19; G16's harness grid, the four G16 scenarios, against 235cfdc):
+- **Console defaults: none.** With pacing on, beacon, foraging, hazard_field and hidden_food never microsleep, and since G18 the maze does not either. All open-scenario rows of G16 blocks (a) and (b) are byte-identical to 235cfdc. The maze and hidden_food rows are identical under `replay_recent` true and false (default headings, the full circle, both noise levels). Before G18 the maze differed under the two rules only in runs that collapse into fatigue (gains 0.2-0.4, held-out seed 13), where outcomes are chaotic.
+- **Pacing off (the core-engine energy policy): small, mostly positive at noise 0.03, mixed at noise 0.** Worst fraction at gains 0.4-3.0 is 0.895-0.988 (235cfdc: 0.860-0.952) at noise 0.03 and 0.864-0.976 (0.864-0.975) at noise 0. Part of the noise-0.03 rise at gain 0.4 is G18's maze change (132.4 → 137.8 recalls), not replay. At the default gain 1.5, recent vs legacy:
+  - beacon, noise 0.03: 10.4 vs 9.4 (7 seeds better, 0 worse);
+  - hazard_field, noise 0: 14.0 vs 15.4 (1 better, 5 worse), so the noise-0 worst fraction at 1.5 falls from 0.951 to 0.889;
+  - foraging: 36.0 vs 35.3 at noise 0.03 (2 better, 2 worse) and 32.0 vs 31.4 at noise 0 (3 better, 4 worse);
+  - hidden_food (G19): 3.25 vs 3.88 at noise 0.03 and 3.75 vs 3.88 at noise 0 (small counts, 2-4 seeds each way).
+
+  The >= 0.80 and >= 0.85 bands of the four G16 scenarios stay 0.4-3.0. The tightest guard margin (foraging, pacing off, gain 3.0) moves from 33/39 to 35/39.
+- **Memory maze with rest off and fatigue pacing 0** (since G18 the only maze setting that still microsleeps): neutral. At gain 1.5 over 1500 ticks: 8.0 vs 9.0 recalls at noise 0 (rate 0.67 vs 0.75), and 8.5 vs 8.25 at noise 0.03 over seeds 1-4 (rate 0.68 vs 0.69).
+
+**What replay now writes** (measured over 3000 ticks, seeds 1-4, noise 0.03, gain 1.5):
+- **Open field** (no pacing; 51.5 sleeps and 1278 replay ticks per run). The replayed cell is a median 0 place-cell bins from the agent (legacy: 3 bins) and a median 13 steps back (legacy: 187 ticks old). The open field has no reward, so the value map stays exactly 0 under either rule. The console can show *where* replay is, but not value being written.
+- **The "recent path" is mostly one place.** When ATP drops below 0.35 the TRN closes and freezes path integration (`spatial.step` with `sensory_gain` 0). So the last ~30-50 transitions before sleep stay in one place-cell bin. 96-99% of each 50-transition snapshot is same-cell transitions, covering 1.4-2.8 distinct cells.
+- **Recent replay writes *less* along a path than the stale rule did.** With pacing off (foraging, hazard_field, beacon, hidden_food), it changes the value of 0.17-0.67 distinct cells per sleep, against 0.58-2.45 under the legacy rule. It backs up 15-27 moving transitions per run, against 58-83. So it mostly re-applies TD and dwell extinction to the cell the agent sleeps in. Reverse replay could carry value back along a path only if place cells kept updating until sleep.
+- **A candidate follow-up.** A scratch variant on the branch skipped unrewarded same-cell transitions, i.e. replayed the recent sequence of places. With pacing off it scored a little better: worst fraction 0.906-0.997 at noise 0.03, and 0.952 at gain 1.5 and noise 0. It was measured on one sample and not adopted. It belongs with keeping path integration live until sleep as a follow-up.
+
+**Tests:**
+- `tests/engine/test_replay_recent.py`: order and recency, a stable snapshot while the deque grows, cycling, no cross-boundary transitions under either rule, the default-world trace independent of the flag, and the console replay cell.
+- `test_wall_gate_stops_memory_pinning_the_agent_against_a_wall` moved from seed 5 to seed 13. Seed 5 no longer pins under recent replay (39 items without the gate). Over seeds 1-16, pinning without the gate dropped from 6 seeds to 2. Seed 13 pins under both rules: 12 items without the gate, 34 with it.
+- `ALL_OFF` pins `replay_recent=False`; the legacy digests are bit-identical.
+
+**Harness pitfall:** `--set` parses values as JSON, so `value_memory.replay_recent=False` (capitalised) becomes a truthy string. Use lowercase `false`.  
+**Impact:** `brain/systems/value_memory.py`, `core/config.py`, `core/engine.py`, `ui/sim_session.py`, `ui/static/js/brain.js`.
+
+## G18 — Off-axis memory-maze starts: a replay-written goal vector and gate-safe pacing
+**Date:** 2026-10-02  
+**Why:** The console memory maze (goal (6, 3), start (0, 0)) recalled only from start headings within about 0.7 rad of the goal bearing. `steering_sensitivity --maze-headings full` (new; 16 headings over 2π) measured this at 235cfdc:
+- at noise 0, 4 of 16 headings recall on at least 90% of hidden trials, at every gain from 0.4 to 3.0 (38-43 recalls, recall rate 0.31-0.35);
+- at noise 0.03 (seeds 1-4, gain 1.5), 14 of 64 runs do (22%).
+
+**Diagnosis** (measured on the branch; two of the three suspected causes were wrong or incomplete):
+- **Fan width is not the cause.** Value sampling out to π, or averaging lookaheads of 1, 2 and 4 m, still gives 4/16. The multi-scale lookahead hurt heading 0 (63 vs 147 recalls).
+- **The flat start region comes from the TD discount.** The demonstration does start at the start, but from a start facing away the visible trial is a search of 34-129 ticks instead of 6-9. Values fall by γ=0.9 per step. So after consolidation the largest advantage the agent can sample at the start is 4e-4 to 4e-9 on 11 of the 12 failing headings, below the 1e-3 at which the map gives no command.
+- **Path integration drifts during the search.** ATP drops below 0.55, the TRN narrows the sensory gate, and the gate also scales the egomotion fed to path integration. On 7 of the 12 failing headings the internal frame had shifted 1.8-12 m by the time the agent touched the goal.
+- **A failure then cascades.** A 300-tick timeout leaves the agent tired (start ATP 0.4-0.7, 100-175 microsleep ticks per trial), and recall collapses for the rest of the session.
+
+**Change:**
+- **`value_memory.goal_vector`** (off in the core engine):
+  - Replaying a rewarded transition stores its arrival cell as the goal (`ValueMemory.goal_cell`, written in `replay_backup`). This covers both sleep consolidation and microsleep replay.
+  - Where the map's largest sampled advantage is below `goal_vector_flat` (1e-3, the map's own no-steer threshold, now `Engine.VALUE_FLAT`), the agent turns toward the goal by path integration. The commands come from the pure function `basal_ganglia.goal_vector_signals`:
+    - it turns when |bearing| exceeds 0.15, with FORWARD giving way;
+    - it never pushes forward, so `max(signals) >= 0`;
+    - it gives no command while the goal is inside the ~1 m circle a run of turns traces, because turning would orbit it.
+  - A visit to the goal's place cell that finds no reward erases it.
+- **Maze pacing.** `MemoryMaze` turns the goal vector on, together with fatigue pacing at `pace_low` 0.6, just above the gate's narrowing threshold of 0.55. At integration this value became one shared constant, `ui.scenarios.GATE_SAFE_PACE_LOW`, because G19's hidden food uses it for the same reason.
+- **Console.** It draws the goal memory and says when the vector is steering.
+
+**Results.** Variant table at gain 1.5 (share of runs that recall, i.e. recall rate >= 0.9). The baseline and final rows were re-measured on the merged branch. The middle rows are the branch's own measurements, made under legacy microsleep replay.
+
+| variant | noise 0 (16 headings) | noise 0.03 (64 runs) |
+|---|---|---|
+| baseline (235cfdc) | 25% (42.6 recalls) | 22% (38.3) |
+| goal vector alone | 44% | 33% |
+| pacing at 0.6 alone | 56% (median recall 133 ticks) | 58% |
+| goal vector + pacing 0.4 | 50% | 33% |
+| **goal vector + pacing 0.6 (merged)** | **100%** (85.9 recalls, rate 1.00) | **97%** (77.3 recalls, rate 0.97) |
+
+- **Across gains** (noise 0, gains 0.4 / 0.8 / 1.5 / 3.0): 70.1 / 85.1 / 85.9 / 90.2 recalls at mean rate 0.99-1.00, against 38.1-42.6 at rate 0.31-0.35 before. Runs that recall: 16, 15, 16 and 16 of 16. The exceptions are heading 1.96 at gain 0.4 (rate 0.91) and heading 5.50 at gain 0.8 (rate 0.80).
+- **The two failing noise-0.03 runs.** Seed 3, heading 3.53, never finds the goal on the visible trial (300-tick timeout). Seed 2, heading 3.93, recalls 2 of 5.
+- **Per heading** at gain 1.5 and noise 0, recalls range from 10 (heading 1.96) to 197 (0.39).
+- **Default maze headings and the open scenarios.** All beacon, foraging and hazard_field rows are byte-identical to 235cfdc (pacing on). The maze changes at gain 0 (0.62 → 0 chance recalls) and at gain 0.4 at noise 0.03 (132.4 → 138.5); every other default-heading cell is identical.
+- **Held-out seeds 9-16.**
+  - Recall rate is >= 0.99 at every gain.
+  - G16's seed-13 collapse at gains 1.0-1.5 is gone: cell means go from 130.4 to 145.0-146.5, and seed 13 itself gets 124-136 there.
+  - The 0.6 and 0.8 cells drop by 6-8 recalls (143.9, 141.0), because pacing rests take time. Seed 13 gets 92-108 at gains 0.4-0.8.
+- **Replay now matters off axis.** On the full circle at gain 1.5 and noise 0, replay on / off gives 85.9 / 32.4 recalls at rate 1.00 / 0.67, and only 7 of 16 headings recall without replay. At the default heading the comparison is unchanged: 147 / 91 recalls, median 10 / 16 ticks.
+- **No interaction with G17's replay rule.** With pacing at 0.6 the maze never microsleeps at console defaults, and full-circle and default-heading rows are identical under `replay_recent` true and false.
+
+**Rejected or not defaulted:**
+- **Storing the goal online on contact** (`goal_vector_source="online"`). It does slightly better in the maze (92.2 recalls, 100% of runs). But in `memory_nav_config` it lets the one-demonstration online agent beat the replay agent (prototype: 108 vs 138 total probe ticks over six goals), which fails `test_replay_geometry`. Tying the goal to replay keeps replay's role.
+- **Vector precedence** (`goal_vector_flat` huge). It is clearly better at recall: 126.6 vs 85.9 on the full circle, and 186 vs 147 at the default heading with noise 0.03. But the value map, including its pain memory, would then never steer while a goal is held.
+- **Goal vector on in the core engine.** `test_memory_navigation` and `test_replay_geometry` pass, but the steering guards fail with pacing off at gain 1.5: foraging 28 vs 39 items, hazard_field 15 vs 20.
+- **Pacing at the old `pace_low` 0.4.** It is below the gate threshold and does not stop the drift.
+
+**Costs and limits:**
+- **The rest-off demo changed.** With the inter-trial rest off, recall no longer fails: the rate is 1.00, though with 29 recalls instead of 147 (median 36-62 ticks, 0 microsleep ticks). The rest-off numbers in DEC-3 and G16 (rate 0.69-0.75) now also need fatigue pacing set to 0. That gives 8-9 recalls at rate 0.67-0.75, with 620-700 microsleep ticks. The console watch text says so.
+- **Recalls vary by heading** (10-197 per heading at gain 1.5). Where a 30-50 tick demonstration leaves the map weak but not flat (e.g. heading 5.11), the agent retraces the meandering demonstration.
+- **Search on the visible trial is not addressed** (seed 3, heading 3.53, above).
+- **Gain 0.4.** The vector's turn scales with `value_gain` and barely beats FORWARD there. So the full-circle maze's worst fraction at 0.4 is 0.78 of its own best, although the absolute score still nearly doubles (38.1 → 70.1).
+- **Hard-coded TRN threshold.** `GATE_SAFE_PACE_LOW` relies on the threshold of 0.55 hard-coded in `TRNGate.trn_state`. The beacon, foraging and hazard_field scenarios still pace at 0.4, below that threshold, so their path integration can drift on long runs. This is not addressed.
+
+**Tests:**
+- `tests/engine/test_goal_vector.py`.
+- `tests/experiments/test_off_axis_maze.py`: all 16 headings recall at 1000 ticks. Removing the goal vector, lowering `pace_low` to 0.4 or turning pacing off each leaves at least 3 headings failing (measured 5, 8 and 9).
+- Harness tests (`--maze-headings default|full|N`, row keys `train_ticks` and `timeouts`, summary key `recall_ok`) and console tests.
+- `ALL_OFF` pins `goal_vector=False` and `pace_low=0.4`; the legacy digests are bit-identical.
+- The steering-guard docstrings were re-measured on the merge. Low-gain maze recalls at gains 0.4 / 0.6, as a share of those at 1.5:
+  - stock-like steering, gates off: 0.53 / 0.56;
+  - stock-like steering, gates on: 0.49 / 0.82;
+  - max-norm alone: 0.54 / 0.92.
+
+  Each fails at least the gain-0.4 guard.
+
+**Impact:** `core/config.py`, `core/engine.py`, `brain/systems/basal_ganglia.py`, `brain/systems/value_memory.py`, `ui/scenarios.py`, `ui/sim_session.py`, `ui/static/js/{arena,brain,live}.js`, `experiments/steering_sensitivity.py`.
+
+## G19 — Hidden food: an open task where place memory pays off
+**Date:** 2026-10-02  
+**Why:** Under the G16 defaults, memory buys about nothing in foraging and hazard_field and slightly hurts in beacon. Those targets are visible (so the cue gate mutes memory) or they move (so the map is stale). Only the memory maze showed memory doing anything, and it resets the agent to the start every trial. We needed an open task where remembering a place clearly pays.  
+**Change:** a new console scenario, `hidden_food` (`ui.scenarios.HiddenFood`). No engine change.
+- Six food sites of radius 1.25 sit at fixed, asymmetric places about 2.5 m in from the walls.
+- The food is kind "hidden": touching it gives the contact reward, but vision never reports it as food, so neither the vision drive nor the cue gate sees it.
+- An eaten site regrows in place 150 ticks later.
+- The config is set by the scenario only: pacing with `pace_low` 0.6 (`GATE_SAFE_PACE_LOW`, shared with the maze since G18), and `generalization_radius` 2 (as in the maze).
+- The scenario is registered in the console and in `experiments/steering_sensitivity.py` (3000 ticks). Its rows report score, `sites_found` and `blocks` (finds per 500-tick block). The harness default now runs five scenarios.
+- The console labels hidden items "hidden food" and adds a "Forget the map" action.
+
+**Why pace_low 0.6:** the TRN gate narrows to 0.4 once ATP falls below 0.55, and a narrowed gate under-counts turns and motion. Nothing in an open task resets the path-integration frame, so the errors accumulate.
+- With the usual `pace_low` 0.4, after 3000 ticks the estimated position is 16 m (memory off) to 37 m (memory on) from the truth, and memory costs 36% (15.6 vs 24.4 finds, 0 wins of 8).
+- With 0.6 the drift is at most 1.2 m, which comes from wall contact while turning.
+
+**Result** (re-measured on the merge; gain 1.5 against 0, 3000 ticks, paired):
+
+| block | memory | no memory | ratio | wins / losses |
+|---|---|---|---|---|
+| seeds 1-8, noise 0.03 | 6.50 | 2.38 | x2.74 | 8 / 0 |
+| held-out seeds 9-16, noise 0.03 | 11.62 | 4.25 | x2.74 | 8 / 0 |
+| seed 1, 8 headings, noise 0 | 12.25 | 3.00 | x4.08 | 8 / 0 |
+| pacing off, noise 0.03 | 3.25 | 1.38 | x2.36 | 7 / 0 |
+| pacing off, noise 0 | 3.75 | 1.62 | x2.31 | 6 / 0 |
+
+- **Every gain from 0.4 to 3.0 beats gain 0 in every block:** x2.7-3.3 at noise 0.03, x3.7-4.3 at noise 0, x2.4-3.2 on held-out seeds, and x1.8-2.8 with pacing off.
+- **Learning curves** (finds per 500-tick block, seeds 1-8, noise 0.03): 0.25 / 0.50 / 0.88 / 1.50 / 1.75 / 1.62 with memory, against 0.12 / 0.12 / 0.38 / 0.62 / 0.62 / 0.50 without. At noise 0 it is about 2 per block from the first block on, against 0.25-1.0.
+- **No interaction with G17 at console defaults.** Microsleep is 0 with pacing on, so G17's replay rule changes no hidden_food row. With pacing off it changes them a little (3.25 vs 3.88 under the legacy rule at noise 0.03).
+
+**Its gain profile is not flat**, and this is what changes the harness band (see G20).
+- Per-seed finds range from 1 to 18.
+- The best gain differs by block: 1.0 (7.8 finds) at noise 0.03 on seeds 1-8, 0.4 (12.9) at noise 0, and 0.6 (13.8) on held-out seeds.
+- On held-out seeds, gains 0.4-0.8 give 12.6-13.8 and gains 1.0-3.0 give 10.0-11.6. A bootstrap over seeds puts P(>= 0.8 of own best) at 0.97-1.00 for 0.4-0.8 and 0.09-0.71 for 1.0-3.0. So the held-out preference for lower gains looks real, not one seed.
+- With pacing off, the counts (1-8 finds per run) are too small to locate a best gain.
+
+**What the benefit is, and its limits:**
+- **It is site fidelity, not route planning.** Positive value stays within about 3 m of a site (90th percentile 2.6-2.9 m), so memory only pulls an agent that passes nearby. The memory agent then circles a known site and makes about 70% of its finds at one site; it does not tour the six.
+- **Memory costs when exploration alone already finds the food** (branch measurements). So this is not evidence that memory makes the agent a better forager in general:
+  - with the sites on the wall loop (2 m inset): x0.52, 0 wins of 8;
+  - an interior explorer (`forward_bias` 0.5) finds 37.2 without memory against 19.2 with it;
+  - the tired agent at `pace_low` 0.4 finds 24.4 without memory, more than the paced memory agent here (6.5).
+- **Sensitivities** (branch, gains 0 vs 1.5, seeds 1-8, noise 0.03): REGROW 75 gives x4.58, REGROW 300 x2.21 (6 wins, 2 ties), RADIUS 1.0 x2.63, and `generalization_radius` 0 x1.58.
+- **Rays still hit hidden objects** and report kind "hidden" at their distance. The policy ignores the kind; the maze already relies on this.
+
+**Tests:** `tests/experiments/test_hidden_food.py` (about 6 s).
+- Memory beats no memory over headings 0, π/2, π and 3π/2 at noise 0: 45 vs 12 finds, against a bound of x2 and 3 of 4 pairs.
+- The same bound fails with the map frozen (`learning_rate` 0, identical to memory off).
+- A third test covers the hidden/regrow mechanics.
+
+**Impact:** `ui/scenarios.py`, `experiments/steering_sensitivity.py`, `ui/static/js/{arena,live,replay}.js`, `tests/experiments/test_hidden_food.py`.
+
+## G20 — Joint acceptance of G17-G19
+**Date:** 2026-10-02  
+Measured on the merged branch (`fix/three`) against 235cfdc, with the G16 protocol: `steering_sensitivity` on gains {0, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0}, in three runs:
+- (a) `--noise-both --seeds 8`;
+- (b) `--seed-start 9 --seeds 8 --noise 0.03`;
+- (c) as (a) with `--set basal_ganglia.pace_rest_bonus=0`.
+
+Re-running 235cfdc with the same harness reproduces the G16 tables exactly.
+
+**Worst-scenario fraction for the four G16 scenarios** (beacon, foraging, hazard_field, memory_maze; directly comparable with G16):
+
+| gain | 0.4 | 0.6 | 0.8 | 1.0 | 1.2 | 1.5 | 2.0 | 3.0 |
+|---|---|---|---|---|---|---|---|---|
+| (a) noise 0.03 | 0.900 | 0.980 | 0.963 | 0.959 | 0.959 | 0.956 | 0.955 | 0.963 |
+| (a) noise 0 | 0.864 | 0.902 | 0.944 | 0.936 | 0.936 | 0.936 | 0.940 | 0.929 |
+| (b) held-out | 0.948 | 0.943 | 0.915 | 0.919 | 0.924 | 0.919 | 0.905 | 0.905 |
+| (c) noise 0.03, pacing off | 0.895 | 0.988 | 0.963 | 0.953 | 0.959 | 0.938 | 0.938 | 0.899 |
+| (c) noise 0, pacing off | 0.864 | 0.902 | 0.976 | 0.929 | 0.921 | 0.889 | 0.937 | 0.913 |
+
+The good band (>= 0.80 and >= 0.85) is 0.4-3.0 in all five blocks, as in G16. Changes from G16:
+- (a) at noise 0.03, gain 0.4: 0.860 → 0.900 (G18's maze);
+- (b) up at every gain from 0.4 to 1.5, because held-out seed 13 no longer collapses (G18);
+- (c) at noise 0.03: up at every gain (G17's beacon gain, G18's maze at 0.4);
+- (c) at noise 0: down at gain 1.5 (0.951 → 0.889, G17's hazard_field) and up at 2.0-3.0.
+
+**With hidden_food included** (all five scenarios, the harness default since G19):
+
+| gain | 0.4 | 0.6 | 0.8 | 1.0 | 1.2 | 1.5 | 2.0 | 3.0 | band >= 0.80 | band >= 0.85 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| (a) noise 0.03 | 0.823 | 0.871 | 0.887 | 0.959 | 0.855 | 0.839 | 0.839 | 0.839 | 0.4-3.0 | 0.6-1.2 |
+| (a) noise 0 | 0.864 | 0.902 | 0.854 | 0.854 | 0.936 | 0.936 | 0.932 | 0.913 | 0.4-3.0 | 0.4-3.0 |
+| (b) held-out | 0.936 | 0.943 | 0.915 | 0.727 | 0.791 | 0.845 | 0.755 | 0.782 | 0.4-0.8 | 0.4-0.8 |
+| (c) noise 0.03, pacing off | 0.806 | 0.903 | 0.742 | 0.677 | 0.710 | 0.839 | 0.938 | 0.899 | 1.5-3.0 | 2.0-3.0 |
+| (c) noise 0, pacing off | 0.622 | 0.757 | 0.784 | 0.929 | 0.921 | 0.811 | 0.757 | 0.892 | 1.0-1.5 | 1.0-1.2 |
+
+- Wherever the five-scenario figure is below the four-scenario one, hidden_food is the limiting scenario.
+- This reflects hidden_food's own gain profile (G19), not a regression of the other scenarios. Memory beats memory-off at every gain >= 0.4 in every block, but hidden_food's level varies by up to ~30% between gains, and with pacing off it scores 1-8 finds per run.
+- G16's claim, "every scenario within 20% of its own best at 0.4-3.0", holds for the four G16 scenarios only. It does not hold for hidden_food on held-out seeds or with pacing off.
+
+**Floors at the default gain 1.5** (G16 values in brackets where they differ):
+
+| scenario | (a) noise 0.03 | (a) noise 0 | (b) held-out | (c) noise 0.03 | (c) noise 0 |
+|---|---|---|---|---|---|
+| beacon | 24.6 | 23.4 | 24.2 | 10.4 (9.4) | 9.9 (9.6) |
+| foraging | 48.4 | 48.6 | 47.0 | 36.0 (35.2) | 32.0 (31.4) |
+| hazard_field | 31.8 | 31.2 | 34.0 | 15.1 (14.9) | 14.0 (15.4) |
+| memory_maze | 147.1 | 157.8 | 145.8 (130.4) | 147.1 | 157.8 |
+| hidden_food | 6.5 | 12.2 | 11.6 | 3.2 | 3.8 |
+
+vREST is 0.000 in every cell of every block, except one hidden_food run with pacing off at noise 0 (0.003 of ticks). The maze recall rate is >= 0.99 at gains 0.4-3.0 in every block.
+
+**Interactions between the three changes (measured):**
+- **G17 x G18: none at console defaults.**
+  - With pacing at 0.6 the maze never microsleeps, so the replay rule changes no maze row (default headings and full circle, both noise levels).
+  - The goal memory is written by `replay_backup`, which both replay rules share. In the maze it is the 60-pass sleep consolidation that writes it.
+  - Only the rest-off, pacing-0 demo still microsleeps, and there the replay rule is neutral (8-9 recalls either way).
+- **G17 x G19: none at console defaults.** With pacing on, hidden_food never microsleeps, and its rows are identical under both rules.
+  - With pacing off, recent replay gives slightly fewer hidden-food finds: 3.25 vs 3.88 at noise 0.03, and 3.75 vs 3.88 at noise 0, with 2-4 seeds going each way.
+  - G19 hoped a replay fix would help hidden food; it does not, because recent replay mostly backs up the cell the agent sleeps in (G17).
+- **G18 x G19:** they share `GATE_SAFE_PACE_LOW`. The goal vector is off in hidden_food, as in every scenario but the maze; turning it on globally fails the pacing-off steering guards (G18).
+- **Effect on the band:** G18 changes it only through the maze (gain 0.4 at noise 0.03, and the held-out block), and G17 only with pacing off. G19 changes the five-scenario band as shown above.
+
+**Guards on the merge:** all steering guards pass. The tightest is foraging with pacing off at gain 3.0, 35 vs 39. The regression checks behave as documented in `test_steering_guards.py`:
+- stock-like steering fails 6 of 13 guards with the gates on, and 9 of 13 with them off;
+- `wall_gate_gain=0` alone fails the pacing-off foraging guard (29 vs 39);
+- `dwell_extinction=0` alone passes.
+
+**Scope:**
+- `python -m pytest -q` passes (228 tests).
+- The determinism and regression baselines and `tests/experiments/test_memory_navigation.py` are unchanged against 235cfdc.
+- The legacy all-off digests are bit-identical. `ALL_OFF` now also pins `replay_recent=False`, `goal_vector=False` and `pace_low=0.4`.
+- The console starts and lists `hidden_food` in `/api/meta`, and a `SimSession` of each of the six scenarios steps 300 ticks and serialises its frame.
+
+**Integration changes:**
+- The merge conflicts were additive: config fields, EngineContext fields, ALL_OFF entries and guard docstrings.
+- `MAZE_PACE_LOW` and `HiddenFood.PACE_LOW` now alias one constant, `GATE_SAFE_PACE_LOW`, with the same value.
+- G18 supersedes the rest-off figures in DEC-3 and G16, and G16's statement that pacing is off in the maze.
