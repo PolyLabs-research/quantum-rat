@@ -48,11 +48,14 @@ export class DecisionPanel {
       this.pull[key] = { fill, val };
     }
     this.pullNote = el('span', { class: 'muted' });
+    // Why memory or pain is (partly) switched off right now; hidden when neither is.
+    this.mods = el('div', { class: 'crit-line decision-mods' });
     this.gain = el('div', { class: 'crit-line' });
     host.append(
       bars,
       el('div', { class: 'subhead' }, el('span', { text: 'Memory pull (value map)' }), this.pullNote),
       pull,
+      this.mods,
       el('div', { class: 'subhead' }, el('span', { text: 'Near-critical sensory gain' })),
       this.gain,
     );
@@ -78,7 +81,22 @@ export class DecisionPanel {
       divergingBar(p.fill, v, 1);
       p.val.textContent = any ? fmtSigned(v, 2) : '—';
     }
-    this.pullNote.textContent = any ? 'blue = better than here' : 'nothing learned nearby yet';
+    const gate = action.cue_gate ?? 1;
+    this.pullNote.textContent = any ? 'blue = better than here' : gate <= 0 ? 'muted' : 'nothing learned nearby yet';
+    const lines = [];
+    if (gate < 1) {
+      lines.push(
+        gate <= 0
+          ? el('div', {}, 'Memory muted: target in view')
+          : el('div', {}, 'Memory dimmed: target in view ', el('span', { class: 'num', text: `×${fmt(gate, 2)}` })),
+      );
+    }
+    const freeze = action.freeze ?? 1;
+    if (freeze < 0.99) {
+      lines.push(el('div', {}, 'Pain freeze habituating: pain → rest drive ', el('span', { class: 'num', text: `×${fmt(freeze, 2)}` })));
+    }
+    this.mods.replaceChildren(...lines);
+    this.mods.hidden = lines.length === 0;
     this.gain.replaceChildren(
       'Vision is scaled by ',
       el('span', { class: 'num', text: `×${fmt(action.crit_gain, 2)}` }),
@@ -158,6 +176,7 @@ export class EnergyPanel {
     if (f.microsleep.active) chips.push(chip('warning', 'z', `Microsleep · ${f.microsleep.remaining} ticks left`));
     else chips.push(chip('neutral', '•', 'Awake'));
     if (f.replay.active) chips.push(chip('neutral', '↺', `Replaying step ${f.replay.index}`));
+    if (f.energy.pacing) chips.push(chip('neutral', '◐', 'Resting to recover'));
     this.chips.replaceChildren(...chips);
     this.note.textContent =
       gate === 'OPEN'
@@ -333,10 +352,11 @@ export function frameTableGroups(f) {
   const a = f.agent;
   return [
     ['Body', [['x, y (m)', `${fmt(a.x, 2)}, ${fmt(a.y, 2)}`], ['Heading', `${fmt(headingDeg(a.heading), 1)}°`], ['Action', f.action.name], ['Reward', fmtSigned(f.reward, 3)]]],
+    ['Decision', [['Memory weight (cue gate)', `×${fmt(f.action.cue_gate ?? 1, 2)}`], ['Pain → rest (freeze habituation)', `×${fmt(f.action.freeze ?? 1, 2)}`]]],
     ['Path integration', [['Estimate x, y', `${fmt(a.est_x, 2)}, ${fmt(a.est_y, 2)}`], ['Estimated heading', `${fmt(headingDeg(a.est_heading), 1)}°`], ['Place cell', f.place_id]]],
     ['Senses', [['Vision rays', f.vision.rays.map((r) => r[2]).join(' · ') || '—'], ['Whiskers L / R', f.vision.whiskers.map((w) => (w ? 'touch' : '—')).join(' / ')], ['Pain', fmt(f.vision.pain, 2)]]],
     ['Neuromodulators', MODULATORS.map((m) => [`${m.name} (${m.mod})`, fmt(f.mod[m.mod] ?? 0, 3)])],
-    ['Energy', [['ATP', fmt(f.energy.atp, 3)], ['Glycogen', fmt(f.energy.glycogen, 3)], ['Sensory gate', `${f.trn.state} (${fmt(f.trn.gate, 2)})`], ['Microsleep', f.microsleep.active ? `yes, ${f.microsleep.remaining} left` : 'no'], ['Replay', f.replay.active ? `step ${f.replay.index}` : 'no']]],
+    ['Energy', [['ATP', fmt(f.energy.atp, 3)], ['Glycogen', fmt(f.energy.glycogen, 3)], ['Sensory gate', `${f.trn.state} (${fmt(f.trn.gate, 2)})`], ['Microsleep', f.microsleep.active ? `yes, ${f.microsleep.remaining} left` : 'no'], ['Fatigue pacing', f.energy.pacing ? 'resting to recover' : 'no'], ['Replay', f.replay.active ? `step ${f.replay.index}` : 'no']]],
     ['Criticality', [['κ', fmt(f.crit.kappa, 3)], ['Regime', f.crit.regime], ['Coupling (σ)', `${fmt(f.crit.coupling, 2)} (${fmt(f.crit.sigma, 2)})`], ['Active cells', f.crit.active], ['Avalanches', f.crit.n], ['Sensory gain', `×${fmt(f.crit.gain, 3)}`]]],
     ['Working memory', [['Load', f.wm.load], ['Novelty', fmt(f.wm.novelty, 3)]]],
   ];

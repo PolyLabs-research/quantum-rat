@@ -52,7 +52,16 @@ def _channel_scores(
     value_left: float = 0.0,
     value_right: float = 0.0,
     criticality_gain: float = 1.0,
+    freeze_habituation: float = 1.0,
+    pacing_rest: float = 0.0,
 ) -> Dict[str, float]:
+    """Score each action channel. A pure function of its arguments.
+
+    ``freeze_habituation`` (h in [0, 1]) scales only the pain->REST drive, so a
+    freeze habituates; ``pacing_rest`` is an extra REST drive while the agent is
+    recovering energy. Both are computed by the engine from its own per-engine
+    state (see ``Engine._brain_step``); their defaults (1.0, 0.0) are no-ops.
+    """
     if microsleep_active:
         return {"REST": 1.0}
 
@@ -103,8 +112,27 @@ def _channel_scores(
         + max(-config.turn_bias, 0.0)
         + config.wall_avoid_gain * c_wall * (0.5 + r_open)
     )
-    scores["REST"] = rest_pain_gain * pain + 0.1 * (1.0 - trn_gain) + rest_patience
+    scores["REST"] = rest_pain_gain * pain * freeze_habituation + 0.1 * (1.0 - trn_gain) + rest_patience
+    if pacing_rest:
+        scores["REST"] += pacing_rest
     return scores
+
+
+def cue_gate_weight(observation: Observation, gain: float) -> float:
+    """Weight on memory steering given what is in view (cue gating).
+
+    ``s`` is the closeness (1 - normalized distance) of the nearest visible
+    target over all vision rays, 0 if none is visible; the weight is
+    ``max(0, 1 - gain * s)``. With no target in view, or ``gain`` 0, it is
+    exactly 1.0, so the value signals pass through unchanged.
+    """
+    if gain <= 0.0:
+        return 1.0
+    closeness = 0.0
+    for ray in observation.vision_rays:
+        if ray.obj_type == "target":
+            closeness = max(closeness, 1.0 - ray.dist)
+    return max(0.0, 1.0 - gain * closeness)
 
 
 ACTION_ORDER = ("FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST")
@@ -131,6 +159,8 @@ def select_action_with_scores(
     value_left: float = 0.0,
     value_right: float = 0.0,
     criticality_gain: float = 1.0,
+    freeze_habituation: float = 1.0,
+    pacing_rest: float = 0.0,
 ) -> Tuple[Action, Dict[str, float]]:
     """Select an action and also return the channel scores that produced it.
 
@@ -150,6 +180,8 @@ def select_action_with_scores(
         value_left,
         value_right,
         criticality_gain,
+        freeze_habituation,
+        pacing_rest,
     )
     # Deterministic tie-break order.
     order = list(ACTION_ORDER)
@@ -168,6 +200,8 @@ def select_action(
     value_left: float = 0.0,
     value_right: float = 0.0,
     criticality_gain: float = 1.0,
+    freeze_habituation: float = 1.0,
+    pacing_rest: float = 0.0,
 ) -> Action:
     action, _ = select_action_with_scores(
         observation,
@@ -180,8 +214,10 @@ def select_action(
         value_left,
         value_right,
         criticality_gain,
+        freeze_habituation,
+        pacing_rest,
     )
     return action
 
 
-__all__ = ["select_action", "select_action_with_scores", "ACTION_ORDER", "TURN_STEP"]
+__all__ = ["select_action", "select_action_with_scores", "cue_gate_weight", "ACTION_ORDER", "TURN_STEP"]

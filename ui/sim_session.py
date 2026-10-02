@@ -61,8 +61,14 @@ PARAMS: Tuple[Param, ...] = (
           "Baseline urge to keep moving forward."),
     Param("basal_ganglia.value_gain", "Memory steering", "Action selection", 0.0, 3.0, 0.1,
           "How strongly the learned value map steers the agent toward places that led to reward."),
+    Param("basal_ganglia.cue_gate_gain", "Cue gating of memory", "Action selection", 0.0, 4.0, 0.1,
+          "How strongly a visible target mutes memory steering, so what the agent sees beats what it "
+          "remembers. 0 lets memory steer even with a target in view."),
     Param("basal_ganglia.wall_avoid_gain", "Wall avoidance", "Action selection", 0.0, 1.5, 0.05,
           "How hard the agent turns away from a wall close ahead."),
+    Param("value_memory.dwell_extinction", "Peak extinction", "Memory", 0.0, 0.1, 0.005,
+          "Cost charged when the agent lingers on a positively valued place, so value peaks it "
+          "built by standing still fade instead of trapping it there. 0 turns extinction off."),
     Param("basal_ganglia.dopamine_explore_gain", "Dopamine → exploration", "Neuromodulation", 0.0, 1.5, 0.05,
           "Below-baseline dopamine (disappointment) boosts novelty seeking."),
     Param("basal_ganglia.ach_precision_gain", "Acetylcholine → precision", "Neuromodulation", 0.0, 1.5, 0.05,
@@ -84,6 +90,9 @@ PARAMS: Tuple[Param, ...] = (
     Param("sensors.noise", "Sensor noise", "Senses", 0.0, 0.2, 0.01,
           "Random jitter on vision and pain. With noise on, each seed gives a different run; "
           "with it off, the seed only changes the criticality lattice."),
+    Param("basal_ganglia.pace_rest_bonus", "Fatigue pacing", "Energy", 0.0, 8.0, 0.5,
+          "Drive to rest once ATP runs low, held until it has recovered. 0 lets the agent run "
+          "until it collapses into microsleep."),
 )
 PARAM_INDEX = {p.key: p for p in PARAMS}
 
@@ -256,6 +265,8 @@ class SimSession:
                 "scores": {k: _r(v) for k, v in scores.items()},
                 "value": [_r(v) for v in (ctx.value_signals if ctx else (0.0, 0.0, 0.0))],
                 "crit_gain": _r(ctx.criticality_gain if ctx else 1.0),
+                "freeze": _r(ctx.freeze_habituation if ctx else 1.0),
+                "cue_gate": _r(ctx.cue_gate if ctx else 1.0),
             },
             "vision": {
                 "rays": rays,
@@ -269,6 +280,7 @@ class SimSession:
                 "glycogen": _r(ctx.glycogen if ctx else 0.0),
                 "glycogen_max": _r(eng.config.astrocyte.glycogen_max),
                 "scale": _r(ctx.energy_scale if ctx else 1.0),
+                "pacing": bool(ctx and ctx.pacing_active),
             },
             "trn": {"state": ctx.trn_state if ctx else "OPEN", "gate": _r(ctx.trn_gate_value if ctx else 1.0)},
             "microsleep": {"active": bool(ctx and ctx.microsleep_active), "remaining": ctx.microsleep_ticks_remaining if ctx else 0},

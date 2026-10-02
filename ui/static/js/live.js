@@ -471,7 +471,7 @@ export class LiveController {
   _showParam(key, v) {
     const c = this.paramControls[key];
     if (!c) return;
-    const digits = c.p.integer ? 0 : c.p.step < 0.1 ? 2 : 1;
+    const digits = c.p.integer ? 0 : c.p.step < 0.01 ? 3 : c.p.step < 0.1 ? 2 : 1;
     c.value.textContent = fmt(v, digits);
     const changed = Math.abs(v - this.defaults[key]) > 1e-9;
     c.value.dataset.changed = String(changed);
