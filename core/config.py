@@ -151,9 +151,8 @@ class BasalGangliaConfig:
     # Memory-steering geometry: how the value map's advantages (value one
     # lookahead step away along the heading and a fan each side, minus value
     # here) become the FORWARD / TURN_LEFT / TURN_RIGHT value signals.
-    #   "maxnorm" (default): each advantage divided by the largest magnitude.
-    #   "split": a decisive turn signal measured relative to ahead (see
-    #   brain.systems.basal_ganglia.split_value_signals). Each side reads
+    #   "split" (default): a decisive turn signal measured relative to ahead
+    #   (see brain.systems.basal_ganglia.split_value_signals). Each side reads
     #   sign(d) * clip((|d| / s - value_turn_dead_zone) / value_turn_ramp, 0, 1)
     #   with d = side - ahead and s = max|advantage| (s = 1, i.e. raw value units,
     #   when value_turn_relative is False; value_turn_ramp <= 0 makes it a step).
@@ -163,7 +162,12 @@ class BasalGangliaConfig:
     #   stronger turn) or "oppose_positive" (both). value_common_mode > 0 adds
     #   tanh(min(ahead, left, right) / value_common_mode) to all three when every
     #   direction beats here (0 = off). Only "split" reads these fields.
-    value_steer: str = "maxnorm"
+    #   Because nothing is measured against "here", max(signals) >= 0 always, so
+    #   a value-map local maximum cannot push every move below REST.
+    #   "maxnorm" (the pre-G15 steering, kept for comparison and for the legacy
+    #   digests): each advantage divided by the largest magnitude; at a local
+    #   maximum this reads (-1, -1, -1) and REST wins (value-induced REST).
+    value_steer: str = "split"
     value_turn_dead_zone: float = 0.1
     value_turn_ramp: float = 0.2
     value_turn_relative: bool = True

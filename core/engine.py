@@ -293,14 +293,17 @@ class Engine:
     VALUE_FAN_OFFSETS = (TURN_STEP, 0.8, 1.4)
 
     def _value_signals(self, ctx: EngineContext) -> Tuple[float, float, float]:
-        """Normalized steer toward higher-value directions (memory-guided navigation).
+        """Steer toward higher-value directions (memory-guided navigation).
 
         Reads the learned place value one lookahead step away along the heading
-        and along a fan on each side, takes the advantage over the current place,
-        and returns (ahead, best-left, best-right) normalized by the largest
-        magnitude, so the steer is decisive whenever a real gradient exists and
-        silent when the map is locally flat. Magnitude-robust, so it does not need
-        re-tuning to the reward scale.
+        and along a fan on each side and takes the advantage over the current
+        place. With ``value_steer == "split"`` (the default) these become the
+        FORWARD / TURN_LEFT / TURN_RIGHT commands of ``split_value_signals``: a
+        turn toward the side that beats ahead by more than a dead zone relative
+        to the local relief, with FORWARD giving way. With ``"maxnorm"`` they are
+        (ahead, best-left, best-right) divided by the largest magnitude. Both are
+        relative to the local relief, so they are decisive on a real gradient,
+        silent on a locally flat map, and need no re-tuning to the reward scale.
         """
         look = self.config.value_memory.lookahead
         here = self.value_memory.value_of(self.spatial.bins_at(ctx.grid_x, ctx.grid_y))

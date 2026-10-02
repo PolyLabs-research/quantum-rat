@@ -1,9 +1,9 @@
-"""Split memory steering (``basal_ganglia.value_steer = "split"``), config-gated.
+"""Split memory steering (``basal_ganglia.value_steer = "split"``, the default).
 
-The default steering is max-normalised advantages ("maxnorm"); "split" turns the
-value map into a turn signal measured relative to ahead, with a dead zone in
-units of the local relief. See ``split_value_signals`` and docs/decisions.md
-(G15) for why each part is there and what was measured.
+"split" turns the value map into a turn signal measured relative to ahead, with
+a dead zone in units of the local relief; the older max-normalised advantages
+("maxnorm") stay available behind the same switch. See ``split_value_signals``
+and docs/decisions.md (G15) for why each part is there and what was measured.
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ def _split(**kw) -> BasalGangliaConfig:
     return BasalGangliaConfig(value_steer="split", **kw)
 
 
-def test_default_steering_is_still_maxnorm():
-    assert BasalGangliaConfig().value_steer == "maxnorm"
-    assert EngineConfig().basal_ganglia.value_steer == "maxnorm"
+def test_default_steering_is_split():
+    assert BasalGangliaConfig().value_steer == "split"
+    assert EngineConfig().basal_ganglia.value_steer == "split"
 
 
 def test_flat_map_gives_no_steer():

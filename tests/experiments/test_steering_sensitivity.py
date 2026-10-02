@@ -183,7 +183,9 @@ def test_is_value_rest_matches_the_engine_no_value_scores(monkeypatch, scenario)
     # effective (cue-gated) signals fed to action selection and that the value
     # term is exactly value_gain * signal, with freeze habituation and pacing
     # living only in REST. hazard_field exercises pain freezing and pacing,
-    # beacon exercises cue gating; both run long enough to rest.
+    # beacon exercises cue gating. Under the default split steering memory is
+    # silent in beacon until about tick 1500 (the primary-only map has nothing
+    # to steer by before the first few contacts), so beacon runs 2000 ticks.
     from brain.systems import basal_ganglia as bg
     from core.engine import Engine
 
@@ -202,7 +204,7 @@ def test_is_value_rest_matches_the_engine_no_value_scores(monkeypatch, scenario)
     engine = Engine(seed=1, config=config)
     sc.setup(engine)
     gated = paced = valued = rested = 0
-    for _ in range(1500):
+    for _ in range(2000 if scenario == "beacon" else 1500):
         td = engine.run(1)[0]
         ctx = engine.context
         scores = ctx.action_scores
