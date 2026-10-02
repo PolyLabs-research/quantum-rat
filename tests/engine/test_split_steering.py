@@ -108,7 +108,8 @@ def test_split_lowers_the_maze_gain_threshold(noise):
         assert row["score"] >= 140, (gain, row)
         assert row["first_hidden_ticks"] <= 20, (gain, row)
         assert row["vrest"] == 0.0, (gain, row)
-    stock = run_job(Job("memory_maze", 0.6, 1, noise, 1500, (("basal_ganglia.value_steer", "maxnorm"),)))
+    stock = run_job(Job("memory_maze", 0.6, 1, noise, 1500, (
+        ("basal_ganglia.value_steer", "maxnorm"), ("basal_ganglia.wall_gate_gain", 0.0))))
     assert stock["score"] < 100
 
 

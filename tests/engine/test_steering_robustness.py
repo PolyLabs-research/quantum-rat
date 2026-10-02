@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Tuple
 import pytest
 
 from brain.contracts import Observation, VisionRay
-from brain.systems.basal_ganglia import _channel_scores, cue_gate_weight
+from brain.systems.basal_ganglia import _channel_scores, cue_gate_weight, wall_gate_signals
 from brain.systems.value_memory import ValueMemory
 from core.config import BasalGangliaConfig, EngineConfig
 from core.engine import Engine
@@ -316,6 +316,45 @@ def test_value_signals_on_the_context_are_the_gated_ones():
     assert muted > 0
 
 
+# ------------------------------------------------------ C7 wall gating
+
+
+def test_wall_gate_signals():
+    wall = _obs((VisionRay(0.2, "wall", 0.0),))  # wall close ahead: closeness 0.8
+    a, l, r, w = wall_gate_signals(1.0, -1.0, -1.0, wall, 1.0)
+    assert w == pytest.approx(0.2)
+    assert (a, l, r) == (pytest.approx(0.2), pytest.approx(-0.2), pytest.approx(-0.2))
+    # A turn toward a better side and FORWARD giving way to it are kept.
+    assert wall_gate_signals(-1.0, 1.0, -1.0, wall, 1.0)[:3] == (-1.0, 1.0, pytest.approx(-0.2))
+    # No wall ahead (side walls and targets do not count), or gain 0: exact pass-through.
+    side = _obs((VisionRay(0.1, "wall", 0.5), VisionRay(0.3, "target", 0.0)))
+    assert wall_gate_signals(0.7, -0.3, 0.2, side, 1.0) == (0.7, -0.3, 0.2, 1.0)
+    assert wall_gate_signals(0.7, -0.3, 0.2, _obs(()), 1.0) == (0.7, -0.3, 0.2, 1.0)
+    assert wall_gate_signals(1.0, -1.0, -1.0, wall, 0.0) == (1.0, -1.0, -1.0, 1.0)
+    # The split property max(signals) >= 0 survives gating.
+    for sig in ((0.5, -1.0, -1.0), (-1.0, 1.0, 0.0), (0.0, -0.5, -0.5)):
+        assert max(wall_gate_signals(*sig, wall, 1.0)[:3]) >= 0.0
+
+
+def test_wall_gate_stops_memory_pinning_the_agent_against_a_wall():
+    # foraging with pacing off, seed 5, noise 0.03, gain 1.5: without the gate the
+    # agent spends hundreds of ticks pushing FORWARD into the boundary because
+    # the remembered value lies beyond it, and collects 13 items (34-36 with it,
+    # 36 at value_gain 0).
+    def run(wall_gate_gain):
+        scenario, engine = _scenario_engine("foraging", seed=5, noise=0.03, overrides={
+            "basal_ganglia.pace_rest_bonus": 0.0, "basal_ganglia.wall_gate_gain": wall_gate_gain})
+        gated = 0
+        for _ in range(3000):
+            _step(scenario, engine)
+            gated += engine.context.wall_gate < 1.0
+        return scenario.collected, gated
+
+    pinned, _ = run(0.0)
+    free, gated = run(1.0)
+    assert pinned <= 20 and free >= 30 and gated > 0
+
+
 # --------------------------------------------------------- C6 pacing latch
 
 
@@ -427,6 +466,7 @@ ALL_OFF = {
     "basal_ganglia.cue_gate_gain": 0.0,
     "basal_ganglia.pace_rest_bonus": 0.0,
     "basal_ganglia.value_steer": "maxnorm",
+    "basal_ganglia.wall_gate_gain": 0.0,
 }
 LEGACY_HASHES = json.loads((Path(__file__).with_name("steering_legacy_hashes.json")).read_text())
 

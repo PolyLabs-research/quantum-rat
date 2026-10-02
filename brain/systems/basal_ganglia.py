@@ -136,6 +136,38 @@ def cue_gate_weight(observation: Observation, gain: float) -> float:
     return max(0.0, 1.0 - gain * closeness)
 
 
+def wall_gate_signals(
+    ahead: float, left: float, right: float, observation: Observation, gain: float
+) -> Tuple[float, float, float, float]:
+    """Wall gating of memory steering: a wall close ahead mutes memory's push to hold course.
+
+    ``c`` is the closeness (1 - normalized distance) of a wall on the centre
+    vision ray, the same signal wall avoidance uses, and ``w = max(0, 1 - gain *
+    c)``. FORWARD's positive (memory pulls straight on) signal and the negative
+    turn signals (memory says "turning is worse than straight on") are scaled
+    by ``w``; turns toward a better side and FORWARD's negative part are kept.
+    Without it a remembered place beyond a wall (or one that path-integration
+    drift has moved behind it) held the agent pressing into the wall: with
+    pacing off, foraging lost 18-23 of ~36 items on 3 of 8 seeds that way. The
+    split property ``max(signals) >= 0`` is preserved. Returns the gated
+    signals and ``w``; with no wall ahead, or ``gain`` 0, ``w`` is exactly 1.0
+    and the signals pass through unchanged. Reads raw vision rays, independent
+    of ``vision_gain``.
+    """
+    if gain <= 0.0:
+        return ahead, left, right, 1.0
+    _, c_wall, *_ = _vision_signals(observation)
+    w = max(0.0, 1.0 - gain * c_wall)
+    if w == 1.0:
+        return ahead, left, right, 1.0
+    return (
+        ahead * w if ahead > 0.0 else ahead,
+        left * w if left < 0.0 else left,
+        right * w if right < 0.0 else right,
+        w,
+    )
+
+
 def split_value_signals(
     ahead: float, left: float, right: float, scale: float, config: BasalGangliaConfig
 ) -> Tuple[float, float, float]:
@@ -283,6 +315,7 @@ __all__ = [
     "select_action_with_scores",
     "cue_gate_weight",
     "split_value_signals",
+    "wall_gate_signals",
     "ACTION_ORDER",
     "TURN_STEP",
 ]

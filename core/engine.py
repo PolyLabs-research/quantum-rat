@@ -8,7 +8,13 @@ from typing import Any, Dict, List, Tuple
 import math
 
 from brain.contracts import Action, Observation
-from brain.systems.basal_ganglia import TURN_STEP, cue_gate_weight, select_action_with_scores, split_value_signals
+from brain.systems.basal_ganglia import (
+    TURN_STEP,
+    cue_gate_weight,
+    select_action_with_scores,
+    split_value_signals,
+    wall_gate_signals,
+)
 from brain.systems.criticality import CriticalityField, near_critical_gain
 from brain.systems.spatial import SpatialSystem
 from brain.systems.trn_microsleep_replay import TRNGate
@@ -71,6 +77,7 @@ class EngineContext:
     # input and the logged reward) is unchanged by this.
     map_reward: float = 0.0
     cue_gate: float = 1.0  # weight on memory steering (0 = muted by a visible target)
+    wall_gate: float = 1.0  # weight on memory's hold-course push (0 = muted by a wall close ahead)
     freeze_habituation: float = 1.0  # scale on the pain->REST drive (1 = not habituated)
     pacing_active: bool = False  # homeostatic pacing is adding a REST drive this tick
     tick_data: TickData | None = None
@@ -362,6 +369,10 @@ class Engine:
         value_ahead *= cue_gate
         value_left *= cue_gate
         value_right *= cue_gate
+        # Wall gating: a wall close ahead mutes memory's push to hold course.
+        value_ahead, value_left, value_right, wall_gate = wall_gate_signals(
+            value_ahead, value_left, value_right, ctx.observation, bg.wall_gate_gain
+        )
 
         # Near-critical cortical gain: criticality state feeds sensory processing.
         crit_gain = near_critical_gain(ctx.kappa, self.config.criticality.gain_width)
@@ -403,6 +414,7 @@ class Engine:
         ctx.value_signals = (value_ahead, value_left, value_right)
         ctx.criticality_gain = crit_gain
         ctx.cue_gate = cue_gate
+        ctx.wall_gate = wall_gate
         ctx.freeze_habituation = freeze_h
         ctx.pacing_active = pacing
         self.last_action = action

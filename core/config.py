@@ -147,6 +147,12 @@ class BasalGangliaConfig:
     # w = max(0, 1 - cue_gate_gain * closeness of the nearest visible target), so
     # the value map cannot override what the agent can see. 0 disables.
     cue_gate_gain: float = 2.0
+    # Wall gating: a wall close ahead (centre vision ray) mutes memory's push to
+    # hold course, by w = max(0, 1 - wall_gate_gain * wall closeness): FORWARD's
+    # positive value signal and negative turn signals are scaled by w, turns
+    # toward a better side are kept (see basal_ganglia.wall_gate_signals), so a
+    # remembered place behind a wall cannot pin the agent against it. 0 disables.
+    wall_gate_gain: float = 1.0
     # Homeostatic pacing: once ATP falls below pace_low the agent prefers REST
     # (by pace_rest_bonus) until ATP recovers to pace_high. Both thresholds are
     # fractions of astrocyte.atp_baseline (the ATP ceiling), so the release point
