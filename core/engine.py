@@ -146,9 +146,12 @@ class Engine:
         self._replay_plan: List[Transition] | None = None
         self._replay_step = 0
         # Goal-vector extinction: whether the agent is inside the remembered goal's
-        # radius on this visit, and whether it found reward there.
+        # place cell on this visit, whether it found reward there, and how many
+        # visits in a row (to the goal held in _goal_misses_cell) found none.
         self._goal_visit = False
         self._goal_visit_rewarded = False
+        self._goal_misses = 0
+        self._goal_misses_cell: Tuple[int, int] | None = None
         self.criticality = CriticalityField(stream=self.streams["criticality"], config=c.criticality)
         self.trn_gate = TRNGate(
             trigger_atp=c.trn.trigger_atp,
@@ -431,10 +434,19 @@ class Engine:
         With ``goal_vector_source == "replay"`` (the default) only replaying a
         rewarded transition writes the goal (``ValueMemory.replay_backup``);
         with ``"online"`` target contact also writes the current place cell.
-        Extinction: a visit to the goal's own place cell (entering it and
-        leaving again) without target contact erases the memory, so a goal that
-        moved, or a place that path-integration drift has displaced, stops
-        pulling the agent once it has been checked.
+
+        Extinction: a visit is a stay in the goal's own place cell; it is
+        rewarded if target contact happens while inside or on the tick the agent
+        leaves (contact reached from the cell next door). The goal is erased
+        after ``goal_extinction_misses`` unrewarded visits in a row, so a goal
+        that moved, or a place that path-integration drift has displaced, stops
+        pulling the agent once it has been checked and found empty more than
+        once. Any target contact resets the count: the remembered cell straddles
+        the contact circle (it is where the estimate was at first contact), so
+        a visit can cross the part of the cell outside the circle and miss a
+        goal that never moved; one miss is not evidence that it is gone. The
+        count persists across episodes, like the goal, and restarts when a new
+        goal is written. 0 disables extinction.
         """
         vm_cfg = self.config.value_memory
         if vm_cfg.goal_vector_source not in GOAL_VECTOR_SOURCES:
@@ -444,15 +456,25 @@ class Engine:
         here = self.spatial.bins_at(ctx.grid_x, ctx.grid_y)
         if ctx.target_contact and vm_cfg.goal_vector_source == "online":
             self.value_memory.goal_cell = here
-        if self.value_memory.goal_cell is None:
+        goal = self.value_memory.goal_cell
+        if goal != self._goal_misses_cell:  # a new goal (or none): start counting afresh
             self._goal_visit = self._goal_visit_rewarded = False
+            self._goal_misses = 0
+            self._goal_misses_cell = goal
+        if goal is None:
             return
-        if here == self.value_memory.goal_cell:
+        if ctx.target_contact:
+            self._goal_misses = 0
+        if here == goal:
             self._goal_visit = True
             self._goal_visit_rewarded = self._goal_visit_rewarded or ctx.target_contact
         elif self._goal_visit:
-            if not self._goal_visit_rewarded:
-                self.value_memory.goal_cell = None  # checked and found empty
+            if not (self._goal_visit_rewarded or ctx.target_contact):
+                self._goal_misses += 1
+                if 0 < vm_cfg.goal_extinction_misses <= self._goal_misses:
+                    self.value_memory.goal_cell = None  # checked and found empty, repeatedly
+                    self._goal_misses = 0
+                    self._goal_misses_cell = None
             self._goal_visit = self._goal_visit_rewarded = False
 
     def _brain_step(self, ctx: EngineContext) -> None:
@@ -589,7 +611,7 @@ class Engine:
         self._prev_target_dist = None
         self._prev_target = None
         self._freeze_level = 0.0
-        self._goal_visit = self._goal_visit_rewarded = False
+        self._goal_visit = self._goal_visit_rewarded = False  # the miss count persists, like the goal
         self.value_memory.reset_episode()
 
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:

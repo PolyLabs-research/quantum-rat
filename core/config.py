@@ -108,8 +108,9 @@ class ValueMemoryConfig:
     # vector does. ``goal_vector_source``: "replay" (default) writes the goal
     # only when a rewarded transition is replayed (sleep consolidation or
     # microsleep replay), so it is a product of consolidation like the
-    # replayed gradient; "online" also writes it on target contact. A visit to
-    # the goal's own place cell that finds no reward erases it (extinction).
+    # replayed gradient; "online" also writes it on target contact. Visits to
+    # the goal's own place cell that find no reward erase it (extinction, see
+    # goal_extinction_misses).
     # The turn command is sign(b) * clip((|b| - goal_turn_dead_zone) /
     # goal_turn_ramp, 0, 1) for the bearing b to the goal's cell centre, with
     # FORWARD giving way by the same amount, and nothing while the goal lies
@@ -124,6 +125,13 @@ class ValueMemoryConfig:
     goal_vector_flat: float = 1e-3
     goal_turn_dead_zone: float = 0.15  # radians (half a TURN_STEP)
     goal_turn_ramp: float = 0.3  # radians (one TURN_STEP); <= 0 makes it a step
+    # Extinction: the goal is erased after this many visits in a row to its
+    # place cell that end without target contact (contact on the tick the
+    # agent leaves the cell counts); any target contact resets the count.
+    # The remembered cell straddles the goal's contact circle, so a single
+    # miss can be a pass through the part of the cell outside it. 0 disables
+    # extinction. Measured in docs/decisions.md G21.
+    goal_extinction_misses: int = 2
 
 
 @dataclass

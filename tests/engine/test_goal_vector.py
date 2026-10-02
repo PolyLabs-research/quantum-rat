@@ -124,23 +124,30 @@ def test_off_means_no_steering_and_no_bookkeeping():
     assert engine.value_memory.goal_cell == (1, 0)
 
 
-def test_a_visit_without_reward_extinguishes_the_goal():
+def test_visits_without_reward_extinguish_the_goal():
     # The remembered goal is the start cell, with no reward there. The agent
     # walks off (FORWARD), turns back toward it, goes round the turning circle
-    # instead of orbiting the point, passes through the cell and forgets it.
+    # instead of orbiting the point and passes through the cell: the first
+    # pass leaves the goal held (one miss), a second one erases it.
     engine = _engine()
     engine.run(1)
     goal = engine.spatial.bins_at(engine.context.grid_x, engine.context.grid_y)
     engine.value_memory.goal_cell = goal
-    visited = False
-    for _ in range(60):
+    passes = 0
+    inside = False  # the walk-off from the start cell is not a visit (it began before the goal)
+    for _ in range(200):
         engine.run(1)
         ctx = engine.context
-        visited = visited or engine.spatial.bins_at(ctx.grid_x, ctx.grid_y) == goal
+        now = engine.spatial.bins_at(ctx.grid_x, ctx.grid_y) == goal
+        if inside and not now:
+            passes += 1
+            if passes == 1:
+                assert engine.value_memory.goal_cell == goal  # one miss is not enough
+        inside = now
         if engine.value_memory.goal_cell is None:
             break
-    assert visited
     assert engine.value_memory.goal_cell is None
+    assert passes == engine.config.value_memory.goal_extinction_misses == 2
 
 
 def test_a_visit_with_reward_keeps_the_goal():
@@ -152,6 +159,81 @@ def test_a_visit_with_reward_keeps_the_goal():
     for _ in range(6):
         engine.run(1)
     assert engine.value_memory.goal_cell == cell
+
+
+# Extinction rule, driven tick by tick: (place cell of the estimate, target contact).
+GOAL = (4, 2)
+NEXT_DOOR = (5, 2)
+AWAY = (0, 0)
+
+
+def _drive(engine: Engine, steps) -> None:
+    from core.engine import EngineContext
+
+    b = engine.spatial.bin_size
+    for cell, contact in steps:
+        ctx = EngineContext(tick=0)
+        ctx.grid_x, ctx.grid_y = (cell[0] + 0.5) * b, (cell[1] + 0.5) * b
+        ctx.target_contact = contact
+        engine._update_goal_memory(ctx)
+
+
+def _held_goal(**value_memory) -> Engine:
+    engine = _engine(**value_memory)
+    engine.value_memory.goal_cell = GOAL
+    return engine
+
+
+def test_contact_on_the_tick_of_leaving_the_cell_counts_as_reward():
+    # The bug: touching the goal from the cell next door, on the tick the agent
+    # leaves the goal cell, was ignored and the goal erased (maze, heading 1.96,
+    # seed 1, noise 0: 10 recalls instead of 89). Checked with a single miss
+    # erasing, so the leaving tick alone decides.
+    engine = _held_goal(goal_extinction_misses=1)
+    _drive(engine, [(AWAY, False), (GOAL, False), (NEXT_DOOR, True)])
+    assert engine.value_memory.goal_cell == GOAL
+    _drive(engine, [(GOAL, False), (NEXT_DOOR, False)])  # the same pass without contact
+    assert engine.value_memory.goal_cell is None
+
+
+def test_one_miss_does_not_erase_two_in_a_row_do():
+    engine = _held_goal()
+    _drive(engine, [(GOAL, False), (AWAY, False)])
+    assert engine.value_memory.goal_cell == GOAL
+    _drive(engine, [(GOAL, False), (GOAL, False), (NEXT_DOOR, False)])
+    assert engine.value_memory.goal_cell is None
+
+
+def test_any_contact_resets_the_miss_count():
+    # A pass through the part of the goal cell outside the contact circle, then
+    # contact reached from another cell: the goal is still there.
+    engine = _held_goal()
+    for _ in range(5):
+        _drive(engine, [(GOAL, False), (AWAY, False), (NEXT_DOOR, True), (AWAY, False)])
+    assert engine.value_memory.goal_cell == GOAL
+    # A rewarded visit resets the count too.
+    _drive(engine, [(GOAL, False), (AWAY, False), (GOAL, True), (AWAY, False), (GOAL, False), (AWAY, False)])
+    assert engine.value_memory.goal_cell == GOAL
+
+
+def test_the_miss_count_survives_an_episode_boundary_and_restarts_for_a_new_goal():
+    engine = _held_goal()
+    _drive(engine, [(GOAL, False), (AWAY, False)])
+    engine.begin_episode()  # a teleport keeps the goal, and so its miss count
+    _drive(engine, [(GOAL, False), (AWAY, False)])
+    assert engine.value_memory.goal_cell is None
+    engine = _held_goal()
+    _drive(engine, [(GOAL, False), (AWAY, False)])
+    engine.value_memory.goal_cell = NEXT_DOOR  # a new goal written by replay
+    _drive(engine, [(NEXT_DOOR, False), (AWAY, False)])
+    assert engine.value_memory.goal_cell == NEXT_DOOR
+
+
+def test_zero_disables_extinction():
+    engine = _held_goal(goal_extinction_misses=0)
+    for _ in range(5):
+        _drive(engine, [(GOAL, False), (AWAY, False)])
+    assert engine.value_memory.goal_cell == GOAL
 
 
 @pytest.mark.parametrize("source,written", [("replay", False), ("online", True)])
