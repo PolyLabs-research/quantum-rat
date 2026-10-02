@@ -252,11 +252,11 @@ class SimSession:
         if obs is not None:
             for ray in obs.vision_rays:
                 rays.append([_r(ray.angle), _r(ray.dist * sensors.vision_range, 3), ray.obj_type or "none"])
+        # The place whose value replay actually backed up this tick (the engine
+        # records it: the TRN replay index is not a trajectory position).
         replay_cell = None
-        vm = eng.value_memory
-        if ctx and ctx.replay_active and 0 <= ctx.replay_index < len(vm.trajectory):
-            (bx, by), _ = vm.trajectory[ctx.replay_index]
-            replay_cell = self._cell_center(bx, by)
+        if ctx and ctx.replay_active and ctx.replay_cell is not None:
+            replay_cell = self._cell_center(*ctx.replay_cell)
         scores = ctx.action_scores if ctx else {}
         return {
             "tick": self.tick,
@@ -294,7 +294,13 @@ class SimSession:
             },
             "trn": {"state": ctx.trn_state if ctx else "OPEN", "gate": _r(ctx.trn_gate_value if ctx else 1.0)},
             "microsleep": {"active": bool(ctx and ctx.microsleep_active), "remaining": ctx.microsleep_ticks_remaining if ctx else 0},
-            "replay": {"active": bool(ctx and ctx.replay_active), "index": ctx.replay_index if ctx else -1, "cell": replay_cell},
+            "replay": {
+                "active": bool(ctx and ctx.replay_active),
+                "index": ctx.replay_index if ctx else -1,
+                "cell": replay_cell,
+                "back": ctx.replay_back if ctx else 0,
+                "span": ctx.replay_span if ctx else 0,
+            },
             "mod": {k: _r(v) for k, v in (ctx.neuromodulators if ctx else {}).items()},
             "reward": _r(ctx.reward if ctx else 0.0),
             "crit": {

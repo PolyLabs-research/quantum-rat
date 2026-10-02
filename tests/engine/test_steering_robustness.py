@@ -337,12 +337,16 @@ def test_wall_gate_signals():
 
 
 def test_wall_gate_stops_memory_pinning_the_agent_against_a_wall():
-    # foraging with pacing off, seed 5, noise 0.03, gain 1.5: without the gate the
+    # foraging with pacing off, seed 13, noise 0.03, gain 1.5: without the gate the
     # agent spends hundreds of ticks pushing FORWARD into the boundary because
-    # the remembered value lies beyond it, and collects 13 items (34-36 with it,
-    # 36 at value_gain 0).
+    # the remembered value lies beyond it, and collects 12 items (34 with it).
+    # G16 used seed 5 (13 items without the gate, 33 with it), but that seed
+    # stopped pinning once microsleep replayed the recent path
+    # (value_memory.replay_recent; 39 items without the gate). Over seeds 1-16
+    # pinning without the gate (<= 25 items) went from 6 seeds to 2 (13 and 15);
+    # seed 13 pins under both replay rules.
     def run(wall_gate_gain):
-        scenario, engine = _scenario_engine("foraging", seed=5, noise=0.03, overrides={
+        scenario, engine = _scenario_engine("foraging", seed=13, noise=0.03, overrides={
             "basal_ganglia.pace_rest_bonus": 0.0, "basal_ganglia.wall_gate_gain": wall_gate_gain})
         gated = 0
         for _ in range(3000):
@@ -467,6 +471,7 @@ ALL_OFF = {
     "basal_ganglia.pace_rest_bonus": 0.0,
     "basal_ganglia.value_steer": "maxnorm",
     "basal_ganglia.wall_gate_gain": 0.0,
+    "value_memory.replay_recent": False,
 }
 LEGACY_HASHES = json.loads((Path(__file__).with_name("steering_legacy_hashes.json")).read_text())
 

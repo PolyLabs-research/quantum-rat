@@ -14,8 +14,11 @@ than decaying it toward the immediate (zero) reward -- the bug that an
 "update toward immediate reward" rule had.
 
 The same TD update is applied online (as the agent moves) and offline during
-microsleep replay (``replay_transition`` / ``consolidate``), which propagates
-value backward along the stored trajectory. Values generalize to neighbouring
+replay (``replay_backup`` / ``replay_transition`` / ``consolidate``), which
+propagates value backward along the stored trajectory. Microsleep replays the
+recent path in reverse (``recent_transitions``, see ``Engine._trn_step``).
+``reset_episode`` marks a boundary in the trajectory, and no replay links a
+transition across it. Values generalize to neighbouring
 cells with a decaying kernel (overlapping place fields;
 ``generalization_radius`` 0 disables it), so a single trajectory fills a
 followable 2-D field instead of a thin one-cell path.
@@ -35,9 +38,10 @@ replay extinguishes a peak to zero instead of driving it negative.
 from __future__ import annotations
 
 from collections import deque
-from typing import Deque, Dict, Iterable, Optional, Tuple
+from typing import Deque, Dict, Iterable, List, Optional, Tuple
 
 Cell = Tuple[int, int]
+Transition = Tuple[Cell, Cell, float]  # (from cell, to cell, reward received on arrival)
 
 
 class ValueMemory:
@@ -60,6 +64,13 @@ class ValueMemory:
         self.gen_falloff = generalization_falloff
         self.values: Dict[Cell, float] = {}
         self.trajectory: Deque[Tuple[Cell, float]] = deque(maxlen=capacity)
+        # Episode boundaries, kept beside the trajectory (whose (cell, reward)
+        # entries stay as they were): _linked[i] says whether the i-th logged
+        # entry was reached from the entry before it in the same episode, i.e.
+        # False for the first step after reset_episode. Both deques are appended
+        # in lockstep and share maxlen, so they stay aligned at their newest end
+        # even when a caller clears ``trajectory`` (see ``_is_linked``).
+        self._linked: Deque[bool] = deque(maxlen=capacity)
         self._prev_cell: Optional[Cell] = None  # last place, for the online TD transition
 
     def _kernel(self, cell: Cell) -> Iterable[Tuple[Cell, float]]:
@@ -107,28 +118,73 @@ class ValueMemory:
         if self._prev_cell is not None:
             self._td_update(self._prev_cell, reward - charge + self.gamma * self.values.get(cell, 0.0))
         self.trajectory.append((cell, reward))
+        self._linked.append(self._prev_cell is not None)
         self._prev_cell = cell
 
     def reset_episode(self) -> None:
         """Mark an episode boundary so no transition links across a reset/teleport."""
         self._prev_cell = None
 
-    def replay_transition(self, index: int, dwell_extinction: Optional[float] = None) -> None:
-        """Offline TD(0) backup for one stored transition (used during replay).
+    def _is_linked(self, index: int) -> bool:
+        """Whether ``trajectory[index]`` was reached from ``trajectory[index - 1]``
+        within one episode (no reset/teleport between them)."""
+        n = len(self.trajectory)
+        if index <= 0 or index >= n:
+            return False
+        offset = index - n  # aligned at the newest end; see __init__
+        return -offset > len(self._linked) or self._linked[offset]
+
+    def transition(self, index: int) -> Optional[Transition]:
+        """The stored transition ``trajectory[index] -> trajectory[index + 1]``, or
+        None if out of range or if it spans an episode boundary."""
+        if index < 0 or not self._is_linked(index + 1):
+            return None
+        from_cell, _ = self.trajectory[index]
+        to_cell, reward_on_arrival = self.trajectory[index + 1]
+        return from_cell, to_cell, reward_on_arrival
+
+    def recent_transitions(self, count: int) -> List[Transition]:
+        """The transitions among the newest ``count + 1`` trajectory entries, most
+        recent first, skipping any that span an episode boundary.
+
+        This is the order of reverse replay: replaying it front to back carries
+        value from the end of the path (where reward was found) back toward its
+        start in one sweep. The list is a snapshot: later ``record`` calls do
+        not change it.
+        """
+        n = len(self.trajectory)
+        first = max(0, n - 1 - count)
+        out: List[Transition] = []
+        for index in range(n - 2, first - 1, -1):
+            t = self.transition(index)
+            if t is not None:
+                out.append(t)
+        return out
+
+    def replay_backup(self, transition: Transition, dwell_extinction: Optional[float] = None) -> None:
+        """Offline TD(0) backup for one transition (used during replay).
 
         A dwelling transition is charged the extinction cost only if its cell is
         still positive now, exactly as online, so replay can extinguish a
         self-made peak but never turn it into an aversive one.
         """
-        if index < 0 or index + 1 >= len(self.trajectory):
-            return
-        from_cell, _ = self.trajectory[index]
-        to_cell, reward_on_arrival = self.trajectory[index + 1]
+        from_cell, to_cell, reward_on_arrival = transition
         charge = self._dwell_charge(from_cell, to_cell, self._extinction(dwell_extinction))
         self._td_update(from_cell, reward_on_arrival - charge + self.gamma * self.values.get(to_cell, 0.0))
 
+    def replay_transition(self, index: int, dwell_extinction: Optional[float] = None) -> None:
+        """Replay the stored transition at ``index`` (see ``replay_backup``); a no-op
+        if it is out of range or spans an episode boundary."""
+        t = self.transition(index)
+        if t is not None:
+            self.replay_backup(t, dwell_extinction)
+
     def consolidate(self, passes: int = 1, dwell_extinction: Optional[float] = None) -> None:
-        """Replay the whole trajectory backward ``passes`` times (offline sweep)."""
+        """Replay the whole trajectory backward ``passes`` times (offline sweep).
+
+        Transitions that span an episode boundary are skipped, so a sweep never
+        links the end of one episode to the start of the next.
+        """
         for _ in range(passes):
             for index in range(len(self.trajectory) - 2, -1, -1):
                 self.replay_transition(index, dwell_extinction)
@@ -137,4 +193,4 @@ class ValueMemory:
         return self.values.get(cell, 0.0)
 
 
-__all__ = ["ValueMemory"]
+__all__ = ["Cell", "Transition", "ValueMemory"]

@@ -19,7 +19,7 @@ from brain.systems.basal_ganglia import (
 from brain.systems.criticality import CriticalityField, near_critical_gain
 from brain.systems.spatial import SpatialSystem
 from brain.systems.trn_microsleep_replay import TRNGate
-from brain.systems.value_memory import ValueMemory
+from brain.systems.value_memory import Transition, ValueMemory
 from brain.systems.working_memory import WorkingMemory
 from core.config import EngineConfig
 from core.entities import Agent
@@ -81,6 +81,12 @@ class EngineContext:
     wall_gate: float = 1.0  # weight on memory's hold-course push (0 = muted by a wall close ahead)
     freeze_habituation: float = 1.0  # scale on the pain->REST drive (1 = not habituated)
     pacing_active: bool = False  # homeostatic pacing is adding a REST drive this tick
+    # The place cell whose value replay backed up this tick (the transition's
+    # start), or None; and, with value_memory.replay_recent, how many transitions
+    # back from sleep onset it is (1 = the newest) out of how many were snapshotted.
+    replay_cell: Tuple[int, int] | None = None
+    replay_back: int = 0
+    replay_span: int = 0
     tick_data: TickData | None = None
 
 
@@ -130,6 +136,10 @@ class Engine:
         self._recovering = False  # homeostatic pacing latch; persists across episodes like energy does
         self._prev_target_dist: float | None = None
         self._prev_target: Tuple[Any, float, float] | None = None  # (object, x, y) the shaping distance refers to
+        # Microsleep replay plan (value_memory.replay_recent): the recent transitions
+        # snapshotted at sleep onset, most recent first, and the replay step within it.
+        self._replay_plan: List[Transition] | None = None
+        self._replay_step = 0
         self.criticality = CriticalityField(stream=self.streams["criticality"], config=c.criticality)
         self.trn_gate = TRNGate(
             trigger_atp=c.trn.trigger_atp,
@@ -214,10 +224,45 @@ class Engine:
 
         # Offline consolidation: replay propagates value backward along the
         # trajectory (only during microsleep, via the same replay gating).
-        if replay_active:
-            self.value_memory.replay_transition(
-                replay_index, dwell_extinction=self.config.value_memory.dwell_extinction
-            )
+        self._replay(ctx, replay_active, replay_index)
+
+    def _replay(self, ctx: EngineContext, replay_active: bool, replay_index: int) -> None:
+        """Back up one stored transition per microsleep tick.
+
+        With ``value_memory.replay_recent`` the newest ``trn.replay_window``
+        transitions are snapshotted when sleep starts, so the trajectory growing
+        (and its deque shifting) during sleep does not move the replay, and they
+        are replayed most recent first: reverse replay, which carries value from
+        where the path ended back along it in one sweep (Foster & Wilson 2006).
+        The k-th replay tick backs up transition k of the snapshot, cycling if
+        sleep outlasts it; transitions across an episode boundary are never in
+        it. TRNGate's replay_index (logged in TickData) is not used for this.
+        Without it (legacy), the TRN index is used as a trajectory index.
+        """
+        vm_cfg = self.config.value_memory
+        ctx.replay_cell = None
+        ctx.replay_back = 0
+        ctx.replay_span = 0
+        if not replay_active:
+            self._replay_plan = None
+            return
+        if not vm_cfg.replay_recent:
+            transition = self.value_memory.transition(replay_index)
+            if transition is not None:
+                self.value_memory.replay_backup(transition, dwell_extinction=vm_cfg.dwell_extinction)
+                ctx.replay_cell = transition[0]
+            return
+        if self._replay_plan is None:  # sleep onset: snapshot the recent path
+            self._replay_plan = self.value_memory.recent_transitions(self.trn_gate.replay_window)
+            self._replay_step = 0
+        plan = self._replay_plan
+        if plan:
+            position = self._replay_step % len(plan)
+            self.value_memory.replay_backup(plan[position], dwell_extinction=vm_cfg.dwell_extinction)
+            ctx.replay_cell = plan[position][0]
+            ctx.replay_back = position + 1
+            ctx.replay_span = len(plan)
+        self._replay_step += 1
 
     def _spatial_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
