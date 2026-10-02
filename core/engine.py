@@ -602,16 +602,22 @@ class Engine:
         """Start a new episode without resetting the tick counter.
 
         Clears the pending action, the reward-shaping distance, the freeze
-        habituation level and the value map's episode boundary, so nothing
-        learned links across a reset or a teleport. Memories (value map,
-        neuromodulator baselines) and the energy-pacing latch (energy itself
-        persists) are kept.
+        habituation level, the replay plan of a microsleep in progress and the
+        value map's episode boundary, so nothing learned links across a reset
+        or a teleport. Memories (value map, goal memory and its extinction
+        count, neuromodulator baselines) and the energy-pacing latch (energy
+        itself persists) are kept.
         """
         self.last_action = Action(name="REST", thrust=0.0, turn=0.0)
         self._prev_target_dist = None
         self._prev_target = None
         self._freeze_level = 0.0
         self._goal_visit = self._goal_visit_rewarded = False  # the miss count persists, like the goal
+        # A microsleep in progress keeps sleeping but replays nothing more: its
+        # snapshot is the previous episode's path, and a fresh one would be too
+        # (nothing has been recorded since). The next sleep snapshots afresh.
+        self._replay_plan = []
+        self._replay_step = 0
         self.value_memory.reset_episode()
 
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:

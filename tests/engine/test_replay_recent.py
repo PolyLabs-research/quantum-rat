@@ -207,3 +207,40 @@ def test_console_highlights_the_cell_replay_actually_backed_up():
             assert 1 <= frame["replay"]["back"] <= frame["replay"]["span"]
             seen += 1
     assert seen > 0
+
+
+@pytest.mark.parametrize("clear_trajectory", [True, False])
+def test_a_teleport_during_microsleep_ends_the_replay_of_the_previous_episode(clear_trajectory):
+    # The snapshot taken at sleep onset used to survive begin_episode, so after
+    # a teleport mid-sleep replay kept backing up the previous episode's path
+    # (32 times in the maze with rest and fatigue pacing off, seeds 1-8). The
+    # agent sleeps on, but replays nothing more; the next sleep snapshots afresh.
+    from ui.scenarios import make_scenario, teleport_to_start
+
+    scenario = make_scenario("open_field")
+    config = scenario.config()
+    config.sensors.noise = 0.03
+    engine = Engine(seed=1, config=config)
+    scenario.setup(engine)
+    for _ in range(2000):
+        engine.run(1)
+        if engine.context.replay_active and engine.context.replay_back >= 3:
+            break
+    assert engine.context.replay_active and engine.context.replay_span > 3
+    if clear_trajectory:  # as the maze does between trials
+        engine.value_memory.trajectory.clear()
+    teleport_to_start(engine)
+    asleep = 0
+    while True:
+        engine.run(1)
+        ctx = engine.context
+        if not ctx.replay_active:
+            break
+        asleep += 1
+        assert ctx.replay_cell is None and ctx.replay_back == 0
+    assert asleep >= 3  # the teleport did not end the sleep itself
+    for _ in range(2000):  # the next sleep replays again
+        engine.run(1)
+        if engine.context.replay_cell is not None:
+            break
+    assert engine.context.replay_back == 1
