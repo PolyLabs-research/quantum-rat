@@ -20,6 +20,14 @@ function divergingBar(fill, value, scale) {
 }
 
 /** A status chip: colour + icon + label, never colour alone. */
+// Microsleep replay: which step of the recent path (counted back from sleep
+// onset) is being replayed. Legacy replay (value_memory.replay_recent off) has
+// no span and shows the TRN buffer index instead.
+function replayText(r) {
+  if (r.span > 0) return `Replaying ${r.back} of ${r.span} steps back`;
+  return r.cell ? `Replaying step ${r.index}` : 'Replay (nothing to replay)';
+}
+
 export function chip(status, icon, label) {
   return el('span', { class: 'chip', dataset: { status } }, el('span', { class: 'chip-icon', 'aria-hidden': 'true', text: icon }), label);
 }
@@ -186,7 +194,7 @@ export class EnergyPanel {
     else chips.push(chip('critical', '✕', 'Gate closed'));
     if (f.microsleep.active) chips.push(chip('warning', 'z', `Microsleep · ${f.microsleep.remaining} ticks left`));
     else chips.push(chip('neutral', '•', 'Awake'));
-    if (f.replay.active) chips.push(chip('neutral', '↺', `Replaying step ${f.replay.index}`));
+    if (f.replay.active) chips.push(chip('neutral', '↺', replayText(f.replay)));
     if (f.energy.pacing) chips.push(chip('neutral', '◐', 'Resting to recover'));
     this.chips.replaceChildren(...chips);
     this.note.textContent =
@@ -367,7 +375,7 @@ export function frameTableGroups(f) {
     ['Path integration', [['Estimate x, y', `${fmt(a.est_x, 2)}, ${fmt(a.est_y, 2)}`], ['Estimated heading', `${fmt(headingDeg(a.est_heading), 1)}°`], ['Place cell', f.place_id]]],
     ['Senses', [['Vision rays', f.vision.rays.map((r) => r[2]).join(' · ') || '—'], ['Whiskers L / R', f.vision.whiskers.map((w) => (w ? 'touch' : '—')).join(' / ')], ['Pain', fmt(f.vision.pain, 2)]]],
     ['Neuromodulators', MODULATORS.map((m) => [`${m.name} (${m.mod})`, fmt(f.mod[m.mod] ?? 0, 3)])],
-    ['Energy', [['ATP', fmt(f.energy.atp, 3)], ['Glycogen', fmt(f.energy.glycogen, 3)], ['Sensory gate', `${f.trn.state} (${fmt(f.trn.gate, 2)})`], ['Microsleep', f.microsleep.active ? `yes, ${f.microsleep.remaining} left` : 'no'], ['Fatigue pacing', f.energy.pacing ? 'resting to recover' : 'no'], ['Replay', f.replay.active ? `step ${f.replay.index}` : 'no']]],
+    ['Energy', [['ATP', fmt(f.energy.atp, 3)], ['Glycogen', fmt(f.energy.glycogen, 3)], ['Sensory gate', `${f.trn.state} (${fmt(f.trn.gate, 2)})`], ['Microsleep', f.microsleep.active ? `yes, ${f.microsleep.remaining} left` : 'no'], ['Fatigue pacing', f.energy.pacing ? 'resting to recover' : 'no'], ['Replay', f.replay.active ? replayText(f.replay) : 'no']]],
     ['Criticality', [['κ', fmt(f.crit.kappa, 3)], ['Regime', f.crit.regime], ['Coupling (σ)', `${fmt(f.crit.coupling, 2)} (${fmt(f.crit.sigma, 2)})`], ['Active cells', f.crit.active], ['Avalanches', f.crit.n], ['Sensory gain', `×${fmt(f.crit.gain, 3)}`]]],
     ['Working memory', [['Load', f.wm.load], ['Novelty', fmt(f.wm.novelty, 3)]]],
   ];

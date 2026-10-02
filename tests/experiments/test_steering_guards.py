@@ -11,7 +11,8 @@ seconds:
   the summed score at value_gain 1.5 (the default) and 3.0 is at least 80% of
   the score with memory off (value_gain 0), i.e. at gains 1.5 and 3.0 memory
   steering costs at most ~20% outside the maze. Tightest measured margin:
-  foraging with pacing off at gain 3.0, 33 vs 39 items (0.846);
+  foraging with pacing off at gain 3.0, 35 vs 39 items (0.897; it was 33,
+  0.846, before microsleep replayed the recent path, value_memory.replay_recent);
 - value-induced REST (``is_value_rest``) stays at or below 0.15 of ticks in
   every one of those runs;
 - memory_maze keeps a hidden-goal recall rate >= 0.9 at gains 0.8, 1.5 and 3.0
@@ -22,8 +23,8 @@ seconds:
 Checked against regressions (each by flipping config defaults):
 - ``value_steer="maxnorm"`` with ``dwell_extinction=0`` (stock-like steering,
   with or without wall gating): 5 of 11 fail. vREST is 0.18-0.65 in all four
-  foraging / hazard_field cells, and foraging with pacing off scores 26 vs 39
-  with memory off (0.67). The maze recall-rate guard still passes, but the
+  foraging / hazard_field cells, and foraging with pacing off scores 25 vs 39
+  with memory off (0.64; 26 with the legacy replay indexing). The maze recall-rate guard still passes, but the
   low-gain recall-count guard fails (0.53 / 0.38; max-norm alone 0.25 / 0.65).
 - ``wall_gate_gain=0`` alone: foraging with pacing off fails (the agent is
   pinned against the wall at heading 0: 29 vs 39).

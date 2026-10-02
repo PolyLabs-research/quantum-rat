@@ -91,6 +91,14 @@ class ValueMemoryConfig:
     # floor max(0.05, sensors.noise), see Engine.map_pain_floor); dopamine and
     # the other neuromodulators still see the full shaped reward either way.
     learn_shaping: bool = False
+    # Which transitions microsleep replay backs up. True: at sleep onset the newest
+    # trn.replay_window transitions are snapshotted and replayed most recent first
+    # (reverse replay), cycling if sleep outlasts them, never across an episode
+    # boundary. False (legacy): the TRN observation-buffer index (0..window-1) is
+    # used as a trajectory index from the OLDEST end, which replays transitions
+    # ~150-200 ticks old, every second one, in forward order. TickData.replay_index
+    # is the TRN index either way.
+    replay_recent: bool = True
 
 
 @dataclass
