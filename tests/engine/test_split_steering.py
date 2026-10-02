@@ -133,3 +133,15 @@ def test_replay_is_more_data_efficient_under_split_steering():
     assert probe_on.ticks_to_goal < probe_off.ticks_to_goal
     repeated = run_memory_navigation(replay=False, n_train=1, n_recall=4, config=config())
     assert all(r.reached for r in repeated)
+
+
+def test_unknown_steering_modes_are_rejected():
+    # A misspelt mode used to fall through silently: value_steer="Split" ran
+    # max-norm, and an unknown value_ahead_mode dropped FORWARD's value term.
+    with pytest.raises(ValueError):
+        split_value_signals(0.5, 1.0, -1.0, 1.0, BasalGangliaConfig(value_ahead_mode="opose_positive"))
+    from core.engine import Engine
+
+    engine = Engine(seed=1, config=EngineConfig(basal_ganglia=BasalGangliaConfig(value_steer="Split")))
+    with pytest.raises(ValueError):
+        engine.run(1)

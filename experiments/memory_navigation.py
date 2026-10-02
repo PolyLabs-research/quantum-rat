@@ -10,16 +10,16 @@ Paradigm (one agent, several trials, the brain's memory persists between them):
 3. **Trials 1+ — goal hidden.** The goal is invisible to vision, so the agent
    can only reach it by following the learned value map.
 
-Two findings, both robust across seeds:
+Two findings:
 
 * **Repeated recall does not erode the map.** The value map is learned by
   TD(0), so following the gradient on zero-reward steps reinforces it (bootstrap
   on the successor) rather than decaying it toward the immediate zero reward.
   An agent doing repeated hidden-recall trials keeps reaching the goal and gets
-  faster as it learns from experience.
-* **Replay is a data-efficiency speed-up, not a precondition.** After a single
-  demonstration both agents reach the hidden goal; the replay agent is never
-  slower and usually faster. With the default split steering, at the default
+  faster as it learns from experience. This one is robust across seeds.
+* **Replay is a modest, fragile data-efficiency speed-up, not a precondition.**
+  After a single demonstration both agents reach the hidden goal at the default
+  settings. With the default split steering, at the default
   goal (6, 3) the margin is small (13 vs 14 ticks), because the replayed
   gradient points along the start heading and both agents take nearly the same
   straight path. Off axis it is larger: over six goals the replay probes total
@@ -27,8 +27,12 @@ Two findings, both robust across seeds:
   (tests/experiments/test_replay_geometry.py). The larger margin seen under
   max-norm steering (14 vs 22 at (6, 3)) was mostly the online agent sitting
   in value-induced REST, not replay; under max-norm replay could also hurt
-  (goal (3, 7): 76 vs 36 ticks). The result is fragile: see that test's
-  docstring for gains, dead zones and noise where it breaks. (An earlier
+  (goal (3, 7): 76 vs 36 ticks). The six-goal result holds at noise 0 and
+  value_gain 1.4-3.0 but fails at gains 0.8-1.3 (one off-axis replay probe
+  times out after a one-action divergence) and under sensor noise 0.03; see
+  that test's docstring. In the console's memory maze the first hidden recall
+  is slightly *slower* with replay (15 vs 13 ticks at noise 0.03), while later
+  recalls are faster (median 10 vs 16) so more fit in a session. (An earlier
   version appeared to show replay as *necessary*, but that was an artifact of
   a deficient online rule that decayed values toward immediate reward.)
 

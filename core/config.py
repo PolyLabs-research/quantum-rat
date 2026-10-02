@@ -176,8 +176,12 @@ class BasalGangliaConfig:
     #   stronger turn) or "oppose_positive" (both). value_common_mode > 0 adds
     #   tanh(min(ahead, left, right) / value_common_mode) to all three when every
     #   direction beats here (0 = off). Only "split" reads these fields.
-    #   Because nothing is measured against "here", max(signals) >= 0 always, so
-    #   a value-map local maximum cannot push every move below REST.
+    #   Because nothing is measured against "here", max(signals) >= 0 for every
+    #   ahead mode except "maxnorm", so a value-map local maximum never lowers
+    #   FORWARD. (REST can still win because of value in rare states where
+    #   FORWARD is already below REST and the turn signals are negative;
+    #   measured value-induced REST is 0 at gains 0.4-3.0.) Unknown mode
+    #   strings raise ValueError.
     #   "maxnorm" (the pre-G15 steering, kept for comparison and for the legacy
     #   digests): each advantage divided by the largest magnitude; at a local
     #   maximum this reads (-1, -1, -1) and REST wins (value-induced REST).

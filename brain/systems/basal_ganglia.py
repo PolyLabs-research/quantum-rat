@@ -148,7 +148,8 @@ def wall_gate_signals(
     by ``w``; turns toward a better side and FORWARD's negative part are kept.
     Without it a remembered place beyond a wall (or one that path-integration
     drift has moved behind it) held the agent pressing into the wall: with
-    pacing off, foraging lost 18-23 of ~36 items on 3 of 8 seeds that way. The
+    pacing off, foraging lost 13-23 items on 3 of 8 seeds that way (13-21
+    collected at gain 1.5 against 34-39 at gain 0). The
     split property ``max(signals) >= 0`` is preserved. Returns the gated
     signals and ``w``; with no wall ahead, or ``gain`` 0, ``w`` is exactly 1.0
     and the signals pass through unchanged. Reads raw vision rays, independent
@@ -168,6 +169,10 @@ def wall_gate_signals(
     )
 
 
+VALUE_STEER_MODES = ("split", "maxnorm")
+VALUE_AHEAD_MODES = ("zero", "maxnorm", "positive", "oppose", "oppose_positive")
+
+
 def split_value_signals(
     ahead: float, left: float, right: float, scale: float, config: BasalGangliaConfig
 ) -> Tuple[float, float, float]:
@@ -182,9 +187,15 @@ def split_value_signals(
     by more than ``value_turn_dead_zone`` (a fraction of the local relief
     ``scale`` when ``value_turn_relative``), ramping to full strength over
     ``value_turn_ramp``. Because nothing is measured against here, a local maximum
-    cannot push every move below REST (the value-induced REST of max-norm), and
-    because the dead zone is relative, a 1% wobble at a peak does not command a
-    full turn (which made the agent orbit or zig-zag off the goal).
+    never lowers FORWARD (max-norm's (-1, -1, -1) veto is gone): with the
+    default ahead modes max(signals) >= 0. REST can still win *because of*
+    value only when FORWARD is already below REST for other reasons (e.g. a
+    narrowed sensory gate plus a wall ahead) and negative turn signals push the
+    turns below it too; measured value-induced REST is 0 at gains 0.4-3.0 in
+    every sweep, and 0.0067 of ticks for one maze heading at gain 0.2. Because
+    the dead zone is relative, a 1% wobble at a peak does not command a full
+    turn (which made the agent orbit or zig-zag off the goal). Raises
+    ValueError on an unknown ``value_ahead_mode``.
     """
     eps, width = config.value_turn_dead_zone, config.value_turn_ramp
     if config.value_turn_relative:
@@ -210,6 +221,8 @@ def split_value_signals(
         else:
             tl = 0.0
     mode = config.value_ahead_mode
+    if mode not in VALUE_AHEAD_MODES:
+        raise ValueError(f"Unknown value_ahead_mode {mode!r}; expected one of {VALUE_AHEAD_MODES}")
     fwd = 0.0
     if mode in ("oppose", "oppose_positive"):
         # FORWARD gives up what the stronger turn gains, so a turn needs only
@@ -318,4 +331,6 @@ __all__ = [
     "wall_gate_signals",
     "ACTION_ORDER",
     "TURN_STEP",
+    "VALUE_STEER_MODES",
+    "VALUE_AHEAD_MODES",
 ]

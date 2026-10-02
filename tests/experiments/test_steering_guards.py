@@ -9,23 +9,29 @@ seconds:
 - foraging and hazard_field, with homeostatic pacing on (the console scenario
   configs) and off (``pace_rest_bonus=0``, the core-engine energy policy):
   the summed score at value_gain 1.5 (the default) and 3.0 is at least 80% of
-  the score with memory off (value_gain 0), i.e. memory steering never costs
-  more than ~20% outside the maze, whatever its gain;
+  the score with memory off (value_gain 0), i.e. at gains 1.5 and 3.0 memory
+  steering costs at most ~20% outside the maze. Tightest measured margin:
+  foraging with pacing off at gain 3.0, 33 vs 39 items (0.846);
 - value-induced REST (``is_value_rest``) stays at or below 0.15 of ticks in
   every one of those runs;
-- memory_maze keeps a hidden-goal recall rate >= 0.9 at gains 0.8, 1.5 and 3.0.
+- memory_maze keeps a hidden-goal recall rate >= 0.9 at gains 0.8, 1.5 and 3.0
+  (this one does not discriminate: max-norm recalls at these gains too), and
+  the number of recalls at gains 0.4 and 0.6 stays >= 80% of that at 1.5
+  (measured 0.90 / 0.89; stock-like steering 0.53 / 0.38 fails it).
 
 Checked against regressions (each by flipping config defaults):
 - ``value_steer="maxnorm"`` with ``dwell_extinction=0`` (stock-like steering,
   with or without wall gating): 5 of 11 fail. vREST is 0.18-0.65 in all four
   foraging / hazard_field cells, and foraging with pacing off scores 26 vs 39
-  with memory off (0.67). The maze guard still passes: max-norm with the
-  maze's own config recalls at these gains on these two headings.
+  with memory off (0.67). The maze recall-rate guard still passes, but the
+  low-gain recall-count guard fails (0.53 / 0.38; max-norm alone 0.25 / 0.65).
 - ``wall_gate_gain=0`` alone: foraging with pacing off fails (the agent is
   pinned against the wall at heading 0: 29 vs 39).
-- ``dwell_extinction=0`` alone, under split steering: all pass. Split steering
-  makes value-induced REST impossible by construction, so in these short runs
-  extinction is not what holds the outcome.
+- ``dwell_extinction=0`` alone, under split steering: all pass. Under split,
+  a value-map local maximum never lowers FORWARD, so REST can win because of
+  value only in rare states where FORWARD is already below REST; measured
+  value-induced REST is 0 at gains 0.4-3.0, so in these short runs extinction
+  is not what holds the outcome.
 """
 
 from __future__ import annotations
@@ -42,6 +48,7 @@ TICKS = 1500
 MAZE_TICKS = 800
 HEADINGS = (0.0, math.pi / 2)
 MAZE_HEADINGS = (-0.2, 0.2)
+LOW_GAIN_HEADINGS = (-0.2, 0.0, 0.2)
 PACING = {"on": (), "off": (("basal_ganglia.pace_rest_bonus", 0.0),)}
 MAX_VREST = 0.15
 MIN_FRACTION = 0.8
@@ -76,3 +83,21 @@ def test_maze_recall_holds_across_gains(gain):
         row = run_job(Job("memory_maze", gain, 1, 0.0, MAZE_TICKS, (), heading))
         assert row["attempted"] >= 20, row
         assert row["recall_rate"] >= 0.9, (gain, heading, row)
+
+
+@functools.lru_cache(maxsize=None)
+def _maze_recalls(gain: float) -> int:
+    return sum(run_job(Job("memory_maze", gain, 1, 0.0, MAZE_TICKS, (), h))["score"] for h in LOW_GAIN_HEADINGS)
+
+
+@pytest.mark.parametrize("gain", [0.4, 0.6])
+def test_maze_recalls_hold_at_low_gain(gain):
+    # Recall *rate* stays near 1 even when steering collapses (the agent still
+    # reaches the goal, just on far fewer trials), so this guards the number of
+    # recalls in the session instead. Summed over three headings, the recalls at
+    # a low gain must be at least 80% of those at the default gain. Measured
+    # (800 ticks, noise 0): split steering 217 / 215 vs 242 at 1.5 (0.90 /
+    # 0.89); stock-like steering (max-norm, no extinction, no gates) 0.53 /
+    # 0.38 and max-norm alone 0.25 / 0.65, so both fail.
+    default = _maze_recalls(1.5)
+    assert _maze_recalls(gain) >= MIN_FRACTION * default, (gain, _maze_recalls(gain), default)

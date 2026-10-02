@@ -10,6 +10,7 @@ import math
 from brain.contracts import Action, Observation
 from brain.systems.basal_ganglia import (
     TURN_STEP,
+    VALUE_STEER_MODES,
     cue_gate_weight,
     select_action_with_scores,
     split_value_signals,
@@ -69,7 +70,7 @@ class EngineContext:
     # Display-only readouts (not logged to TickData, so they never affect the
     # determinism hash): the decision that was made and what drove it.
     action_scores: Dict[str, float] = field(default_factory=dict)
-    # The value signals actually fed to action selection (after cue gating).
+    # The value signals actually fed to action selection (after cue and wall gating).
     value_signals: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     criticality_gain: float = 1.0
     # What the value map learns this tick: primary outcomes only (contact and
@@ -340,6 +341,8 @@ class Engine:
         bg = self.config.basal_ganglia
         if bg.value_steer == "split":
             return split_value_signals(ahead, max(left), max(right), scale, bg)
+        if bg.value_steer != "maxnorm":
+            raise ValueError(f"Unknown value_steer {bg.value_steer!r}; expected one of {VALUE_STEER_MODES}")
         if scale < 1e-3:  # locally flat map -> no steer
             return 0.0, 0.0, 0.0
         return ahead / scale, max(left) / scale, max(right) / scale

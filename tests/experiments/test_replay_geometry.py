@@ -18,13 +18,17 @@ in between. Measured probe ticks (replay / online):
     (2, 6)  42 / 65      (7, 0)   9 /  9      (3, 7)  33 / 36
     total  138 / 174
 
-so replay is never slower and usually faster, most clearly off axis.
+so at these settings replay is no slower on any of the six goals (one tie)
+and faster on five, most clearly off axis.
 
 This is a single deterministic sample, and it is fragile; the assertions are
 the ones asked for, not tuned to pass. Measured on the same goals
 (replay / online totals, probes that time out at 200 counted as 200):
-- value_gain 0.8: the replay probe to (6, -3) times out (326 / 174), while
-  gains 1.5 and 3.0 pass (138 / 174, 147 / 174);
+- value_gain: every gain from 0.8 to 1.3 fails the same way. The replay
+  probe to (6, -3) takes one different action at tick 3 (FORWARD instead of
+  TURN_LEFT), passes about 0.3 outside the goal disk, leaves the valued field
+  and times out (326 / 174). Gains 1.4-1.6 give 138 / 174 and 1.7-3.0 give
+  145-147 / 174. The default 1.5 sits only about 0.1 above that edge;
 - split dead zone 0.12 instead of 0.1: (6, -3) times out again (334 / 174);
 - max-norm steering: 192 / 166, replay <= online on 3 of 6;
 - sensor noise 0.03: the visible demonstration to the off-axis goals wanders

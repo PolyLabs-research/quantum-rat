@@ -130,7 +130,7 @@ def is_value_rest(ctx: Any, value_gain: float) -> bool:
 
     Reads the display-only readouts the engine leaves on its context:
     ``action_scores``, ``value_signals`` (the effective signals fed to action
-    selection, i.e. after cue gating) and ``action_name``. The counterfactual
+    selection, i.e. after cue and wall gating) and ``action_name``. The counterfactual
     subtracts ``value_gain * signal`` from FORWARD / TURN_LEFT / TURN_RIGHT and
     keeps REST (freeze habituation and energy pacing act on REST only, so they
     stay in the counterfactual). tests/experiments/test_steering_sensitivity.py

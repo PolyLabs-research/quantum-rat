@@ -329,3 +329,21 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
   with different scenarios preferring very different values. Fatigue also degrades path
   integration quickly (drift of several metres after one gate-narrowing episode). Both are
   easy to explore in the console and are good candidates for the next modelling pass.
+
+### Memory steering made robust (2026-10-02)
+- **Diagnosed, not tuned.** The sensitivity to `value_gain` was a chain:
+  - tiny self-made value peaks that never extinguished;
+  - max-normalisation that gave those peaks full authority;
+  - REST having no value term, so every peak became a "stop" (value-induced REST on up to 96% of ticks at noise 0);
+  - a pain-freeze deadlock that only the value signal's "go" common mode could break;
+  - energy pacing that the REST trap had been providing by accident.
+
+  Sensor noise had been hiding all of it.
+- **Fixed** (`docs/decisions.md` G14-G16): pain-freeze habituation, dwell extinction of positive peaks (replayed under the same rule), a value map learned from primary reward only, cue gating, wall gating, split steering as the default, and optional homeostatic pacing (on in three console scenarios, off in the core engine).
+- **Result.** Every scenario stays within 20% of its own best at gains 0.4-3.0, at both noise levels, on held-out seeds, and with pacing off. Measured value-induced REST is 0. Determinism and regression baselines are unchanged, and the all-off configuration reproduces the old engine bit for bit.
+- **What memory buys** (stated plainly): everything in the memory maze, roughly nothing in foraging and the hazard field, and a few percent loss in the beacon chase, where remembered spots are always stale.
+- **Next candidates:**
+  - Microsleep replay indexes the trajectory from its oldest end, so it replays old transitions. Fix in its own change.
+  - Off-axis maze starts (heading >= pi/2) fail for every design, because the value fans see only about ±80°.
+  - A task where memory should help outside the maze, e.g. foraging with hidden food.
+  - The replay advantage is real but fragile. A more demanding replay assay would test it properly.

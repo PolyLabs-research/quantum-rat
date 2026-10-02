@@ -30,11 +30,13 @@ honestly at different stages of maturity:
   precision), serotonin (patience). A plastic place-value map is learned by TD(0) and consolidated
   by replay; the agent uses it for memory-guided navigation back to a now-hidden goal
   (`experiments/memory_navigation.py`). Repeated recall reinforces the map rather than eroding it,
-  and replay is a data-efficiency speed-up: after one demonstration the replay agent is never
-  slower than online learning alone and usually faster (over six goal positions 138 vs 174 probe
-  ticks in total; 13 vs 14 at the default goal, 42 vs 65 off axis). Place values generalise to
-  neighbouring cells (overlapping place fields), so this works at the engine's default spatial
-  resolution and forward bias. Memory steering (`value_gain`, default 1.5) works over a wide band
+  and replay is a modest data-efficiency speed-up: at the default settings, over six goal
+  positions the first replay probe is no slower on any goal and faster on five (138 vs 174 probe
+  ticks in total; 13 vs 14 at the default goal, 42 vs 65 off axis). That margin is fragile (it
+  disappears at gains 0.8-1.3 and under sensor noise); the robust benefit in the console's maze
+  is more recalls per session (median recall 10 vs 16 ticks), not a faster first recall. Place
+  values generalise to neighbouring cells (overlapping place fields), so this works at the
+  engine's default spatial resolution and forward bias. Memory steering (`value_gain`, default 1.5) works over a wide band
   (0.4-3.0) without value-induced resting, pain freezes or wall pinning (`docs/decisions.md`
   G14-G16). Criticality
   is coupled to cognition too: a near-critical cortical gain (peaking at κ≈1) scales sensory

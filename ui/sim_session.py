@@ -76,7 +76,7 @@ PARAMS: Tuple[Param, ...] = (
           "Cost charged when the agent stays in one place cell (resting or turning on the spot) "
           "while that place is positively valued, so value peaks it built by staying put fade "
           "instead of trapping it there. Sleep replay applies the same rule, so a peak fades to "
-          "zero but never turns aversive. 0 turns extinction off."),
+          "about zero (never below one step's charge) instead of turning aversive. 0 turns extinction off."),
     Param("basal_ganglia.dopamine_explore_gain", "Dopamine → exploration", "Neuromodulation", 0.0, 1.5, 0.05,
           "Below-baseline dopamine (disappointment) boosts novelty seeking."),
     Param("basal_ganglia.ach_precision_gain", "Acetylcholine → precision", "Neuromodulation", 0.0, 1.5, 0.05,
