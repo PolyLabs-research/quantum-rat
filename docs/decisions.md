@@ -289,7 +289,7 @@ The held-out dips come from one seed failing non-monotonically in gain. Seed 13 
 
 **Effect** (re-measured on the merged branch with G18 and G19; G16's harness grid, the four G16 scenarios, against 235cfdc):
 - **Console defaults: none.** With pacing on, beacon, foraging, hazard_field and hidden_food never microsleep, and since G18 the maze does not either. All open-scenario rows of G16 blocks (a) and (b) are byte-identical to 235cfdc. The maze and hidden_food rows are identical under `replay_recent` true and false (default headings, the full circle, both noise levels). Before G18 the maze differed under the two rules only in runs that collapse into fatigue (gains 0.2-0.4, held-out seed 13), where outcomes are chaotic.
-- **Pacing off (the core-engine energy policy): small, mostly positive at noise 0.03, mixed at noise 0.** Worst fraction at gains 0.4-3.0 is 0.895-0.988 (235cfdc: 0.860-0.952) at noise 0.03 and 0.864-0.976 (0.864-0.975) at noise 0. Part of the noise-0.03 rise at gain 0.4 is G18's maze change (132.4 → 137.8 recalls), not replay. At the default gain 1.5, recent vs legacy:
+- **Pacing off (the core-engine energy policy): small, mostly positive at noise 0.03, mixed at noise 0.** Worst fraction at gains 0.4-3.0 is 0.895-0.988 (235cfdc: 0.860-0.952) at noise 0.03 and 0.864-0.976 (0.864-0.975) at noise 0. Part of the noise-0.03 rise at gain 0.4 is G18's maze change (132.4 → 138.5 recalls), not replay. At the default gain 1.5, recent vs legacy:
   - beacon, noise 0.03: 10.4 vs 9.4 (7 seeds better, 0 worse);
   - hazard_field, noise 0: 14.0 vs 15.4 (1 better, 5 worse), so the noise-0 worst fraction at 1.5 falls from 0.951 to 0.889;
   - foraging: 36.0 vs 35.3 at noise 0.03 (2 better, 2 worse) and 32.0 vs 31.4 at noise 0 (3 better, 4 worse);
@@ -353,7 +353,7 @@ The held-out dips come from one seed failing non-monotonically in gain. Seed 13 
 - **Held-out seeds 9-16.**
   - Recall rate is >= 0.99 at every gain.
   - G16's seed-13 collapse at gains 1.0-1.5 is gone: cell means go from 130.4 to 145.0-146.5, and seed 13 itself gets 124-136 there.
-  - The 0.6 and 0.8 cells drop by 6-8 recalls (143.9, 141.0), because pacing rests take time. Seed 13 gets 92-108 at gains 0.4-0.8.
+  - The 0.6 and 0.8 cells drop by 6-8 recalls (143.9, 141.0), because pacing rests take time. Seed 13 gets 78-108 at gains 0.4-0.8 (78 at 0.4 under G21's two-miss rule).
 - **Replay now matters off axis.** On the full circle at gain 1.5 and noise 0, replay on / off gives 90.8 / 32.4 recalls at rate 1.00 / 0.67 (G21), and only 7 of 16 headings recall without replay. At the default heading the comparison is unchanged: 147 / 91 recalls, median 10 / 16 ticks.
 - **No interaction with G17's replay rule.** With pacing at 0.6 the maze never microsleeps at console defaults, and full-circle and default-heading rows are identical under `replay_recent` true and false.
 
@@ -365,7 +365,7 @@ The held-out dips come from one seed failing non-monotonically in gain. Seed 13 
 
 **Costs and limits:**
 - **The rest-off demo changed.** With the inter-trial rest off, recall no longer fails: the rate is 1.00, though with 29-30 recalls instead of 147 (median 23-62 ticks, 0 microsleep ticks; seeds 1-4 at noise 0 and 0.03, re-measured in G21). The rest-off numbers in DEC-3 and G16 (rate 0.69-0.75) now also need fatigue pacing set to 0. That gives 8-9 recalls at rate 0.67-0.68, with 626-725 microsleep ticks. The console watch text says so.
-- **Recalls vary by heading** (10-197 per heading at gain 1.5). Where a 30-50 tick demonstration leaves the map weak but not flat (e.g. heading 5.11), the agent retraces the meandering demonstration.
+- **Recalls vary by heading** (13-197 per heading at gain 1.5, after G21's fix; 10 was the heading hit by the erase-on-contact bug). Where a 30-50 tick demonstration leaves the map weak but not flat (e.g. heading 5.11), the agent retraces the meandering demonstration.
 - **Search on the visible trial is not addressed** (seed 3, heading 3.53, above).
 - **Gain 0.4.** The vector's turn scales with `value_gain` and barely beats FORWARD there. So the full-circle maze's worst fraction at 0.4 is 0.85 of its own best (0.78 under the one-miss rule), and the absolute score doubles (38.1 → 76.8).
 - **Hard-coded TRN threshold.** `GATE_SAFE_PACE_LOW` relies on the threshold of 0.55 hard-coded in `TRNGate.trn_state`. The beacon, foraging and hazard_field scenarios still pace at 0.4, below that threshold, so their path integration can drift on long runs. This is not addressed.
@@ -423,7 +423,7 @@ The held-out dips come from one seed failing non-monotonically in gain. Seed 13 
 
 **What the benefit is, and its limits** (corrected in G21, which has the controls):
 - **It is memory-driven area-restricted search near recent finds, not accurate site memory and not route planning.**
-  - A map read rotated 22° (every phantom peak >= 2.8 m from a real site) keeps most of the benefit (x2.74 / x1.91 / x2.67).
+  - A map read rotated 22° (every phantom peak >= 2.8 m from a real site) keeps about half to nearly all of the extra finds over memory off, depending on the block (x2.74 / x1.91 / x2.67 against x2.84 / x2.85 / x4.08: 94% / 49% / 54% of the extra finds).
   - A map read at 2x scale gives none (x1.00).
   - Wiping the map every 150 or 500 ticks leaves x1.24-2.17.
   - With every site jumping to a random place in the food band every 150 ticks, memory still gives x1.08-1.47.
@@ -459,7 +459,7 @@ Re-running 235cfdc with the same harness reproduces the G16 tables exactly.
 |---|---|---|---|---|---|---|---|---|
 | (a) noise 0.03 | 0.900 | 0.980 | 0.963 | 0.959 | 0.959 | 0.956 | 0.955 | 0.963 |
 | (a) noise 0 | 0.864 | 0.902 | 0.944 | 0.936 | 0.936 | 0.936 | 0.940 | 0.929 |
-| (b) held-out | 0.948 | 0.943 | 0.915 | 0.919 | 0.924 | 0.919 | 0.905 | 0.905 |
+| (b) held-out | 0.946 | 0.943 | 0.915 | 0.919 | 0.924 | 0.919 | 0.905 | 0.905 |
 | (c) noise 0.03, pacing off | 0.895 | 0.988 | 0.963 | 0.953 | 0.959 | 0.938 | 0.938 | 0.899 |
 | (c) noise 0, pacing off | 0.864 | 0.902 | 0.976 | 0.929 | 0.921 | 0.889 | 0.937 | 0.913 |
 
@@ -560,7 +560,7 @@ The rationale is the same as for extinction in animals: it needs repeated non-re
 
 What the measurements show:
 - **The adopted rule keeps a goal that is still there.** It gives exactly the rows of extinction off on all 128 full-circle runs.
-- **It still forgets a moved goal.** The goal is erased in all 48 moved-goal runs (median 157-187 ticks after the move, max 3950).
+- **It still forgets a moved goal.** The goal is erased in all 48 moved-goal runs of this set-up (new goal at (-4, 6); median 157-187 ticks after the move, max 3950). Erasure needs two unrewarded revisits of the old place, so a goal the agent never revisits stays in memory: in an independent check with the new goal at (5, -6), two runs (heading 5.11, seeds 3 and 4) kept the old goal for all 4500 ticks, harmlessly, reaching the new goal on 209/212 and 359/359 trials. Only the stored goal place is forgotten; the replayed value gradient can still lead the agent back to the old place (at heading 0, 5-9 of 12 post-move trials, about the same as with extinction off) until it extinguishes.
 - **The agent then finds the new goal more often.** Mean trials per run reaching the new goal: 34.9 vs 16.3 with extinction off at noise 0, and 51.5 vs 25.1 at noise 0.03.
 - **A contact radius around the cell centre is not principled and was no better.** The centre itself can lie outside the contact circle.
 
@@ -613,7 +613,7 @@ Every gain from 0.4 to 3.0 beats gain 0 in every block:
 
 So hidden food is **not accurate site memory**. It is memory-driven area-restricted search near recent finds:
 - it needs a real map: the 2x-scale map gives nothing;
-- it does not need precise sites: a map about 3 m off keeps most of the benefit;
+- it does not need precise sites: a map about 3 m off keeps about half to nearly all of the extra finds;
 - part of the benefit survives without fixed sites at all.
 
 With reshuffled sites, memory-off finds rise to 9.0-9.6, because sites land on the agent's loop. Absolute finds are therefore not comparable across controls; the ratios are.

@@ -44,7 +44,8 @@ honestly at different stages of maturity:
   agent now recalls the hidden goal from every start heading (16 of 16, was 4 of 16): sleep replay
   also stores the goal's place, and where the replayed gradient has faded to nothing the agent
   turns toward it by path integration (G18). That place is forgotten after two visits in a row
-  that find nothing, so a moved goal stops pulling the agent (G21). In the hidden-food task, where
+  that find nothing, so the stored place of a goal that moved stops pulling the agent; the replayed
+  value gradient can still lead it back to the old place until that gradient extinguishes (G21). In the hidden-food task, where
   food is invisible and regrows at fixed sites, memory finds 2.8-4.1x as much food as memory off
   and loses no paired run (G19, G21). Criticality
   is coupled to cognition too: a near-critical cortical gain (peaking at κ≈1) scales sensory
@@ -56,7 +57,8 @@ honestly at different stages of maturity:
   and the hazard field (within about ±9% of memory off), and 3-11% negative in the beacon chase,
   where every remembered spot is stale. Hidden food is not accurate site memory: it is
   memory-driven search near recent finds. A map read 22° rotated (phantom peaks >= 2.8 m from
-  any site) keeps most of the benefit, and with the sites re-drawn at random every 150 ticks memory
+  any site) keeps about half to nearly all of the extra finds, depending on the seed block, and with
+  the sites re-drawn at random every 150 ticks memory
   still gives x1.1-1.5, so it needs a real map but not precise sites (G21). The agent circles one
   remembered site and never tours the six, and memory costs food when the agent's own exploration
   would find the sites anyway (sites on its wall loop, an interior explorer). Hidden food's score

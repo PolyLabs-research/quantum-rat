@@ -306,8 +306,9 @@ class MemoryMaze(Scenario):
         "gradient has faded to nothing at the start. Sleep also stores the goal's place, and where "
         "the map is flat the agent turns toward it (goal vector). Fatigue pacing keeps the "
         "sensory gate open during the search so that place is stored where it really is. The stored "
-        "place is forgotten after two visits in a row that find no goal there, so a goal that moved "
-        "stops pulling the agent",
+        "place is forgotten after two visits in a row that find no goal there, so the stored place of "
+        "a goal that moved stops pulling the agent (the value map can still lead it back there for a "
+        "while, until that gradient fades)",
     )
     GOAL = (6.0, 3.0)
     RADIUS = 1.5
@@ -472,8 +473,9 @@ class HiddenFood(Scenario):
     pulls only an agent that passes close by, and the memory agent then
     circles a site it knows (~70% of its finds at its favourite site). It
     needs a real map but not precise sites: a map read rotated by 22 degrees
-    (every phantom peak >= 2.8 m from a real site) keeps most of the benefit
-    (x2.74, against x2.84; x1.91-2.67 on other seed blocks), a map read at 2x
+    (every phantom peak >= 2.8 m from a real site) keeps about half to nearly
+    all of the extra finds (x2.74 against x2.84 on seeds 1-8; x1.91 / x2.67
+    against x2.85 / x4.08 on the other blocks), a map read at 2x
     scale gives none (x1.00), and wiping the map every 150 or 500 ticks leaves
     x1.24-2.17. Part of it survives without fixed sites: with every site
     jumping to a random place in the food band every 150 ticks memory still

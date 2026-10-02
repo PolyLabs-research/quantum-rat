@@ -622,8 +622,11 @@ class Engine:
         self._goal_visit = self._goal_visit_rewarded = False  # the miss count persists, like the goal
         # A microsleep in progress keeps sleeping but replays nothing more: its
         # snapshot is the previous episode's path, and a fresh one would be too
-        # (nothing has been recorded since). The next sleep snapshots afresh.
-        self._replay_plan = []
+        # (nothing has been recorded since). When awake, the plan is simply
+        # unset, so the next sleep -- even one starting on the very next tick --
+        # snapshots afresh.
+        asleep = bool(getattr(getattr(self, "trn_gate", None), "replay_active", False))
+        self._replay_plan = [] if asleep else None
         self._replay_step = 0
         self.value_memory.reset_episode()
 

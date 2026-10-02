@@ -363,7 +363,7 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
   - The fix has two parts: a goal-place memory written by replay that steers only where the map is flat, plus resting before ATP reaches the gate threshold (`pace_low` 0.6). It is on in the maze only.
   - Replay now matters off axis: 90.8 vs 32.4 recalls with replay on vs off.
 - **Hidden-food scenario** (G19, re-measured in G21 after fixing finds that came without reward). Invisible food at six fixed sites regrows after it is eaten. Memory finds x2.84-2.85 (seeds 1-8 and held-out 9-16, noise 0.03) to x4.08 (noise 0) as much food, and never loses a paired run.
-  - It is not accurate site memory but memory-driven search near recent finds: a map read 22° rotated keeps most of the benefit (x1.9-2.7), sites re-drawn at random every 150 ticks still give x1.1-1.5, and a map read at 2x scale gives nothing. It needs a real map but not precise sites.
+  - It is not accurate site memory but memory-driven search near recent finds: a map read 22° rotated keeps about half to nearly all of the extra finds (x1.9-2.7, against x2.8-4.1), sites re-drawn at random every 150 ticks still give x1.1-1.5, and a map read at 2x scale gives nothing. It needs a real map but not precise sites.
   - The agent circles one remembered site and does not tour the six.
   - Memory costs food when the agent's own exploration would find the sites anyway.
 - **Joint acceptance** (G20).

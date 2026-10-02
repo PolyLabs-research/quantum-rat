@@ -244,3 +244,17 @@ def test_a_teleport_during_microsleep_ends_the_replay_of_the_previous_episode(cl
         if engine.context.replay_cell is not None:
             break
     assert engine.context.replay_back == 1
+
+
+def test_an_awake_reset_leaves_the_next_sleep_free_to_snapshot():
+    # begin_episode ends the replay of a sleep in progress ([] = "nothing more
+    # to replay"), but when the agent is awake it only unsets the plan (None),
+    # so a microsleep starting even on the very next tick takes a fresh snapshot.
+    engine = Engine(seed=1)
+    engine.run(5)
+    engine.trn_gate.replay_active = False
+    engine.begin_episode()
+    assert engine._replay_plan is None
+    engine.trn_gate.replay_active = True
+    engine.begin_episode()
+    assert engine._replay_plan == []
