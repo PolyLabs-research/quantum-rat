@@ -82,7 +82,8 @@ class ValueMemoryConfig:
     # (a global living cost does that and breaks online maze learning). 0 disables.
     dwell_extinction: float = 0.02
     # Whether approach shaping is written into the value map. False keeps the map
-    # to primary outcomes only (contact reward and real pain >= 0.05); dopamine and
+    # to primary outcomes only (contact reward and pain above the sensory-reliability
+    # floor max(0.05, sensors.noise), see Engine.map_pain_floor); dopamine and
     # the other neuromodulators still see the full shaped reward either way.
     learn_shaping: bool = False
 

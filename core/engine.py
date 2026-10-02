@@ -247,21 +247,31 @@ class Engine:
         nearest = self._nearest_target(pos)
         return None if nearest is None else nearest[0]
 
-    # Observed pain below this is treated as sensor noise and kept out of the
-    # value map (it still reaches ctx.reward and dopamine).
+    # Minimum observed pain the value map will learn from (see map_pain_floor).
     MAP_PAIN_THRESHOLD = 0.05
+
+    def map_pain_floor(self) -> float:
+        """Pain must exceed this to enter the value map: max(MAP_PAIN_THRESHOLD, sensors.noise).
+
+        A sensory-reliability floor. Pain noise is uniform in [-noise, +noise]
+        (clamped at 0), so an observation at or below ``sensors.noise`` could be
+        noise alone, and pure noise must never write aversive memories (at noise
+        0.1 it used to paint a hazard-free open field red). Pain at or below the
+        floor still reaches ``ctx.reward`` and dopamine, and still drives REST.
+        """
+        return max(self.MAP_PAIN_THRESHOLD, self.config.sensors.noise)
 
     def _compute_reward(self, ctx: EngineContext) -> float:
         """Return the full (shaped) reward and set ``ctx.map_reward``.
 
         ``ctx.map_reward`` is what the value map learns: the contact bonus plus
-        real pain (>= MAP_PAIN_THRESHOLD), without approach shaping, unless
+        reliable pain (> ``map_pain_floor()``), without approach shaping, unless
         ``value_memory.learn_shaping`` is on, in which case it is the full reward.
         """
         r = self.config.reward
         pain = ctx.observation.pain_signal if ctx.observation else 0.0
         reward = -r.pain_weight * pain
-        primary = -r.pain_weight * pain if pain >= self.MAP_PAIN_THRESHOLD else 0.0
+        primary = -r.pain_weight * pain if pain > self.map_pain_floor() else 0.0
         learn_shaping = self.config.value_memory.learn_shaping
         nearest = self._nearest_target(ctx.pos)
         if nearest is None:

@@ -254,7 +254,7 @@ def test_primary_map_reward_keeps_contact_and_real_pain_only():
         engine.run(1)
         ctx = engine.context
         p = ctx.observation.pain_signal
-        expected_pain = -engine.config.reward.pain_weight * p if p >= Engine.MAP_PAIN_THRESHOLD else 0.0
+        expected_pain = -engine.config.reward.pain_weight * p if p > engine.map_pain_floor() else 0.0
         diff = ctx.map_reward - expected_pain
         assert diff == pytest.approx(0.0) or diff == pytest.approx(engine.config.reward.contact_bonus)
         contact |= diff > 0.5
@@ -265,6 +265,21 @@ def test_primary_map_reward_keeps_contact_and_real_pain_only():
     for _ in range(200):
         noisy.run(1)
         assert noisy.context.map_reward == 0.0
+
+
+def test_console_level_noise_cannot_write_pain_into_the_map():
+    # Review finding: with a fixed 0.05 floor, console noise above 0.05 put pure
+    # noise pain into the map (open_field, no hazards, noise 0.1: 132 of 500
+    # ticks, min V -0.15). The floor is now max(0.05, sensors.noise).
+    _, engine = _scenario_engine("open_field", noise=0.1)
+    assert engine.map_pain_floor() == 0.1
+    noisy_pain = 0
+    for _ in range(500):
+        engine.run(1)
+        noisy_pain += engine.context.observation.pain_signal > 0.05
+        assert engine.context.map_reward == 0.0
+    assert noisy_pain > 50  # the noise really was above the old fixed floor
+    assert min(engine.value_memory.values.values(), default=0.0) == 0.0
 
 
 # ---------------------------------------------------------- C4 cue gating
