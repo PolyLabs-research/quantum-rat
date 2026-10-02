@@ -142,12 +142,14 @@ class BasalGangliaConfig:
     # the value map cannot override what the agent can see. 0 disables.
     cue_gate_gain: float = 2.0
     # Homeostatic pacing: once ATP falls below pace_low the agent prefers REST
-    # (by pace_rest_bonus) until ATP recovers to pace_high. 0 disables (default
-    # in the core engine; the lab-console scenarios that are energy-limited
-    # turn it on).
+    # (by pace_rest_bonus) until ATP recovers to pace_high. Both thresholds are
+    # fractions of astrocyte.atp_baseline (the ATP ceiling), so the release point
+    # is always reachable: absolute thresholds latched REST for good whenever
+    # atp_baseline < pace_high. 0 disables (default in the core engine; the
+    # lab-console scenarios that are energy-limited turn it on).
     pace_rest_bonus: float = 0.0
-    pace_low: float = 0.4
-    pace_high: float = 0.9
+    pace_low: float = 0.4  # x atp_baseline
+    pace_high: float = 0.9  # x atp_baseline
     # Memory-steering geometry: how the value map's advantages (value one
     # lookahead step away along the heading and a fan each side, minus value
     # here) become the FORWARD / TURN_LEFT / TURN_RIGHT value signals.

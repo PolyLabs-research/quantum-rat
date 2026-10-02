@@ -320,6 +320,28 @@ def test_pacing_latch_has_hysteresis():
     assert 0.4 < seen[1][0] < 0.9 and 0.4 < seen[3][0] < 0.9  # same ATP band, opposite states
 
 
+def test_pacing_latch_releases_when_the_atp_ceiling_is_below_the_absolute_threshold():
+    # Review finding: with absolute thresholds (0.4 / 0.9 ATP) and
+    # astrocyte.atp_baseline = 0.85, resting could never reach 0.9, so the latch
+    # never released and REST won for good (foraging seed 1: 4 items, REST on
+    # 3926 of 4000 ticks). The thresholds are now fractions of the baseline.
+    scenario, engine = _scenario_engine(
+        "foraging", overrides={"astrocyte.atp_baseline": 0.85, "astrocyte.atp": 0.85}
+    )
+    latched = released = 0
+    moves_after_latch = 0
+    for _ in range(4000):
+        was = engine._recovering
+        _step(scenario, engine)
+        now = engine._recovering
+        latched += now and not was
+        released += was and not now
+        moves_after_latch += latched > 0 and engine.context.action_name != "REST"
+    assert latched >= 1 and released >= 1
+    assert moves_after_latch > 1000
+    assert scenario.collected >= 20
+
+
 def test_pacing_off_by_default_is_a_no_op():
     assert BasalGangliaConfig().pace_rest_bonus == 0.0
     # open_field runs itself into microsleep, so ATP crosses both thresholds;

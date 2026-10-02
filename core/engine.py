@@ -359,10 +359,12 @@ class Engine:
         # Freeze habituation: the pain->REST drive fades with recent pain-freezing.
         freeze_h = math.exp(-self._freeze_level / bg.freeze_tau) if bg.freeze_tau > 0.0 else 1.0
 
-        # Homeostatic pacing: hysteretic latch on ATP (recover from pace_low up to pace_high).
-        if ctx.atp < bg.pace_low:
+        # Homeostatic pacing: hysteretic latch on ATP (recover from pace_low up to
+        # pace_high), both as fractions of the ATP ceiling so release is reachable.
+        atp_baseline = self.config.astrocyte.atp_baseline
+        if ctx.atp < bg.pace_low * atp_baseline:
             self._recovering = True
-        elif ctx.atp >= bg.pace_high:
+        elif ctx.atp >= bg.pace_high * atp_baseline:
             self._recovering = False
         pacing = self._recovering and not ctx.microsleep_active and bg.pace_rest_bonus > 0.0
         pacing_rest = bg.pace_rest_bonus if pacing else 0.0
