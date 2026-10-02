@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import math
 from types import SimpleNamespace
@@ -171,3 +172,62 @@ def test_main_noise_both_json_is_byte_identical(capsys):
     assert "=== noise 0.03, seeds 9-10, start heading 0 ===" in out
     assert "=== noise 0, seed 9, 8 headings, maze 5 headings ===" in out
     assert out.count("good band (worst >= 0.80)") == 2
+
+
+@pytest.mark.parametrize("scenario", ["hazard_field", "beacon"])
+def test_is_value_rest_matches_the_engine_no_value_scores(monkeypatch, scenario):
+    # Integration check against the real engine: the counterfactual in
+    # is_value_rest (scores minus value_gain * ctx.value_signals on the three
+    # moves, REST kept) must equal the engine's own channel scores recomputed
+    # with every value input zeroed. This pins that ctx.value_signals are the
+    # effective (cue-gated) signals fed to action selection and that the value
+    # term is exactly value_gain * signal, with freeze habituation and pacing
+    # living only in REST. hazard_field exercises pain freezing and pacing,
+    # beacon exercises cue gating; both run long enough to rest.
+    from brain.systems import basal_ganglia as bg
+    from core.engine import Engine
+
+    captured = {}
+    original = bg._channel_scores
+
+    def recording(*args, **kwargs):
+        captured["args"], captured["kwargs"] = args, kwargs
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(bg, "_channel_scores", recording)
+    sc = scenarios_module.make_scenario(scenario)
+    config = sc.config()
+    config.sensors.noise = 0.03
+    config.basal_ganglia.value_gain = gain = 1.5
+    engine = Engine(seed=1, config=config)
+    sc.setup(engine)
+    gated = paced = valued = rested = 0
+    for _ in range(1500):
+        td = engine.run(1)[0]
+        ctx = engine.context
+        scores = ctx.action_scores
+        if set(scores) != set(bg.ACTION_ORDER):
+            sc.on_tick(engine, td.tick)
+            continue  # microsleep
+        bound = inspect.signature(original).bind(*captured["args"], **captured["kwargs"])
+        inputs = bound.arguments
+        assert (inputs["value_ahead"], inputs["value_left"], inputs["value_right"]) == tuple(ctx.value_signals)
+        inputs.update(value_ahead=0.0, value_left=0.0, value_right=0.0)
+        no_value = original(*bound.args, **bound.kwargs)
+        ahead, left, right = ctx.value_signals
+        expected = dict(scores)
+        expected["FORWARD"] -= gain * ahead
+        expected["TURN_LEFT"] -= gain * left
+        expected["TURN_RIGHT"] -= gain * right
+        for name in bg.ACTION_ORDER:
+            assert expected[name] == pytest.approx(no_value[name], abs=1e-12)
+        flagged = ss.is_value_rest(ctx, gain)
+        assert flagged == (ctx.action_name == "REST" and ss._winner(no_value) != "REST")
+        gated += ctx.cue_gate < 1.0
+        paced += ctx.pacing_active
+        valued += any(ctx.value_signals)
+        rested += flagged
+        sc.on_tick(engine, td.tick)
+    assert valued and gated  # the value path and cue gating were exercised
+    if scenario == "hazard_field":
+        assert paced  # pacing put a REST drive in the scores
