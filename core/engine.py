@@ -244,11 +244,18 @@ class Engine:
         With ``value_memory.replay_recent`` the newest ``trn.replay_window``
         transitions are snapshotted when sleep starts, so the trajectory growing
         (and its deque shifting) during sleep does not move the replay, and they
-        are replayed most recent first: reverse replay, which carries value from
-        where the path ended back along it in one sweep (Foster & Wilson 2006).
-        The k-th replay tick backs up transition k of the snapshot, cycling if
-        sleep outlasts it; transitions across an episode boundary are never in
-        it. TRNGate's replay_index (logged in TickData) is not used for this.
+        are replayed most recent first, which carries value from where the path
+        ended back along it. The reverse order is borrowed from the awake,
+        reward-associated reverse replay of Foster & Wilson 2006 and Diba &
+        Buzsaki 2007; replay during sleep (NREM) is mostly forward (Lee &
+        Wilson 2002; Ji & Wilson 2007). This replay is neither: it is gated by
+        fatigue (TRN microsleep), not time-compressed (one transition per
+        tick), and a sleep lasts ``trn.duration`` (25) ticks, so it covers at
+        most 25 of the 50 snapshotted transitions. The k-th replay tick backs
+        up transition k of the snapshot, cycling if sleep outlasted it (never at
+        the defaults). Transitions across an episode boundary are never in it,
+        and ``begin_episode`` ends the replay of a sleep in progress.
+        TRNGate's replay_index (logged in TickData) is not used for this.
         Without it (legacy), the TRN index is used as a trajectory index.
         """
         vm_cfg = self.config.value_memory

@@ -353,23 +353,28 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
   - What changed: sleep now replays the newest transitions in reverse from a snapshot taken at sleep onset, and no replay links transitions across an episode reset.
   - Effect at console defaults: none. Every scored scenario paces fatigue, so it never microsleeps.
   - Effect with pacing off (core engine): small and mixed. Beacon is +1.0 at gain 1.5 (7 seeds better, 0 worse); hazard_field at noise 0 is -1.4 (1 better, 5 worse).
-  - Honest finding: the "recent path" is mostly one place. A closed sensory gate freezes path integration for the ~30-50 ticks before sleep, so recent replay writes value into fewer cells than the stale rule did. It mostly extinguishes the cell the agent sleeps in.
+  - Honest finding: the "recent path" is mostly one place. A closed sensory gate freezes the place estimate for the ~30-50 ticks before sleep while the body keeps moving (a median 2.7 m), so recent replay writes value into fewer cells than the stale rule did and mostly extinguishes the cell the agent sleeps in. The freeze is a model artefact, not biology.
+  - Biology: the reverse order is borrowed from awake, reward-associated reverse replay (Foster & Wilson 2006; Diba & Buzsaki 2007); rodent NREM sleep replay is mostly forward (Lee & Wilson 2002; Ji & Wilson 2007). This replay is fatigue-gated and not time-compressed, and a 25-tick sleep covers at most 25 of the 50 snapshotted transitions.
+  - G21 fix: a teleport or reset during microsleep now ends that sleep's replay; before, it kept replaying the previous episode.
 - **Off-axis maze starts fixed** (G18).
-  - Over 16 start headings at noise 0, 16 now recall (was 4). At noise 0.03, 97% of runs recall (was 22%). Recalls rose from 42.6 to 85.9 at gain 1.5.
+  - Over 16 start headings at noise 0, 16 now recall at every gain from 0.4 to 3.0 (was 4). At noise 0.03, 63 of 64 runs recall (was 22%). Recalls rose from 42.6 to 90.8 at gain 1.5 (G21).
+  - G21 fix: the goal place was erased by a single visit without contact, including contact on the tick of leaving the cell and passes through the part of the cell outside the contact circle. It now takes two unrewarded visits in a row (any contact resets the count): every full-circle run equals extinction off, and a moved goal is still forgotten (median 157-187 ticks).
   - The cause was not the fan width. The replayed gradient decays to nothing (gamma per step) after a long visible-trial search, and fatigue during that search narrows the gate and makes path integration drift by up to 12 m.
   - The fix has two parts: a goal-place memory written by replay that steers only where the map is flat, plus resting before ATP reaches the gate threshold (`pace_low` 0.6). It is on in the maze only.
-  - Replay now matters off axis: 85.9 vs 32.4 recalls with replay on vs off.
-- **Hidden-food scenario** (G19). Invisible food at six fixed sites regrows after it is eaten. Memory finds x2.74 (seeds 1-8 and held-out 9-16, noise 0.03) to x4.08 (noise 0) as much food, and never loses a paired run.
-  - It is site fidelity, not planning: the agent circles one remembered site.
+  - Replay now matters off axis: 90.8 vs 32.4 recalls with replay on vs off.
+- **Hidden-food scenario** (G19, re-measured in G21 after fixing finds that came without reward). Invisible food at six fixed sites regrows after it is eaten. Memory finds x2.84-2.85 (seeds 1-8 and held-out 9-16, noise 0.03) to x4.08 (noise 0) as much food, and never loses a paired run.
+  - It is not accurate site memory but memory-driven search near recent finds: a map read 22° rotated keeps most of the benefit (x1.9-2.7), sites re-drawn at random every 150 ticks still give x1.1-1.5, and a map read at 2x scale gives nothing. It needs a real map but not precise sites.
+  - The agent circles one remembered site and does not tour the six.
   - Memory costs food when the agent's own exploration would find the sites anyway.
 - **Joint acceptance** (G20).
-  - Determinism and regression baselines and the legacy digests are unchanged, and all 228 tests pass.
+  - Determinism and regression baselines and the legacy digests are unchanged, and all 241 tests pass (G21).
   - The four G16 scenarios keep the 0.4-3.0 band in all five blocks. Their floors at gain 1.5 equal G16's with pacing on; held-out maze 130.4 → 145.8.
-  - With hidden_food included, the band where every scenario stays within 20% of its best narrows: held-out 0.4-0.8, pacing off 1.5-3.0 at noise 0.03 and 1.0-1.5 at noise 0. That reflects hidden_food's own gain profile; it is still x1.8-4.3 over memory off at every gain.
+  - With hidden_food included, the band where every scenario stays within 20% of its best narrows (G21): 0.4-1.5 at noise 0.03 (worst fraction 0.83 at the default gain 1.5), 0.4-3.0 at noise 0 and on held-out seeds, and with pacing off 0.4-1.0 (noise 0.03, worst 0.88 at 1.5) and 0.4-0.8 (noise 0, worst 0.76 at 1.5). That reflects hidden_food's own gain profile; it is still x1.8-4.3 over memory off at every gain. G20's held-out band of 0.4-0.8 did not survive the G21 fix, which showed it was run-to-run variation.
 - **Next candidates:**
   - Keep place cells updating until sleep (or replay the recent sequence of *places*), so that reverse replay can carry value along a real path. A scratch variant of the latter was slightly better with pacing off, on one sample.
   - Make the TRN narrowing threshold (0.55) a config value; gate-safe pacing (`GATE_SAFE_PACE_LOW`) is tied to it. Consider gate-safe pacing in beacon, foraging and hazard_field, which pace at 0.4 and can drift on long runs.
-  - Decide whether the harness band should include hidden_food or report it separately: its score varies with the gain more than the other scenarios'.
+  - Report both bands (G21 does): the four-scenario band for continuity with G16, and the five-scenario band with hidden_food's own gain profile. Its score varies with the gain more than the other scenarios', and with pacing off its counts (1-11 finds) are too small to locate a best gain; longer runs or more seeds would.
+  - A hidden-food variant that needs exact sites (e.g. a smaller RADIUS with sites off the agent's loop), if the task is meant to test site memory rather than search near recent finds.
   - Searching for a goal that starts out of view on the visible maze trial (one noise-0.03 full-circle run never finds it).
   - A memory task where the agent must tour several remembered places; the value gradient reaches only about 3 m.
   - Make `steering_sensitivity --set` reject or accept Python-style `False`; it currently parses JSON, so `False` becomes a truthy string.

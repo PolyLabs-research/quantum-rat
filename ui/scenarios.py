@@ -305,7 +305,9 @@ class MemoryMaze(Scenario):
         "Started facing away from the goal, the visible trial is a long search, so the replayed "
         "gradient has faded to nothing at the start. Sleep also stores the goal's place, and where "
         "the map is flat the agent turns toward it (goal vector). Fatigue pacing keeps the "
-        "sensory gate open during the search so that place is stored where it really is",
+        "sensory gate open during the search so that place is stored where it really is. The stored "
+        "place is forgotten after two visits in a row that find no goal there, so a goal that moved "
+        "stops pulling the agent",
     )
     GOAL = (6.0, 3.0)
     RADIUS = 1.5
@@ -439,10 +441,11 @@ class HiddenFood(Scenario):
     "hidden": contact rewards it (``Engine._nearest_target`` includes "hidden"),
     but vision does not treat it as food, so neither the vision drive nor the
     cue gate ever sees it. An eaten site regrows ``REGROW`` ticks later, in
-    place. Without memory the agent finds food only when its loop happens to
-    brush a site; with memory, the value map learns the contact reward at the
-    site (primary reward only) and steers the agent back into it on later
-    passes.
+    place, and can be eaten again from the following tick (an engine step has
+    to see it as food first, so every find comes with the contact reward).
+    Without memory the agent finds food only when its loop happens to brush a
+    site; with memory, the value map learns the contact reward at the site
+    (primary reward only) and steers the agent back toward it on later passes.
 
     Config (scenario-only, the engine defaults are untouched):
     - pacing with ``pace_low`` 0.6: the agent rests before ATP reaches 0.55,
@@ -450,26 +453,34 @@ class HiddenFood(Scenario):
       under-counts turns and motion. Nothing here resets the path-integration
       frame (unlike the maze's teleport to the start), so errors accumulate.
       With the console's usual pace_low 0.4 the gate is narrowed on about a
-      third of ticks (the agent moving on ~15%), and after 3000 ticks the
-      estimated position is on average 16 m (memory off) to 37 m (memory on)
-      from the truth (seeds 1-8, noise 0.03); the map is then useless and
-      memory costs ~36% (15.6 vs 24.4 finds). With pace_low 0.6 the gate
-      stays open and the drift is at most 1.2 m (wall contact while turning).
-      Caveat: the narrowed gate also weakens FORWARD, so the fatigued agent
-      wanders the interior and finds far more food without memory (24.4)
-      than the rested agent does with it (6.5);
+      third of ticks, and after 3000 ticks the estimated position is on
+      average 16 m (memory off) to 39 m (memory on) from the truth (seeds 1-8,
+      noise 0.03); the map is then useless and memory costs ~41% (14.5 vs 24.4
+      finds, 0 wins of 8). With pace_low 0.6 the gate stays open and the drift
+      is at most 1.2 m (wall contact while turning). Caveat: the narrowed gate
+      also weakens FORWARD, so the fatigued agent wanders the interior and
+      finds far more food without memory (24.4) than the rested agent does
+      with it (6.75);
     - ``generalization_radius`` 2, as in the memory maze, so one contact values
       a followable patch rather than a single 0.5 m cell (with 0 the benefit
-      drops from x2.7 to x1.6 at noise 0.03).
+      drops from x2.84 to x1.58 at noise 0.03).
 
-    Where the benefit comes from (measured over seeds 1-8 at noise 0.03, gain 1.5):
-    site fidelity, not route planning. Positive value lies within ~3 m of a
-    site (90th percentile 2.6-2.9 m), so memory pulls only an agent that
-    passes close by; the memory agent then circles a site it knows and makes
-    ~70% of its finds at its favourite site. If the sites lie on the default
-    loop (2 m from the walls instead of 2.5 m) the agent finds them anyway and
-    memory costs ~half (x0.52), and an agent that explores the interior
-    (forward_bias 0.5) also does better without memory (37.2 vs 19.2 finds).
+    What the benefit is (seeds 1-8 at noise 0.03, gain 1.5, unless noted; see
+    docs/decisions.md G21): memory-driven area-restricted search near recent
+    finds, not accurate site memory and not route planning. Positive value
+    lies within a few metres of a site (90th percentile 2.6-4.3 m), so memory
+    pulls only an agent that passes close by, and the memory agent then
+    circles a site it knows (~70% of its finds at its favourite site). It
+    needs a real map but not precise sites: a map read rotated by 22 degrees
+    (every phantom peak >= 2.8 m from a real site) keeps most of the benefit
+    (x2.74, against x2.84; x1.91-2.67 on other seed blocks), a map read at 2x
+    scale gives none (x1.00), and wiping the map every 150 or 500 ticks leaves
+    x1.24-2.17. Part of it survives without fixed sites: with every site
+    jumping to a random place in the food band every 150 ticks memory still
+    gives x1.08-1.47. If the sites lie on the default loop (2 m from the walls
+    instead of 2.5 m) the agent finds them anyway and memory costs ~half
+    (x0.55), and an agent that explores the interior (forward_bias 0.5) also
+    does better without memory (37.2 vs 19.1 finds).
     """
 
     id = "hidden_food"
@@ -479,11 +490,13 @@ class HiddenFood(Scenario):
         "The food is invisible to the agent: vision never reports it as food, so only a chance "
         "brush finds a site the first time. The dashed rings show where it is",
         "Turn Memory steering to 0 and restart: the agent runs a loop along the walls and finds "
-        "food only by luck (about 2-3 items in 3000 ticks)",
-        "With memory on, each find writes a value peak at the site (watch the value map). On later "
+        "food only by luck (about 2-4 items in 3000 ticks)",
+        "With memory on, each find writes a value peak near the site (watch the value map). On later "
         "passes the agent swerves into it, and it often keeps circling a site it knows, eating "
-        "each time the food regrows. Over many runs it finds about 3-4x as much food as with memory "
-        "off, but one run can be unlucky: until the loop brushes a site, memory has nothing to use",
+        "each time the food regrows. Over many runs it finds about 3x as much food as with memory "
+        "off (2.8-4x), but one run can be unlucky: until the loop brushes a site, memory has nothing to use",
+        "This is searching near recent finds rather than exact site memory: the map only has to be "
+        "right to within about 3 m, and memory still helps a little when the food moves",
         "The memory agent tends to settle on one or two sites rather than touring all six: the value "
         "map only pulls from a few metres away, so a site it has not visited for a while is out of reach",
         "The agent rests when ATP falls to 60%, before the sensory gate narrows; a narrowed gate "

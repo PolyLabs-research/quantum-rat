@@ -93,8 +93,11 @@ class ValueMemoryConfig:
     learn_shaping: bool = False
     # Which transitions microsleep replay backs up. True: at sleep onset the newest
     # trn.replay_window transitions are snapshotted and replayed most recent first
-    # (reverse replay), cycling if sleep outlasts them, never across an episode
-    # boundary. False (legacy): the TRN observation-buffer index (0..window-1) is
+    # (reverse order), cycling if sleep outlasts them (a sleep lasts
+    # trn.duration = 25 ticks, so at the defaults it never does), never across
+    # an episode boundary; begin_episode ends the replay of a sleep in
+    # progress. See Engine._replay for how this relates to rodent replay.
+    # False (legacy): the TRN observation-buffer index (0..window-1) is
     # used as a trajectory index from the OLDEST end, which replays transitions
     # ~150-200 ticks old, every second one, in forward order. TickData.replay_index
     # is the TRN index either way.

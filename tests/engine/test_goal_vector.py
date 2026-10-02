@@ -1,8 +1,9 @@
 """Goal-vector memory: where reward was found, steered toward where the value map is flat.
 
 Unit tests of the pure command function, of how the goal is written (by replay
-of a rewarded transition, or online on contact) and extinguished (a visit to
-the goal's place cell that finds no reward), and of the engine's arbitration
+of a rewarded transition, or online on contact) and extinguished
+(``goal_extinction_misses`` visits in a row to the goal's place cell that find
+no reward; any contact resets the count), and of the engine's arbitration
 (the vector steers only where the map's largest sampled advantage is below
 ``value_memory.goal_vector_flat``).
 """
