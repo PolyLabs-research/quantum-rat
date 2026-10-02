@@ -6,6 +6,7 @@ Opens http://127.0.0.1:8000 in your browser. Ctrl+C stops it.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import threading
 import webbrowser
@@ -17,10 +18,25 @@ from ui.server import LOOPBACK_HOSTS, create_app
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m ui", description="Quantum Rat lab console (live simulator + replay viewer)")
     parser.add_argument("--host", default="127.0.0.1", help="interface to bind (default 127.0.0.1, this machine only)")
-    parser.add_argument("--port", type=int, default=8000, help="port (default 8000)")
-    parser.add_argument("--runs-dir", default="runs", help="where recorded runs are read and written (default ./runs)")
+    parser.add_argument("--port", type=int, default=None, help="port (default: $PORT, else 8000)")
+    parser.add_argument(
+        "--runs-dir",
+        default=None,
+        help="where recorded runs are read and written (default: $CRITICAL_RAT_RUNS_DIR, else ./runs)",
+    )
     parser.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    # Flags win; otherwise fall back to the environment variables the old
+    # replay server read, then to the built-in defaults.
+    if args.runs_dir is None:
+        args.runs_dir = os.environ.get("CRITICAL_RAT_RUNS_DIR") or "runs"
+    if args.port is None:
+        raw = os.environ.get("PORT") or "8000"
+        try:
+            args.port = int(raw)
+        except ValueError:
+            parser.error(f"the PORT environment variable must be a whole number, got {raw!r}")
+    return args
 
 
 def main(argv=None) -> None:

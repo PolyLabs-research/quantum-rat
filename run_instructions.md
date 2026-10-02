@@ -18,6 +18,9 @@ offline.
    * `--runs-dir path/to/runs` to read and write runs somewhere other than `./runs`
    * `--no-browser` to skip opening a tab
 
+   Without `--port` or `--runs-dir`, the `PORT` and `CRITICAL_RAT_RUNS_DIR` environment variables
+   are used if set (flags win).
+
    `python -m ui.replay_server` still works and starts the same console.
 
 3. **Live tab.** Choose a scenario on the left. Play/pause with the button or `Space`; step one

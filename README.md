@@ -88,6 +88,7 @@ python -m ui                  # opens http://127.0.0.1:8000 in your browser
 ```
 
 Options: `--port 8000`, `--runs-dir runs` (where recordings are read and written), `--no-browser`.
+Without the flags, the `PORT` and `CRITICAL_RAT_RUNS_DIR` environment variables are used if set.
 It needs nothing beyond Flask: the page is plain HTML/CSS/JS with no CDN or build step, so it
 works offline.
 
