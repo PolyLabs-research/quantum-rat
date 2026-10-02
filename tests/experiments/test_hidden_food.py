@@ -89,3 +89,33 @@ def test_sites_are_invisible_and_regrow_in_place():
     scenario.on_tick(engine, 10 + scenario.REGROW)
     assert site.kind == "hidden" and (site.x, site.y) == scenario.SITES[0]
     assert scenario.blocks(500) == [1]
+
+
+def test_a_site_that_regrows_under_the_agent_is_eaten_only_after_an_engine_step_sees_it():
+    # Regrowth used to be checked before collection in the same on_tick, so a
+    # site regrowing under the agent was "found" with no contact reward and no
+    # map write (3 of 52 finds at gain 1.5, seeds 1-8, noise 0.03).
+    from core.engine import Engine
+    from ui.scenarios import HiddenFood
+
+    scenario = HiddenFood()
+    config = scenario.config()
+    config.basal_ganglia.value_gain = 0.0
+    config.basal_ganglia.forward_bias = 0.0
+    engine = Engine(seed=1, config=config)
+    scenario.setup(engine)
+    site = scenario.items[0]
+    engine.agent.pos = engine.agent.last_pos = (site.x, site.y)
+    engine.run(1)
+    assert engine.context.target_contact
+    scenario.on_tick(engine, 0)
+    assert site.kind == "collected" and scenario.collected == 1
+    engine.run(1)
+    assert not engine.context.target_contact  # eaten: no food here now
+    scenario.on_tick(engine, scenario.REGROW)  # regrows while the agent is standing on it
+    assert site.kind == "hidden" and scenario.collected == 1
+    engine.agent.pos = engine.agent.last_pos = (site.x, site.y)
+    engine.run(1)
+    assert engine.context.target_contact and engine.context.map_reward > 0.0
+    scenario.on_tick(engine, scenario.REGROW + 1)
+    assert site.kind == "collected" and scenario.collected == 2

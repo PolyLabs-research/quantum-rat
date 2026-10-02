@@ -533,8 +533,13 @@ class HiddenFood(Scenario):
         for i, item in enumerate(self.items):
             eaten = self.eaten_at[i]
             if item.kind == "collected" and eaten is not None and tick - eaten >= self.REGROW:
+                # Regrown, but not collectable until an engine step has seen it as
+                # food: a site that regrows under the agent is eaten on the next
+                # tick, with the contact reward (and the map write) that goes with
+                # it, never in this on_tick without one.
                 item.kind = "hidden"
                 self.eaten_at[i] = None
+                continue
             if item.kind == "hidden" and _dist(engine, item) <= self.RADIUS:
                 item.kind = "collected"
                 self.eaten_at[i] = tick
