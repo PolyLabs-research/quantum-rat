@@ -98,6 +98,9 @@ export class DecisionPanel {
           : el('div', {}, 'Memory dimmed: target in view ', el('span', { class: 'num', text: `×${fmt(gate, 2)}` })),
       );
     }
+    if (action.goal_vector) {
+      lines.push(el('div', {}, 'Value map flat here: turning toward the remembered goal (goal vector)'));
+    }
     const wall = action.wall_gate ?? 1;
     if (wall < 0.99) {
       lines.push(el('div', {}, 'Memory\'s push to go straight dimmed: wall ahead ', el('span', { class: 'num', text: `×${fmt(wall, 2)}` })));

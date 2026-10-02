@@ -17,14 +17,22 @@ seconds:
 - memory_maze keeps a hidden-goal recall rate >= 0.9 at gains 0.8, 1.5 and 3.0
   (this one does not discriminate: max-norm recalls at these gains too), and
   the number of recalls at gains 0.4 and 0.6 stays >= 80% of that at 1.5
-  (measured 0.90 / 0.89; stock-like steering 0.53 / 0.38 fails it).
+  (measured 0.90 / 0.89; stock-like steering 0.53 / 0.56 fails it).
+  The maze runs its console config, which since the off-axis fix includes
+  the goal vector and pacing (ui.scenarios.MemoryMaze.config); at these
+  near-axis headings that changes nothing at the defaults, but it does raise
+  the regressed configurations' low-gain recalls (numbers below).
 
 Checked against regressions (each by flipping config defaults):
-- ``value_steer="maxnorm"`` with ``dwell_extinction=0`` (stock-like steering,
-  with or without wall gating): 5 of 11 fail. vREST is 0.18-0.65 in all four
+- ``value_steer="maxnorm"`` with ``dwell_extinction=0`` (stock-like steering):
+  6 of 13 fail with the gates on. vREST is 0.18-0.65 in all four
   foraging / hazard_field cells, and foraging with pacing off scores 26 vs 39
   with memory off (0.67). The maze recall-rate guard still passes, but the
-  low-gain recall-count guard fails (0.53 / 0.38; max-norm alone 0.25 / 0.65).
+  low-gain recall-count guard fails: 0.53 / 0.56 at gains 0.4 / 0.6 with the
+  cue and wall gates off (both cases fail), and only the gain-0.4 case with
+  them on. ``value_steer="maxnorm"`` alone gives 0.54 / 0.92, so its gain-0.4
+  case fails. Before the maze gained the goal vector and pacing these were
+  0.53 / 0.38 and 0.25 / 0.65.
 - ``wall_gate_gain=0`` alone: foraging with pacing off fails (the agent is
   pinned against the wall at heading 0: 29 vs 39).
 - ``dwell_extinction=0`` alone, under split steering: all pass. Under split,
@@ -98,6 +106,8 @@ def test_maze_recalls_hold_at_low_gain(gain):
     # a low gain must be at least 80% of those at the default gain. Measured
     # (800 ticks, noise 0): split steering 217 / 215 vs 242 at 1.5 (0.90 /
     # 0.89); stock-like steering (max-norm, no extinction, no gates) 0.53 /
-    # 0.38 and max-norm alone 0.25 / 0.65, so both fail.
+    # 0.56 and max-norm alone 0.54 / 0.92, so both fail (at gain 0.4). These
+    # are with the maze's goal vector and pacing; without them (before the
+    # off-axis fix) they were 0.53 / 0.38 and 0.25 / 0.65.
     default = _maze_recalls(1.5)
     assert _maze_recalls(gain) >= MIN_FRACTION * default, (gain, _maze_recalls(gain), default)

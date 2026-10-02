@@ -38,6 +38,30 @@ def test_headings_for_grid():
         ss.headings_for("beacon", 0)
 
 
+def test_maze_heading_sets():
+    assert ss.maze_heading_set(None) == list(ss.MAZE_HEADINGS)
+    assert ss.maze_heading_set("default") == list(ss.MAZE_HEADINGS)
+    full = ss.maze_heading_set("full")
+    assert len(full) == ss.FULL_CIRCLE_HEADINGS == 16
+    assert full[4] == pytest.approx(math.pi / 2)
+    assert ss.maze_heading_set("4") == ss.maze_heading_set(4) == [0.0, math.pi / 2, math.pi, 3 * math.pi / 2]
+    for bad in ("half", 0, "-2"):
+        with pytest.raises(ValueError):
+            ss.maze_heading_set(bad)
+    # --maze-headings alone varies only the maze; with --headings the open scenarios vary too.
+    assert ss.headings_for("memory_maze", None, "full") == full
+    assert ss.headings_for("beacon", None, "full") == [None]
+    assert ss.headings_for("memory_maze", 8, "full") == full
+    jobs = ss.make_jobs(["beacon", "memory_maze"], [1.5], [1], 0.0, maze_headings=4)
+    assert [j.heading for j in jobs] == [None, 0.0, math.pi / 2, math.pi, 3 * math.pi / 2]
+
+
+def test_maze_rows_report_training_and_timeouts():
+    row = ss.run_job(ss.Job("memory_maze", 1.5, 1, 0.0, 400, (), math.pi))
+    assert row["train_ticks"] is not None and row["train_ticks"] > 20  # a search: the goal starts out of view
+    assert row["timeouts"] == row["attempted"] - row["score"]
+
+
 def test_headings_change_outcomes_and_restore_start_pose():
     pose = scenarios_module.START_POSE
     beacon = ss.sweep(["beacon"], [1.5], [1], noise=0.0, ticks=300, workers=1, headings=4)

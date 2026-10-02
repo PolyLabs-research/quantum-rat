@@ -12,6 +12,7 @@ between success and failure as the gain moves.
     python -m experiments.steering_sensitivity --noise-both --seeds 8
     python -m experiments.steering_sensitivity --seed-start 9 --seeds 8        # held-out seeds 9-16
     python -m experiments.steering_sensitivity --set value_memory.generalization_radius=2
+    python -m experiments.steering_sensitivity --scenarios memory_maze --noise 0 --seeds 1 --maze-headings full
 
 Options beyond the grid:
   --seeds N, --seed-start S  run seeds S .. S+N-1 (default 1..4).
@@ -21,8 +22,14 @@ Options beyond the grid:
                  ui.scenarios.START_POSE at every trial, so it runs with
                  START_POSE = (0, 0, h) for the fixed, memory-dependent set
                  h in {-0.2, -0.1, 0, 0.1, 0.2} whatever N is (0.3-0.4 face
-                 the goal and need no memory; pi/2 and beyond fail for any
-                 steering). Every seed runs every heading.
+                 the goal and need no memory). Every seed runs every heading.
+  --maze-headings SET
+                 the maze's start headings: "default" (the five above), "full"
+                 (16 headings 2*pi*i/16 over the whole circle, including starts
+                 facing away from the goal, which need a search on the visible
+                 trial) or an integer N (N headings over the circle). Given
+                 without --headings it varies the maze heading only; with
+                 --noise-both it applies to the noise-0 block.
   --noise-both   two blocks in one run: --noise (default 0.03) over the seeds at
                  the default heading, and noise 0 over headings (8 for the open
                  scenarios, or --headings N; 5 for the maze) at seed S only.
@@ -50,7 +57,8 @@ Metrics per run (higher is better unless noted):
   memory_maze   hidden-goal recalls (score), attempted, recall_rate,
                 median_recall_ticks and first_hidden_ticks (ticks of the first
                 hidden trial, reached or timed out; lower is better; None if no
-                hidden trial started)
+                hidden trial started), train_ticks (the visible trial; None if
+                it did not end) and timeouts (hidden trials that timed out)
   all           vrest: share of all ticks on which REST was chosen although the
                 same tick's scores without the value terms (FORWARD, TURN_LEFT and
                 TURN_RIGHT minus value_gain * the value signal fed to them) would
@@ -82,9 +90,11 @@ DEFAULT_GAINS = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0)
 TICKS = {"beacon": 3000, "foraging": 3000, "hazard_field": 3000, "memory_maze": 1500}
 # memory_maze start headings: small offsets where recall still depends on the value map.
 MAZE_HEADINGS = (-0.2, -0.1, 0.0, 0.1, 0.2)
+FULL_CIRCLE_HEADINGS = 16  # --maze-headings full
 NOISE_BOTH_HEADINGS = 8  # open-scenario headings in the noise-0 block of --noise-both
 ACTION_ORDER = ("FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST")  # selection tie-break order
 BAND_THRESHOLDS = (0.8, 0.85)
+RECALL_OK = 0.9  # a maze run "recalls" when at least this share of its hidden trials reach the goal
 
 Summary = Dict[str, Dict[float, Dict[str, Any]]]
 
@@ -100,14 +110,37 @@ class Job:
     heading: Optional[float] = None  # start heading in radians; None = START_POSE as is
 
 
-def headings_for(scenario: str, n: Optional[int]) -> List[Optional[float]]:
-    """Start headings for ``--headings n`` (``[None]`` = scenario default)."""
-    if n is None:
-        return [None]
-    if n < 1:
+MazeHeadings = Union[None, str, int]
+
+
+def maze_heading_set(spec: MazeHeadings) -> List[float]:
+    """The maze start headings for ``--maze-headings`` (None or "default": MAZE_HEADINGS)."""
+    if spec is None or spec == "default":
+        return list(MAZE_HEADINGS)
+    if spec == "full":
+        spec = FULL_CIRCLE_HEADINGS
+    if isinstance(spec, str):
+        try:
+            spec = int(spec)
+        except ValueError:
+            raise ValueError(f"maze headings must be 'default', 'full' or an integer, got {spec!r}") from None
+    if spec < 1:
+        raise ValueError(f"maze headings must be >= 1, got {spec}")
+    return [2.0 * math.pi * i / spec for i in range(spec)]
+
+
+def headings_for(scenario: str, n: Optional[int], maze: MazeHeadings = None) -> List[Optional[float]]:
+    """Start headings for ``--headings n`` / ``--maze-headings maze`` (``[None]`` = scenario default).
+
+    The maze varies its heading when either is given (over ``maze_heading_set(maze)``);
+    the open scenarios only with ``n``.
+    """
+    if n is not None and n < 1:
         raise ValueError(f"headings must be >= 1, got {n}")
     if scenario == "memory_maze":
-        return list(MAZE_HEADINGS)
+        return [None] if n is None and maze is None else maze_heading_set(maze)
+    if n is None:
+        return [None]
     return [2.0 * math.pi * i / n for i in range(n)]
 
 
@@ -211,6 +244,9 @@ def run_job(job: Job) -> Dict[str, Any]:
         out["recall_rate"] = len(reached) / len(hidden) if hidden else 0.0
         out["median_recall_ticks"] = statistics.median(reached) if reached else None
         out["first_hidden_ticks"] = hidden[0]["ticks"] if hidden else None
+        visible = [t for t in scenario.history if t["visible"]]
+        out["train_ticks"] = visible[0]["ticks"] if visible else None
+        out["timeouts"] = len(hidden) - len(reached)
     out["vrest"] = value_rest / job.ticks if job.ticks > 0 else 0.0
     return out
 
@@ -223,6 +259,7 @@ def make_jobs(
     overrides: Optional[Mapping[str, Any]] = None,
     ticks: Union[int, Mapping[str, int], None] = None,
     headings: Optional[int] = None,
+    maze_headings: MazeHeadings = None,
 ) -> List[Job]:
     """The job grid, in output order: scenario, gain, seed, heading."""
     over = tuple(sorted((overrides or {}).items()))
@@ -235,7 +272,7 @@ def make_jobs(
         for s in scenarios
         for g in gains
         for seed in seeds
-        for h in headings_for(s, headings)
+        for h in headings_for(s, headings, maze_headings)
     ]
 
 
@@ -256,9 +293,10 @@ def sweep(
     ticks: Union[int, Mapping[str, int], None] = None,
     workers: Optional[int] = None,
     headings: Optional[int] = None,
+    maze_headings: MazeHeadings = None,
 ) -> List[Dict[str, Any]]:
     """Rows for every (scenario, gain, seed, heading). ``ticks``: int or per-scenario budgets."""
-    return run_jobs(make_jobs(scenarios, gains, seeds, noise, overrides, ticks, headings), workers)
+    return run_jobs(make_jobs(scenarios, gains, seeds, noise, overrides, ticks, headings, maze_headings), workers)
 
 
 def sweep_both(
@@ -270,10 +308,11 @@ def sweep_both(
     ticks: Union[int, Mapping[str, int], None] = None,
     workers: Optional[int] = None,
     headings: int = NOISE_BOTH_HEADINGS,
+    maze_headings: MazeHeadings = None,
 ) -> List[Dict[str, Any]]:
     """``noise`` over ``seeds`` at the default heading, then noise 0 over headings at ``seeds[0]``."""
     seeded = make_jobs(scenarios, gains, seeds, noise, overrides, ticks)
-    headed = make_jobs(scenarios, gains, list(seeds)[:1], 0.0, overrides, ticks, headings)
+    headed = make_jobs(scenarios, gains, list(seeds)[:1], 0.0, overrides, ticks, headings, maze_headings)
     return run_jobs(seeded + headed, workers)
 
 
@@ -286,16 +325,19 @@ def by_noise(rows: Sequence[Mapping[str, Any]]) -> Dict[float, List[Mapping[str,
 
 
 def summarise(rows: Sequence[Mapping[str, Any]]) -> Summary:
-    """scenario -> gain -> {mean, min, max, n, (vrest), (recall_rate, first_hidden_ticks, median_recall_ticks)}.
+    """scenario -> gain -> {mean, min, max, n, (vrest), (recall_rate, recall_ok, first_hidden_ticks,
+    median_recall_ticks, train_ticks)}.
 
     Summarise one noise block at a time (see ``by_noise``). Optional keys appear
     only when the rows carry them; maze tick entries are medians over the runs
-    that have a value (None if none do).
+    that have a value (None if none do). ``recall_ok`` is the share of runs
+    whose recall rate is at least ``RECALL_OK`` (a run with no hidden trial
+    counts as failing).
     """
     table: Dict[str, Dict[float, Dict[str, List[Any]]]] = {}
     for row in rows:
         cell = table.setdefault(row["scenario"], {}).setdefault(
-            row["value_gain"], {"scores": [], "vrest": [], "rates": [], "first": [], "median": []}
+            row["value_gain"], {"scores": [], "vrest": [], "rates": [], "first": [], "median": [], "train": []}
         )
         cell["scores"].append(row["score"])
         if "vrest" in row:
@@ -306,6 +348,8 @@ def summarise(rows: Sequence[Mapping[str, Any]]) -> Summary:
             cell["first"].append(row["first_hidden_ticks"])
         if "median_recall_ticks" in row:
             cell["median"].append(row["median_recall_ticks"])
+        if "train_ticks" in row:
+            cell["train"].append(row["train_ticks"])
     out: Summary = {}
     for scen, by_gain in table.items():
         out[scen] = {}
@@ -316,7 +360,10 @@ def summarise(rows: Sequence[Mapping[str, Any]]) -> Summary:
                 entry["vrest"] = statistics.mean(cell["vrest"])
             if cell["rates"]:
                 entry["recall_rate"] = statistics.mean(cell["rates"])
-            for key, name in (("first", "first_hidden_ticks"), ("median", "median_recall_ticks")):
+                entry["recall_ok"] = sum(r >= RECALL_OK for r in cell["rates"]) / len(cell["rates"])
+            for key, name in (
+                ("first", "first_hidden_ticks"), ("median", "median_recall_ticks"), ("train", "train_ticks")
+            ):
                 if cell[key]:
                     present = [v for v in cell[key] if v is not None]
                     entry[name] = statistics.median(present) if present else None
@@ -416,6 +463,10 @@ def print_block(noise: float, rows: Sequence[Mapping[str, Any]]) -> None:
             extra = f"  vrest {v['vrest']:4.0%}" if "vrest" in v else ""
             if "recall_rate" in v:
                 extra += f"  recall {v['recall_rate']:.0%}"
+            if "recall_ok" in v:
+                extra += f" (ok {v['recall_ok']:.0%} of runs)"
+            if "train_ticks" in v:
+                extra += f"  train {_fmt_ticks(v['train_ticks'])}"
             if "first_hidden_ticks" in v:
                 extra += f"  first {_fmt_ticks(v['first_hidden_ticks'])}"
             if "median_recall_ticks" in v:
@@ -449,6 +500,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("--noise", type=float, default=0.03)
     parser.add_argument("--headings", type=int, default=None, metavar="N",
                         help="vary the start heading: N headings for open scenarios, 5 fixed for the maze")
+    parser.add_argument("--maze-headings", default=None, metavar="SET",
+                        help="maze start headings: 'default' (5 near 0), 'full' (16 over the circle) or N")
     parser.add_argument("--noise-both", action="store_true",
                         help="--noise over seeds, plus noise 0 over headings (8 or --headings N; maze 5)")
     parser.add_argument("--ticks", type=int, default=None, help="override every scenario's tick budget")
@@ -461,6 +514,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         parser.error("--seeds must be >= 1")
     if args.headings is not None and args.headings < 1:
         parser.error("--headings must be >= 1")
+    if args.maze_headings is not None:
+        try:
+            maze_heading_set(args.maze_headings)
+        except ValueError as exc:
+            parser.error(str(exc))
     if args.noise_both and args.noise == 0.0:
         parser.error("--noise-both already runs a noise-0 block; give a nonzero --noise for the seed block")
 
@@ -473,9 +531,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     seeds = range(args.seed_start, args.seed_start + args.seeds)
     if args.noise_both:
         rows = sweep_both(scenarios, gains, seeds, args.noise, overrides, args.ticks, args.workers,
-                          args.headings or NOISE_BOTH_HEADINGS)
+                          args.headings or NOISE_BOTH_HEADINGS, args.maze_headings)
     else:
-        rows = sweep(scenarios, gains, seeds, args.noise, overrides, args.ticks, args.workers, args.headings)
+        rows = sweep(scenarios, gains, seeds, args.noise, overrides, args.ticks, args.workers, args.headings,
+                     args.maze_headings)
     if args.json:
         print(json.dumps(rows, indent=1))
         return

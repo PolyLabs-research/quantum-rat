@@ -536,6 +536,7 @@ export class LiveController {
       whiskers: f.vision.whiskers,
       pain: f.vision.pain,
       replayCell: f.replay.cell,
+      goalCell: f.goal ?? null,
       microsleep: f.microsleep.active,
       trail: this.trail,
     });

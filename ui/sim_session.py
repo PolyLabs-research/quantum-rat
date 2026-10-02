@@ -258,6 +258,11 @@ class SimSession:
             (bx, by), _ = vm.trajectory[ctx.replay_index]
             replay_cell = self._cell_center(bx, by)
         scores = ctx.action_scores if ctx else {}
+        goal_cell = None  # the goal-vector memory, in world coordinates (only when that memory is on)
+        goal = eng.goal_point() if eng.config.value_memory.goal_vector else None
+        if goal is not None:
+            gx, gy, _ = _to_world(goal[0], goal[1], 0.0)
+            goal_cell = [_r(gx, 3), _r(gy, 3)]
         return {
             "tick": self.tick,
             "agent": {
@@ -277,7 +282,9 @@ class SimSession:
                 "cue_gate": _r(ctx.cue_gate if ctx else 1.0),
                 "wall_gate": _r(ctx.wall_gate if ctx else 1.0),
                 "steer": eng.config.basal_ganglia.value_steer,
+                "goal_vector": bool(ctx and ctx.goal_vector_active),
             },
+            "goal": goal_cell,
             "vision": {
                 "rays": rays,
                 "range": _r(sensors.vision_range, 3),

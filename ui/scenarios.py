@@ -29,9 +29,16 @@ START_POSE: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # x, y, heading (all s
 # Homeostatic pacing for the energy-limited task scenarios (beacon, foraging,
 # hazard_field): once ATP drops below pace_low the agent rests until it has
 # recovered to pace_high, instead of running itself into microsleep. It stays
-# off in the core engine and in open_field (the microsleep/replay demo) and
-# memory_maze (the rest-off -> path-integration-drift demo).
+# off in the core engine and in open_field (the microsleep/replay demo).
+# memory_maze paces with a higher threshold (MAZE_PACE_LOW).
 PACE_REST_BONUS = 5.0
+# memory_maze rests before ATP reaches the level (0.55) below which the TRN
+# narrows the sensory gate. The gate also scales the egomotion fed to path
+# integration, so a long search on the visible trial (a start facing away
+# from the goal) would otherwise shift the agent's internal frame by up to 12 m,
+# and the goal it learns would be in the wrong place. The default pace_low
+# (0.4) lies below that level and does not prevent the shift.
+MAZE_PACE_LOW = 0.6
 
 
 def paced_basal_ganglia() -> BasalGangliaConfig:
@@ -288,8 +295,14 @@ class MemoryMaze(Scenario):
         "Turn replay off and restart to compare: online learning alone still recalls, but each "
         "recall takes longer (median ~16 vs ~10 ticks), so fewer fit in a session. The very first "
         "hidden trial is not faster with replay (15 vs 13 ticks at the default goal)",
-        "Turn the inter-trial rest off: the agent tires, its sensory gate narrows, path "
-        "integration drifts (the hollow ghost) and recall starts to fail",
+        "Turn the inter-trial rest off: the agent now has to stop and recover mid-trial "
+        "(fatigue pacing), so recalls take longer and fewer fit in a session. Set fatigue "
+        "pacing to 0 as well: the agent tires, its sensory gate narrows, path integration "
+        "drifts (the hollow ghost) and recall starts to fail",
+        "Started facing away from the goal, the visible trial is a long search, so the replayed "
+        "gradient has faded to nothing at the start. Sleep also stores the goal's place, and where "
+        "the map is flat the agent turns toward it (goal vector). Fatigue pacing keeps the "
+        "sensory gate open during the search so that place is stored where it really is",
     )
     GOAL = (6.0, 3.0)
     RADIUS = 1.5
@@ -307,7 +320,11 @@ class MemoryMaze(Scenario):
         self.goal_visible = True
 
     def config(self) -> EngineConfig:
-        return memory_nav_config()
+        config = memory_nav_config()
+        config.value_memory.goal_vector = True
+        config.basal_ganglia.pace_rest_bonus = PACE_REST_BONUS
+        config.basal_ganglia.pace_low = MAZE_PACE_LOW
+        return config
 
     def setup(self, engine: Engine) -> None:
         super().setup(engine)
