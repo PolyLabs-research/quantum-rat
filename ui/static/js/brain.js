@@ -19,7 +19,6 @@ function divergingBar(fill, value, scale) {
   fill.style.width = `${Math.abs(f) * 50}%`;
 }
 
-/** A status chip: colour + icon + label, never colour alone. */
 // Microsleep replay: which step of the recent path (counted back from sleep
 // onset) is being replayed. Legacy replay (value_memory.replay_recent off) has
 // no span and shows the TRN buffer index instead.
@@ -28,6 +27,7 @@ function replayText(r) {
   return r.cell ? `Replaying step ${r.index}` : 'Replay (nothing to replay)';
 }
 
+/** A status chip: colour + icon + label, never colour alone. */
 export function chip(status, icon, label) {
   return el('span', { class: 'chip', dataset: { status } }, el('span', { class: 'chip-icon', 'aria-hidden': 'true', text: icon }), label);
 }
@@ -105,6 +105,9 @@ export class DecisionPanel {
           ? el('div', {}, 'Memory muted: target in view')
           : el('div', {}, 'Memory dimmed: target in view ', el('span', { class: 'num', text: `×${fmt(gate, 2)}` })),
       );
+    }
+    if (action.goal_vector) {
+      lines.push(el('div', {}, 'Value map flat here: turning toward the remembered goal (goal vector)'));
     }
     const wall = action.wall_gate ?? 1;
     if (wall < 0.99) {

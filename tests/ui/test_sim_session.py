@@ -140,6 +140,18 @@ def test_memory_maze_recalls_hidden_goal_repeatedly_with_rest():
     assert all(t["reached"] for t in hidden)
 
 
+def test_memory_maze_frame_shows_the_goal_memory():
+    session = SimSession("memory_maze")
+    assert session.frame()["goal"] is None  # nothing consolidated yet
+    while not session.scenario.history:
+        session.step(1)
+    frame = session.frame()  # training ended: sleep replay stored the goal's place cell
+    gx, gy = frame["goal"]
+    assert abs(gx - 6.0) < 2.0 and abs(gy - 3.0) < 2.0  # at the goal disk's edge (radius 1.5)
+    assert frame["action"]["goal_vector"] in (True, False)
+    assert SimSession("foraging").frame()["goal"] is None  # the goal vector is off there
+
+
 def test_memory_maze_actions():
     session = SimSession("memory_maze")
     session.do_action("toggle_replay")

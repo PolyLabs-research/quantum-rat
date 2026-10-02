@@ -12,12 +12,13 @@ from brain.systems.basal_ganglia import (
     TURN_STEP,
     VALUE_STEER_MODES,
     cue_gate_weight,
+    goal_vector_signals,
     select_action_with_scores,
     split_value_signals,
     wall_gate_signals,
 )
 from brain.systems.criticality import CriticalityField, near_critical_gain
-from brain.systems.spatial import SpatialSystem
+from brain.systems.spatial import SpatialSystem, wrap_angle
 from brain.systems.trn_microsleep_replay import TRNGate
 from brain.systems.value_memory import Transition, ValueMemory
 from brain.systems.working_memory import WorkingMemory
@@ -30,6 +31,8 @@ from core.rng import RNG, RNGStream
 from core.sensors import gather_observation, observation_checksum
 from core.world import World, WorldObject
 from metrics.schema import TickData
+
+GOAL_VECTOR_SOURCES = ("replay", "online")
 
 
 @dataclass
@@ -87,6 +90,8 @@ class EngineContext:
     replay_cell: Tuple[int, int] | None = None
     replay_back: int = 0
     replay_span: int = 0
+    target_contact: bool = False  # touching a target this tick (the primary contact reward)
+    goal_vector_active: bool = False  # the value signals came from the goal-vector memory
     tick_data: TickData | None = None
 
 
@@ -140,6 +145,10 @@ class Engine:
         # snapshotted at sleep onset, most recent first, and the replay step within it.
         self._replay_plan: List[Transition] | None = None
         self._replay_step = 0
+        # Goal-vector extinction: whether the agent is inside the remembered goal's
+        # radius on this visit, and whether it found reward there.
+        self._goal_visit = False
+        self._goal_visit_rewarded = False
         self.criticality = CriticalityField(stream=self.streams["criticality"], config=c.criticality)
         self.trn_gate = TRNGate(
             trigger_atp=c.trn.trigger_atp,
@@ -327,12 +336,14 @@ class Engine:
         primary = -r.pain_weight * pain if pain > self.map_pain_floor() else 0.0
         learn_shaping = self.config.value_memory.learn_shaping
         nearest = self._nearest_target(ctx.pos)
+        ctx.target_contact = False
         if nearest is None:
             self._prev_target_dist = None
             self._prev_target = None
             ctx.map_reward = reward if learn_shaping else primary
             return reward
         dist, obj = nearest
+        ctx.target_contact = dist <= 0.0
         # Approach shaping rewards closing the distance to the *same* target.
         # When the target set changes under the agent (food eaten, a beacon
         # moved), the distance jumps for reasons that are not the agent's
@@ -356,6 +367,8 @@ class Engine:
     # fans reach ~80 degrees so a value peak off to the side reads as "turn that
     # way" rather than a false local maximum where every sampled step is downhill.
     VALUE_FAN_OFFSETS = (TURN_STEP, 0.8, 1.4)
+    # Largest sampled advantage below which the map counts as locally flat.
+    VALUE_FLAT = 1e-3
 
     def _value_signals(self, ctx: EngineContext) -> Tuple[float, float, float]:
         """Steer toward higher-value directions (memory-guided navigation).
@@ -369,6 +382,9 @@ class Engine:
         (ahead, best-left, best-right) divided by the largest magnitude. Both are
         relative to the local relief, so they are decisive on a real gradient,
         silent on a locally flat map, and need no re-tuning to the reward scale.
+        With ``value_memory.goal_vector`` on and a goal remembered, a map whose
+        largest sampled advantage is below ``goal_vector_flat`` hands over to
+        ``goal_vector_signals``: turn toward the remembered goal's place.
         """
         look = self.config.value_memory.lookahead
         here = self.value_memory.value_of(self.spatial.bins_at(ctx.grid_x, ctx.grid_y))
@@ -383,14 +399,61 @@ class Engine:
         left = [advantage(hd + off) for off in self.VALUE_FAN_OFFSETS]
         right = [advantage(hd - off) for off in self.VALUE_FAN_OFFSETS]
         scale = max(abs(x) for x in [ahead, *left, *right])
+        vm = self.config.value_memory
+        ctx.goal_vector_active = False
+        goal = self.goal_point() if vm.goal_vector else None
+        if goal is not None and scale < vm.goal_vector_flat:
+            # The map gives no direction here; steer by the remembered goal vector.
+            ctx.goal_vector_active = True
+            dx, dy = goal[0] - ctx.grid_x, goal[1] - ctx.grid_y
+            bearing = wrap_angle(math.atan2(dy, dx) - hd)
+            return goal_vector_signals(bearing, math.hypot(dx, dy), vm.goal_turn_dead_zone, vm.goal_turn_ramp)
         bg = self.config.basal_ganglia
         if bg.value_steer == "split":
             return split_value_signals(ahead, max(left), max(right), scale, bg)
         if bg.value_steer != "maxnorm":
             raise ValueError(f"Unknown value_steer {bg.value_steer!r}; expected one of {VALUE_STEER_MODES}")
-        if scale < 1e-3:  # locally flat map -> no steer
+        if scale < self.VALUE_FLAT:  # locally flat map -> no steer
             return 0.0, 0.0, 0.0
         return ahead / scale, max(left) / scale, max(right) / scale
+
+    def goal_point(self) -> Tuple[float, float] | None:
+        """The remembered goal (centre of ``value_memory.goal_cell``) in the path-integration frame."""
+        cell = self.value_memory.goal_cell
+        if cell is None:
+            return None
+        b = self.spatial.bin_size
+        return (cell[0] + 0.5) * b, (cell[1] + 0.5) * b
+
+    def _update_goal_memory(self, ctx: EngineContext) -> None:
+        """Goal-vector bookkeeping: online writing (if configured) and extinction.
+
+        With ``goal_vector_source == "replay"`` (the default) only replaying a
+        rewarded transition writes the goal (``ValueMemory.replay_backup``);
+        with ``"online"`` target contact also writes the current place cell.
+        Extinction: a visit to the goal's own place cell (entering it and
+        leaving again) without target contact erases the memory, so a goal that
+        moved, or a place that path-integration drift has displaced, stops
+        pulling the agent once it has been checked.
+        """
+        vm_cfg = self.config.value_memory
+        if vm_cfg.goal_vector_source not in GOAL_VECTOR_SOURCES:
+            raise ValueError(
+                f"Unknown goal_vector_source {vm_cfg.goal_vector_source!r}; expected one of {GOAL_VECTOR_SOURCES}"
+            )
+        here = self.spatial.bins_at(ctx.grid_x, ctx.grid_y)
+        if ctx.target_contact and vm_cfg.goal_vector_source == "online":
+            self.value_memory.goal_cell = here
+        if self.value_memory.goal_cell is None:
+            self._goal_visit = self._goal_visit_rewarded = False
+            return
+        if here == self.value_memory.goal_cell:
+            self._goal_visit = True
+            self._goal_visit_rewarded = self._goal_visit_rewarded or ctx.target_contact
+        elif self._goal_visit:
+            if not self._goal_visit_rewarded:
+                self.value_memory.goal_cell = None  # checked and found empty
+            self._goal_visit = self._goal_visit_rewarded = False
 
     def _brain_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
@@ -408,6 +471,8 @@ class Engine:
             ctx.map_reward,
             dwell_extinction=self.config.value_memory.dwell_extinction,
         )
+        if self.config.value_memory.goal_vector:
+            self._update_goal_memory(ctx)
 
         bg = self.config.basal_ganglia
         # Memory-guided steer from the consolidated value map, muted while a
@@ -524,6 +589,7 @@ class Engine:
         self._prev_target_dist = None
         self._prev_target = None
         self._freeze_level = 0.0
+        self._goal_visit = self._goal_visit_rewarded = False
         self.value_memory.reset_episode()
 
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:

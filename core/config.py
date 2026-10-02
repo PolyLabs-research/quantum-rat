@@ -99,6 +99,31 @@ class ValueMemoryConfig:
     # ~150-200 ticks old, every second one, in forward order. TickData.replay_index
     # is the TRN index either way.
     replay_recent: bool = True
+    # Goal-vector memory: remember the place cell where reward was found and,
+    # wherever the value map is locally flat (largest sampled advantage below
+    # goal_vector_flat), turn toward it by path integration. The TD map's
+    # values fall by ``discount`` per step of the demonstration, so after a long
+    # first trial (a start facing away from the goal: 34-129 ticks of search)
+    # the start region reads as flat and the map alone gives no direction; the
+    # vector does. ``goal_vector_source``: "replay" (default) writes the goal
+    # only when a rewarded transition is replayed (sleep consolidation or
+    # microsleep replay), so it is a product of consolidation like the
+    # replayed gradient; "online" also writes it on target contact. A visit to
+    # the goal's own place cell that finds no reward erases it (extinction).
+    # The turn command is sign(b) * clip((|b| - goal_turn_dead_zone) /
+    # goal_turn_ramp, 0, 1) for the bearing b to the goal's cell centre, with
+    # FORWARD giving way by the same amount, and nothing while the goal lies
+    # inside the ~1 m circle a run of turns traces (turning would orbit it; see
+    # brain.systems.basal_ganglia.goal_vector_signals). False disables.
+    goal_vector: bool = False
+    goal_vector_source: str = "replay"
+    # The vector steers only where the map's largest sampled advantage is below
+    # this (the map's own flatness threshold, Engine.VALUE_FLAT, where split and
+    # max-norm steering give no command). A huge value gives the vector
+    # precedence whenever a goal is held (measured, not the default).
+    goal_vector_flat: float = 1e-3
+    goal_turn_dead_zone: float = 0.15  # radians (half a TURN_STEP)
+    goal_turn_ramp: float = 0.3  # radians (one TURN_STEP); <= 0 makes it a step
 
 
 @dataclass

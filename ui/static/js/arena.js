@@ -29,6 +29,7 @@ export class ArenaView {
       whiskers: [false, false],
       pain: 0,
       replayCell: null,
+      goalCell: null, // the remembered goal (goal-vector memory), world coordinates
       microsleep: false,
       targetLabel: 'target',
       layers: { value: true, rays: true, trail: true, estimate: true },
@@ -175,6 +176,19 @@ export class ArenaView {
       ctx.strokeRect(X(rx - c), Y(ry + c), 2 * c * k, 2 * c * k);
       ctx.setLineDash([]);
       this._label(ctx, 'replay', X(rx), Y(ry + c) - 4, 'bottom');
+    }
+
+    // Goal-vector memory: where the brain remembers finding reward.
+    if (s.goalCell) {
+      const [gx, gy] = s.goalCell;
+      ctx.strokeStyle = T['ink-1'];
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.arc(X(gx), Y(gy), 0.4 * k, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      this._label(ctx, 'goal memory', X(gx), Y(gy) - 0.4 * k - 4, 'bottom');
     }
 
     // Objects.

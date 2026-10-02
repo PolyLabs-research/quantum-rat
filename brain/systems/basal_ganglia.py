@@ -15,6 +15,11 @@ from brain.contracts import Action, Observation
 from core.config import BasalGangliaConfig
 
 TURN_STEP = 0.3  # radians per tick equivalent
+TURN_THRUST = 0.3  # forward thrust of a TURN action
+# Radius of the circle a run of TURN actions traces (chord TURN_THRUST per
+# TURN_STEP of heading): about 1.0 m. A point inside that circle cannot be
+# reached by turning toward it.
+TURN_RADIUS = TURN_THRUST / (2.0 * math.sin(TURN_STEP / 2.0))
 
 
 def _vision_signals(observation: Observation):
@@ -238,6 +243,30 @@ def split_value_signals(
     return fwd, tl, tr
 
 
+def goal_vector_signals(
+    bearing: float, distance: float, dead_zone: float, ramp: float, turn_radius: float = TURN_RADIUS
+) -> Tuple[float, float, float]:
+    """Value signals that turn toward a remembered goal. A pure function of its arguments.
+
+    ``bearing`` is the direction of the remembered goal relative to the current
+    heading, wrapped to [-pi, pi] (positive = to the left), and ``distance`` how
+    far away it is. The turn toward it is ``clip((|bearing| - dead_zone) / ramp,
+    0, 1)`` (a step when ``ramp <= 0``), and FORWARD gives way by the same
+    amount, as in split steering's "oppose" mode. No command is given when the
+    agent faces the goal (inside the dead zone), so the vector never adds a push
+    to go forward and cannot hold the agent against a wall, and ``max(signals)
+    >= 0`` as for split steering. No command is given either when the goal lies
+    inside the circle that turning toward it would trace (``distance < 2 *
+    turn_radius * sin|bearing|``): turning cannot reach such a point and would
+    orbit it, so the agent carries on until the goal is outside that circle.
+    """
+    excess = abs(bearing) - dead_zone
+    if excess <= 0.0 or distance < 2.0 * turn_radius * math.sin(abs(bearing)):
+        return 0.0, 0.0, 0.0
+    t = 1.0 if ramp <= 0.0 else min(1.0, excess / ramp)
+    return (-t, t, 0.0) if bearing > 0.0 else (-t, 0.0, t)
+
+
 ACTION_ORDER = ("FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST")
 
 
@@ -245,9 +274,9 @@ def _action_for(name: str) -> Action:
     if name == "FORWARD":
         return Action(name="FORWARD", thrust=1.0, turn=0.0)
     if name == "TURN_LEFT":
-        return Action(name="TURN_LEFT", thrust=0.3, turn=TURN_STEP)
+        return Action(name="TURN_LEFT", thrust=TURN_THRUST, turn=TURN_STEP)
     if name == "TURN_RIGHT":
-        return Action(name="TURN_RIGHT", thrust=0.3, turn=-TURN_STEP)
+        return Action(name="TURN_RIGHT", thrust=TURN_THRUST, turn=-TURN_STEP)
     return Action(name="REST", thrust=0.0, turn=0.0)
 
 
@@ -327,10 +356,13 @@ __all__ = [
     "select_action",
     "select_action_with_scores",
     "cue_gate_weight",
+    "goal_vector_signals",
     "split_value_signals",
     "wall_gate_signals",
     "ACTION_ORDER",
     "TURN_STEP",
+    "TURN_THRUST",
+    "TURN_RADIUS",
     "VALUE_STEER_MODES",
     "VALUE_AHEAD_MODES",
 ]

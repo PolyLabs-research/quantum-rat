@@ -72,6 +72,12 @@ class ValueMemory:
         # even when a caller clears ``trajectory`` (see ``_is_linked``).
         self._linked: Deque[bool] = deque(maxlen=capacity)
         self._prev_cell: Optional[Cell] = None  # last place, for the online TD transition
+        # Goal-vector memory: the arrival cell of the last replayed transition
+        # with positive reward (see replay_backup). With the default
+        # primary-only map that is target contact; with learn_shaping on,
+        # approach steps carry positive reward too and would also be written.
+        # Only read when the engine's value_memory.goal_vector is on.
+        self.goal_cell: Optional[Cell] = None
 
     def _kernel(self, cell: Cell) -> Iterable[Tuple[Cell, float]]:
         """Yield (cell, weight) over a neighbourhood; just the centre if radius 0."""
@@ -171,6 +177,9 @@ class ValueMemory:
         from_cell, to_cell, reward_on_arrival = transition
         charge = self._dwell_charge(from_cell, to_cell, self._extinction(dwell_extinction))
         self._td_update(from_cell, reward_on_arrival - charge + self.gamma * self.values.get(to_cell, 0.0))
+        if reward_on_arrival > 0.0:
+            # Replaying a rewarded arrival writes its place as the goal.
+            self.goal_cell = to_cell
 
     def replay_transition(self, index: int, dwell_extinction: Optional[float] = None) -> None:
         """Replay the stored transition at ``index`` (see ``replay_backup``); a no-op

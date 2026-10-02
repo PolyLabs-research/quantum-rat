@@ -416,10 +416,14 @@ def test_pacing_off_by_default_is_a_no_op():
     assert lows > 0
 
 
-def test_pacing_is_on_only_in_the_energy_limited_scenarios():
+def test_pacing_is_on_in_the_task_scenarios_only():
     bonus = {sid: make_scenario(sid).config().basal_ganglia.pace_rest_bonus for sid in
              ("open_field", "beacon", "foraging", "hazard_field", "memory_maze")}
-    assert bonus == {"open_field": 0.0, "beacon": 5.0, "foraging": 5.0, "hazard_field": 5.0, "memory_maze": 0.0}
+    assert bonus == {"open_field": 0.0, "beacon": 5.0, "foraging": 5.0, "hazard_field": 5.0, "memory_maze": 5.0}
+    # The maze rests before ATP reaches the TRN's narrowing level (0.55), so its
+    # path integration stays exact through a long visible-trial search.
+    maze = make_scenario("memory_maze").config()
+    assert maze.basal_ganglia.pace_low * maze.astrocyte.atp_baseline > 0.55
 
 
 # ---------------------------------------------------- per-engine state isolation
@@ -472,6 +476,8 @@ ALL_OFF = {
     "basal_ganglia.value_steer": "maxnorm",
     "basal_ganglia.wall_gate_gain": 0.0,
     "value_memory.replay_recent": False,
+    "value_memory.goal_vector": False,
+    "basal_ganglia.pace_low": 0.4,
 }
 LEGACY_HASHES = json.loads((Path(__file__).with_name("steering_legacy_hashes.json")).read_text())
 
