@@ -16,7 +16,7 @@ than decaying it toward the immediate (zero) reward -- the bug that an
 The same TD update is applied online (as the agent moves) and offline during
 replay (``replay_backup`` / ``replay_transition`` / ``consolidate``), which
 propagates value backward along the stored trajectory. Microsleep replays the
-recent path in reverse (``recent_transitions``, see ``Engine._trn_step``).
+recent path in reverse (``recent_transitions``, see ``Engine._replay``).
 ``reset_episode`` marks a boundary in the trajectory, and no replay links a
 transition across it. Values generalize to neighbouring
 cells with a decaying kernel (overlapping place fields;
