@@ -33,7 +33,7 @@ def test_regression_report_stability():
         subprocess.run([
             "python3", "-m", "tournaments.runner",
             "--seed", "1337", "--n-agents", "4", "--ticks", "200",
-            "--protocols", "open_field,morris_water_maze", "--out", str(baseline_dir)
+            "--protocols", "open_field,beacon,foraging", "--out", str(baseline_dir)
         ], check=True)
 
         report1_path = tmpdir_path / "report1.json"

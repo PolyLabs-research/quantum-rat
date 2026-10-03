@@ -68,9 +68,10 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 
 ## 10) Assays + UI parity (Milestone 6)
 - [x] Headless experiment runner works (`experiments/runner.py`, `tests/experiments/test_protocol_lifecycle.py`) — proof: `artifacts/agentG_milestone6_proof.md`, `artifacts/agentH_milestone6_proof.md`
-- [x] Open Field / T-Maze / Water Maze / Survival implemented as protocols (`experiments/protocols/`)
+- [x] Open Field implemented as a protocol; T-Maze / Water Maze / Survival exist as the toys `t_maze_toy`, `morris_water_maze_toy`, `survival_arena_toy` (`experiments/protocols/`)
+  - Renamed `_toy` (2026-10-03, research plan M0a): the water maze has no pool and no probe trial and its platform is reached in 5 ticks by walking forward (two of five placements never within 2,000 ticks); the T-maze has no T and is reached in 6 ticks; the survival arena has no hazard the agent can sense (`tools/probes/assay_triviality`, `neuromod_traces`). The regression harness now runs `open_field,beacon,foraging`. The real water-maze protocol is `docs/research_plan.md` M4b.
 - [x] Flask UI reads from Engine history / run logs (no direct World access) — replay GUI proof: `artifacts/agentR_replay_gui_proof.md`
-  - Done (2026-10-01): assay position references are now consistent — t_maze scores off true `pos`, like the other assays. Added a `beacon` assay (sense a single target) and a multi-landmark `foraging` assay (collect several scattered targets); both genuinely depend on vision (`tests/experiments/test_beacon_perception.py`, `test_foraging.py`).
+  - Done (2026-10-01): assay position references are now consistent — `t_maze_toy` (then `t_maze`) scores off true `pos`, like the other assays. Added a `beacon` assay (sense a single target) and a multi-landmark `foraging` assay (collect several scattered targets); both genuinely depend on vision (`tests/experiments/test_beacon_perception.py`, `test_foraging.py`).
 
 ## 11) Agent container + tournaments (Milestone 7)
 - [x] AgentDNA + Agent container implemented (`agents/dna.py`, `agents/agent.py`) — proof: `artifacts/agentJ_milestone7_proof.md`

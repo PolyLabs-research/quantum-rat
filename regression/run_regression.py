@@ -20,7 +20,7 @@ def run_regression(baseline_dir: Path, report_file: Path) -> None:
             "--seed", "1337",
             "--n-agents", "4",
             "--ticks", "200",
-            "--protocols", "open_field,morris_water_maze",
+            "--protocols", "open_field,beacon,foraging",
             "--out", str(candidate_dir),
         ]
         subprocess.run(tournament_cmd, check=True, capture_output=True, text=True)

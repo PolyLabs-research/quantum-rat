@@ -1,3 +1,23 @@
+"""Toy survival-arena protocol (headless): a damage counter on x.
+
+What it is: ticks with true x above ``hazard_x_thresh`` (default 7.0) add 1
+damage, ticks with x below ``safe_x_thresh`` (default -7.0) remove 0.5, and
+the run ends when damage reaches ``damage_limit``. The score is ticks survived
+minus 2 per hazard tick plus 0.5 per safe tick.
+
+What it is not: the hazard is a protocol-side threshold, not a World hazard.
+The agent has no sensory access to it: no pain, no vision ray and no reward
+reports it, so nothing the brain does can respond to it. Reward is zero on
+every tick, so dopamine and serotonin sit at exactly 0.5 for the whole run at
+sensor noise 0 (``python -m tools.probes.neuromod_traces``, recorded in
+tools/probes/README.md), and what the score mostly measures is the energy
+limit cycle of the default agent (``python -m tools.probes.energy_limit_cycle``).
+
+It is kept as a toy under the legacy profile. For a hazard the agent can
+sense, use the console's hazard-field scenario (ui/scenarios.py), whose
+hazards are World objects with pain zones.
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -7,7 +27,7 @@ from metrics.schema import TickData
 
 
 class SurvivalArenaProtocol(Protocol):
-    name = "survival_arena"
+    name = "survival_arena_toy"
 
     def __init__(self, config: dict | None = None) -> None:
         cfg = config or {}

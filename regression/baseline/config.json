@@ -1,1 +1,1 @@
-{"protocols":[{"name":"open_field","ticks":200},{"name":"morris_water_maze","ticks":200}],"seed":1337}
+{"protocols":[{"name":"open_field","ticks":200},{"name":"beacon","ticks":200},{"name":"foraging","ticks":200}],"seed":1337}
