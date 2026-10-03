@@ -55,7 +55,7 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   9/14/15/13 ticks); the robust benefit in the console's maze is more recalls per session (about
   300 vs 240 recalls in 3,000 ticks at seed 1337; the median recall is 10 vs 16 ticks over the
   first 1,500 ticks and 10 vs 10 by 3,000), not a faster first recall. Place values generalise to
-  neighbouring cells (overlapping place fields), so this works at the engine's default spatial
+  neighbouring cells (a Chebyshev kernel of radius 2 with falloff 0.5; there are no place fields), so this works at the engine's default spatial
   resolution and forward bias; the same kernel inflates the values (max V 2.1 after one visible
   trial for a reward of 1.0; on a 12-cell chain with one reward of 1.0, up to 6.6 at radius 2 and
   10 at radius 1, against 1.0 at radius 0), so V is not an expected return. Memory
@@ -148,7 +148,7 @@ works offline.
 | Foraging patch | Five food items, wide field of view; reward builds the value map |
 | Hazard field | Food behind hazards; pain raises norepinephrine and the value map turns red there |
 | Hidden food | Invisible food at six fixed sites regrows after it is eaten; the value map marks recent finds and the agent searches near them (not site memory, G21) |
-| Memory maze | Water-maze recall: one visible trial, sleep/replay, then navigate to the hidden goal from memory |
+| Memory maze | Hidden-goal recall: one visible trial, sleep/replay, then navigate to the hidden goal from memory |
 
 Panels: the arena (value map, vision rays coloured by what they hit, whiskers, pain zones, trail,
 and a dashed "ghost" where path integration *thinks* the body is), the basal-ganglia decision

@@ -299,7 +299,7 @@ class HazardField(Scenario):
 class MemoryMaze(Scenario):
     id = "memory_maze"
     title = "Memory maze"
-    summary = "Water-maze recall: find a visible goal once, then return to it after it is hidden."
+    summary = "Hidden-goal recall: find a visible goal once, then return to it after it is hidden."
     watch = (
         "Trial 1: vision guides the agent to the goal, laying down a trajectory",
         "Sleep: replay propagates value backward along the path (watch the value map light up)",

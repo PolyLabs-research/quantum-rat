@@ -1,4 +1,6 @@
-"""Criticality is coupled to cognition: near-critical dynamics give maximal gain."""
+"""The criticality-gain coupling (basal_ganglia.criticality_gain, 0 by default): the gain curve
+peaks at kappa = 1 and, at the default coupling, changes no decision in the probed worlds
+(tools/probes/dormant_couplings). These tests pin the legacy mechanism; see docs/decisions.md G22."""
 
 from brain.contracts import Observation, VisionRay
 from brain.systems.basal_ganglia import _channel_scores

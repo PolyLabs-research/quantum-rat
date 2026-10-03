@@ -1,4 +1,7 @@
-"""Dopamine is now a causal reward-prediction-error signal, not a random walk."""
+"""Dopamine trace: reward minus a running mean of reward, deterministic (not a random walk).
+
+The original milestone called it a causal reward-prediction-error signal; it is a scalar
+readout with a small coupling into exploration. See docs/decisions.md G22."""
 
 from core.engine import Engine
 from core.neuromodulation import NeuromodulatorSystem
