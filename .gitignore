@@ -12,3 +12,9 @@ __pycache__/
 # Local virtual environments
 .venv/
 venv/
+
+# Packaging: pip install -e . writes egg-info; wheels and sdists go to build/ and dist/
+*.egg-info/
+/build/
+/dist/
+.venv-pkg/

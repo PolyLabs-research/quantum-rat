@@ -127,6 +127,29 @@ replay at all in this profile until M1 (`docs/profiles.md`). See `docs/profiles.
 
 ---
 
+## Install
+
+Python 3.11 (`requires-python >= 3.11`; CI runs 3.11). From a checkout:
+
+```bash
+pip install -e ".[console,dev]"
+```
+
+The package itself (`pip install -e .`) brings numpy, scipy, pandas, pyarrow and matplotlib; the
+`console` extra adds Flask for `python -m ui` and the `dev` extra adds pytest. `requirements.txt`
+lists the same version ranges. For the exact versions the suite was last run against, install
+from the lockfile and then the package without its dependencies:
+
+```bash
+pip install -r requirements.lock
+pip install -e . --no-deps
+```
+
+`requirements.lock` records the Python version and date it was resolved on; regenerate it with
+`pip freeze` in a fresh virtual environment after `pip install -e ".[console,dev]"`.
+
+---
+
 ## Run the lab console locally
 
 ```bash
@@ -236,3 +259,13 @@ tests/       – Determinism gate + unit/integration tests
 docs/        – Decisions log, research plan, architecture/spec notes
 artifacts/   – Agent proof artifacts, run evidence, etc.
 ```
+
+---
+
+## Licence and citation
+
+The code is under the MIT licence (`LICENSE`). The documentation in `docs/` (including the
+decisions log) and the figures are under CC BY 4.0 (`LICENSE-docs`,
+https://creativecommons.org/licenses/by/4.0/). To cite the software, use `CITATION.cff` (GitHub
+renders it as "Cite this repository"). Releases are tagged per milestone (`docs/research_plan.md`
+§7): `v1.0-honest` is Milestone 0a, the legacy/research profile split (G22).

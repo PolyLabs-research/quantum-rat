@@ -1,0 +1,31 @@
+# Exact versions pip resolved for `pip install -e ".[console,dev]"` on 2026-10-03
+# with Python 3.11.15 (CPython, Linux x86_64, pip 26.2.1) in a fresh virtual environment.
+# This is the full dependency closure of pyproject.toml, extras included; the project itself is not listed.
+# Install:    pip install -r requirements.lock && pip install -e . --no-deps
+# Regenerate: pip freeze --exclude-editable in a fresh venv after the install above.
+
+blinker==1.9.0
+click==8.5.0
+contourpy==1.3.3
+cycler==0.12.1
+Flask==3.1.3
+fonttools==4.66.1
+iniconfig==2.3.0
+itsdangerous==2.2.0
+Jinja2==3.1.6
+kiwisolver==1.5.1
+MarkupSafe==3.0.4
+matplotlib==3.11.2
+numpy==2.4.6
+packaging==26.3
+pandas==3.0.6
+pillow==12.3.0
+pluggy==1.6.0
+pyarrow==25.0.1
+Pygments==2.21.0
+pyparsing==3.3.3
+pytest==8.4.2
+python-dateutil==2.9.0.post0
+scipy==1.17.1
+six==1.17.0
+Werkzeug==3.1.9

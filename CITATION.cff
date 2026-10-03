@@ -1,0 +1,29 @@
+# Citation metadata for quantum-rat (Citation File Format 1.2.0).
+# GitHub reads this file for its "Cite this repository" button.
+# The second author entry is a placeholder: fill in the person to be credited
+# (family-names, given-names and, if you have one, orcid), or delete it.
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+type: software
+title: "quantum-rat: a deterministic embodied rat-brain simulator and lab console"
+version: 1.0.0
+date-released: 2026-10-03
+license: MIT
+repository-code: "https://github.com/PolyLabs-research/quantum-rat"
+abstract: >-
+  A deterministic, seeded simulator of a 2-D embodied point agent with a
+  rat-inspired brain model, headless assays and tournaments, an analysis
+  pipeline, and a local lab console for live runs and tick-by-tick replay.
+  For a given seed, runs on the same platform reproduce the committed trace
+  hashes bit for bit, which the test suite checks.
+keywords:
+  - simulation
+  - hippocampal replay
+  - spatial memory
+  - determinism
+  - embodied agent
+authors:
+  - name: "PolyLabs Research"
+  - family-names: "Family-name"
+    given-names: "Given-name"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
