@@ -4,11 +4,13 @@ on:
   push:
   pull_request:
 
-# Determinism claim (docs/research_plan.md, §5 items 9 and 13): the committed
-# trace hashes are reproduced bit for bit on the same platform, which the Ubuntu
-# job checks. Across platforms only agreement within a stated tolerance is
-# claimed; the gate that measures it arrives in the next wave, so the macOS job
-# runs everything except the two bit-identity gates.
+# Determinism claim (docs/determinism.md; docs/research_plan.md §5 items 9 and
+# 13): the committed trace hashes are reproduced bit for bit on the same
+# platform, which the exact-hash gates in the Ubuntu job check. Across
+# platforms only agreement within a stated tolerance is claimed (1e-9 absolute
+# on floats, exact otherwise); the macOS job deselects the exact-hash gates and
+# runs the tolerance gate, tests/determinism/test_cross_platform_tolerance.py,
+# against the committed reference traces.
 jobs:
   tests:
     name: tests (${{ matrix.os }})
@@ -31,10 +33,19 @@ jobs:
       - name: Run tests (Ubuntu, full suite including the bit-identity gates)
         if: runner.os == 'Linux'
         run: python -m pytest -q
-      - name: Run tests (macOS, full suite minus the bit-identity gates)
+      - name: Run tests (macOS, full suite minus the exact-hash gates)
         if: runner.os == 'macOS'
-        # cross-platform bit identity is not claimed; the tolerance gate (plan §5 item 9) replaces this deselect in the next wave
+        # Same-platform bit identity is the Ubuntu job's claim; these gates
+        # compare against hashes recorded on Linux and are not claimed here.
         run: |
           python -m pytest -q \
             --deselect tests/determinism/test_trace_hash.py \
-            --deselect tests/engine/test_steering_robustness.py::test_all_features_off_reproduces_the_pre_redesign_traces
+            --deselect tests/determinism/test_trace_hash_split.py \
+            --deselect tests/engine/test_steering_robustness.py::test_all_features_off_reproduces_the_pre_redesign_traces \
+            --deselect tests/engine/test_profiles.py::test_legacy_profile_is_unchanged_and_matches_the_committed_baseline \
+            --deselect tests/regression/test_regression_against_baseline.py
+      - name: Cross-platform tolerance gate (macOS)
+        if: runner.os == 'macOS'
+        # The cross-platform claim: each profile's 200-tick trace agrees with
+        # the committed reference trace within tolerance (docs/determinism.md).
+        run: python -m pytest -q tests/determinism/test_cross_platform_tolerance.py

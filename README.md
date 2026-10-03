@@ -115,7 +115,9 @@ measure is reproducible. See `RECOMMENDATIONS.md` for what's done and what's nex
 
 Two configuration profiles exist. The **legacy profile** is `EngineConfig()` as it is today:
 every console scenario runs under it, the G-entries in `docs/decisions.md` were measured under
-it, and its traces are pinned bit-for-bit by the determinism gate. The **research profile**
+it, and its traces are pinned bit-for-bit by the determinism gate. What the gate hashes, the
+baselines per profile and the cross-platform tolerance gate are described in
+`docs/determinism.md`. The **research profile**
 (`EngineConfig.research()`, added in M0a, commit 95667ce) switches the toy mechanisms off for
 the research programme: the TRN gate no longer scales path integration, the energy model no
 longer scales motion and microsleep is off, the value kernel radius is 0, dwell extinction is 0,

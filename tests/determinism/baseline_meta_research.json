@@ -3,6 +3,17 @@
   "ticks": 200,
   "profile": "research",
   "schema_version": "2.1.6",
+  "hash_kinds": [
+    "full",
+    "behaviour",
+    "physics"
+  ],
+  "files": {
+    "full": "baseline_hashes_research.json",
+    "behaviour": "baseline_behaviour_research.json",
+    "physics": "baseline_physics_research.json",
+    "reference_trace": "reference_trace_research.jsonl"
+  },
   "generated_by": "update_determinism_baseline.py",
-  "generated_at_utc": "2026-10-03T14:51:48.854042+00:00"
+  "generated_at_utc": "2026-10-03T15:06:15.843576+00:00"
 }
