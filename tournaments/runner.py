@@ -1,4 +1,3 @@
-
 import argparse
 import json
 from pathlib import Path
@@ -21,13 +20,15 @@ def main() -> None:
     args = parse_args()
 
     outdir = Path(args.out)
-    
+
     if args.agents_json:
         with open(args.agents_json, "r") as f:
             agents_data = json.load(f)
         agents = [AgentDNA.from_json(json.dumps(data)) for data in agents_data]
+        agents_source = f"file: {args.agents_json}"
     else:
         agents = generate_population(args.seed, args.n_agents)
+        agents_source = f"generated from seed {args.seed} (n_agents {args.n_agents})"
 
     protocol_names = [p.strip() for p in args.protocols.split(",")]
     for p_name in protocol_names:
@@ -42,6 +43,7 @@ def main() -> None:
         protocols=protocols,
         outdir=outdir,
         include_ticks=args.include_ticks,
+        manifest_extra={"agents_source": agents_source},  # provenance only (manifest.json)
     )
     manager.run()
     print(f"Tournament finished. Results are in {outdir}")

@@ -224,6 +224,19 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   profile: no T, no pool or probe trial, no hazard the agent can sense; the first two are solved
   by walking forward (6 and 5 ticks). See their module docstrings and
   `tools/probes/assay_triviality`. The regression harness runs `open_field,beacon,foraging`.
+* `console_open_field`, `console_beacon`, `console_foraging`, `console_hazard_field`,
+  `console_hidden_food`, `console_memory_maze` — the lab console's six scenarios run headless
+  (`experiments/protocols/console.py`), with each scenario's own engine config and the engine
+  stepped before the scenario on every tick, as the live session does: a headless run writes
+  the same `ticks.jsonl` (and run hash) a live session of that scenario records at that seed.
+  They also write `events.jsonl`, the scenario's event log, and never end early.
+* Every run writes `manifest.json` beside `ticks.jsonl`, `scene.json` and `summary.json`
+  (`metrics/manifest.py`): git SHA and dirty flag, the full `EngineConfig` and its profile,
+  seeds, platform, Python and numpy versions, BLAS build and `*_NUM_THREADS` settings,
+  wall-clock and ticks/s. Provenance only: it enters no hash, and it is the one file in a run
+  with wall-clock time in it. Tournaments write one at their root; console recordings too.
+  `--profile legacy|research` picks the base config for protocols that do not supply their own
+  (the `console_*` ones do, and theirs wins; the manifest records both).
 
 ### Tournaments
 * **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.
