@@ -42,6 +42,8 @@ EngineConfig.legacy().diff(EngineConfig.research())         # the table below, a
 (the criticality coupling to cognition); these are already the legacy defaults
 (the console's maze scenarios set the radius to 2 themselves), so they are not
 in the diff. Kappa, avalanche sizes and the modulators are logged in both.
+`units` (`UnitsConfig`: 0.2 s per tick, 0.1 m per unit; docs/units.md, M0b item 6)
+is declared once and identical in both profiles, so it is not in the diff either.
 
 ATP also reaches action selection through the gate value, a route
 `scales_motion` does not touch: the FORWARD drive is `forward_bias` × gate
@@ -135,8 +137,6 @@ M2b work on.
   contact offsets the estimate once (0.47 units after 48 clamp ticks at seed 1
   with only the gate flag off; the gate's own capture was 22.8). M2b adds the
   reset.
-- Physical units: the arena is still 20 x 20 units with no declared metre or
-  second (M0b item 6).
 - A place population and a successor representation (M2b).
 - Replay as an event stream between ticks: with microsleep off there is no
   replay at all in this profile until M1 refactors it into an event object.

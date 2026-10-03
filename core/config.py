@@ -12,10 +12,75 @@ hardcoded values exactly.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, fields, is_dataclass
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Mapping, Tuple
 
 from brain.systems.criticality import CriticalityConfig
+
+
+@dataclass
+class UnitsConfig:
+    """Physical units, declared once (docs/units.md; docs/research_plan.md section 5, M0b item 6).
+
+    This is a declaration, not a mechanism: no engine constant reads it yet.
+    The engine moves in world units and ticks; these two numbers say what a
+    unit and a tick mean, so that every distance, speed and duration in a
+    write-up, and the durations in the replay metrics (plan section 2), are
+    expressed in metres and seconds through one place. The declaration is the
+    same in both profiles (``EngineConfig.legacy()`` and ``research()``).
+
+    Derived table at the defaults (dt_s 0.2, metres_per_unit 0.1):
+
+    - the 20 x 20 unit arena (``WorldConfig.bounds`` (10, 10)) is a 2 m x 2 m
+      open field;
+    - FORWARD, 1.0 unit per tick, is 0.5 m/s. Realised only where energy
+      scaling is off (the research profile); under the legacy throttle the
+      step is ``thrust * energy_scale``;
+    - a TURN, ``TURN_STEP`` 0.3 rad per tick, is 1.5 rad/s, and its
+      ``TURN_THRUST`` 0.3 unit per tick is 0.15 m/s. Heading is quantised in
+      0.3 rad steps: a kinematic constraint to state in every write-up;
+    - the memory maze's 300-tick trial timeout is the standard 60 s;
+    - for comparison, rats run tracks at 0.2-0.6 m/s (plan section 5, item 6).
+      The realised speeds are measured by tools/probes/realised_speed.
+
+    Rates per second multiply by :attr:`ticks_per_second` (1 / dt_s, exactly
+    5.0 at the default) rather than divide by ``dt_s``, so that the table
+    above holds to the last bit (0.3 / 0.2 reads 1.4999999999999998 in
+    binary floating point; 0.3 * 5.0 reads 1.5). :meth:`ticks` rounds to the
+    nearest whole tick, halves up (``floor(x + 0.5)``), so 0.1 s is 1 tick.
+    """
+
+    dt_s: float = 0.2  # seconds per engine tick
+    metres_per_unit: float = 0.1  # metres per world unit
+
+    def __post_init__(self) -> None:
+        if not (self.dt_s > 0.0 and self.metres_per_unit > 0.0):
+            raise ValueError(f"UnitsConfig needs positive dt_s and metres_per_unit, got {self.dt_s}, {self.metres_per_unit}")
+
+    @property
+    def ticks_per_second(self) -> float:
+        return 1.0 / self.dt_s
+
+    def seconds(self, ticks: float) -> float:
+        """Duration of ``ticks`` ticks in seconds."""
+        return ticks * self.dt_s
+
+    def ticks(self, seconds: float) -> int:
+        """Whole ticks in ``seconds``: the nearest integer, halves rounded up."""
+        return int(math.floor(seconds * self.ticks_per_second + 0.5))
+
+    def metres(self, units: float) -> float:
+        return units * self.metres_per_unit
+
+    def units(self, metres: float) -> float:
+        return metres / self.metres_per_unit
+
+    def metres_per_second(self, units_per_tick: float) -> float:
+        return units_per_tick * self.metres_per_unit * self.ticks_per_second
+
+    def radians_per_second(self, rad_per_tick: float) -> float:
+        return rad_per_tick * self.ticks_per_second
 
 
 @dataclass
@@ -314,10 +379,14 @@ class EngineConfig:
     (``EngineConfig()`` and :meth:`legacy`) and ``"research"`` for
     :meth:`research`. It is a label only: it is not logged in TickData and never
     enters a trace hash. docs/profiles.md lists what the two profiles differ
-    in; :meth:`diff` computes it.
+    in; :meth:`diff` computes it. ``units`` (:class:`UnitsConfig`) declares
+    what a tick and a world unit mean in seconds and metres; it is identical
+    in both profiles and read by no engine constant. :meth:`to_dict` and
+    :meth:`from_dict` serialise the whole config as a nested plain dict.
     """
 
     profile: str = "legacy"
+    units: UnitsConfig = field(default_factory=UnitsConfig)
     world: WorldConfig = field(default_factory=WorldConfig)
     sensors: SensorConfig = field(default_factory=SensorConfig)
     astrocyte: AstrocyteConfig = field(default_factory=AstrocyteConfig)
@@ -424,6 +493,65 @@ class EngineConfig:
         """
         return config_diff(self, other)
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Every field as a nested plain dict, ``profile`` first, JSON-serialisable.
+
+        Nested config dataclasses become dicts in field declaration order and
+        tuples become lists (``world.bounds``); every other value is kept as it
+        is. ``float("inf")`` (the research profile's ``trn.narrow_above_kappa``)
+        stays a float, which Python's ``json`` writes as ``Infinity`` and reads
+        back. :meth:`from_dict` inverts it: ``diff`` is empty after a round
+        trip, also through ``json.dumps`` / ``json.loads``.
+        """
+        return _dataclass_to_plain(self)
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "EngineConfig":
+        """The inverse of :meth:`to_dict`.
+
+        Every key must name a field at its level (an unknown key raises
+        ``ValueError`` naming the dotted path, so a typo or a field from a
+        later version is never dropped silently); a key that is missing keeps
+        the field's default. A list is turned back into a tuple where the
+        field holds a tuple; nothing else changes type.
+        """
+        cfg = cls()
+        _dataclass_from_plain(cfg, data, "")
+        return cfg
+
+
+def _dataclass_to_plain(obj: Any) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for f in fields(obj):
+        value = getattr(obj, f.name)
+        if is_dataclass(value):
+            out[f.name] = _dataclass_to_plain(value)
+        elif isinstance(value, tuple):
+            out[f.name] = list(value)
+        else:
+            out[f.name] = value
+    return out
+
+
+def _dataclass_from_plain(obj: Any, data: Mapping[str, Any], prefix: str) -> None:
+    if not isinstance(data, Mapping):
+        raise ValueError(f"config section {prefix or '<root>'}: expected a mapping, got {type(data).__name__}")
+    known = [f.name for f in fields(obj)]
+    unknown = sorted(str(k) for k in data if k not in known)
+    if unknown:
+        raise ValueError("unknown config field(s): " + ", ".join(prefix + k for k in unknown))
+    for name in known:
+        if name not in data:
+            continue
+        current = getattr(obj, name)
+        value = data[name]
+        if is_dataclass(current):
+            _dataclass_from_plain(current, value, f"{prefix}{name}.")
+        elif isinstance(current, tuple):
+            setattr(obj, name, tuple(value))
+        else:
+            setattr(obj, name, value)
+
 
 def config_diff(a: Any, b: Any, prefix: str = "") -> List[Tuple[str, Any, Any]]:
     """Field-by-field difference of two config dataclasses (see ``EngineConfig.diff``)."""
@@ -439,6 +567,7 @@ def config_diff(a: Any, b: Any, prefix: str = "") -> List[Tuple[str, Any, Any]]:
 
 
 __all__ = [
+    "UnitsConfig",
     "WorldConfig",
     "SensorConfig",
     "AstrocyteConfig",

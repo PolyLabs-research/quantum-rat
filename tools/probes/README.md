@@ -53,6 +53,7 @@ The criticality-computation program's feasibility probe (a NumPy Kinouchi-Copell
 | `assay_triviality` | the headless water maze is solved in 5 ticks on-axis and never/by chance off-axis (2 of 5 placements never in 2000 ticks); the T-maze in 6 ticks; neither has walls, pool, platform or arms in the World | 1.12 |
 | `seed_pseudoreplication` | at sensors.noise 0 seeds 1-4 give bit-identical trajectories (only the kappa series differs); at noise 0.03 they diverge by up to 18 m | 1.04 |
 | `runtime` | default engine ~7,500-8,900 ticks/s and console scenarios ~6,000-7,000 ticks/s in pure Python on this machine (wall-clock; the only non-deterministic probe) | 1.86 |
+| `realised_speed` | under the declared units (0.2 s per tick, 0.1 m per unit) the research-profile open-field agent moves at 0.32 m/s on moving ticks (rats run tracks at 0.2-0.6 m/s), is immobile on 14% of ticks (stops mostly one tick, max 12 s) and clamped at a wall on 29%; legacy: 0.077 m/s, 43% immobile, 5 s microsleep stops, seeds 1-4 identical | 3.05 |
 
 
 ### `kappa_defaults`
@@ -628,3 +629,53 @@ hidden_food_ticks_per_s: 6986
 memory_maze_ticks_per_s: 6523
 ```
 
+### `realised_speed`
+
+`python -m tools.probes.realised_speed` (3.05 s)
+
+Realised speed under the declared units: is the calibration (0.2 s per tick,
+0.1 m per unit) sane? Added for M0b item 6 (docs/units.md), recorded on the
+M0b branch with the item 8 placeholders (odometry noise 0.05 / 0.01 rad,
+softmax 0.1) in the research profile; not an audit claim.
+
+Claims (docs/research_plan.md section 5 item 6):
+
+* The plan says to freeze `UnitsConfig(dt_s = 0.2, metres_per_unit = 0.1)`
+  only after measuring, under the research profile on the open-field
+  protocol, the realised mean moving-tick speed and the fraction of immobile
+  ticks against rat track-running speeds (0.2-0.6 m/s) and stopping-period
+  durations (stops at reward wells of a few seconds).
+* M0a removed the ATP throttle on the step; the arbiter's REST ticks and the
+  0.3-unit TURN steps still make the realised speed differ from the nominal
+  FORWARD 0.5 m/s.
+
+Measured per seed (1-4) and pooled over 3000 ticks (600 s) each; a moving tick
+is a step > 0.05 units; stop bouts are complete runs of immobile ticks; the
+true heading comes from `engine.context.heading` tick by tick.
+
+Recorded output:
+
+```
+== realised speed under the declared units
+config: OpenFieldProtocol, seeds (1, 2, 3, 4), 3000 ticks each, EngineConfig.research() and EngineConfig.legacy() (pacing off), 20x20 unit box
+units: dt_s 0.2, metres_per_unit 0.1: nominal FORWARD 0.5 m/s, TURN 0.15 m/s and 1.5 rad/s; moving tick = step > 0.05 units
+reference: rats: 0.2-0.6 m/s while running a track, stops at reward wells of a few seconds (docs/research_plan.md section 5 item 6)
+research_by_seed: {1: {ticks: 3000, mean_moving_speed_m_s: 0.3222, mean_speed_all_ticks_m_s: 0.2662, frac_immobile: 0.1771, stop_bouts: 127, stop_bout_median_s: 0.2, stop_bout_max_s: 8.6, frac_at_wall: 0.3233, frac_turning: 0.5515, mean_turn_rad_s: 1.5, distinct_abs_turns: 1, abs_turn_min_max_rad: [0.3, 0.3]}, 2: {ticks: 3000, mean_moving_speed_m_s: 0.317, mean_speed_all_ticks_m_s: 0.2782, frac_immobile: 0.1247, stop_bouts: 140, stop_bout_median_s: 0.2, stop_bout_max_s: 8.6, frac_at_wall: 0.2833, frac_turning: 0.5328, mean_turn_rad_s: 1.5, distinct_abs_turns: 1, abs_turn_min_max_rad: [0.3, 0.3]}, 3: {ticks: 3000, mean_moving_speed_m_s: 0.3171, mean_speed_all_ticks_m_s: 0.2853, frac_immobile: 0.1024, stop_bouts: 121, stop_bout_median_s: 0.2, stop_bout_max_s: 6.4, frac_at_wall: 0.252, frac_turning: 0.5298, mean_turn_rad_s: 1.5, distinct_abs_turns: 1, abs_turn_min_max_rad: [0.3, 0.3]}, 4: {ticks: 3000, mean_moving_speed_m_s: 0.3112, mean_speed_all_ticks_m_s: 0.2677, frac_immobile: 0.1417, stop_bouts: 112, stop_bout_median_s: 0.2, stop_bout_max_s: 11.8, frac_at_wall: 0.2983, frac_turning: 0.5615, mean_turn_rad_s: 1.5, distinct_abs_turns: 1, abs_turn_min_max_rad: [0.3, 0.3]}}
+research_pooled: {ticks: 12000, mean_moving_speed_m_s: 0.3168, mean_speed_all_ticks_m_s: 0.2743, frac_immobile: 0.1365, stop_bouts: 500, stop_bout_median_s: 0.2, stop_bout_max_s: 11.8, frac_at_wall: 0.2893, frac_turning: 0.5439, mean_turn_rad_s: 1.5, distinct_abs_turns: 1, abs_turn_min_max_rad: [0.3, 0.3]}
+legacy_by_seed: {1: {ticks: 3000, mean_moving_speed_m_s: 0.0769, mean_speed_all_ticks_m_s: 0.0441, frac_immobile: 0.4271, stop_bouts: 50, stop_bout_median_s: 5, stop_bout_max_s: 7.4, frac_at_wall: 0.016, frac_turning: 0.4808, mean_turn_rad_s: 0.4861, distinct_abs_turns: 512, abs_turn_min_max_rad: [0.0822, 0.2819]}, 2: {ticks: 3000, mean_moving_speed_m_s: 0.0769, mean_speed_all_ticks_m_s: 0.0441, frac_immobile: 0.4271, stop_bouts: 50, stop_bout_median_s: 5, stop_bout_max_s: 7.4, frac_at_wall: 0.016, frac_turning: 0.4808, mean_turn_rad_s: 0.4861, distinct_abs_turns: 512, abs_turn_min_max_rad: [0.0822, 0.2819]}, 3: {ticks: 3000, mean_moving_speed_m_s: 0.0769, mean_speed_all_ticks_m_s: 0.0441, frac_immobile: 0.4271, stop_bouts: 50, stop_bout_median_s: 5, stop_bout_max_s: 7.4, frac_at_wall: 0.016, frac_turning: 0.4808, mean_turn_rad_s: 0.4861, distinct_abs_turns: 512, abs_turn_min_max_rad: [0.0822, 0.2819]}, 4: {ticks: 3000, mean_moving_speed_m_s: 0.0769, mean_speed_all_ticks_m_s: 0.0441, frac_immobile: 0.4271, stop_bouts: 50, stop_bout_median_s: 5, stop_bout_max_s: 7.4, frac_at_wall: 0.016, frac_turning: 0.4808, mean_turn_rad_s: 0.4861, distinct_abs_turns: 512, abs_turn_min_max_rad: [0.0822, 0.2819]}}
+legacy_pooled: {ticks: 12000, mean_moving_speed_m_s: 0.0769, mean_speed_all_ticks_m_s: 0.0441, frac_immobile: 0.4271, stop_bouts: 200, stop_bout_median_s: 5, stop_bout_max_s: 7.4, frac_at_wall: 0.016, frac_turning: 0.4808, mean_turn_rad_s: 0.4861, distinct_abs_turns: 512, abs_turn_min_max_rad: [0.0822, 0.2819]}
+```
+
+Interpretation: under the research profile the agent moves at 0.317 m/s on
+moving ticks (per seed 0.311-0.322), inside the band rats run tracks at, and
+below the nominal 0.5 m/s because 54% of its ticks are 0.3-unit TURN steps;
+13.7% of ticks are immobile, in 500 stop bouts of median 0.2 s (one REST
+tick) and up to 11.8 s, the long ones being the body held in a corner by the
+box clamp (the body is at a wall on 29% of ticks), not pauses at a reward
+well, of which the open field has none. Every turn is 0.3 rad (to
+floating-point rounding), 1.5 rad/s: the heading quantisation. The legacy profile moves at 0.077 m/s on
+moving ticks and 0.044 m/s over all ticks (the 0.088-unit mean step of
+`open_field_motion`, in m/s), is immobile on 42.7% of ticks in 50 stop bouts
+per seed of median 5.0 s (the 25-tick microsleep), turns by a throttle-scaled
+0.08-0.28 rad, and gives the same numbers at all four seeds (no stochastic
+element is on). docs/units.md recommends freezing the calibration as it is.

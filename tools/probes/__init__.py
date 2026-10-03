@@ -31,6 +31,7 @@ PROBES = (
     "assay_triviality",
     "seed_pseudoreplication",
     "runtime",
+    "realised_speed",
 )
 
 __all__ = ["PROBES"]
