@@ -23,3 +23,16 @@ def test_trace_hash_matches_baseline() -> None:
     baseline = load_baseline()
     current = build_current_trace()
     assert current == baseline, "Determinism regression: trace hash differs from baseline"
+
+
+def test_research_profile_trace_hash_matches_its_baseline() -> None:
+    """The second baseline: EngineConfig.research() at the gate's seed and tick count.
+
+    Regenerate with ``python -m tools.update_determinism_baseline --profile research
+    --i-know-what-im-doing`` (once per milestone, docs/profiles.md).
+    """
+    from tools.update_determinism_baseline import build_profile_trace, load_profile_baseline
+
+    baseline = load_profile_baseline("research")
+    current = build_profile_trace("research")
+    assert current == baseline, "Determinism regression: research-profile trace hash differs from its baseline"

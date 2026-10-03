@@ -1,0 +1,8 @@
+{
+  "seed": 1337,
+  "ticks": 200,
+  "profile": "research",
+  "schema_version": "2.1.6",
+  "generated_by": "update_determinism_baseline.py",
+  "generated_at_utc": "2026-10-03T12:16:34.479161+00:00"
+}

@@ -12,8 +12,8 @@ hardcoded values exactly.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Tuple
+from dataclasses import dataclass, field, fields, is_dataclass
+from typing import Any, List, Tuple
 
 from brain.systems.criticality import CriticalityConfig
 
@@ -52,6 +52,19 @@ class AstrocyteConfig:
     atp_floor: float = 0.0
     rest_demand: float = 0.2  # metabolic demand at rest (thrust == 0)
     motion_demand: float = 0.8  # additional demand scaled by |thrust|
+    # Whether the ATP throttle scales the body's motion. World.step multiplies
+    # thrust and turn by the energy_scale the engine hands it: atp / atp_baseline
+    # when this is True (legacy), 1.0 on every tick when it is False (body speed
+    # independent of ATP; the energy stores still move and are still logged).
+    scales_motion: bool = True
+    # When True the astrocyte does not tick at all: ATP and glycogen stay at
+    # their initial values (``atp``, ``glycogen`` above) for the whole run and
+    # the throttle is 1.0 on every tick; ctx.atp / ctx.glycogen are logged as
+    # before. At the default initial ATP (1.0, above trn.open_at_atp) the TRN
+    # gate therefore stays OPEN unless kappa exceeds trn.narrow_above_kappa, and
+    # microsleep (ATP below trn.trigger_atp for trn.trigger_streak ticks) cannot
+    # trigger.
+    frozen: bool = False
 
 
 @dataclass
@@ -142,6 +155,14 @@ class SpatialConfig:
     turn_gain: float = 1.0
     decay: float = 1.0
     bin_size: float = 0.5
+    # Whether the TRN gate value (1.0 OPEN, trn.narrow_gain NARROW, 0.0 CLOSED)
+    # multiplies the egomotion deltas before path integration (legacy). When
+    # False the engine passes sensory_gain = 1.0, so the estimate keeps
+    # integrating the true egomotion through NARROW, CLOSED and microsleep. With
+    # sensor noise 0 it then equals the true position on every tick; with the
+    # gate scaling it, the legacy estimate ends 22.8 units off after 3000
+    # barren-world ticks (tools/probes/path_integration_capture).
+    gate_scales_egomotion: bool = True
 
 
 @dataclass
@@ -152,6 +173,17 @@ class TRNConfig:
     recovery_atp: float = 0.45
     recovery_streak_needed: int = 5
     replay_window: int = 50
+    # Gate thresholds (previously hard-coded in TRNGate.trn_state; same values,
+    # same branch order): CLOSED (gate 0.0) during microsleep or when
+    # ATP < closed_below_atp; OPEN (gate 1.0) when ATP >= open_at_atp and
+    # kappa <= narrow_above_kappa; otherwise NARROW (gate narrow_gain).
+    closed_below_atp: float = 0.35
+    open_at_atp: float = 0.55
+    narrow_above_kappa: float = 1.1
+    narrow_gain: float = 0.4
+    # When False no microsleep bout ever starts, so the replay gating that
+    # depends on microsleep never fires either (replay_active stays False).
+    microsleep_enabled: bool = True
 
 
 @dataclass
@@ -240,8 +272,16 @@ class BasalGangliaConfig:
 
 @dataclass
 class EngineConfig:
-    """Aggregate of every subsystem's configuration."""
+    """Aggregate of every subsystem's configuration.
 
+    ``profile`` labels the set of flags in force: ``"legacy"`` for the defaults
+    (``EngineConfig()`` and :meth:`legacy`) and ``"research"`` for
+    :meth:`research`. It is a label only: it is not logged in TickData and never
+    enters a trace hash. docs/profiles.md lists what the two profiles differ
+    in; :meth:`diff` computes it.
+    """
+
+    profile: str = "legacy"
     world: WorldConfig = field(default_factory=WorldConfig)
     sensors: SensorConfig = field(default_factory=SensorConfig)
     astrocyte: AstrocyteConfig = field(default_factory=AstrocyteConfig)
@@ -253,6 +293,75 @@ class EngineConfig:
     trn: TRNConfig = field(default_factory=TRNConfig)
     working_memory: WorkingMemoryConfig = field(default_factory=WorkingMemoryConfig)
     basal_ganglia: BasalGangliaConfig = field(default_factory=BasalGangliaConfig)
+
+    @classmethod
+    def legacy(cls) -> "EngineConfig":
+        """The defaults, labelled: equal to ``EngineConfig()`` in every field."""
+        return cls(profile="legacy")
+
+    @classmethod
+    def research(cls) -> "EngineConfig":
+        """The research profile (docs/research_plan.md section 6, milestone 0a).
+
+        Differs from :meth:`legacy` in exactly these fields (``diff`` lists them):
+
+        - ``spatial.gate_scales_egomotion = False``: the TRN gate no longer
+          scales egomotion, so low ATP does not freeze path integration.
+        - ``astrocyte.scales_motion = False`` and ``astrocyte.frozen = True``:
+          ATP stays at its initial value and energy_scale is 1.0 on every tick,
+          so the body moves the commanded thrust.
+        - ``trn.microsleep_enabled = False``: no microsleep bouts, hence no
+          microsleep-gated replay (sleep becomes a protocol phase later).
+        - ``value_memory.dwell_extinction = 0.0``: no charge for dwelling.
+        - Neuromodulator coupling gains in ``basal_ganglia`` set to 0:
+          ``dopamine_explore_gain``, ``ach_precision_gain``, ``ne_threat_gain``
+          and ``fiveht_patience_gain``. The modulator traces are still computed
+          and logged; they just do not reach action selection.
+
+        Also set explicitly, but already the legacy value, so not in the diff:
+        ``value_memory.generalization_radius = 0``, ``value_memory.goal_vector =
+        False`` and ``basal_ganglia.criticality_gain = 0.0`` (the criticality
+        coupling to cognition; kappa is still computed and logged).
+
+        Nothing else differs. Not yet in this profile: noisy odometry, a place
+        population and replay as an event stream (later milestones).
+        """
+        cfg = cls(profile="research")
+        cfg.spatial.gate_scales_egomotion = False
+        cfg.astrocyte.scales_motion = False
+        cfg.astrocyte.frozen = True
+        cfg.trn.microsleep_enabled = False
+        cfg.value_memory.generalization_radius = 0
+        cfg.value_memory.goal_vector = False
+        cfg.value_memory.dwell_extinction = 0.0
+        bg = cfg.basal_ganglia
+        bg.criticality_gain = 0.0
+        bg.dopamine_explore_gain = 0.0
+        bg.ach_precision_gain = 0.0
+        bg.ne_threat_gain = 0.0
+        bg.fiveht_patience_gain = 0.0
+        return cfg
+
+    def diff(self, other: "EngineConfig") -> List[Tuple[str, Any, Any]]:
+        """Fields where ``self`` and ``other`` differ: (dotted.field, self_value, other_value).
+
+        Every nested config dataclass is walked in field declaration order, so
+        the list is deterministic, and it is empty when the two are equal.
+        """
+        return config_diff(self, other)
+
+
+def config_diff(a: Any, b: Any, prefix: str = "") -> List[Tuple[str, Any, Any]]:
+    """Field-by-field difference of two config dataclasses (see ``EngineConfig.diff``)."""
+    out: List[Tuple[str, Any, Any]] = []
+    for f in fields(a):
+        name = f"{prefix}{f.name}"
+        va, vb = getattr(a, f.name), getattr(b, f.name)
+        if is_dataclass(va) and is_dataclass(vb):
+            out.extend(config_diff(va, vb, f"{name}."))
+        elif va != vb:
+            out.append((name, va, vb))
+    return out
 
 
 __all__ = [
@@ -267,4 +376,5 @@ __all__ = [
     "WorkingMemoryConfig",
     "BasalGangliaConfig",
     "EngineConfig",
+    "config_diff",
 ]

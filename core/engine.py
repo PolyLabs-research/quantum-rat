@@ -160,6 +160,11 @@ class Engine:
             recovery_atp=c.trn.recovery_atp,
             recovery_streak_needed=c.trn.recovery_streak_needed,
             replay_window=c.trn.replay_window,
+            closed_below_atp=c.trn.closed_below_atp,
+            open_at_atp=c.trn.open_at_atp,
+            narrow_above_kappa=c.trn.narrow_above_kappa,
+            narrow_gain=c.trn.narrow_gain,
+            microsleep_enabled=c.trn.microsleep_enabled,
         )
         self.spatial = SpatialSystem(
             turn_gain=c.spatial.turn_gain, decay=c.spatial.decay, bin_size=c.spatial.bin_size
@@ -185,10 +190,18 @@ class Engine:
         ctx.tick_data = None
 
     def _physiology_step(self, ctx: EngineContext) -> None:
-        # Demand scales with the agent's current effort so rest is cheap.
         a = self.config.astrocyte
-        demand = a.rest_demand + a.motion_demand * min(1.0, abs(self.last_action.thrust))
-        ctx.energy_scale = self.astrocyte.tick(demand=demand)
+        if a.frozen:
+            # The astrocyte does not tick: ATP and glycogen keep their initial
+            # values and the throttle is 1.0 (see AstrocyteConfig.frozen).
+            throttle = 1.0
+        else:
+            # Demand scales with the agent's current effort so rest is cheap.
+            demand = a.rest_demand + a.motion_demand * min(1.0, abs(self.last_action.thrust))
+            throttle = self.astrocyte.tick(demand=demand)
+        # World.step multiplies thrust and turn by energy_scale; with
+        # scales_motion off the body moves the commanded thrust whatever ATP is.
+        ctx.energy_scale = throttle if a.scales_motion else 1.0
         ctx.atp = self.astrocyte.atp
         ctx.glycogen = self.astrocyte.glycogen
 
@@ -286,8 +299,11 @@ class Engine:
     def _spatial_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
             raise RuntimeError("Observation missing before spatial step")
-        # Apply TRN gate as sensory gain
-        state = self.spatial.step(ctx.observation, sensory_gain=ctx.trn_gate_value)
+        # The TRN gate scales egomotion (legacy) unless spatial.gate_scales_egomotion
+        # is off, in which case path integration sees the true egomotion
+        # whatever the gate state.
+        gain = ctx.trn_gate_value if self.config.spatial.gate_scales_egomotion else 1.0
+        state = self.spatial.step(ctx.observation, sensory_gain=gain)
         ctx.hd_angle = state.hd_angle
         ctx.grid_x = state.grid_x
         ctx.grid_y = state.grid_y
