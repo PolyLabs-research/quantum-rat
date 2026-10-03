@@ -34,6 +34,8 @@ the ones asked for, not tuned to pass. Measured on the same goals
 - sensor noise 0.03: the visible demonstration to the off-axis goals wanders
   (104-123 ticks instead of 29-30) and both arms then time out on (4, 5),
   (2, 6) and (3, 7); on (6, -3) replay times out while online takes 10.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from experiments.memory_navigation import run_memory_navigation

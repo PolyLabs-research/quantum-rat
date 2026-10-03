@@ -1,6 +1,6 @@
 # From toy to instrument: a conversion plan for hippocampal replay and spatial-memory research
 
-**Status:** DRAFT, revision 2, for the owner's approval. Nothing in this plan has been implemented except M0b items 12 and 14 (the probes and the bibliography), which were needed to write it.
+**Status:** revision 2. **M0a is implemented on this branch** (merge commit 27946b6 of its two items, plus decisions entry G22 in `docs/decisions.md`). **M0b has not started**, except items 12 and 14 (the probes and the bibliography), which were needed to write this plan.
 **Date:** 2026-10-03
 **Basis:** a 14-agent research-readiness audit of the repository at commit `eea946f` (8 subsystem audits against the literature, 3 competing research programs, 2 judges, 1 completeness critic), the owner's three choices (**spatial memory & replay** as the research line, a **rate-based core with spiking only where a question demands it**, **publishable results** as the goal), three independent reviews of revision 1 (a neuroscientist, an engineer, an owner's advocate), and the audit's probes re-run against this commit (`tools/probes/`, outputs recorded).
 
@@ -164,11 +164,11 @@ Both judges and the critic independently list the same prerequisites. None carri
 
 ### M0a, the first weekend
 
-1. **Decouple the TRN gate from path integration**: `SpatialConfig.gate_scales_egomotion: bool = True` (legacy) and `Engine._spatial_step` passes `sensory_gain = 1.0` when it is False. The single largest confound every audit found.
-2. **Freeze the energy model in the research profile**: `AstrocyteConfig.scales_motion: bool = True` (legacy) and `TRNConfig.microsleep_enabled: bool = True` (legacy); in `research` both are False, the astrocyte sits at `atp_baseline` so `energy_scale ≡ 1.0`, and sleep exists only as a protocol rest phase. The hard-coded 0.35/0.55/1.1 gate thresholds move into `TRNConfig`. *Acceptance:* over a 3,000-tick open-field run in the research profile, zero microsleep ticks and the realised step equals the commanded thrust on every tick.
-3. **The `research` config profile** (`EngineConfig.research()`): the three flags above off (`gate_scales_egomotion`, `scales_motion`, `microsleep_enabled`), `generalization_radius = 0`, `goal_vector = False`, `dwell_extinction = 0.0`, criticality and neuromodulator coupling gains 0. The legacy profile is `EngineConfig()` unchanged, labelled.
-4. **Honesty pass** on README (it still says the criticality statistics "behave correctly across sub-/critical/ super-critical regimes", that "vision/pain/whiskers come from real world geometry and drive behaviour", and that "All four neuromodulators are causal"), on the console panel labels and reference lines, and on the headless protocol names: `morris_water_maze`, `t_maze` and `survival_arena` are renamed with a `_toy` suffix and honest docstrings, and the regression harness is re-pointed to `beacon` and `foraging`. The checksum novelty bit is labelled as what it is.
-5. **Decisions entry G22**: the legacy/research split, the list of tests that now run under the legacy profile explicitly, and the acceptance that G14–G21 are legacy-profile results. One baseline regeneration for each profile.
+1. **Decouple the TRN gate from path integration**: `SpatialConfig.gate_scales_egomotion: bool = True` (legacy) and `Engine._spatial_step` passes `sensory_gain = 1.0` when it is False. The single largest confound every audit found. **Done (G22).**
+2. **Freeze the energy model in the research profile**: `AstrocyteConfig.scales_motion: bool = True` (legacy) and `TRNConfig.microsleep_enabled: bool = True` (legacy); in `research` both are False, the astrocyte sits at `atp_baseline` so `energy_scale ≡ 1.0`, and sleep exists only as a protocol rest phase. The hard-coded 0.35/0.55/1.1 gate thresholds move into `TRNConfig`. *Acceptance:* over a 3,000-tick open-field run in the research profile, zero microsleep ticks and the realised step equals the commanded thrust on every tick. **Done (G22).**
+3. **The `research` config profile** (`EngineConfig.research()`): the three flags above off (`gate_scales_egomotion`, `scales_motion`, `microsleep_enabled`), `generalization_radius = 0`, `goal_vector = False`, `dwell_extinction = 0.0`, criticality and neuromodulator coupling gains 0. The legacy profile is `EngineConfig()` unchanged, labelled. **Done (G22).**
+4. **Honesty pass** on README (it still says the criticality statistics "behave correctly across sub-/critical/ super-critical regimes", that "vision/pain/whiskers come from real world geometry and drive behaviour", and that "All four neuromodulators are causal"), on the console panel labels and reference lines, and on the headless protocol names: `morris_water_maze`, `t_maze` and `survival_arena` are renamed with a `_toy` suffix and honest docstrings, and the regression harness is re-pointed to `beacon` and `foraging`. The checksum novelty bit is labelled as what it is. **Done (G22).**
+5. **Decisions entry G22**: the legacy/research split, the list of tests that now run under the legacy profile explicitly, and the acceptance that G14–G21 are legacy-profile results. One baseline regeneration for each profile. **Done (G22).**
 
 ### M0b, the instrument base
 
@@ -254,7 +254,9 @@ Recommended defaults in bold; the plan assumes them unless told otherwise.
 ## 10. Immediately after approval
 
 **First session (one evening), on a branch `research/m0` from `main`:** add `SpatialConfig.gate_scales_egomotion: bool = True` and pass `sensory_gain = 1.0` in `Engine._spatial_step` when it is False; add `AstrocyteConfig.scales_motion` and `TRNConfig.microsleep_enabled` the same way; add `EngineConfig.research()` with the flags of §5 item 3; run the suite under both profiles; regenerate the baselines once; write decisions entry G22 listing the legacy/research split.
+*Note (2026-10-03): done, on the session branch `ccr-6640f39d-7ve1oz` rather than a `research/m0` branch (commit 95667ce).*
 
 **First weekend:** the rest of M0a (honesty pass, toy-assay renames, regression harness re-pointed), tagged `v1.0-honest`.
+*Note (2026-10-03): done, on the session branch `ccr-6640f39d-7ve1oz` rather than a `research/m0` branch (commit dcf28b8, merge 27946b6, entry G22); the tag is not yet applied.*
 
 **Then:** M0b items 8 and 10 (seeds as samples, stats module), the G23 re-measurement, the remaining M0b items, tagged `v1.1-base`. Then M1.

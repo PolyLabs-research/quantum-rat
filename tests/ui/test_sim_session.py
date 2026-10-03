@@ -1,4 +1,7 @@
-"""The live-console backend: scenarios, sessions, params, events and recording."""
+"""The live-console backend: scenarios, sessions, params, events and recording.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
+"""
 
 import json
 import math

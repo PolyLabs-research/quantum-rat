@@ -33,6 +33,8 @@ the old place (inside its circle within 60 ticks of the start) in 0 of 60
 trials (also 0 with a single miss erasing, 2 with three), and with extinction
 off (0) in 30 of 60. Bound: erased in all five runs and at most 6 homing
 trials; with extinction off that fails.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from __future__ import annotations

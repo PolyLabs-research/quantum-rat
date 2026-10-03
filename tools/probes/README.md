@@ -474,7 +474,8 @@ The four modulator traces in the stock headless protocols.
 Claims (neuromodulation audit, 2026-10-03, scratch trace_stats.py; 1500
 ticks, seeds 1-2):
 
-* open_field and survival_arena at noise 0: DA == 0.5 and 5HT == 0.5 on 100%
+* open_field and survival_arena_toy (`survival_arena` when recorded) at noise 0:
+  DA == 0.5 and 5HT == 0.5 on 100%
   of ticks (no reward ever), ACh == 1 on 63% of ticks, NE mean 0.32.
 * At sensors.noise 0.03: novelty == 1 on 100% of ticks in every scenario, so
   ACh is pinned at 1.0 and NE sits at 0.50-0.51; pain > 0 on ~50% of ticks
@@ -483,7 +484,7 @@ ticks, seeds 1-2):
   every zero-reward step is a "disappointment") and hits exactly 1.0 on
   contact; 5HT ranges 0.33-0.72. beacon: DA saturates at 1.0 on contact.
 
-Recorded output:
+Recorded output (re-run on 2026-10-03 after `survival_arena` was renamed `survival_arena_toy` in dcf28b8: only the four `survival_arena_*` keys changed, every number is unchanged from the eea946f recording):
 
 ```
 == neuromodulator traces in the stock protocols
@@ -500,10 +501,10 @@ foraging_noise0.0_seed1: {n: 324, novelty_eq_1: 0.6481, ACh_mean: 0.6481, DA_eq_
 foraging_noise0.0_seed2: {n: 324, novelty_eq_1: 0.6481, ACh_mean: 0.6481, DA_eq_0.5: 0.0031, DA_lt_0.5: 0.6759, DA_min_max: [0.1839, 1], DA_eq_1.0: 0.0062, NE_mean: 0.3241, pain_gt_0: 0, 5HT_min_max: [0.4324, 0.7152], reward_nonzero: 0.608, expected_reward_final: 0.1598}
 foraging_noise0.03_seed1: {n: 306, novelty_eq_1: 1, ACh_mean: 1, DA_eq_0.5: 0, DA_lt_0.5: 0.6373, DA_min_max: [0.2663, 1], DA_eq_1.0: 0.0065, NE_mean: 0.5039, pain_gt_0: 0.4967, 5HT_min_max: [0.3487, 0.7126], reward_nonzero: 0.8072, expected_reward_final: 0.1303}
 foraging_noise0.03_seed2: {n: 303, novelty_eq_1: 1, ACh_mean: 1, DA_eq_0.5: 0.0033, DA_lt_0.5: 0.6469, DA_min_max: [0.2695, 1], DA_eq_1.0: 0.0033, NE_mean: 0.5039, pain_gt_0: 0.538, 5HT_min_max: [0.3328, 0.7148], reward_nonzero: 0.8383, expected_reward_final: 0.1329}
-survival_arena_noise0.0_seed1: {n: 1500, novelty_eq_1: 0.632, ACh_mean: 0.632, DA_eq_0.5: 1, DA_lt_0.5: 0, DA_min_max: [0.5, 0.5], DA_eq_1.0: 0, NE_mean: 0.316, pain_gt_0: 0, 5HT_min_max: [0.5, 0.5], reward_nonzero: 0, expected_reward_final: 0}
-survival_arena_noise0.0_seed2: {n: 1500, novelty_eq_1: 0.632, ACh_mean: 0.632, DA_eq_0.5: 1, DA_lt_0.5: 0, DA_min_max: [0.5, 0.5], DA_eq_1.0: 0, NE_mean: 0.316, pain_gt_0: 0, 5HT_min_max: [0.5, 0.5], reward_nonzero: 0, expected_reward_final: 0}
-survival_arena_noise0.03_seed1: {n: 1500, novelty_eq_1: 1, ACh_mean: 1, DA_eq_0.5: 0, DA_lt_0.5: 0.3933, DA_min_max: [0.4887, 0.5082], DA_eq_1.0: 0, NE_mean: 0.5041, pain_gt_0: 0.5113, 5HT_min_max: [0.4909, 0.4989], reward_nonzero: 0.5113, expected_reward_final: -0.006}
-survival_arena_noise0.03_seed2: {n: 1500, novelty_eq_1: 1, ACh_mean: 1, DA_eq_0.5: 0.0007, DA_lt_0.5: 0.3833, DA_min_max: [0.4888, 0.5066], DA_eq_1.0: 0, NE_mean: 0.5038, pain_gt_0: 0.532, 5HT_min_max: [0.4927, 0.5], reward_nonzero: 0.532, expected_reward_final: -0.0115}
+survival_arena_toy_noise0.0_seed1: {n: 1500, novelty_eq_1: 0.632, ACh_mean: 0.632, DA_eq_0.5: 1, DA_lt_0.5: 0, DA_min_max: [0.5, 0.5], DA_eq_1.0: 0, NE_mean: 0.316, pain_gt_0: 0, 5HT_min_max: [0.5, 0.5], reward_nonzero: 0, expected_reward_final: 0}
+survival_arena_toy_noise0.0_seed2: {n: 1500, novelty_eq_1: 0.632, ACh_mean: 0.632, DA_eq_0.5: 1, DA_lt_0.5: 0, DA_min_max: [0.5, 0.5], DA_eq_1.0: 0, NE_mean: 0.316, pain_gt_0: 0, 5HT_min_max: [0.5, 0.5], reward_nonzero: 0, expected_reward_final: 0}
+survival_arena_toy_noise0.03_seed1: {n: 1500, novelty_eq_1: 1, ACh_mean: 1, DA_eq_0.5: 0, DA_lt_0.5: 0.3933, DA_min_max: [0.4887, 0.5082], DA_eq_1.0: 0, NE_mean: 0.5041, pain_gt_0: 0.5113, 5HT_min_max: [0.4909, 0.4989], reward_nonzero: 0.5113, expected_reward_final: -0.006}
+survival_arena_toy_noise0.03_seed2: {n: 1500, novelty_eq_1: 1, ACh_mean: 1, DA_eq_0.5: 0.0007, DA_lt_0.5: 0.3833, DA_min_max: [0.4888, 0.5066], DA_eq_1.0: 0, NE_mean: 0.5038, pain_gt_0: 0.532, 5HT_min_max: [0.4927, 0.5], reward_nonzero: 0.532, expected_reward_final: -0.0115}
 ```
 
 ### `open_field_motion`

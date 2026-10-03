@@ -44,6 +44,8 @@ Checked against regressions (each by flipping config defaults):
   value only in rare states where FORWARD is already below REST; measured
   value-induced REST is 0 at gains 0.4-3.0, so in these short runs extinction
   is not what holds the outcome.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from __future__ import annotations

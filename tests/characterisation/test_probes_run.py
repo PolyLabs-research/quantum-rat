@@ -8,6 +8,8 @@ to move as the model changes); it keeps the probes alive: each must expose
 non-empty dict of labelled results, be deterministic across two calls, and
 print one ``label: value`` line per result. The whole module runs in a few
 seconds (``--scale 0.02`` to ``0.05`` per probe).
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from __future__ import annotations

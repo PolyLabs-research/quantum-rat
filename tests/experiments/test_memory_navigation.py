@@ -6,6 +6,8 @@ experience, so repeated recall reinforces the value map rather than eroding it.
 Replay (offline consolidation of a single demonstration) is a data-efficiency
 speed-up: it reaches the goal sooner than online learning alone, not a
 precondition for reaching it at all.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from experiments.memory_navigation import run_memory_navigation

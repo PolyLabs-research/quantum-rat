@@ -86,9 +86,13 @@ PARAMS: Tuple[Param, ...] = (
     Param("basal_ganglia.fiveht_patience_gain", "Serotonin → patience", "Neuromodulation", 0.0, 1.5, 0.05,
           "Serotonin (mood) raises willingness to rest and wait."),
     Param("criticality.coupling", "E/I coupling", "Criticality", 0.10, 0.45, 0.01,
-          "Per-neighbour activation probability. Branching ratio σ = 4 × coupling; σ = 1 is critical."),
+          "Per-neighbour activation probability on the 16 × 16 torus (bond percolation). The lattice is "
+          "critical at coupling 0.5, above this slider's 0.45; at the default 0.25 it is subcritical "
+          "and κ settles near 0.91."),
     Param("basal_ganglia.criticality_gain", "Criticality → sensory gain", "Criticality", 0.0, 1.0, 0.05,
-          "How strongly the near-critical cortical gain scales vision. 0 disconnects it."),
+          "How strongly a gain computed from κ scales vision. 0 at defaults, so the panel is a readout. "
+          "With the default coupling the gain is a near-constant 0.91–0.93 multiplier that changes no "
+          "decision in the probed worlds (barren, beacon, foraging; tools/probes/dormant_couplings)."),
     Param("sensors.fov", "Field of view", "Senses", 0.4, 3.0, 0.1,
           "Angular spread of the vision rays, in radians."),
     Param("sensors.vision_rays", "Vision rays", "Senses", 1, 9, 1,

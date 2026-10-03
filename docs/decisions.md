@@ -727,3 +727,76 @@ With reshuffled sites, memory-off finds rise to 9.0-9.6, because sites land on t
 - The console serves `/api/meta`, and every scenario's `SimSession` steps 300 ticks and serialises.
 
 **Impact:** `core/engine.py`, `core/config.py`, `ui/scenarios.py`, the tests above, `docs/decisions.md` (G17-G20 corrected in place where they were wrong), README, RECOMMENDATIONS.
+
+## G22 — Legacy and research profiles: the split that Milestone 0a makes
+**Date:** 2026-10-03  
+**Why:** The research-readiness audit (docs/research_plan.md §1; probes in `tools/probes/`, outputs recorded in `tools/probes/README.md`) found that two pieces of physiology rewrite every behavioural number in this log. M0a does not delete anything: it names today's defaults the **legacy profile**, adds a **research profile** in which those couplings are off, and makes the difference a printable list. Commits 95667ce (flags, profiles, tests) and dcf28b8 (honesty pass), merged as 27946b6, plus this entry's commit.
+
+### A. Why
+The TRN gate multiplies egomotion before path integration, and the astrocyte's energy scale multiplies thrust and turn in `World.step`. Measured at `eea946f`, engine defaults, pacing off, 3,000 open-field ticks:
+- `path_integration_capture` (seed 1): the gate is CLOSED on 2,542 ticks (85%) and NARROW on 399 (OPEN on 59), driven by ATP < 0.55 alone (κ never exceeds 1.1). The estimate captures 71.6 of 264.3 units of true path (27%) and ends 22.8 units from the body with a 2.17 rad heading error. Seeds 1-4 give the same numbers.
+- `open_field_motion` (seed 1337): the mean step is 0.088 of the nominal 1.0 (max 0.985), 42.6% of steps are zero, and 1,270 of 3,000 ticks are microsleep.
+- `microsleep_bout_length`: all 50 complete bouts last exactly 25 ticks; the recovery rule never fires. `glycogen_pinning`: glycogen sits at 0.03 from tick 148 on.
+
+So the maze, steering and hidden-food results of G14-G21 measure a configuration (gate-safe pacing, teleports to the start, a throttled or frozen body), not a mechanism.
+
+### B. What changed
+Four flags, each at its legacy value by default, so `EngineConfig()` is bit-identical to `eea946f`:
+
+| Flag | Legacy | Research | Where it acts |
+|---|---|---|---|
+| `SpatialConfig.gate_scales_egomotion` | True | False | `Engine._spatial_step` passes `sensory_gain = 1.0` when False, so the gate never scales the egomotion deltas |
+| `AstrocyteConfig.scales_motion` | True | False | the `energy_scale` handed to `World.step` is 1.0 when False |
+| `AstrocyteConfig.frozen` | False | True | the astrocyte does not tick: ATP stays 1.0 and glycogen 3.0, both still logged |
+| `TRNConfig.microsleep_enabled` | True | False | `TRNGate` never starts a bout, so microsleep-gated replay never fires |
+
+The thresholds hard-coded in `TRNGate.trn_state` are now `TRNConfig.closed_below_atp` 0.35, `open_at_atp` 0.55, `narrow_above_kappa` 1.1 and `narrow_gain` 0.4: same values, same branch order, checked against the old table on a 12 × 9 ATP × κ grid that includes the boundaries, with microsleep on and off. `EngineConfig.profile` is a label (not logged, so in no hash); `EngineConfig.legacy()` returns the defaults, `EngineConfig.research()` the research settings, and `a.diff(b)` lists every differing field as `(name, a_value, b_value)`. `EngineConfig.research().diff(EngineConfig.legacy())` prints:
+
+```
+('profile', 'research', 'legacy')
+('astrocyte.scales_motion', False, True)
+('astrocyte.frozen', True, False)
+('value_memory.dwell_extinction', 0.0, 0.02)
+('spatial.gate_scales_egomotion', False, True)
+('trn.microsleep_enabled', False, True)
+('basal_ganglia.dopamine_explore_gain', 0.0, 0.6)
+('basal_ganglia.ach_precision_gain', 0.0, 0.5)
+('basal_ganglia.ne_threat_gain', 0.0, 0.5)
+('basal_ganglia.fiveht_patience_gain', 0.0, 0.4)
+```
+
+`research()` also sets `value_memory.generalization_radius = 0`, `value_memory.goal_vector = False` and `basal_ganglia.criticality_gain = 0.0`; these are already the legacy defaults (the console scenarios that use them set the radius and the goal vector themselves), so they do not appear in the diff. Kappa, avalanche sizes and the four modulator traces are logged in both profiles. Noisy odometry, a wall-contact reset, physical units, a place population and replay as an event stream are not in the research profile yet (docs/profiles.md).
+
+### C. Acceptance, measured (`tests/engine/test_profiles.py`, 9 tests, re-run for this entry)
+- **Research profile**, open field, seed 1337, 3,000 ticks: 0 microsleep ticks and 0 replay ticks; `trn_state` OPEN on all 3,000 ticks; `energy_scale` 1.0 and ATP 1.0 on every tick; the realised step equals the commanded thrust on all 2,999 steps (1.0 for FORWARD, 0.3 for a TURN, both exercised; the run never touches a wall); the path-integration estimate equals the true position and heading within 1e-9 (sensor noise 0, so odometry is exact; the difference is rounding, below 1e-12). The legacy profile at the same seed: 1,270 microsleep ticks, mean step 0.088.
+- **Gate flag alone** (`gate_scales_egomotion = False`, everything else legacy), seed 1, 3,000 barren-world ticks, pacing off: the gate is still not OPEN on 2,941 ticks, but the estimate error stays below 1e-14 until the body is first clamped at a wall of the box at tick 276, and between clamps it does not move; 48 clamp ticks leave a final error of 0.471 units against 22.821 with the flag on. The residual is the wall clamp, which the heading-projected egomotion does not see; the wall-contact reset of M2b addresses it.
+- **Each energy flag alone:** `frozen` holds ATP at 1.0 and glycogen at 3.0 with no bout and full steps; `microsleep_enabled = False` starts no bout although ATP crosses the trigger, and the gate still closes on low ATP; `scales_motion = False` leaves the astrocyte rule unchanged (replaying the commanded thrusts through a bare `Astrocyte` reproduces the logged ATP exactly) and unties the step from ATP.
+- **Legacy unchanged:** `EngineConfig().diff(EngineConfig.legacy()) == []`; the determinism gate (`tests/determinism/baseline_hashes.json`, seed 1337, 200 ticks) is green by its own path, through `--profile legacy` and through the labelled config; `tests/engine/steering_legacy_hashes.json` and `baseline_hashes.json` are byte-identical to `eea946f` (`git diff` empty); `python -m tools.probes.open_field_motion` and `path_integration_capture` print the blocks recorded in `tools/probes/README.md` byte for byte.
+
+### D. Tests
+No test is retired. The impact analysis counted 85 of the 264 tests at the merge base as pinning legacy mechanisms or the toy protocols. The 74 that pin **mechanisms** keep running as they are and now carry one module-docstring line, "These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md":
+
+| file | tests | what they pin |
+|---|---|---|
+| `tests/engine/test_steering_robustness.py` | 20 | the all-off legacy digests, dwell extinction, wall-gate seeds 13 and 15, one habituation sample |
+| `tests/engine/test_goal_vector.py` | 17 | goal-vector arbitration, writing and extinction |
+| `tests/experiments/test_steering_guards.py` | 13 | seed-1, noise-0 outcome bounds of the steering stack |
+| `tests/experiments/test_off_axis_maze.py` | 4 | goal vector and gate-safe pacing needed for 16-heading recall |
+| `tests/experiments/test_goal_extinction.py` | 4 | `goal_extinction_misses` samples in the maze |
+| `tests/characterisation/test_probes_run.py` | 4 | probes that read `generalization_radius`, `goal_vector`, `dwell_extinction` |
+| `tests/engine/test_split_steering.py` | 3 | seed-1 maze scores, one seed-1337 replay comparison |
+| `tests/ui/test_sim_session.py` | 3 | the maze's goal memory, the `dwell_extinction` console param |
+| `tests/experiments/test_hidden_food.py` | 2 | the ×3.92 / ×0.88 single samples |
+| `tests/experiments/test_memory_navigation.py` | 2 | seed-1337 ticks-to-goal pins of the replay effect |
+| `tests/experiments/test_replay_geometry.py` | 1 | the six-goal replay-vs-online sample |
+| `tests/engine/test_value_memory.py` | 1 | the generalization kernel |
+
+The other 11 (in `test_protocol_lifecycle`, `test_protocol_summaries`, `test_runner_determinism`, the two regression tests and the two tournament tests; the plan estimated ten) edit a protocol list: `morris_water_maze`, `t_maze` and `survival_arena` are renamed `morris_water_maze_toy`, `t_maze_toy` and `survival_arena_toy` (module files and registry keys; the old keys are gone, so a stale name fails loudly), and the regression harness, its two tests and the two tournament tests run `open_field,beacon,foraging` instead of `open_field,morris_water_maze`, with `regression/baseline/` regenerated by the harness's own command. Two determinism baselines: legacy (`baseline_hashes.json`, unchanged) and research (`baseline_hashes_research.json` + `baseline_meta_research.json`, seed 1337, 200 ticks, schema 2.1.6, `python -m tools.update_determinism_baseline --profile research --i-know-what-im-doing`), each with its own test in `tests/determinism/test_trace_hash.py`. Suite: 274 tests (264 + 9 profile tests + 1 research baseline), all passing.
+
+### E. Honesty pass (dcf28b8, plus two console tooltips in this entry's commit)
+README, the console labels (`ui/static`, `ui/sim_session.py`), `ui/scenarios.py`, CHECKLIST_V2.md and RECOMMENDATIONS.md now say what the probes support. The criticality lattice is bond percolation on a 16 × 16 torus, subcritical at the default coupling 0.25 (spanning avalanches from 0.35) and critical at 0.5, above the slider's 0.45; κ stays within 0.89–1.09 and settles near 0.91, never reaching the 1.1 the TRN κ branch needs; `criticality_gain` is 0 by default and at 1.0 is a near-constant 0.91–0.93 multiplier that changes no position in the barren, beacon or foraging worlds. The whiskers are computed but not read by action selection. The four neuromodulators are stated as their formulas: DA = reward − its running mean; ACh = the novelty bit; NE = ½ pain + ½ that bit; 5HT = the running mean itself. "Novelty" is labelled as a checksum-changed bit at its source (`brain/systems/working_memory.py`, `metrics/schema.py`) and in both readouts (1 on every tick at sensor noise 0.03). The toy assays say what they are: the water maze has no pool, cue or platform object and is reached in 5 ticks on-axis, 1,804 from heading π, and never within 2,000 ticks from 2 of 5 placements; the T-maze has no T and is reached in 6 ticks (84 from π/2, 40 from π); the survival arena's hazard is unsensed, so DA and 5HT sit at exactly 0.5 for the whole run at noise 0. The `neuromod_traces` block in `tools/probes/README.md` is re-recorded under the new key; every number is unchanged.
+
+### F. Acceptance statement
+G14–G21 are results of the legacy profile, measured as single deterministic samples at sensor noise 0 unless the entry states otherwise. They stay in this log as the record of that profile, their tests stay, and they are re-measured with confidence intervals over seeds in G23 (docs/research_plan.md §5, M0b item 15), once odometry noise and the softmax temperature make seeds samples. The research profile has no behavioural assertion of its own yet; the barren-world gates pass whatever the science does.
+
+**Impact:** `core/config.py`, `core/engine.py`, `brain/systems/trn_microsleep_replay.py`, `tools/update_determinism_baseline.py`, `tests/determinism/`, `tests/engine/test_profiles.py`, `experiments/protocols/`, `regression/`, README, `ui/`, `docs/profiles.md`, `docs/research_plan.md` (status and the §5 / §10 marks), the twelve test docstrings above.

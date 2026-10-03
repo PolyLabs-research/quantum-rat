@@ -26,6 +26,8 @@ fails, and the fixed-site benefit is 4.5 times the reshuffled one (bound 1.5).
 Over the wider blocks the reshuffled benefit is x1.08 / x1.47 / x1.25 against
 x2.84 / x2.85 / x4.08 with fixed sites (1.9-3.3 times). Memory still helps a
 little without fixed sites, near a recent find while the food is there.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from __future__ import annotations

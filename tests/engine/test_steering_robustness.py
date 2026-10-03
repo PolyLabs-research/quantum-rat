@@ -4,6 +4,8 @@ content, cue gating and homeostatic pacing.
 Each mechanism has a config switch. The last test proves the redesign is purely
 additive: with every switch off (and the old value_gain), the lab-console
 scenarios reproduce, bit for bit, traces recorded on the code before it.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from __future__ import annotations

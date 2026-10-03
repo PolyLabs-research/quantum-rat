@@ -4,6 +4,8 @@ TD with reward-on-arrival + bootstrapping means a place that leads toward reward
 keeps its value even on zero-reward steps, so following the learned gradient
 reinforces rather than erodes it (the repeated-recall erosion fix). Values also
 generalize to neighbouring cells (overlapping place fields).
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from brain.systems.value_memory import ValueMemory
