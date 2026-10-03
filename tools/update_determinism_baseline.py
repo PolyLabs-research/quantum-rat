@@ -1,18 +1,23 @@
 """Regenerate determinism baselines (guarded by explicit flag).
 
 One set of baselines per config profile (docs/profiles.md, docs/determinism.md).
-``--profile legacy`` (the default) writes, for ``EngineConfig.legacy()`` at the
-gate's seed and tick count, the three hash kinds of the same trace:
-``baseline_hashes.json`` (full, the file the gate has always used),
-``baseline_behaviour_legacy.json`` and ``baseline_physics_legacy.json``; plus
-``baseline_meta.json`` and ``reference_trace_legacy.jsonl``, the JSONL trace
-the cross-platform tolerance gate compares against. ``--profile research``
-writes the same set for ``EngineConfig.research()`` (``baseline_hashes_research.json``,
-``baseline_behaviour_research.json``, ``baseline_physics_research.json``,
-``baseline_meta_research.json``, ``reference_trace_research.jsonl``).
+``--profile research`` (the default) writes, for ``EngineConfig.research()`` at
+the gate's seed and tick count, the three hash kinds of the same trace
+(``baseline_hashes_research.json``, the full file the gate uses;
+``baseline_behaviour_research.json``; ``baseline_physics_research.json``), plus
+``baseline_meta_research.json`` and ``reference_trace_research.jsonl``, the
+JSONL trace the cross-platform tolerance gate compares against. Overwriting the
+committed set needs ``--i-know-what-im-doing``.
 
-``--out-dir`` writes the same files into another directory, so a regeneration
-can be diffed against the committed files without touching them.
+The legacy set (``baseline_hashes.json``, ``baseline_behaviour_legacy.json``,
+``baseline_physics_legacy.json``, ``baseline_meta.json``,
+``reference_trace_legacy.jsonl``) is never re-recorded: the legacy profile is
+bit-identical by rule (docs/decisions.md G22), so ``--profile legacy`` is
+refused unless ``--out-dir`` points somewhere else.
+
+``--out-dir DIR`` writes a profile's files into another directory, with no flag
+needed, so a regeneration can be diffed against the committed files without
+touching them (the way to check the legacy set).
 """
 
 from __future__ import annotations
@@ -30,6 +35,7 @@ if str(ROOT) not in sys.path:
 
 from core.config import EngineConfig
 from core.determinism import (
+    BASELINE_DIR,
     BASELINE_PATH,
     DEFAULT_SEED,
     DEFAULT_TICKS,
@@ -111,13 +117,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "--i-know-what-im-doing",
         action="store_true",
         dest="force",
-        help="Required to overwrite the committed baseline.",
+        help="Required to overwrite the committed research baseline (not needed with --out-dir).",
     )
     parser.add_argument(
         "--profile",
         choices=sorted(PROFILES),
-        default="legacy",
-        help="Config profile to generate the baselines for (default: legacy).",
+        default="research",
+        help=(
+            "Config profile to generate the baselines for (default: research). "
+            "The committed legacy set is never re-recorded: 'legacy' needs --out-dir."
+        ),
     )
     parser.add_argument(
         "--ticks",
@@ -143,10 +152,22 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+LEGACY_RULE = (
+    "Refusing to re-record the committed legacy baselines: the legacy profile is bit-identical "
+    "by rule (docs/decisions.md G22, docs/determinism.md). Pass --out-dir DIR to write the "
+    "legacy set elsewhere and diff it against tests/determinism/."
+)
+
+
 def main(argv: Optional[Sequence[str]] = None) -> None:
     args = parse_args(argv)
-    if not args.force:
-        raise SystemExit("Refusing to overwrite baseline without --i-know-what-im-doing")
+    target = Path(args.out_dir).resolve() if args.out_dir is not None else BASELINE_DIR
+    writes_committed_set = target == BASELINE_DIR
+    if writes_committed_set and args.profile == "legacy":
+        print(LEGACY_RULE, file=sys.stderr)
+        raise SystemExit(2)
+    if writes_committed_set and not args.force:
+        raise SystemExit("Refusing to overwrite the committed baseline without --i-know-what-im-doing")
 
     written = write_profile_baselines(args.profile, seed=args.seed, ticks=args.ticks, directory=args.out_dir)
     for key, path in written.items():

@@ -175,5 +175,6 @@ hash). The research set was re-recorded for M0b item 8, when the seeded
 elements went on by default in `research()`, and again when their odometry
 placeholders were lowered (87f824e). Regenerate the research set with
 `python3 tools/update_determinism_baseline.py --profile research
---i-know-what-im-doing` (once per milestone, per profile); one engine run
+--i-know-what-im-doing` (once per milestone; research is the tool's default
+profile, and it refuses to write the legacy set in place); one engine run
 writes all three hash kinds, the meta file and the reference trace.

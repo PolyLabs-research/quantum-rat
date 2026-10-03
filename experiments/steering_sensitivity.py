@@ -85,13 +85,14 @@ import math
 import statistics
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import ui.scenarios as scenarios_module
 from brain.systems.spatial import wrap_angle
 from core.config import EngineConfig
 from core.engine import Engine
 from core.seeds import require_seeds_are_samples
+from metrics.hash import RunHash
 from ui.scenarios import make_scenario
 
 SCENARIOS = ("beacon", "foraging", "hazard_field", "hidden_food", "memory_maze")
@@ -105,7 +106,24 @@ ACTION_ORDER = ("FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST")  # selection tie-b
 BAND_THRESHOLDS = (0.8, 0.85)
 RECALL_OK = 0.9  # a maze run "recalls" when at least this share of its hidden trials reach the goal
 
+# The fields of a run_job row that describe the job rather than its outcome. Everything
+# else in a row (score, the task's counters, vrest, trace_hash) is what the run produced:
+# the vector a pseudo-replication guard compares between seeds.
+JOB_FIELDS = ("scenario", "value_gain", "seed", "noise", "heading", "ticks")
+
 Summary = Dict[str, Dict[float, Dict[str, Any]]]
+
+
+def outcome_fields(row: Mapping[str, Any]) -> Dict[str, Any]:
+    """A run_job row without its :data:`JOB_FIELDS`: the run's outcome, trace hash included."""
+    return {key: value for key, value in row.items() if key not in JOB_FIELDS}
+
+
+# A per-run hook called as ``hook(engine, scenario, tick)`` before each tick's engine
+# step; ``Job.before_tick`` is a zero-argument factory that makes one per run, so the
+# hook can own state (an RNG stream) that starts fresh for every run and the Job stays
+# picklable for the worker pool (a module-level function is).
+TickHook = Callable[[Any, Any, int], None]
 
 
 @dataclass(frozen=True)
@@ -117,6 +135,7 @@ class Job:
     ticks: int
     overrides: Tuple[Tuple[str, Any], ...] = ()
     heading: Optional[float] = None  # start heading in radians; None = START_POSE as is
+    before_tick: Optional[Callable[[], TickHook]] = None  # see TickHook; None = plain run
 
 
 MazeHeadings = Union[None, str, int]
@@ -153,7 +172,8 @@ def headings_for(scenario: str, n: Optional[int], maze: MazeHeadings = None) -> 
     return [2.0 * math.pi * i / n for i in range(n)]
 
 
-def _set(config: Any, key: str, value: Any) -> None:
+def set_field(config: Any, key: str, value: Any) -> None:
+    """Set the dotted config field ``key`` (``"sensors.noise"``) to ``value``; an unknown field is an error."""
     obj = config
     parts = key.split(".")
     for part in parts[:-1]:
@@ -206,7 +226,7 @@ def _job_config(job: Job, scenario: Any) -> EngineConfig:
     config = scenario.config()
     config.sensors.noise = job.noise
     for key, value in job.overrides:
-        _set(config, key, value)
+        set_field(config, key, value)
     if job.value_gain is not None:
         config.basal_ganglia.value_gain = job.value_gain
     return config
@@ -242,6 +262,14 @@ def check_seeds_are_samples(jobs: Sequence[Job], allow_identical_seeds: bool = F
 
 
 def run_job(job: Job) -> Dict[str, Any]:
+    """One run: the scenario's config plus the job's noise, overrides and gain, ``job.ticks`` ticks.
+
+    With ``job.before_tick`` set, its factory is called once and the hook it
+    returns runs before every tick's engine step (the moved-sites control of
+    hidden food moves the sites this way); the row's fields do not change.
+    Every row carries ``trace_hash``, the gate's full ``RunHash`` over the
+    run's ticks, so two runs with the same scores can still be told apart.
+    """
     saved_pose = scenarios_module.START_POSE
     maze_pose = job.heading is not None and job.scenario == "memory_maze"
     try:
@@ -255,9 +283,14 @@ def run_job(job: Job) -> Dict[str, Any]:
         if job.heading is not None and not maze_pose:
             _apply_heading(engine, job.heading)
         bg_config = getattr(engine.config, "basal_ganglia", None)
+        hook = job.before_tick() if job.before_tick is not None else None
+        run_hash = RunHash()
         value_rest = 0
-        for _ in range(job.ticks):
+        for tick in range(job.ticks):
+            if hook is not None:
+                hook(engine, scenario, tick)
             td = engine.run(1)[0]
+            run_hash.update(td)
             ctx = getattr(engine, "context", None)
             if ctx is not None and is_value_rest(ctx, getattr(bg_config, "value_gain", 0.0)):
                 value_rest += 1
@@ -296,6 +329,7 @@ def run_job(job: Job) -> Dict[str, Any]:
         out["train_ticks"] = visible[0]["ticks"] if visible else None
         out["timeouts"] = len(hidden) - len(reached)
     out["vrest"] = value_rest / job.ticks if job.ticks > 0 else 0.0
+    out["trace_hash"] = run_hash.hexdigest()
     return out
 
 

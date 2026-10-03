@@ -24,7 +24,7 @@
  "n_boot": 10000,
  "noise": 0.03,
  "quick": false,
- "runtime_s": 98.9,
+ "runtime_s": 116.7,
  "seeds": [
   1,
   2,

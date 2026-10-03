@@ -38,6 +38,7 @@ import random
 from typing import Optional, Tuple
 
 from experiments.steering_sensitivity import Job, run_job
+from ui.scenarios import HiddenFood
 
 TICKS = 3000
 HEADINGS = (0.0, math.pi / 2, math.pi, 3 * math.pi / 2)
@@ -64,41 +65,32 @@ def test_memory_finds_far_more_hidden_food():
     assert _memory_beats_no_memory(with_memory, without), (with_memory, without)
 
 
-def _band_point(rng: random.Random) -> Tuple[float, float]:
-    # uniform on the band 2.0-3.0 m in from the walls (the sites sit ~2.5 m in)
-    while True:
-        x, y = rng.uniform(-8.0, 8.0), rng.uniform(-8.0, 8.0)
-        if 2.0 <= 10.0 - max(abs(x), abs(y)) <= 3.0:
-            return x, y
+def _site_jumps():
+    """The harness ``before_tick`` hook of the reshuffled control: every REGROW ticks, before
+    the tick's engine step (so the engine sees a moved site first), every site jumps to a
+    fresh ``HiddenFood.band_point`` of a ``random.Random(1001)`` made once per run, so the
+    jumps are the same for every heading and gain."""
+    rng = random.Random(1001)
+
+    def hook(engine, scenario, tick: int) -> None:
+        if tick > 0 and tick % scenario.REGROW == 0:
+            scenario.jump_sites(rng)
+
+    return hook
 
 
 @functools.lru_cache(maxsize=None)
 def _reshuffled_scores(gain: float) -> Tuple[int, ...]:
-    """Finds per heading when every site jumps to a random place in the band every REGROW ticks.
+    """Finds per heading when every site jumps to a random place in the band every REGROW ticks."""
+    return tuple(run_job(Job("hidden_food", gain, 1, 0.0, TICKS, (), h, _site_jumps))["score"] for h in HEADINGS)
 
-    The jump happens before the tick's engine step, so the engine sees a moved
-    site first; the jumps are the same for every gain (their own RNG)."""
-    from core.engine import Engine
-    from experiments.steering_sensitivity import _apply_heading
-    from ui.scenarios import HiddenFood
 
-    scores = []
-    for heading in HEADINGS:
-        scenario = HiddenFood()
-        config = scenario.config()
-        config.sensors.noise = 0.0
-        config.basal_ganglia.value_gain = gain
-        engine = Engine(seed=1, config=config)
-        scenario.setup(engine)
-        _apply_heading(engine, heading)
-        rng = random.Random(1001)
-        for tick in range(TICKS):
-            if tick > 0 and tick % scenario.REGROW == 0:
-                for item in scenario.items:
-                    item.x, item.y = _band_point(rng)
-            scenario.on_tick(engine, engine.run(1)[0].tick)
-        scores.append(scenario.collected)
-    return tuple(scores)
+def test_band_point_stays_in_the_band_and_is_the_scenarios():
+    rng = random.Random(7)
+    points = [HiddenFood.band_point(rng) for _ in range(200)]
+    assert all(HiddenFood.BAND[0] <= 10.0 - max(abs(x), abs(y)) <= HiddenFood.BAND[1] for x, y in points)
+    again = random.Random(7)
+    assert points == [HiddenFood.band_point(again) for _ in range(200)]
 
 
 def test_the_benefit_needs_food_at_fixed_places():

@@ -27,7 +27,7 @@
  "n_boot": 10000,
  "noise": 0.03,
  "quick": false,
- "runtime_s": 429.1,
+ "runtime_s": 516.1,
  "seeds": [
   1,
   2,
@@ -77,6 +77,7 @@
   ],
   "B": []
  },
+ "tag": null,
  "ticks": {
   "beacon": 3000,
   "foraging": 3000,

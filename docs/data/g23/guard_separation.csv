@@ -1,4 +1,4 @@
-claim,setting,task,condition,metric,n,distinct_values,distinct_rows,stochastic_elements,note
-3,A_speed,memory_maze_full_circle,A_speed/gain=1.5,recall_rate,30,18,30,sensors.noise=0.03 sensors.odometry_speed_noise=0.05,
-3,A_turn,memory_maze_full_circle,A_turn/gain=1.5,recall_rate,30,28,30,sensors.noise=0.03 sensors.odometry_turn_noise=0.01,
-3,A_softmax,memory_maze_full_circle,A_softmax/gain=1.5,recall_rate,30,28,30,sensors.noise=0.03 basal_ganglia.softmax_temperature=0.05,
+claim,setting,task,condition,metric,n,distinct_values,distinct_outcomes,distinct_traces,stochastic_elements,note
+3,A_speed,memory_maze_full_circle,A_speed/gain=1.5,recall_rate,30,18,30,30,sensors.noise=0.03 sensors.odometry_speed_noise=0.05,
+3,A_turn,memory_maze_full_circle,A_turn/gain=1.5,recall_rate,30,28,30,30,sensors.noise=0.03 sensors.odometry_turn_noise=0.01,
+3,A_softmax,memory_maze_full_circle,A_softmax/gain=1.5,recall_rate,30,28,30,30,sensors.noise=0.03 basal_ganglia.softmax_temperature=0.05,

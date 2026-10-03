@@ -30,8 +30,11 @@ import pytest
 
 from analysis.stats import CI, TIDY_COLUMNS
 from experiments import g23_remeasure as g23
+from ui.scenarios import HiddenFood
 
 QUICK_ARGS = ["--seeds", "2", "--quick", "--workers", "2"]
+# The per-block find counts the hidden-food tidy table carries (none under --quick's 300 ticks).
+QUICK_BLOCKS = {f"block_{i}" for i in range(g23.QUICK_TICKS // HiddenFood.BLOCK)}
 
 
 def _read(path: Path):
@@ -64,7 +67,7 @@ def test_quick_run_writes_every_file(quick_run):
 def test_tidy_tables_have_the_long_format(quick_run):
     out, _ = quick_run
     for name, tasks, metrics in (
-        ("hidden_food.csv", {"hidden_food"}, {"score", "sites_found"}),
+        ("hidden_food.csv", {"hidden_food"}, {"score", "sites_found"} | QUICK_BLOCKS),
         ("steering_band.csv", set(g23.CLAIM2_SCENARIOS), {"score", "vrest", "attempted"}),
         ("maze_recall.csv", {"memory_maze_full_circle"},
          {"recalls", "attempted", "recall_rate", "headings_recalling"}),
@@ -124,10 +127,53 @@ def test_summary_has_the_statistics_the_entry_reports(quick_run):
     assert {r["statistic"] for r in rows if r["statistic"] in band_rows} == band_rows
     guard = _read(out / "guard.csv")
     assert list(guard[0]) == list(g23.GUARD_COLUMNS)
-    assert all(int(r["n"]) == 2 and 1 <= int(r["distinct_rows"]) <= 2 for r in guard)
+    assert all(int(r["n"]) == 2 and 1 <= int(r["distinct_outcomes"]) <= 2 for r in guard)
+    assert all(int(r["distinct_traces"]) == 2 and r["note"] == "" for r in guard)  # two seeds, two runs
     assert all("sensors.noise=0.03" in r["stochastic_elements"] for r in guard)
     assert all("odometry_speed_noise" in r["stochastic_elements"] for r in guard if r["setting"] == "A")
     assert all("odometry" not in r["stochastic_elements"] for r in guard if r["setting"] == "B")
+
+
+def test_quick_refuses_the_committed_output_directory(capsys):
+    with pytest.raises(SystemExit):
+        g23.main(["--seeds", "1", "--quick"])
+    assert "--out" in capsys.readouterr().err
+
+
+def test_hidden_food_rows_carry_the_block_counts():
+    """With a budget of at least one block, every hidden-food row carries block_<i> = finds in
+    that 500-tick block (the full run's 3,000 ticks give six): with score and sites_found,
+    the fields the pseudo-replication guard compares, so the committed table shows why the
+    per-seed vectors are distinct where (score, sites_found) alone repeats across seeds."""
+    assert g23.TICKS["hidden_food"] // HiddenFood.BLOCK == 6
+    budget = g23.Budget({"hidden_food": 2 * HiddenFood.BLOCK}, g23.QUICK_GAINS, g23.maze_heading_set(1), 50)
+    res = g23.Results(budget.n_boot)
+    g23.claim_hidden_food(res, ["B"], [1, 2], budget, workers=1)
+    rows = res.tidy["hidden_food"]
+    assert len(rows) == 2 * 4  # two seeds, four arms
+    for row in rows:
+        assert {"score", "sites_found", "block_0", "block_1"} <= set(row), sorted(row)
+        assert row["block_0"] + row["block_1"] == row["score"]  # the blocks cover the whole budget
+    guard = [g for g in res.guard if g["task"] == "hidden_food"]
+    assert len(guard) == 4 and all(g["n"] == 2 for g in guard)
+
+
+def test_the_guard_compares_outcomes_not_the_seed():
+    """Two rows that differ only in their seed are one outcome: the guard must say so (it
+    compared whole rows, seed included, until the verification fixes, so its count was 30
+    by construction); the trace hash is what tells genuinely different runs apart."""
+    base = {"scenario": "hidden_food", "value_gain": 1.5, "noise": 0.03, "heading": None, "ticks": 10,
+            "score": 2, "sites_found": 1, "blocks": [2], "vrest": 0.0, "trace_hash": "a" * 64}
+    res = g23.Results(50)
+    res.record_guard("1", "B", "hidden_food", "B/x", "score", [{**base, "seed": 1}, {**base, "seed": 2}], ["e"])
+    row = res.guard[-1]
+    assert (row["distinct_values"], row["distinct_outcomes"], row["distinct_traces"]) == (1, 1, 1)
+    assert row["note"].startswith("pseudo-replication")
+    res.record_guard("1", "B", "hidden_food", "B/y", "score",
+                     [{**base, "seed": 1}, {**base, "seed": 2, "trace_hash": "b" * 64}], ["e"])
+    row = res.guard[-1]
+    assert (row["distinct_values"], row["distinct_outcomes"], row["distinct_traces"]) == (1, 1, 2)
+    assert row["note"] == ""  # same coarse outcome by chance, two different runs
 
 
 def test_quick_run_is_byte_identical(quick_run, tmp_path):
@@ -247,6 +293,20 @@ def test_moved_sites_jumps_stay_in_the_band_and_repeat():
 
     first = RNG(seed=g23.SITE_JUMP_SEED).stream(g23.SITE_JUMP_STREAM)
     second = RNG(seed=g23.SITE_JUMP_SEED).stream(g23.SITE_JUMP_STREAM)
-    points = [g23.band_point(first) for _ in range(50)]
-    assert points == [g23.band_point(second) for _ in range(50)]
-    assert all(2.0 <= 10.0 - max(abs(x), abs(y)) <= 3.0 for x, y in points)
+    points = [HiddenFood.band_point(first) for _ in range(50)]
+    assert points == [HiddenFood.band_point(second) for _ in range(50)]
+    assert all(HiddenFood.BAND[0] <= 10.0 - max(abs(x), abs(y)) <= HiddenFood.BAND[1] for x, y in points)
+    # The harness hook: a fresh stream per run, so every run (seed, gain) sees the same jumps,
+    # at the regrow ticks only, and the sites land where band_point on that stream says.
+    scenario = HiddenFood()
+    scenario.items = [type("Site", (), {})() for _ in HiddenFood.SITES]
+    hook = g23.site_jumps()
+    hook(None, scenario, 0)
+    assert not any(hasattr(item, "x") for item in scenario.items)  # tick 0: no jump
+    hook(None, scenario, HiddenFood.REGROW)
+    expected = RNG(seed=g23.SITE_JUMP_SEED).stream(g23.SITE_JUMP_STREAM)
+    assert [(i.x, i.y) for i in scenario.items] == [HiddenFood.band_point(expected) for _ in HiddenFood.SITES]
+    again = HiddenFood()
+    again.items = [type("Site", (), {})() for _ in HiddenFood.SITES]
+    g23.site_jumps()(None, again, HiddenFood.REGROW)
+    assert [(i.x, i.y) for i in again.items] == [(i.x, i.y) for i in scenario.items]

@@ -14,7 +14,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[2]
+
+pytestmark = pytest.mark.exact_hash  # compares against the committed regression/baseline/ (pytest.ini)
 
 
 def test_regression_matches_committed_baseline():

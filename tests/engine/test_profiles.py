@@ -12,6 +12,8 @@ import math
 from dataclasses import asdict, fields
 from typing import Callable, List, Tuple
 
+import pytest
+
 from brain.systems.spatial import wrap_angle
 from brain.systems.trn_microsleep_replay import TRNGate
 from core.config import EngineConfig, TRNConfig
@@ -156,6 +158,7 @@ def test_research_differs_from_legacy_in_exactly_the_documented_fields() -> None
     assert EngineConfig.legacy().profile == EngineConfig().profile == "legacy"
 
 
+@pytest.mark.exact_hash  # reads the committed legacy hashes (pytest.ini)
 def test_research_profile_changes_the_trace_at_the_gate_seed() -> None:
     assert build_profile_trace("research") != load_baseline()
 
@@ -331,6 +334,7 @@ def test_scales_motion_off_alone_keeps_the_astrocyte_rule_but_unties_the_step_fr
 # --- (f) legacy is unchanged ------------------------------------------------
 
 
+@pytest.mark.exact_hash  # same-platform bit identity (pytest.ini, docs/determinism.md)
 def test_legacy_profile_is_unchanged_and_matches_the_committed_baseline() -> None:
     assert EngineConfig().diff(EngineConfig.legacy()) == []
     baseline = load_baseline()  # tests/determinism/baseline_hashes.json: seed 1337, 200 ticks

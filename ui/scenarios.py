@@ -581,6 +581,29 @@ class HiddenFood(Scenario):
     def sites_found(self) -> int:
         return sum(1 for n in self.site_counts if n > 0)
 
+    BAND = (2.0, 3.0)  # the moved-sites control's band, in from the walls (the sites sit ~2.5 in)
+
+    @classmethod
+    def band_point(cls, rng: Any) -> Tuple[float, float]:
+        """A point uniform on the band ``BAND`` in from the walls of the 20-unit box.
+
+        Two ``rng.uniform(-8.0, 8.0)`` draws per candidate, rejected until the
+        candidate is in the band; ``rng`` is any object with ``uniform``
+        (``random.Random`` or a ``core.rng`` stream). The construction of the
+        moved-sites control, shared by tests/experiments/test_hidden_food.py and
+        experiments/g23_remeasure.py so it is defined once.
+        """
+        low, high = cls.BAND
+        while True:
+            x, y = rng.uniform(-8.0, 8.0), rng.uniform(-8.0, 8.0)
+            if low <= 10.0 - max(abs(x), abs(y)) <= high:
+                return x, y
+
+    def jump_sites(self, rng: Any) -> None:
+        """Move every site to a fresh :meth:`band_point` (the moved-sites control), in site order."""
+        for item in self.items:
+            item.x, item.y = self.band_point(rng)
+
     BLOCK = 500  # ticks per block of the learning curve
 
     def blocks(self, ticks: int) -> List[int]:

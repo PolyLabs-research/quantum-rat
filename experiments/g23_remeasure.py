@@ -1,9 +1,12 @@
 """G23, "what survives 30 seeds": G16, G19 and G21 re-measured with confidence intervals.
 
     python3 -m experiments.g23_remeasure                     # 30 seeds, settings A and B, 4 workers
-    python3 -m experiments.g23_remeasure --seeds 2 --quick   # the smoke test's run (tiny budgets)
+    python3 -m experiments.g23_remeasure --seeds 2 --quick --out /tmp/g23   # the smoke test's run (tiny budgets)
     python3 -m experiments.g23_remeasure --setting B --claims 1,3 --out /tmp/g23
     python3 -m experiments.g23_remeasure --setting separation --claims 3 --maze-gains 1.5 --tag separation
+
+``--quick`` refuses the default output directory (the committed tables), so the smoke
+test's meaningless numbers cannot overwrite them: give it ``--out``.
 
 The result is docs/decisions.md entry G23 (docs/research_plan.md section 5, M0b item 15):
 the first table in the repository with a confidence interval on it.
@@ -35,9 +38,13 @@ only when exactly two are run).
 
 Thirty seeds (1-30) in every arm of every setting. The pseudo-replication guard
 ``core.seeds.require_seeds_are_samples`` runs on every config (inside the harness's
-``run_jobs`` for the harness runs, and directly for the moved-sites control), and
-``analysis.stats.pseudo_replication_guard`` runs on every per-seed outcome vector; the
-number of distinct outcomes, per vector, is written to guard.csv. Nothing here draws
+``run_jobs``, once per distinct set of stochastic elements in a job list, the moved-sites
+control included), and
+``analysis.stats.pseudo_replication_guard`` runs on every per-seed outcome vector (the
+harness row's outcome fields: score, the task's counters, vrest and the run's trace hash,
+with the seed and the job's description excluded); guard.csv has, per vector, the number
+of distinct values of the reported metric, of distinct coarse outcomes (without the trace
+hash) and of distinct trace hashes. Nothing here draws
 from the RNG outside ``core.rng`` streams: the engine's own streams, and one named stream
 for the moved-sites control.
 
@@ -45,8 +52,9 @@ Claim 1, hidden food (G19 / G21): "memory finds 2.8-4.1x as much food and loses 
 run". Per seed, the finds over the scenario's 3,000-tick budget with memory on (the
 scenario's default value_gain, 1.5) and off (value_gain 0), and the moved-sites control
 of tests/experiments/test_hidden_food.py (every site jumps to a random place in the food
-band every REGROW ticks, before the engine step; the same jumps for every seed and gain),
-also on and off. Reported per setting: the mean of each arm with a BCa 95% CI, the paired
+band every REGROW ticks, before the engine step, through the harness's ``before_tick``
+hook and ``HiddenFood.jump_sites``; the same jumps for every seed and gain), also on and
+off. Reported per setting: the mean of each arm with a BCa 95% CI, the paired
 on - off effect with its CI and the fraction of seeds with on > off (and on < off), the
 ratio of means with a seed-bootstrap BCa CI, Cliff's delta with its magnitude, the same
 for the moved-sites arm, and the fixed-over-moved benefit factor (the test's 1.5x bound).
@@ -97,7 +105,9 @@ module does.
 Outputs (``--out``, default docs/data/g23): hidden_food.csv, steering_band.csv and
 maze_recall.csv hold every per-seed run in the tidy long format (condition, task, seed,
 metric, value; condition is "<setting>/<arm>" or "<setting>/gain=<g>"), with the metrics
-the claim is read from: hidden food score and sites_found; steering band score and vrest
+the claim is read from: hidden food score, sites_found and the six block_<i> counts
+(finds per 500-tick block, the fields the pseudo-replication guard compares beyond the
+score); steering band score and vrest
 for the open scenarios, score and attempted for the maze (its recall rate is the quotient,
 and its vrest, like hidden food's, is in summary.csv per cell as vrest_mean and vrest_max);
 maze recall per seed recalls, attempted, recall_rate and headings_recalling. A claim that
@@ -123,11 +133,11 @@ import json
 import math
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
+import core  # noqa: F401  # pins the BLAS thread counts before numpy loads (docs/determinism.md rule 2)
 import numpy as np
 
 from analysis.stats import (
@@ -140,17 +150,17 @@ from analysis.stats import (
     tidy_table,
 )
 from core.config import EngineConfig
-from core.engine import Engine
 from core.rng import RNG
-from core.seeds import require_seeds_are_samples
 from experiments.steering_sensitivity import (
     DEFAULT_GAINS,
     RECALL_OK,
     TICKS,
     Job,
-    is_value_rest,
+    TickHook,
     maze_heading_set,
+    outcome_fields,
     run_jobs,
+    set_field,
 )
 from ui.scenarios import HiddenFood
 
@@ -194,8 +204,8 @@ QUICK_N_BOOT = 200
 DEFAULT_OUT = Path("docs/data/g23")
 SUMMARY_COLUMNS = ("claim", "setting", "task", "condition", "statistic", "n", "estimate", "low", "high",
                    "method", "label", "note")
-GUARD_COLUMNS = ("claim", "setting", "task", "condition", "metric", "n", "distinct_values", "distinct_rows",
-                 "stochastic_elements", "note")
+GUARD_COLUMNS = ("claim", "setting", "task", "condition", "metric", "n", "distinct_values", "distinct_outcomes",
+                 "distinct_traces", "stochastic_elements", "note")
 BY_HEADING_COLUMNS = ("setting", "gain", "seed", "heading_index", "recalls", "attempted")
 VERDICTS = ("survives", "weakened", "does not survive")
 
@@ -223,15 +233,9 @@ class Budget:
 
 
 def apply_overrides(config: EngineConfig, overrides: Overrides) -> None:
-    """Set dotted config fields, as the harness does for ``--set`` (unknown fields are an error)."""
+    """Set dotted config fields with the harness's ``set_field`` (unknown fields are an error)."""
     for key, value in overrides:
-        obj: Any = config
-        parts = key.split(".")
-        for part in parts[:-1]:
-            obj = getattr(obj, part)
-        if not hasattr(obj, parts[-1]):
-            raise AttributeError(f"config has no field {key!r}")
-        setattr(obj, parts[-1], value)
+        set_field(config, key, value)
 
 
 def setting_config(setting: str, scenario_config: EngineConfig) -> EngineConfig:
@@ -241,72 +245,23 @@ def setting_config(setting: str, scenario_config: EngineConfig) -> EngineConfig:
     return scenario_config
 
 
-def band_point(rng: Any) -> Tuple[float, float]:
-    """Uniform on the band 2.0-3.0 m in from the walls (the sites sit ~2.5 m in).
+def site_jumps() -> TickHook:
+    """The moved-sites control as a harness ``before_tick`` hook (one per run).
 
-    The construction of tests/experiments/test_hidden_food.py, with the harness's
-    named stream in place of a bare ``random.Random``."""
-    while True:
-        x, y = rng.uniform(-8.0, 8.0), rng.uniform(-8.0, 8.0)
-        if 2.0 <= 10.0 - max(abs(x), abs(y)) <= 3.0:
-            return x, y
-
-
-@dataclass(frozen=True)
-class MovedJob:
-    setting: str
-    value_gain: float
-    seed: int
-    ticks: int
-
-
-def run_moved_sites(job: MovedJob) -> Dict[str, Any]:
-    """Hidden food with every site jumping to a random band place every REGROW ticks.
-
-    The jump happens before the tick's engine step, so the engine sees a moved
-    site first; the jumps come from one named stream with a fixed seed, so they
+    Every ``HiddenFood.REGROW`` ticks, before the tick's engine step (so the
+    engine sees a moved site first), every site jumps to a fresh point of the
+    food band (``HiddenFood.jump_sites``). The jumps come from one named
+    ``core.rng`` stream with a fixed seed, created here, once per run, so they
     are the same for every seed and gain (as in the test, where they are the
-    same for every heading and gain). Row fields match the harness's hidden_food rows.
+    same for every heading and gain).
     """
-    scenario = HiddenFood()
-    config = setting_config(job.setting, scenario.config())
-    config.basal_ganglia.value_gain = job.value_gain
-    engine = Engine(seed=job.seed, config=config)
-    scenario.setup(engine)
     jumps = RNG(seed=SITE_JUMP_SEED).stream(SITE_JUMP_STREAM)
-    value_rest = 0
-    for tick in range(job.ticks):
+
+    def hook(engine: Any, scenario: Any, tick: int) -> None:
         if tick > 0 and tick % scenario.REGROW == 0:
-            for item in scenario.items:
-                item.x, item.y = band_point(jumps)
-        td = engine.run(1)[0]
-        ctx = getattr(engine, "context", None)
-        if ctx is not None and is_value_rest(ctx, config.basal_ganglia.value_gain):
-            value_rest += 1
-        scenario.on_tick(engine, td.tick)
-    return {
-        "scenario": "hidden_food_moved",
-        "value_gain": config.basal_ganglia.value_gain,
-        "seed": job.seed,
-        "noise": NOISE,
-        "heading": None,
-        "ticks": job.ticks,
-        "score": scenario.collected,
-        "sites_found": scenario.sites_found(),
-        "blocks": scenario.blocks(job.ticks),
-        "vrest": value_rest / job.ticks if job.ticks > 0 else 0.0,
-    }
+            scenario.jump_sites(jumps)
 
-
-def run_moved_jobs(jobs: Sequence[MovedJob], workers: Optional[int]) -> List[Dict[str, Any]]:
-    """The moved-sites runs, after the seeds-are-samples guard on each setting's config."""
-    for setting in sorted({j.setting for j in jobs}, key=list(SETTINGS).index):
-        seeds = {j.seed for j in jobs if j.setting == setting}
-        require_seeds_are_samples(setting_config(setting, HiddenFood().config()), len(seeds))
-    if len(jobs) <= 1 or workers == 1:
-        return [run_moved_sites(job) for job in jobs]
-    with ProcessPoolExecutor(max_workers=workers) as pool:
-        return list(pool.map(run_moved_sites, jobs, chunksize=1))
+    return hook
 
 
 # --------------------------------------------------------------------------- statistics helpers
@@ -537,14 +492,25 @@ class Results:
 
     def record_guard(self, claim: str, setting: str, task: str, condition: str, metric: str,
                      rows: Sequence[Mapping[str, Any]], elements: Sequence[str]) -> None:
-        """Both guards' results for one per-seed outcome vector."""
+        """Both guards' results for one per-seed outcome vector.
+
+        ``pseudo_replication_guard`` compares the outcome fields of the harness
+        rows (``outcome_fields``: score, the task's counters, vrest and the run's
+        trace hash; the seed and the job's own description are excluded, so the
+        count is not 30 by construction). ``distinct_values`` counts the one
+        metric, ``distinct_outcomes`` the coarse outcome without the trace hash
+        (what the tidy tables show), ``distinct_traces`` the trace hashes.
+        """
         values = [row[metric] for row in rows]
-        outcome = pseudo_replication_guard(rows, allow=True)
-        distinct_rows = outcome if isinstance(outcome, int) else len({json.dumps(dict(r), sort_keys=True) for r in rows})
+        outcomes = [outcome_fields(row) for row in rows]
+        coarse = [{k: v for k, v in o.items() if k != "trace_hash"} for o in outcomes]
+        result = pseudo_replication_guard(outcomes, allow=True)
         self.guard.append({
             "claim": claim, "setting": setting, "task": task, "condition": condition, "metric": metric,
-            "n": len(rows), "distinct_values": len(set(values)), "distinct_rows": distinct_rows,
-            "stochastic_elements": " ".join(elements), "note": "" if isinstance(outcome, int) else outcome,
+            "n": len(rows), "distinct_values": len(set(values)),
+            "distinct_outcomes": len({json.dumps(c, sort_keys=True) for c in coarse}),
+            "distinct_traces": len({row["trace_hash"] for row in rows}),
+            "stochastic_elements": " ".join(elements), "note": "" if isinstance(result, int) else result,
         })
 
     def verdict(self, claim: str, setting: str, text: str, reason: str) -> None:
@@ -572,23 +538,28 @@ def claim_hidden_food(res: Results, settings: Sequence[str], seeds: Sequence[int
     jobs = [Job("hidden_food", gain, seed, NOISE, ticks, SETTINGS[s], None)
             for s in settings for _arm, gain in HIDDEN_FOOD_ARMS for seed in seeds]
     rows = run_jobs(jobs, workers)
-    moved_jobs = [MovedJob(s, gain, seed, ticks) for s in settings for _arm, gain in MOVED_ARMS for seed in seeds]
-    moved_rows = run_moved_jobs(moved_jobs, workers)
+    # The moved-sites control: the same jobs with the site-jump hook, through the same loop.
+    moved_jobs = [Job("hidden_food", gain, seed, NOISE, ticks, SETTINGS[s], None, site_jumps)
+                  for s in settings for _arm, gain in MOVED_ARMS for seed in seeds]
+    moved_rows = run_jobs(moved_jobs, workers)
     harness = {(j.overrides, j.value_gain, j.seed): r for j, r in by_index(jobs, rows)}
-    moved = {(j.setting, j.value_gain, j.seed): r for j, r in by_index(moved_jobs, moved_rows)}
+    moved = {(j.overrides, j.value_gain, j.seed): r for j, r in by_index(moved_jobs, moved_rows)}
     for setting in settings:
         elements = elements_of(setting, HiddenFood().config())
         arms: Dict[str, List[Mapping[str, Any]]] = {}
         for arm, gain in HIDDEN_FOOD_ARMS:
             arms[arm] = [harness[(SETTINGS[setting], gain, seed)] for seed in seeds]
         for arm, gain in MOVED_ARMS:
-            arms[arm] = [moved[(setting, gain, seed)] for seed in seeds]
+            arms[arm] = [moved[(SETTINGS[setting], gain, seed)] for seed in seeds]
         scores = {arm: [float(r["score"]) for r in arm_rows] for arm, arm_rows in arms.items()}
         for arm, arm_rows in arms.items():
             condition = f"{setting}/{arm}"
             for seed, row in zip(seeds, arm_rows):
+                # score, sites_found and the per-block counts: the fields the guard compares
+                # (plus vrest), so the committed table shows why 30 seeds are 30 outcomes.
                 res.tidy["hidden_food"].append({"condition": condition, "task": "hidden_food", "seed": seed,
-                                                "score": row["score"], "sites_found": row["sites_found"]})
+                                                "score": row["score"], "sites_found": row["sites_found"],
+                                                **{f"block_{i}": b for i, b in enumerate(row["blocks"])}})
             res.record_guard(claim, setting, "hidden_food", condition, "score", arm_rows, elements)
             res.record_mean(claim, setting, "hidden_food", condition, scores[arm])
             res.record_mean(claim, setting, "hidden_food", condition, [float(r["vrest"]) for r in arm_rows], "vrest_mean")
@@ -758,17 +729,20 @@ def claim_maze_recall(res: Results, settings: Sequence[str], seeds: Sequence[int
                     "recall_rate": recalls / attempted if attempted else 0.0,
                     "headings_recalling": sum(ok),
                     "mean_heading_rate": float(np.mean([r["recall_rate"] for r in runs])),
+                    # The seed's 16 runs as one trace hash (their hashes, in heading order), for the guard.
+                    "trace_hash": hashlib.sha256("".join(r["trace_hash"] for r in runs).encode("ascii")).hexdigest(),
                 })
                 per_seed_runs.append([(int(r["score"]), int(r["attempted"])) for r in runs])
                 for hi, r in enumerate(runs):
                     res.by_heading.append({"setting": setting, "gain": gain, "seed": seed, "heading_index": hi,
                                            "recalls": r["score"], "attempted": r["attempted"]})
             for row in per_seed:
-                tidy = {k: v for k, v in row.items() if k != "mean_heading_rate"}  # derivable from the by-heading file
+                # mean_heading_rate is derivable from the by-heading file; the hash is the guard's, not a metric.
+                tidy = {k: v for k, v in row.items() if k not in ("mean_heading_rate", "trace_hash")}
                 res.tidy["maze_recall"].append({"condition": condition, "task": task, **tidy})
+            # The guard's vector per seed: the aggregate row, the 16 (recalls, attempted) pairs and the hash.
             res.record_guard(claim, setting, task, condition, "recall_rate",
-                             [{"seed": r["seed"], "recall_rate": r["recall_rate"], "runs": runs}
-                              for r, runs in zip(per_seed, per_seed_runs)], elements)
+                             [{**r, "runs": runs} for r, runs in zip(per_seed, per_seed_runs)], elements)
             pooled[gain] = np.array([r["recall_rate"] for r in per_seed])
             counts[gain] = np.array([float(r["headings_recalling"]) for r in per_seed])
             rate_cis[gain] = res.record_mean(claim, setting, task, condition, pooled[gain], "recall_rate_mean")
@@ -891,7 +865,8 @@ def main(argv: Optional[Sequence[str]] = None) -> Results:
     parser.add_argument("--maze-gains", default=None,
                         help=f"comma-separated subset of claim 3's gains {','.join(f'{g:g}' for g in CLAIM3_GAINS)} (default all)")
     parser.add_argument("--workers", type=int, default=4, help="worker processes (default 4)")
-    parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"output directory (default {DEFAULT_OUT})")
+    parser.add_argument("--out", type=Path, default=None,
+                        help=f"output directory (default {DEFAULT_OUT}, the committed tables; --quick must name another)")
     parser.add_argument("--tag", default=None, help="suffix for the output file names (summary_TAG.csv, ...)")
     parser.add_argument("--n-boot", type=int, default=None, help=f"bootstrap replicates (default {N_BOOT})")
     parser.add_argument("--quick", action="store_true", help="tiny budgets for the smoke test; the numbers mean nothing")
@@ -915,6 +890,10 @@ def main(argv: Optional[Sequence[str]] = None) -> Results:
         maze_gains = tuple(g for g in CLAIM3_GAINS if g in chosen)
     if args.tag is not None and (not args.tag or any(c in args.tag for c in "/\\.")):
         parser.error(f"--tag must be a plain name, got {args.tag!r}")
+    if args.out is None:
+        if args.quick:
+            parser.error(f"--quick writes meaningless numbers: give it --out, not the committed {DEFAULT_OUT}")
+        args.out = DEFAULT_OUT
 
     settings = list(SETTING_GROUPS.get(args.setting, (args.setting,)))
     seeds = list(range(args.seed_start, args.seed_start + args.seeds))

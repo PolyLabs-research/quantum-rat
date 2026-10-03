@@ -10,16 +10,17 @@ and the console recording write one too.
 from __future__ import annotations
 
 import json
+import math
 import re
-from dataclasses import asdict
 
 import pytest
 
 from agents.dna import generate_population
 from core.config import EngineConfig
+from core.determinism import BLAS_THREAD_VARS, blas_info
 from metrics.manifest import (
     MANIFEST_VERSION,
-    THREAD_ENV_VARS,
+    REPO_ROOT,
     build_manifest,
     config_to_dict,
     finish_manifest,
@@ -36,15 +37,10 @@ TOP_LEVEL_KEYS = {
     "manifest_version", "created_at", "git", "profile", "config", "dt_s", "protocol", "seeds",
     "ticks_requested", "platform", "schema_version",
 }
-PLATFORM_KEYS = {"system", "release", "machine", "python", "numpy", "blas", "blas_runtime", "blas_threads"}
-
-
-def _tuples_to_lists(value):
-    if isinstance(value, (list, tuple)):
-        return [_tuples_to_lists(v) for v in value]
-    if isinstance(value, dict):
-        return {k: _tuples_to_lists(v) for k, v in value.items()}
-    return value
+PLATFORM_KEYS = {
+    "system", "release", "machine", "python", "numpy", "blas", "blas_runtime", "blas_threads",
+    "numpy_loaded_before_pin",
+}
 
 
 def test_build_manifest_has_the_documented_keys_and_types():
@@ -58,14 +54,29 @@ def test_build_manifest_has_the_documented_keys_and_types():
     # ISO-8601 UTC: "YYYY-MM-DDTHH:MM:SS+00:00"
     assert re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$", m["created_at"])
     assert set(m["platform"]) == PLATFORM_KEYS
-    assert set(m["platform"]["blas_threads"]) == set(THREAD_ENV_VARS)
+    assert set(m["platform"]["blas_threads"]) == set(BLAS_THREAD_VARS)
     assert isinstance(m["platform"]["python"], str) and m["platform"]["python"]
     assert m["platform"]["numpy"] is None or isinstance(m["platform"]["numpy"], str)
     assert isinstance(m["platform"]["blas"], str) and m["platform"]["blas"]
-    # dt_s comes from a units section when the config has one; otherwise null.
-    units = getattr(EngineConfig(), "units", None)
-    assert m["dt_s"] == (float(units.dt_s) if units is not None else None)
-    json.dumps(m)  # everything is plain JSON
+    assert m["dt_s"] == 0.2  # the declared tick length, docs/units.md
+    json.dumps(m, allow_nan=False)  # everything is strict JSON
+
+
+def test_platform_block_is_blas_info_and_records_the_pin_and_the_runtime_kernel():
+    """The numerical facts come from core.determinism.blas_info(), the one source, so the
+    string docs/determinism.md quotes is the one a manifest records; the suite imports
+    core before numpy (conftest), so the manifest says so and the runtime thread count,
+    read from the loaded library through threadpoolctl, is the pinned 1."""
+    info = blas_info()
+    platform = build_manifest(EngineConfig(), protocol="p", seeds=[1], ticks_requested=1)["platform"]
+    assert platform["blas"] == info["blas"] and platform["numpy"] == info["numpy_version"]
+    assert platform["blas_threads"] == {var: info[var] for var in BLAS_THREAD_VARS}
+    assert platform["numpy_loaded_before_pin"] is False
+    assert platform["blas_runtime"] == info["blas_runtime"]
+    assert isinstance(platform["blas_runtime"], list)
+    blas = [entry for entry in platform["blas_runtime"] if entry.get("user_api") == "blas"]
+    assert blas, platform["blas_runtime"]
+    assert all({"internal_api", "num_threads"} <= set(entry) for entry in blas)
 
 
 def test_git_sha_is_40_hex_or_unknown_and_dirty_is_a_bool_when_known():
@@ -86,19 +97,39 @@ def test_git_lookup_fails_gracefully_without_git():
     assert info == {"sha": "unknown", "dirty": None, "branch": "unknown"}
 
 
+def test_git_lookup_reports_only_this_repository(tmp_path):
+    # Inside the repository, from a subdirectory: this checkout's commit.
+    assert git_info(cwd=REPO_ROOT / "docs")["sha"] == git_info()["sha"]
+    # Outside it, or inside some other repository (a site-packages install under
+    # another checkout), no walk-up to a commit that is not this code's.
+    assert git_info(cwd=tmp_path) == {"sha": "unknown", "dirty": None, "branch": "unknown"}
+    other = tmp_path / "other"
+    other.mkdir()
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(other)], check=True, capture_output=True)
+    assert git_info(cwd=other) == {"sha": "unknown", "dirty": None, "branch": "unknown"}
+
+
 @pytest.mark.parametrize("make", [EngineConfig.legacy, EngineConfig.research])
-def test_config_round_trips_as_asdict_with_tuples_as_lists(make):
+def test_config_is_to_dict_and_round_trips_through_from_dict_as_strict_json(make):
     cfg = make()
     m = build_manifest(cfg, protocol="p", seeds=[1], ticks_requested=1)
     assert m["profile"] == cfg.profile
-    expected = _tuples_to_lists(asdict(cfg))
-    assert m["config"] == expected
-    # Through JSON and back: the same dict (the research profile's infinite
-    # kappa threshold survives as inf).
-    assert json.loads(json.dumps(m["config"])) == expected
+    assert m["config"] == cfg.to_dict()
     assert isinstance(m["config"]["world"]["bounds"], list)
-    assert config_to_dict(cfg) == expected
-    assert config_to_dict(expected) == expected  # an already-serialised config is accepted
+    # The real deserialiser reads it back to an equal config, also after strict JSON.
+    assert EngineConfig.from_dict(m["config"]).diff(cfg) == []
+    text = json.dumps(m["config"], allow_nan=False)
+    assert EngineConfig.from_dict(json.loads(text)).diff(cfg) == []
+    if cfg.profile == "research":
+        assert m["config"]["trn"]["narrow_above_kappa"] == "inf"  # not the non-JSON token Infinity
+        assert "Infinity" not in text
+    assert config_to_dict(cfg) == m["config"]
+    assert config_to_dict(m["config"]) == m["config"]  # an already-serialised config is accepted
+    assert config_to_dict({"a": (1, 2), "b": math.inf, "c": -math.inf, "d": math.nan}) == {
+        "a": [1, 2], "b": "inf", "c": "-inf", "d": "nan",
+    }
 
 
 def test_finish_manifest_computes_ticks_per_second():
@@ -135,6 +166,10 @@ def test_write_manifest_writes_sorted_indented_json(tmp_path):
     for keys in _key_orders(ordered):
         assert keys == sorted(keys)
     assert m["seeds"] == [3, 1, 2]  # values are not reordered, only keys
+    # Strict JSON: a non-finite float that slipped in is refused, not written as NaN.
+    m["stray"] = math.nan
+    with pytest.raises(ValueError):
+        write_manifest(path, m)
 
 
 def test_extra_keys_go_to_the_top_level_and_may_not_clash():
@@ -156,7 +191,7 @@ def test_tournament_writes_a_manifest_at_its_root(tmp_path):
     assert m["ticks_requested"] == 2 * (30 + 20) and m["ticks_run"] == 100
     assert m["timing"]["ticks_per_second"] > 0
     assert m["agents_source"] == "test"
-    assert m["config"] == _tuples_to_lists(asdict(EngineConfig()))
+    assert m["config"] == EngineConfig().to_dict()
     # The existing output files are as before: no manifest inside them, and no
     # manifest in the per-episode directories (one per tournament).
     config = json.loads((tmp_path / "config.json").read_text())

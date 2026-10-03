@@ -494,14 +494,16 @@ class EngineConfig:
         return config_diff(self, other)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Every field as a nested plain dict, ``profile`` first, JSON-serialisable.
+        """Every field as a nested plain dict, ``profile`` first, strict-JSON-serialisable.
 
-        Nested config dataclasses become dicts in field declaration order and
-        tuples become lists (``world.bounds``); every other value is kept as it
-        is. ``float("inf")`` (the research profile's ``trn.narrow_above_kappa``)
-        stays a float, which Python's ``json`` writes as ``Infinity`` and reads
-        back. :meth:`from_dict` inverts it: ``diff`` is empty after a round
-        trip, also through ``json.dumps`` / ``json.loads``.
+        Nested config dataclasses become dicts in field declaration order,
+        tuples become lists (``world.bounds``) and a non-finite float becomes
+        the string ``"inf"``, ``"-inf"`` or ``"nan"`` (the research profile's
+        ``trn.narrow_above_kappa``), so ``json.dumps(..., allow_nan=False)``
+        accepts the result and a strict JSON reader can open it (``Infinity``
+        is not JSON). Every other value is kept as it is. :meth:`from_dict`
+        inverts it: ``diff`` is empty after a round trip, also through
+        ``json.dumps`` / ``json.loads``.
         """
         return _dataclass_to_plain(self)
 
@@ -513,11 +515,19 @@ class EngineConfig:
         ``ValueError`` naming the dotted path, so a typo or a field from a
         later version is never dropped silently); a key that is missing keeps
         the field's default. A list is turned back into a tuple where the
-        field holds a tuple; nothing else changes type.
+        field holds a tuple, and the strings ``"inf"``, ``"-inf"`` and
+        ``"nan"`` back into floats where the field holds a float; nothing
+        else changes type. Each section's ``__post_init__`` runs after its
+        fields are set, so the validation a constructor does (``UnitsConfig``
+        rejects a non-positive ``dt_s``) applies to deserialised values too.
         """
         cfg = cls()
         _dataclass_from_plain(cfg, data, "")
         return cfg
+
+
+_NON_FINITE_TO_STR = {math.inf: "inf", -math.inf: "-inf"}
+_STR_TO_NON_FINITE = {"inf": math.inf, "-inf": -math.inf, "nan": math.nan}
 
 
 def _dataclass_to_plain(obj: Any) -> Dict[str, Any]:
@@ -528,6 +538,8 @@ def _dataclass_to_plain(obj: Any) -> Dict[str, Any]:
             out[f.name] = _dataclass_to_plain(value)
         elif isinstance(value, tuple):
             out[f.name] = list(value)
+        elif isinstance(value, float) and not math.isfinite(value):
+            out[f.name] = "nan" if math.isnan(value) else _NON_FINITE_TO_STR[value]
         else:
             out[f.name] = value
     return out
@@ -549,8 +561,14 @@ def _dataclass_from_plain(obj: Any, data: Mapping[str, Any], prefix: str) -> Non
             _dataclass_from_plain(current, value, f"{prefix}{name}.")
         elif isinstance(current, tuple):
             setattr(obj, name, tuple(value))
+        elif isinstance(current, float) and isinstance(value, str) and value in _STR_TO_NON_FINITE:
+            setattr(obj, name, _STR_TO_NON_FINITE[value])
         else:
             setattr(obj, name, value)
+    # The constructor's validation, for values that arrived by assignment.
+    post_init = getattr(obj, "__post_init__", None)
+    if callable(post_init):
+        post_init()
 
 
 def config_diff(a: Any, b: Any, prefix: str = "") -> List[Tuple[str, Any, Any]]:

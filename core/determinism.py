@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional
 
@@ -41,6 +43,13 @@ BASELINE_PATH = BASELINE_DIR / "baseline_hashes.json"
 
 # Thread-count variables read by the BLAS/OpenMP runtimes at library load.
 BLAS_THREAD_VARS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS")
+
+# Whether numpy was already in ``sys.modules`` when ``pin_blas_threads`` first ran
+# (``None`` until it has). True means the pin came too late for this process:
+# the loaded BLAS read the thread variables before they were set, so the
+# environment says 1 and the library may run more. ``blas_info()`` and the run
+# manifest record it, so provenance never claims a pin that is not in force.
+NUMPY_LOADED_BEFORE_PIN: Optional[bool] = None
 
 
 # --- profiles and traces ------------------------------------------------------
@@ -159,8 +168,21 @@ def pin_blas_threads() -> Dict[str, str]:
     ``os.environ.setdefault`` so an explicit setting in the environment wins.
     The runtimes read these variables when the numpy extension loads, so this
     must run before the first ``import numpy``; ``core/__init__.py`` calls it
-    at import for that reason.
+    at import for that reason. The first call records whether numpy was
+    already loaded in :data:`NUMPY_LOADED_BEFORE_PIN` and warns when it was:
+    the variables are still set, but the library that is already in memory
+    did not read them, so the pin is not in force for this process.
     """
+    global NUMPY_LOADED_BEFORE_PIN
+    if NUMPY_LOADED_BEFORE_PIN is None:
+        NUMPY_LOADED_BEFORE_PIN = "numpy" in sys.modules
+        if NUMPY_LOADED_BEFORE_PIN:
+            warnings.warn(
+                "numpy was imported before core pinned the BLAS thread counts; the pin is not in "
+                "force for this process (import core before numpy, docs/determinism.md rule 2)",
+                RuntimeWarning,
+                stacklevel=2,
+            )
     effective: Dict[str, str] = {}
     for var in BLAS_THREAD_VARS:
         effective[var] = os.environ.setdefault(var, "1")
@@ -182,27 +204,58 @@ def numpy_generator(name: str, seed: int, agent_offset: int = 0) -> Any:
 
 
 def _blas_description(dependency: Any) -> str:
-    """A one-line description of a numpy build dependency entry, or ``unknown``."""
-    if not isinstance(dependency, dict):
+    """One line for a numpy build dependency entry: name, version and, for OpenBLAS, the
+    configuration string that names the kernel the build targets; ``unknown`` when absent."""
+    if not isinstance(dependency, dict) or not dependency.get("found", True):
         return "unknown"
-    text = dependency.get("openblas configuration")
-    if isinstance(text, str) and text.strip():
-        return " ".join(text.split())
-    parts = [str(dependency[key]) for key in ("name", "version") if dependency.get(key)]
-    return " ".join(parts) if parts else "unknown"
+    parts = [str(dependency[key]).strip() for key in ("name", "version") if dependency.get(key)]
+    text = " ".join(p for p in parts if p)
+    configuration = dependency.get("openblas configuration")
+    if isinstance(configuration, str) and configuration.strip():
+        configuration = " ".join(configuration.split())
+        text = f"{text} ({configuration})" if text else configuration
+    return text or "unknown"
+
+
+BLAS_RUNTIME_KEYS = ("user_api", "internal_api", "version", "num_threads", "architecture", "threading_layer")
+
+
+def blas_runtime() -> Optional[List[Dict[str, Any]]]:
+    """What the BLAS/OpenMP libraries loaded in this process report, via ``threadpoolctl``.
+
+    One entry per library with its kernel (``architecture``), version and the
+    thread count it is running with now, which is the number the pin is meant
+    to hold at 1. ``None`` when ``threadpoolctl`` is not importable or fails.
+    Only libraries already loaded are listed, so the list is empty before the
+    first ``import numpy``.
+    """
+    try:
+        import threadpoolctl
+    except ImportError:  # pragma: no cover - threadpoolctl is a dependency
+        return None
+    try:
+        info = threadpoolctl.threadpool_info()
+    except Exception:  # noqa: BLE001 - best effort, never fails a run
+        return None
+    return [{k: entry.get(k) for k in BLAS_RUNTIME_KEYS if k in entry} for entry in info]
 
 
 def blas_info() -> Dict[str, Any]:
-    """numpy version, the four thread variables and a best-effort BLAS/LAPACK description.
+    """numpy version, the four thread variables, the build-time BLAS/LAPACK descriptions,
+    the runtime libraries (:func:`blas_runtime`) and :data:`NUMPY_LOADED_BEFORE_PIN`.
 
-    Never raises: without numpy every description reads ``unknown``, and the
-    thread variables are reported as they stand (``None`` when unset).
+    The one source of the numerical-library facts a manifest records
+    (``metrics.manifest.platform_info``). Never raises: without numpy every
+    description reads ``unknown``, and the thread variables are reported as
+    they stand (``None`` when unset).
     """
     info: Dict[str, Any] = {"numpy_version": "unknown"}
     for var in BLAS_THREAD_VARS:
         info[var] = os.environ.get(var)
     info["blas"] = "unknown"
     info["lapack"] = "unknown"
+    info["blas_runtime"] = None
+    info["numpy_loaded_before_pin"] = NUMPY_LOADED_BEFORE_PIN
     try:
         import numpy as np
     except Exception:  # pragma: no cover - exercised only where numpy is absent
@@ -221,12 +274,14 @@ def blas_info() -> Dict[str, Any]:
         if isinstance(dependencies, dict):
             info["blas"] = _blas_description(dependencies.get("blas"))
             info["lapack"] = _blas_description(dependencies.get("lapack"))
+    info["blas_runtime"] = blas_runtime()
     return info
 
 
 __all__ = [
     "BASELINE_DIR",
     "BASELINE_PATH",
+    "BLAS_RUNTIME_KEYS",
     "BLAS_THREAD_VARS",
     "DEFAULT_SEED",
     "DEFAULT_TICKS",
@@ -236,11 +291,13 @@ __all__ = [
     "baseline_meta_path",
     "baseline_path",
     "blas_info",
+    "blas_runtime",
     "build_current_trace",
     "generate_profile_trace",
     "generate_trace",
     "hash_trace",
     "load_baseline",
+    "NUMPY_LOADED_BEFORE_PIN",
     "numpy_generator",
     "pin_blas_threads",
     "profile_config",

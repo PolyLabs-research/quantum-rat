@@ -58,6 +58,7 @@ def _estimates(trace: List[TickData]) -> List[Tuple[float, float]]:
 # --- (a) at 0 nothing is drawn -----------------------------------------------
 
 
+@pytest.mark.exact_hash  # compares the legacy trace with the committed baseline (pytest.ini)
 def test_with_every_stochastic_parameter_at_zero_the_new_streams_are_never_drawn_and_the_legacy_gate_passes() -> None:
     for config in (EngineConfig.legacy(), _research()):
         engine = Engine(seed=DEFAULT_SEED, config=config)

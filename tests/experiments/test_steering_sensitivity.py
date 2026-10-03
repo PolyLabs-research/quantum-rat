@@ -87,6 +87,19 @@ def test_vrest_share_and_maze_metrics():
     assert any(r["first_hidden_ticks"] is not None for r in maze)
 
 
+def test_rows_carry_the_runs_trace_hash_and_outcome_fields_exclude_the_job():
+    rows = ss.run_jobs([ss.Job("foraging", 1.5, seed, 0.03, 60) for seed in (1, 2)], workers=1)
+    for row in rows:
+        assert len(row["trace_hash"]) == 64 and int(row["trace_hash"], 16) >= 0
+        assert set(ss.JOB_FIELDS) <= set(row)
+        outcome = ss.outcome_fields(row)
+        assert not set(ss.JOB_FIELDS) & set(outcome)
+        assert {"score", "vrest", "trace_hash"} <= set(outcome)
+    assert rows[0]["trace_hash"] != rows[1]["trace_hash"]  # two seeds, two runs (sensor noise on)
+    again = ss.run_job(ss.Job("foraging", 1.5, 1, 0.03, 60))
+    assert again["trace_hash"] == rows[0]["trace_hash"]  # the same job, the same trace
+
+
 def _ctx(scores, signals, action=None):
     return SimpleNamespace(action_scores=scores, value_signals=signals, action_name=action)
 

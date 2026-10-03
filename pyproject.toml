@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantum-rat"
-version = "1.0.0"
+version = "1.1.0"
 description = "A deterministic embodied rat-brain simulator and lab console"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -27,13 +27,16 @@ classifiers = [
   "Topic :: Scientific/Engineering",
 ]
 # Minimums match requirements.txt. numpy and scipy are hard dependencies
-# (plan §9, "decisions already taken in this plan").
+# (plan §9, "decisions already taken in this plan"). threadpoolctl (pure
+# Python) lets the run manifest record the BLAS kernel and thread count the
+# loaded library actually runs with (docs/determinism.md rule 6).
 dependencies = [
   "numpy>=2",
   "scipy>=1.14",
   "pandas",
   "pyarrow",
   "matplotlib",
+  "threadpoolctl>=3",
 ]
 
 [project.optional-dependencies]

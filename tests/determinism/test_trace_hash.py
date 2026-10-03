@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from core.determinism import (
     BASELINE_PATH,
     DEFAULT_SEED,
@@ -17,6 +19,8 @@ __all__ = [
     "build_current_trace",
     "load_baseline",
 ]
+
+pytestmark = pytest.mark.exact_hash  # same-platform bit identity (pytest.ini, docs/determinism.md)
 
 
 def test_trace_hash_matches_baseline() -> None:

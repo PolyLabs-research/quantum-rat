@@ -21,7 +21,8 @@ tournaments) is the solid part and the point of the project.
 
 The cognitive components are **deliberately simplified**, and at different stages of
 maturity. Every number below was measured by a probe in `tools/probes/` (outputs recorded in
-`tools/probes/README.md`); the names of the mechanisms are larger than the mechanisms.
+`tools/probes/README.md`) or, for the 30-seed intervals, by `experiments/g23_remeasure.py`
+(tables in `docs/data/g23/`, G23); the names of the mechanisms are larger than the mechanisms.
 
 * **What the mechanisms are.** The criticality lattice is bond percolation on a 16×16 torus:
   each active cell activates each neighbour with probability `coupling`. Its critical point is
@@ -76,14 +77,14 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   as single deterministic samples or a few seeds, and where a number comes from sensor noise 0,
   different seeds are copies of one run (`tools/probes/seed_pseudoreplication`). G23 re-measured
   the three headline numbers over 30 seeds with BCa confidence intervals (`docs/data/g23/`): the
-  steering band survives (0.4-3.0 in both settings, value-induced REST below 0.001 of ticks in
-  every run); the hidden-food multiplier is 2.91 [2.43, 3.59] under sensor noise 0.03 alone, with
+  steering band survives (0.4-3.0 in both settings, value-induced REST at most 0.001 of ticks,
+  3 ticks of 3,000, in any run); the hidden-food multiplier is 2.91 [2.43, 3.59] under sensor noise 0.03 alone, with
   one seed of 30 losing, and 1.34 [1.15, 1.52] once action selection has a 0.05 softmax
   temperature, because the exploring agent then finds 9.4 items on its own instead of 3.5; the
   maze recalls in 471 of 480 full-circle runs under sensor noise alone and in 371-380 once
   odometry noise and the softmax are on, the twelve off-axis headings recalling for 60-83% of
   seeds (turn noise 0.01 rad and the softmax temperature each cost about a tenth of the recalls
-  on their own, speed noise 0.05 costs none).
+  on their own, speed noise 0.05 costs two of 471).
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the

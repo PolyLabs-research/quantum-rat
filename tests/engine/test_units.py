@@ -100,15 +100,40 @@ def test_to_dict_from_dict_round_trip_exactly(make) -> None:
     assert d["world"]["bounds"] == [10.0, 10.0] and isinstance(d["world"]["bounds"], list)
     assert all(isinstance(v, dict) for k, v in d.items() if k != "profile")
     assert EngineConfig.from_dict(d).diff(cfg) == []
-    # Through JSON too: tuples come back as tuples and inf as inf.
-    text = json.dumps(d)
+    # Through strict JSON too: tuples come back as tuples and the "inf" string as inf.
+    text = json.dumps(d, allow_nan=False)
     back = EngineConfig.from_dict(json.loads(text))
     assert back.diff(cfg) == []
     assert back.world.bounds == (10.0, 10.0) and isinstance(back.world.bounds, tuple)
     assert back.to_dict() == d
     if cfg.profile == "research":
-        assert d["trn"]["narrow_above_kappa"] == math.inf and back.trn.narrow_above_kappa == math.inf
+        assert d["trn"]["narrow_above_kappa"] == "inf" and back.trn.narrow_above_kappa == math.inf
+        assert "Infinity" not in text
         assert back.diff(EngineConfig.legacy()) != []
+
+
+def test_non_finite_floats_are_tagged_strings_only_where_the_field_is_a_float() -> None:
+    cfg = EngineConfig()
+    cfg.trn.narrow_above_kappa = -math.inf
+    cfg.sensors.noise = math.nan
+    d = cfg.to_dict()
+    assert d["trn"]["narrow_above_kappa"] == "-inf" and d["sensors"]["noise"] == "nan"
+    back = EngineConfig.from_dict(d)
+    assert back.trn.narrow_above_kappa == -math.inf and math.isnan(back.sensors.noise)
+    # A string field keeps a string that happens to spell a float.
+    assert EngineConfig.from_dict({"profile": "inf"}).profile == "inf"
+
+
+def test_from_dict_runs_each_sections_validation() -> None:
+    # UnitsConfig.__post_init__ rejects a non-positive dt_s from the constructor ...
+    with pytest.raises(ValueError):
+        UnitsConfig(dt_s=-1.0)
+    # ... and from_dict, the only deserialiser, must not bypass it.
+    with pytest.raises(ValueError):
+        EngineConfig.from_dict({"units": {"dt_s": -1.0}})
+    with pytest.raises(ValueError):
+        EngineConfig.from_dict({"units": {"metres_per_unit": 0.0}})
+    assert EngineConfig.from_dict({"units": {"dt_s": 0.1}}).units.ticks_per_second == 10.0
 
 
 def test_from_dict_rejects_unknown_keys_and_fills_missing_ones() -> None:

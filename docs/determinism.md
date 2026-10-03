@@ -34,16 +34,19 @@ the forward-bias change leaves the physics hash exactly as it was (no microsleep
 
 `baseline_meta.json` / `baseline_meta_research.json` record seed, ticks, schema version
 and the file set. The legacy files are never re-recorded: the legacy profile is
-bit-identical by rule (`docs/decisions.md` G22). To regenerate the research set:
+bit-identical by rule (`docs/decisions.md` G22), and the tool refuses `--profile legacy`
+in place (exit 2) unless `--out-dir` points elsewhere. To regenerate the research set
+(the tool's default profile):
 
     python3 tools/update_determinism_baseline.py --profile research --i-know-what-im-doing
 
 One engine run writes all three hash kinds, the meta file and the reference trace, so
 they always describe the same trace; the diff shows which kinds actually moved (a
 physics-only change moves `physics` and `full`, a behavioural change moves `behaviour`
-and `full`). `--out-dir DIR` writes the same files elsewhere to diff against the committed
-ones without touching them; when the split was introduced both profiles' regenerated full
-files were byte-identical to the committed ones.
+and `full`). `--out-dir DIR` writes a profile's files elsewhere, with no flag needed, to
+diff against the committed ones without touching them (the way to check the legacy set);
+when the split was introduced both profiles' regenerated full files were byte-identical
+to the committed ones.
 
 Gates: `test_trace_hash.py` (full, both profiles), `test_trace_hash_split.py`
 (behaviour and physics, both profiles, plus the coupling / forward-bias statements above
@@ -69,7 +72,11 @@ To check another machine's trace, write it there and compare it here:
 the current code and checks the tool flags a 1e-6 perturbation. CI's claim
 (`.github/workflows/ci.yml`): same-platform bit identity, the exact-hash gates on Ubuntu;
 cross-platform agreement within tolerance, this gate on macOS with the exact-hash gates
-deselected. On the machine that wrote the references the agreement is exact.
+deselected (every test marked `exact_hash`, `pytest.ini`; `test_exact_hash_marker.py`
+requires the marker on every test that reads a committed hash file, so a new gate cannot
+be missed). On the machine that wrote the references the agreement is exact. The macOS
+job has not run yet (nothing on this branch has been pushed), so the 1e-9 agreement is
+measured on Linux only until the first macOS CI run reports (G24 D).
 
 ## The numpy rules (`core/determinism.py`)
 
@@ -80,16 +87,28 @@ deselected. On the machine that wrote the references the agreement is exact.
 2. Threads pinned: `pin_blas_threads()` sets `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
    `MKL_NUM_THREADS` and `NUMEXPR_NUM_THREADS` to `1` with `setdefault` (an explicit
    environment value wins). `core/__init__.py` calls it at import; the runtimes read the
-   variables when numpy loads, so `import core` must precede the first `import numpy`.
-   `tests/conftest.py` imports `core` before any test module, so the pin is in force for
-   the whole suite (`test_numpy_rules.py` checks the four variables inside the run, and in
-   a fresh pytest subprocess started with none of them set); importing `core.engine` never
-   imports numpy.
+   variables when numpy loads, so `import core` must precede the first `import numpy`
+   (`analysis/__init__.py` imports `core` first for the same reason, since its modules
+   import numpy and pandas). The first call records whether numpy was already loaded in
+   `core.determinism.NUMPY_LOADED_BEFORE_PIN` and warns when it was: the variables are
+   then set but the loaded library did not read them, and `blas_info()` and the run
+   manifest say so (`numpy_loaded_before_pin`) rather than claim a pin that is not in
+   force. `tests/conftest.py` imports `core` before any test module, so the pin is in force
+   for the whole suite (`test_numpy_rules.py` checks, inside the run, that numpy was not
+   loaded first, that the four variables read 1 and that the loaded OpenBLAS reports one
+   thread through `threadpoolctl`; and the same in a fresh pytest subprocess started with
+   none of the variables set); importing `core.engine` never imports numpy.
 3. float64 only.
 4. Values cast to Python floats at the `TickData` boundary, so logs and hashes keep their types.
 5. Hashed scalars accumulated in a fixed order, never over dict or set iteration.
 6. The one BLAS product that will feed behaviour (the SR read-out V = M·R, M2b) runs with
-   one BLAS thread and the run manifest records the kernel (`blas_info()`).
+   one BLAS thread, and the run manifest records, from `blas_info()`, numpy's build-time
+   BLAS string (`platform.blas`, the kernel the build targets) and what the loaded
+   library reports through `threadpoolctl` (`platform.blas_runtime`: the kernel it chose
+   for this CPU, its version and the thread count in force), plus
+   `numpy_loaded_before_pin`. The manifest is strict JSON: the research profile's
+   `trn.narrow_above_kappa = inf` is written as the string `"inf"` (`EngineConfig.to_dict`)
+   and read back as a float by `from_dict`.
 
 ## Measured facts (plan §5 item 9; numpy 2.4.6, OpenBLAS 0.3.31, this machine)
 
@@ -98,4 +117,8 @@ deselected. On the machine that wrote the references the agreement is exact.
 - Not bit-identical: `np.dot` over 2 M elements and a 1500 × 1500 matrix product differ
   between thread counts and between kernels; repeatable at a fixed thread count and kernel.
 - So "same platform" means same CPU family and pinned threads. `blas_info()` here reports
-  `OpenBLAS 0.3.31.188.0 USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64`.
+  the build as `scipy-openblas 0.3.31.188.0 (OpenBLAS 0.3.31.188.0 USE64BITINT DYNAMIC_ARCH
+  NO_AFFINITY Haswell MAX_THREADS=64)` and the runtime, through `threadpoolctl`, as
+  OpenBLAS 0.3.31.188.0 on the `SkylakeX` kernel with `num_threads` 1 (the pin), pthreads
+  threading layer: the build string names the oldest kernel the build targets, the
+  runtime entry the one chosen for this CPU, which is the kernel the claim rests on.

@@ -1,10 +1,11 @@
 """The split baselines (docs/determinism.md): behaviour and physics hashes, both profiles.
 
 Exact-hash gates, like ``test_trace_hash.py``: they state same-platform bit
-identity and the macOS CI job deselects this file (``.github/workflows/ci.yml``);
-the cross-platform claim is the tolerance gate in
-``test_cross_platform_tolerance.py``. Regenerate a profile's baselines with
-``python3 tools/update_determinism_baseline.py --profile <profile> --i-know-what-im-doing``.
+identity (marked ``exact_hash``, so the macOS CI job deselects them,
+``.github/workflows/ci.yml``); the cross-platform claim is the tolerance gate in
+``test_cross_platform_tolerance.py``. Regenerate the research baselines with
+``python3 tools/update_determinism_baseline.py --profile research --i-know-what-im-doing``;
+the legacy set is never re-recorded (docs/determinism.md).
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from core.determinism import (
 )
 from core.engine import Engine
 
+pytestmark = pytest.mark.exact_hash  # same-platform bit identity (pytest.ini, docs/determinism.md)
+
 
 @pytest.mark.parametrize("profile", PROFILE_NAMES)
 @pytest.mark.parametrize("kind", ("behaviour", "physics"))
@@ -30,9 +33,13 @@ def test_split_hash_matches_its_committed_baseline(profile: str, kind: str) -> N
     current = hash_trace(generate_profile_trace(profile), kind)
     assert current == load_baseline(profile, kind), (
         f"Determinism regression: the {kind} hash of the {profile} profile differs from its "
-        f"baseline. If the change is intended, regenerate with: python3 "
-        f"tools/update_determinism_baseline.py --profile {profile} --i-know-what-im-doing "
-        "(docs/determinism.md)."
+        "baseline. " + (
+            "The legacy set is never re-recorded: the legacy profile is bit-identical by rule "
+            "(docs/decisions.md G22), so the change itself is the regression."
+            if profile == "legacy" else
+            "If the change is intended, regenerate with: python3 tools/update_determinism_baseline.py "
+            "--profile research --i-know-what-im-doing (docs/determinism.md)."
+        )
     )
 
 
