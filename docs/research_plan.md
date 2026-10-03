@@ -1,51 +1,66 @@
 # From toy to instrument: a conversion plan for hippocampal replay and spatial-memory research
 
-**Status:** DRAFT for the owner's approval. Nothing in this plan has been implemented.
+**Status:** DRAFT, revision 2, for the owner's approval. Nothing in this plan has been implemented.
 **Date:** 2026-10-03
-**Basis:** a 14-agent research-readiness audit of the repository at commit `eea946f`
-(8 subsystem audits against the literature, 3 competing research programs, 2 judges, 1 completeness critic),
-plus the owner's three choices: **spatial memory & replay** as the research line, a **rate-based core with spiking only where a question demands it**, and **publishable results** as the goal.
+**Basis:** a 14-agent research-readiness audit of the repository at commit `eea946f` (8 subsystem audits against the literature, 3 competing research programs, 2 judges, 1 completeness critic), the owner's three choices (**spatial memory & replay** as the research line, a **rate-based core with spiking only where a question demands it**, **publishable results** as the goal), three independent reviews of revision 1 (a neuroscientist, an engineer, an owner's advocate), and the audit's probes re-run against this commit (`tools/probes/`, outputs recorded).
+
+---
+
+## In plain words
+
+- **What we are building.** An agent that estimates where it is *with error* (like an animal, not like a GPS), learns from its own walking a map of "what usually comes next from here", and replays remembered paths by a rule we can swap out. Every replay is a logged event you can see on the arena in the console.
+- **What the first result is.** Which replay rule reproduces a known rat result on a linear track (more backward replay after a bigger reward, Ambrose et al. 2016), with error bars over seeds. That comes after roughly 9–14 full-time weeks of work (§4).
+- **What the first *number* is.** Earlier than that: the current memory-maze, steering and hidden-food claims re-measured with 30 seeds and confidence intervals, after the first two or three weeks (§5, M0b item 15).
+- **What happens to the console.** It keeps working. The six scenarios run under a profile labelled *legacy*; the *research* profile adds panels and switches the toy mechanisms off. Nothing is deleted.
+- **What the first weekend is.** One flag that stops fatigue from freezing the agent's position estimate, a `research` config profile, an honest README, and a decisions-log entry. Tagged `v1.0-honest` (§10).
+- **Glossary.** *Successor representation (SR)*: for each place, how often each other place follows it. *Gain × need*: replay first the memories that would change decisions most, weighted by where the agent is likely to be. *Dyna*: learn a small model of the world and rehearse from it. *BCa bootstrap / Cliff's δ*: error bars and effect sizes that do not assume a bell curve. *TOST*: a test that two things are equivalent, not merely "not significantly different". *ReScience*: a journal for careful, reproducible replications.
 
 ---
 
 ## 1. Where the project actually is
 
-The audit's verdict is unanimous and should be read before anything else:
+The audit's grades are unanimous. This is the orchestrator's one-sentence summary of them: the engineering (deterministic engine, named RNG streams, per-tick logging, sweep harness, console) is real and graded *simplified-but-real*; all seven brain subsystems are graded *cartoon*, meaning each is a deliberately simplified stand-in for the model it is named after; and several of them interact in ways that confound every behavioural result in the repository. The numbers below are from the probes re-run at `eea946f` (engine defaults, pacing off, 3000 ticks unless stated).
 
-> Good scaffold, decorative science. The engineering (deterministic engine, named RNG streams, per-tick logging, sweep harness, console) is real. Every brain subsystem is a cartoon of the model it is named after, and several of them interact in ways that confound every behavioural result in the repository.
-
-| Subsystem | Grade | What it actually is | Fate in this plan |
+| Subsystem | Grade | What it actually is (measured) | In the research profile |
 |---|---|---|---|
-| Criticality | cartoon | Bond percolation on a 16×16 torus (critical at p = 0.5, defaults at 0.25); κ uses the wrong exponent and never locates criticality; the gain test is tautological; coupling has no effect at defaults. | **Freeze.** Out of the behavioural hash; relabelled honestly. |
-| Neuromodulation | cartoon | DA = reward − running mean (not a TD error, teaches nothing); ACh/NE derived from a checksum "novelty" bit that is 1 on every tick under any sensor noise; 5HT is a lagged copy of DA's input. | **Freeze as readouts**, couplings set to 0 in all research assays; later, route the real TD error to the DA channel. |
-| Spatial / path integration | cartoon | Exact odometry, scaled by the TRN gate to 0.4 or 0 when ATP is low — so the place estimate freezes while the body moves (85% of core-engine ticks). No place fields, no boundary anchoring. | **Make real** (noisy odometry, boundary reset, place population). |
-| Value map / replay | cartoon | TD(0) over 0.5 m bins with a kernel that inflates values (reward 1.0 → V = 10 at radius 1); replay = an experimenter-invoked exhaustive reverse sweep; microsleep replay is dead in every scored scenario. | **Make real** (SR + place features, explicit stochastic prioritized replay events). |
-| Action selection | cartoon | Hand-coded four-channel salience arbiter with a deterministic argmax; left-turn chirality in the tie order; the G14–G21 "robustness" lives in gates that rewrite its inputs. | **Freeze** as a documented arbiter; add a seeded softmax temperature. |
-| Sleep / energy / TRN | cartoon | Glycogen pinned at 0.03; every microsleep exactly 25 ticks; the gate corrupts path integration; "astrocyte" and "TRN" are names. | **Freeze as environment** after removing the gate–odometry coupling. |
-| Sensors / world / tasks | cartoon | Oracle-labelled rangefinder; whiskers computed but never read; no body, no walls beyond a box; headless water maze has no pool and is solved in 5 ticks. | **Make real where the assays need it** (walls, trial structure, standard protocols). |
-| Infrastructure / stats | simplified-but-real | Same-platform bit identity; no CIs anywhere; at noise 0, "8 seeds" are 8 copies of one run; no provenance in outputs. | **Upgrade** (statistics module, manifests, packaging). |
+| Criticality | cartoon | Bond percolation on a 16×16 torus. At the default coupling 0.25, κ stays within 0.89–1.09 and settles near 0.91; it never exceeds the 1.1 the TRN branch needs, so that branch is dead. κ crosses 1 at coupling ≈ 0.32 with the code's exponent (≈ 0.24 with the 2-D exponent); spanning avalanches first appear at 0.35. `criticality_gain = 1` changes no position in any stock world. | **Off** (gain 0, out of the behavioural hash). Legacy profile keeps it. |
+| Neuromodulation | cartoon | DA = reward − running mean (not a TD error; in the open field it sits in 0.489–0.508 at every tick). ACh/NE come from a checksum "novelty" bit that is 1 on 100% of ticks at sensor noise 0.03. 5HT is a lagged copy of DA's input. | **Off** (coupling gains 0; traces still logged). Later, the real TD error feeds the DA channel (RQ5). |
+| Spatial / path integration | cartoon | Exact odometry, scaled by the TRN gate: with pacing off the gate is CLOSED on 85% of ticks, the place estimate captures 27% of the true path and ends 22.8 units (2.3 m) from the body in a 20-unit box. No place fields, no boundary anchoring. | **Rebuilt** (noisy odometry, wall-contact reset, declared heading oracle, place population). |
+| Value map / replay | cartoon | TD(0) over 0.5-unit bins with a kernel that inflates values: reward 1.0 gives V = 10.0 at radius 1 and 6.6 at radius 2 (γ^d at radius 0). Replay is an experimenter-invoked exhaustive reverse sweep; the microsleep replay buffer is 98% one cell because the gate is CLOSED for the 29 ticks before sleep onset. | **Rebuilt** (SR + place features, explicit stochastic logged replay events). |
+| Action selection | cartoon | Hand-coded four-channel salience arbiter with a deterministic argmax; left-turn chirality in the tie order; the G14–G21 "robustness" lives in gates that rewrite its inputs. | **Kept** as a documented arbiter, plus a seeded softmax temperature. |
+| Sleep / energy / TRN | cartoon | Glycogen pinned at 0.03 from tick 148 onward; all 50 microsleep bouts exactly 25 ticks; `energy_scale` throttles thrust and turn, so the mean step is 0.088 of nominal and 42.6% of steps are zero. | **Frozen**: ATP at baseline, `energy_scale ≡ 1`, no microsleep; sleep is a protocol rest phase. |
+| Sensors / world / tasks | cartoon | Oracle-labelled rangefinder; whiskers computed but never read; no body, no walls beyond a box; the headless water maze has no pool and is solved in 5 ticks at the default heading (1804 at heading π); the T-maze in 6. | **Built where assays need it** (walls, body radius, trial structure, standard protocols). Toy assays renamed, not deleted. |
+| Infrastructure / stats | simplified-but-real | Same-platform bit identity; no CIs anywhere; at `sensors.noise = 0` four seeds give identical positions and action sequences; no provenance in outputs. | **Upgraded** (statistics module, manifests, packaging). |
 
 ### 1.1 What this means for the results already in the repository
 
-The headline numbers of decision-log entries G14–G21 (the steering band, maze recalls, the hidden-food ×2.8, the replay advantage) were measured honestly, but they measure a particular patch stack, not a brain mechanism:
+The headline numbers of decision-log entries G14–G21 (the steering band, maze recalls, the hidden-food ×2.8, the replay advantage) were measured honestly, but they measure a particular configuration, not a brain mechanism:
 
 - the memory maze works only because `pace_low = 0.6` keeps the TRN gate from freezing path integration, and `teleport_to_start` hands the agent an oracle re-anchoring every trial;
 - the value map's "gradient" is kernel-inflated and lives in a drifting frame;
 - the off-axis maze result is mostly the goal-vector slot, not the value map;
-- the replay advantage is a single deterministic sample on a knife edge;
+- the replay advantage is a single deterministic sample on a knife edge (with `experiments.memory_navigation` defaults the probe found no advantage at all: 13/17/17 ticks to goal with consolidation against 14/15/13 without);
 - hidden-food "memory" is area-restricted search near recent finds, with roughly a third of the benefit surviving when the sites are moved.
 
-**This plan deletes those mechanisms and retires the tests that pin them.** The owner must accept that up front (see §9). Nothing is lost: the numbers stay in `docs/decisions.md` as the record of what the patch stack did.
+**This plan does not delete those mechanisms.** They are already configuration flags; the plan gives them a home called the **legacy profile** (today's defaults, labelled) and a **research profile** in which they are off. The console's six scenarios keep running under the legacy profile. No test is retired at Milestone 0. The impact analysis measured what deleting the mechanisms would have cost: 85 of the 264 tests (the 246 at `eea946f` plus the 18 probe characterisation tests) pin those mechanisms or the three toy protocols, and 179 would have survived. Under the legacy profile all 85 keep passing as they are; the only edits are protocol-list rewrites in ten tests when the toy assays are renamed, and one re-baseline when a hash field changes.
+
+Two of these entries are nonetheless real findings of the "model as experiment" kind and are kept as such: **G19** (place memory pays only where the agent's own exploration would not find the food) and **G16** (value steering can induce resting, diagnosed and fixed). They are the first things to re-measure with confidence intervals (§5, M0b item 15).
 
 ### 1.2 Why "spatial memory & replay"
 
-Both judges agree the first month is the same whatever the direction (§5). On what comes next they differ: the neuroscientist judge recommends this line; the engineer judge would start with criticality because its physics is cheapest. The owner chose this line, and the case for it is sound:
+Both judges agree the first weeks are the same whatever the direction (§5). On what comes next they differ: the neuroscientist judge recommends this line; the engineer judge would start with criticality because its physics is cheapest. The owner chose this line, and the case for it is sound:
 
 - it is the only direction whose phenomena the project has already spent five decision-log entries on, so the console, the scenarios and the owner's intuition carry over;
-- the field has a decade of quantitative replay data (direction vs task phase, reward-magnitude modulation, past-goal enrichment, barrier rerouting) and a handful of normative models that explain subsets of it, almost all of them in tabular gridworlds with a perfect state signal;
-- its first publishable unit is legitimate even if the embodiment adds nothing new: a head-to-head of replay prioritization rules in a closed-loop agent with noisy, boundary-corrected odometry, with confidence intervals over seeds.
+- the field has a decade of quantitative replay data (direction vs task phase, reward-magnitude modulation, past-goal enrichment, barrier rerouting) and a handful of normative models that explain subsets of it, almost all in tabular gridworlds with a perfect state signal;
+- its first publishable unit is legitimate even if the embodiment adds nothing new: a head-to-head of replay prioritisation rules in a closed-loop agent with noisy, boundary-corrected odometry, with confidence intervals over seeds.
 
-The honest weakness is novelty. George et al. (2023) learn successor representations in continuous space with RatInABox agents; de Cothi et al. (2022) compare model-free/model-based/SR agents to rat trajectories; Sagiv, Akam, Witten & Daw (2025) already derive past-goal replay enrichment from gain × need. Every write-up must say that cue identity is oracle-given and that "embodied" means noisy odometry plus a body in a closed loop — and the informative results will be the **controls** (random replay, trajectory-only replay, no replay), not the effects the chosen rule is built to produce.
+The honest weakness is novelty. George et al. (2023) learn successor representations in continuous space with RatInABox agents; de Cothi et al. (2022) compare model-free, model-based and SR agents to rat trajectories; Diekmann & Cheng (2023) already run their replay model in an embodied simulator (CoBeL-RL); Sagiv, Akam, Witten & Daw (2025) derive past-goal replay enrichment from gain × need. So the informative comparisons in this program are not "gain × need against random replay" (random and no-replay are floors, and gain × need is built to beat them) but:
+
+1. **the embodiment contrast**: every rule run twice, once with an oracle state (the gridworld condition the published models assume) and once with the embodied estimate, so "what does embodiment change?" is a measured difference, not a claim;
+2. **rule discrimination**: gain-only, need-only, full gain × need, its goal-uncertainty variant, |TD-error|-gain and Diekmann–Cheng make *different* pre-stated predictions on the 8-arm and barrier tasks (§3), so the data can rank them;
+3. **the floors**: random, legacy reverse-trajectory and no replay, reported so that any "effect" is visible against them.
+
+Every write-up says that cue identity and allocentric heading are oracle-given, and that "embodied" means noisy position odometry plus a body in a closed loop.
 
 ---
 
@@ -53,118 +68,168 @@ The honest weakness is novelty. George et al. (2023) learn successor representat
 
 A continuous-space agent whose
 
-1. **place estimate** is a noisy, boundary-corrected path integrator (not ground truth, not frozen by fatigue);
-2. **state representation** is a Gaussian place-cell population with a **successor representation** (SR) learned from its own trajectories by TD (Dayan 1993; Stachenfeld, Botvinick & Gershman 2017), with tabular TD(0) kept as the ablation baseline;
-3. **replay** is an explicit, logged, stochastic **event stream** with a pluggable prioritization rule — gain × need (Mattar & Daw 2018), Diekmann & Cheng (2023), random, reverse-trajectory-only (the current mechanism, as a control), none — generating awake events at reward and pauses and sleep events in protocol rest phases, decoupled from the ATP/microsleep machinery;
+1. **place estimate** is a noisy path integrator with wall-contact position reset (Hardcastle, Ganguli & Giocomo 2015 for the reset only) and a **declared heading oracle**: allocentric heading is given with a small seeded noise, not inferred from landmarks. Without it multi-start tasks (8-arm, water maze) cannot localise, and a visual or landmark front end is out of scope. It is a declared limitation in every write-up;
+2. **state representation** is a Gaussian place-cell population over the corrected estimate, with a **successor representation** (SR) learned from its own trajectories by TD (Dayan 1993; Stachenfeld, Botvinick & Gershman 2017), with tabular TD(0) over 0.5-unit bins kept as the ablation baseline;
+3. **replay** is an explicit, logged, stochastic **event stream** with a pluggable prioritisation rule, generated at reward-consumption pauses and in protocol rest phases, under a named `replay` RNG stream, decoupled from the ATP/microsleep machinery;
 4. **behaviour** on the standard rodent paradigms is measured with the published metrics, over seeds, with confidence intervals.
 
-Everything else (criticality, neuromodulator scalars, the salience arbiter, the energy model) is frozen as a documented part of the environment.
+Everything else (criticality, neuromodulator scalars, the salience arbiter, the energy model) is frozen as a documented part of the environment, in the research profile.
+
+**The replay rules** (one interface, `priority(state, memory) -> weights`):
+
+| Rule | What it prioritises | Role |
+|---|---|---|
+| gain × need (Mattar & Daw 2018) | expected improvement in the policy × expected future occupancy (an SR row) | the reference rule |
+| gain-only | the gain term alone | ablation |
+| need-only | the need term alone | ablation |
+| gain × need, goal-uncertainty need (Sagiv et al. 2025 variant) | need computed under the agent's uncertainty about which goal is active | the variant that predicts past-goal enrichment |
+| \|δ\|-gain | the magnitude of the TD error at each memory (prioritised sweeping; Schaul et al. 2016) | the rule RQ5 gates by dopamine |
+| Diekmann & Cheng 2023 | experience strength × similarity × inhibition of return | the main published alternative |
+| random | uniform over stored memories | floor |
+| reverse-trajectory | the current `consolidate()` sweep (legacy mechanism) | floor and continuity with G-entries |
+| none | no replay | floor |
+
+**Event budget.** Each rule runs in two modes. *Fixed budget*: the number of events at each pause is Poisson(λ) with λ shared across rules, so rules differ in content only. *Thresholded*: events continue while the rule's priority exceeds θ, up to a cap, so rules may also differ in rate. Content questions (direction, remote starts, arm enrichment) are tested in fixed-budget mode; rate questions (RQ1b, RQ5) in thresholded mode. Both are preregistered.
+
+**Metric definitions** (fixed now so that every later number means the same thing; durations in model seconds under §5 item 3):
+
+| Term | Definition |
+|---|---|
+| replay event | a sampled sequence of ≥ 4 distinct states spanning ≥ 0.3 m, with a start state, direction (forward / reverse / neither, by the sign of the position–time slope along the track) and a trigger (reward, pause, rest) |
+| reward window | the 2 s after reward receipt; events there are counted as "at reward" |
+| pre-run window | the 2 s before run onset (speed crosses 0.05 m/s upward) |
+| remote event | start state > 0.5 m from the agent's current estimate |
+| rate | events per stop (per reward-consumption pause), not per minute, so that rates are comparable across rules and speeds |
+| familiarity | lap index on a track; trial index elsewhere |
+
+What a replay event looks like: a JSONL line `{"tick": t, "trigger": "reward", "rule": "gain_need", "states": [...], "direction": "reverse", "start_dist_m": 0.12}` and, in the console, the sequence drawn on the arena as it fires.
 
 ### 2.1 Where spiking fits
 
-The owner chose "rate core, spiking where it matters." For this research line, spiking does not matter in the first publishable unit: every comparison in §3 is at the level of replay *events* (direction, content, rate, timing relative to reward) and behaviour, which rate models express directly. Spiking becomes necessary only for comparisons at the level of ripples, theta sequences or spike-timing statistics — and those also need oscillations and decoders, which the audit identifies as a separate project. So:
+The owner chose "rate core, spiking where it matters." For this research line spiking does not matter in the first publishable unit: every comparison in §3 is at the level of replay *events* (direction, content, rate, timing relative to reward) and behaviour, which rate models express directly. Spiking becomes necessary only for comparisons at the level of ripples, theta sequences or spike-timing statistics, and those also need oscillations and decoders, which the audit identifies as a separate project. So:
 
 - **Milestones 0–5:** rate-based throughout; no Brian2.
-- **Milestone 7 (optional, after the first result):** a spiking CA3-like replay generator (Brian2 is pip-installable here) that consumes the same place population and emits spike-level sequences, so ripple-level statistics (sequence compression, event duration) can be compared with hc-11-style data. It plugs in behind the same replay-event interface, so nothing before it has to change.
+- **Milestone 7, step 0 (rate-level decoder emulation):** before any spiking, render logged replay events as place-population activity and pass them through a Bayesian decoder with the same bins and windows the papers use, so our event statistics carry the same pipeline biases as the data they are compared with (Takigawa et al. 2024 on evaluating replay without ground truth).
+- **Milestone 7, step 1 (optional, after the first result):** a spiking CA3-like replay generator (Brian2 is pip-installable here) that consumes the same place population and emits spike-level sequences, so ripple-level statistics (sequence compression, event duration) can be compared with hc-11-style data. It plugs in behind the same replay-event interface, so nothing before it has to change.
 
 ---
 
 ## 3. Research questions
 
-Each question names its prediction, what would falsify it, and what it is compared against. RQ1 and RQ3 are where the embodiment can show something new; RQ2 is a **replication** of a published model result (Sagiv et al. 2025) and is framed as such; RQ4 is a validation gate, not a finding.
+Each question names its prediction, what would count against it, and what it is compared with. RQ1 is a **replication** of a published phenomenon set under an embodied state estimate, framed as such; RQ2 and RQ3 are the rule-discrimination tests where the program can say something new; RQ4 is a validation gate, not a finding.
 
-**RQ1 — Replay statistics in an embodied agent.** With gain × need over a learned SR and one parameter set across tasks, logged replay events should show (a) reverse sequences concentrated at reward receipt and forward sequences before runs (Diba & Buzsáki 2007); (b) reverse-replay rate rising with a 4× reward increase and falling with a decrease, forward rate unaffected (Ambrose, Pfeiffer & Foster 2016; direction of effect, not absolute rates); (c) decline with familiarity; (d) a fraction of events starting remote from the agent at past-rewarded sites. *Falsified if* the trajectory-only or random control passes all four, or gain × need fails (b) in the closed loop.
+**RQ1 — Does the Mattar & Daw phenomenon set survive an embodied state estimate?** With gain × need and one parameter set, logged replay events should show (a) reverse sequences concentrated in the reward window and forward sequences in the pre-run window (Diba & Buzsáki 2007); (b) in thresholded mode, reverse rate per stop rising after a 4× reward increase and falling after a reduction, forward rate unaffected (Ambrose, Pfeiffer & Foster 2016; direction of effect, not absolute rates); (c) decline with familiarity; (d) a fraction of events starting remote at past-rewarded sites. *Positive control:* the same rule with an oracle state must pass (a)–(d), or the implementation is wrong. *Informative outcome:* which of (a)–(d) the embodied estimate loses, and whether gain-only or need-only loses the same ones. Random, reverse-trajectory and none are reported as floors; they are not the test.
 
-**RQ2 — Replay content vs next choice (replication).** On an 8-arm changing-goal task modelled on Gillespie et al. (2021), replay content should be enriched for the previously rewarded arm and for arms not recently visited, and should *not* predict the next choice; the enrichment should grow with goal uncertainty (Sagiv et al. 2025). *Falsified if* replay content predicts the next choice better than past reward.
+**RQ2 — Which rule's replay content matches the 8-arm data?** On an 8-arm changing-goal task modelled on Gillespie et al. (2021), the data show replay enriched for the previously rewarded arm and for arms not recently visited, with the upcoming choice at chance. Pre-stated predictions: plain **gain × need** predicts enrichment for the *upcoming* choice (it replays what is about to be useful), so it should fail the data; the **goal-uncertainty variant** predicts past-goal enrichment with the upcoming choice at chance; **Diekmann–Cheng** predicts not-recently-visited enrichment through inhibition of return; **random** predicts nothing. *The result is the ranking*, reported with paired CIs, and it is informative whichever way it falls.
 
-**RQ3 — Non-local credit assignment and rerouting.** After a barrier is inserted into a learned route, SR/Dyna replay should reroute around it within a few events without the place population remapping, and the first post-insertion detour should be shorter than for the trajectory-replay or no-replay control (Widloski & Foster 2022; Gupta et al. 2010 for never-taken shortcuts). *Falsified if* rerouting needs remapping or the detour is no better than the controls.
+**RQ3 — Non-local credit assignment and rerouting.** After a barrier is inserted into a learned route, replay should stop crossing the barrier and the first post-insertion detour should be shorter than for the floors (Widloski & Foster 2022; Gupta et al. 2010 for never-taken shortcuts), without the place population remapping. Two variants: **A, perception-updated**, the transition model is edited when the rangefinder sees the barrier; **B, experience-updated**, only a collision edits it. Control: a **virtual barrier** that the rangefinder sees but the body passes through, which separates "replay follows the model" from "replay follows the body". *Falsified if* rerouting needs remapping, or the detour is no better than the floors in both variants.
 
-**RQ4 — Standard maze behaviour as a gate.** On a real Morris water maze protocol (pool, 4 starts, 4 trials × 5 days, probe, reversal), escape latency falls monotonically to a floor, probe-trial target-quadrant occupancy exceeds chance, and search strategies shift toward directed/focal search (Vorhees & Williams 2006; Garthe, Behr & Kempermann 2009). *Crowded and arbiter-sensitive*; it is a gate the instrument must pass, not a result to publish. Deferred to after the first result (§4, M4b).
+**RQ4 — Standard maze behaviour as a gate.** (a) At Milestone 2b's exit, from four start poses in a 2 m open field with the embodied estimate, the agent reaches a learned goal within 60 s on ≥ 80% of trials after 20 trials, with median estimate error at arrival < 0.2 m; if it cannot, no replay result that follows is interpretable. (b) Later, a real Morris water maze protocol (pool, 4 starts, 4 trials × 5 days, probe, reversal): escape latency falls monotonically to a floor, probe-trial target-quadrant occupancy exceeds chance, and search strategies shift toward directed and focal search (Vorhees & Williams 2006; Garthe, Behr & Kempermann 2009). Crowded and arbiter-sensitive; a gate, not a result. Deferred to M4b.
 
-**RQ5 — Dopamine-gated replay rate (optional).** If replay rate is driven by |TD error|, an RPE-gated agent learns a reward change faster than reward-biased or random replay (Roscow et al. 2025), and removing the gate produces aberrant replay at unchanged-reward sites (Kleinman & Foster, eLife). The only place the neuromodulator line re-enters this program.
+**RQ5 — Dopamine-gated replay rate (optional).** Under the |δ|-gain rule in thresholded mode, replay rate rises with the *magnitude* of the TD error, so a reward *decrease* also raises reverse replay; under signed gain × need a decrease lowers it, which is what Ambrose et al. (2016) saw. That is a pre-stated discriminating prediction between the two rules, and it is where the neuromodulator line re-enters: an RPE-gated agent should learn a reward change faster than a reward-biased or random one (Roscow et al. 2025), and removing the gate should produce aberrant replay at unchanged-reward sites (Kleinman & Foster 2025).
 
 ---
 
 ## 4. Milestones
 
-Effort is given in full-time-equivalent (FTE) weeks, using the **engineer judge's** estimates where they exceeded the program's own (the judge found the program's totals ~50% optimistic, chiefly because the replay generator's need term must cover (place × heading) × actions, roughly 8× a gridworld's state space, and because the world layer is 57 lines with no walls or body). Calendar time at 10–15 h/week is roughly 3–4× the FTE figure; at 20 h/week, about 2×.
+Effort is in full-time-equivalent (FTE) weeks, using the engineer judge's estimates where they exceeded the program's own. The repository's own history is two bursts: 50 commits between 2025-11-30 and 2025-12-16, then nothing for nine and a half months, then 57 commits on 2026-10-01 to 03. So the honest planning unit is a **burst** (a long weekend to two weeks), not a weekly rate. Every milestone below is sized so that a burst ends with a tagged release and a green suite, and the plan survives a long gap after any of them. Console work is budgeted inside the milestone that needs it.
 
-| # | Milestone | FTE weeks | Acceptance (checkable) |
+| # | Milestone | FTE weeks | Tag | Acceptance (checkable) |
+|---|---|---|---|---|
+| **0a** | **Honest base, first weekend** (§5) | 1–1.5 | `v1.0-honest` | Gate flag, research profile with the energy model frozen, honesty pass, decisions entry G22; suite green under both profiles; one baseline regeneration. |
+| **0b** | **Instrument base** (§5) | 3–4 | `v1.1-base` | Units, physics-trace split, seeds as samples, stats module, manifests, probes merged, packaging and licence, `docs/references.bib`; **G23, the first CI-bearing table** (§5 item 15). |
+| **1** | **Value rule and odometry** — kernel and dwell extinction off in research; tabular TD(0) and linear TD(λ) over Gaussian place features; the odometry noise of M0b item 6 characterised; replay refactored into an event object (no rule yet); the goal-vector slot (already off by default) relabelled `oracle_homing` | 2–3 | `v1.2-value` | 12-cell chain, terminal reward 1.0: tabular V(d) = γ^d within 1e-2 (today 10.0 at radius 1); linear features of width ≤ 0.5 cell: V(d) monotone in d and the error against γ^d shrinks with passes, wider widths report their bias. Path-integration error vs distance has a log-log slope in 0.5–1.5 over 200 m; in the legacy profile with the gate flag off, \|r(error, ATP)\| < 0.1. |
+| **2a** | **Tabular replay on the linear track (RQ1, first pass)** — the nine rules of §2 over the existing 0.5-unit bins on a track (box bounds 10 × 0.5, binary heading), both budget modes, the `replay` RNG stream; Ambrose 2016 track protocol with a protocol-local lap counter and a fixed reward-consumption pause; replay metrics module; the (rule, task, seed) variant runner writing one tidy table; **console: replay-event panel** drawn on the arena as each event fires (+0.5–1 wk, included) | 3.5–5 | `v1.3-track-replay` | RQ1 (a)–(d) bounds over ≥ 20 seeds in the tabular state: reverse fraction in the reward window > 0.6, forward fraction in the pre-run window > 0.6; reverse rate per stop up at the 4× end and down at the reduced end with BCa 95% CIs excluding zero, forward-rate equivalence by TOST within ±20%; rate falling across laps; ≥ 10% remote events. **This is the first scientific result and the first release with a number in it.** |
+| **2b** | **Place population + SR + boundary reset + heading oracle** — Gaussian place cells over the corrected estimate (RatInABox conventions); SR by TD with V = M·R; wall-contact position reset; declared heading oracle; rate-map and SR-field metrics; **console: population and SR-field panels** (+0.5–1 wk, included) | 3.5–5 | `v1.4-place-code` | After 50 laps on the track, SR fields skew backward against the running direction (Stachenfeld 2017); near walls, fields elongate along the wall; decoding error drops at wall contact; **RQ4(a) passes**. Throughput ≥ 1,000 ticks/s with a 400-cell population (today 7,500 without one). *Caveat (engineer judge): the skew bound may fail for kinematic reasons on short tracks with 0.3 rad turns; measure before fixing the threshold.* |
+| **3** | **Replay over the place code (RQ1, embodied)** — the same rules with need from an SR row, gain from a softmax place-to-neighbour policy, a Dyna model as an empirical place-to-place table (no heading factor); trial structure as an engine concept (start-pose lists; trial / probe / ITI / rest phases shared by console and headless runner, +1 wk, included); every rule run with oracle state and with the embodied estimate | 4–6 | `v1.5-place-replay` | RQ1 re-run over the place population; the tabular-vs-embodied and oracle-vs-embodied differences are themselves reported results with paired CIs. |
+| **4a** | **Arena geometry + three protocols (RQ2, RQ3)** — polygon walls shared by ray casting and collisions; a body radius; 8-arm changing-goal (Gillespie 2021), open-field changing-goal (Pfeiffer & Foster 2013), barrier rerouting (Widloski & Foster 2022) with virtual-barrier control | 4–5 | `v1.6-arena` | Gillespie-style enrichment indices per rule with paired CIs and the pre-stated ranking test; post-barrier replay crossing fraction < 0.1 with pre/post field correlation > 0.8; detour shorter than the floors in variant A or B. |
+| **5** | **Model comparison and first results document** — ranking of the rules on every task with paired CIs; manifests shipped; a results document laid against the published numbers; a clean checkout on a second machine reproduces the tables within the reported CIs | 2 | `v2.0-results` | Every headline number carries n, a CI and the seed set; the second-machine reproduction is recorded. |
+| **4b** | Morris water maze with pool, probe and reversal; Pathfinder-compatible export with the resampling Pathfinder expects (RQ4b) | 2–3 | — | As RQ4(b). A gate; after the first result. |
+| **6** | RPE-gated replay rate (RQ5) | 2 | — | As RQ5. Optional. |
+| **7** | Step 0 decoder emulation; step 1 spiking replay generator behind the same event interface (§2.1) | 4–6 | — | Sequence compression and event-duration statistics in the range reported for rat ripples. Optional; only after a first result exists. |
+
+**First scientific result:** M0a + M0b + M1 + M2a ≈ **9–14 FTE weeks** (380–540 hours): 6–13 months at 10–15 h/week, 4–6 months at 20 h/week. Nine replay rules on the linear track with CIs, in a tabular state.
+
+**Minimum publishable unit:** + M2b + M3 + M4a + M5 ≈ **23–32 FTE weeks** (920–1,260 hours): 14–29 months at 10–15 h/week, 11–15 months at 20 h/week. Each tag above is a usable stopping point.
+
+**Compute budget.** Measured on this 4-core box: 8,300–8,800 ticks/s in open worlds and 5,100–6,800 in the memory scenarios on one core, with a 3.3× speed-up from four processes. A comparison of 5 rules × 2 tasks × 30 seeds × 3,000 ticks (900,000 ticks) takes about 2.5 minutes serial today and 25 minutes if the place population slows the engine tenfold. The full RQ1 confirmatory grid (9 rules × 2 budget modes × 2 state conditions × 30 seeds × ~5,000 ticks = 5.4 M ticks) is a quarter of an hour today, and at M2b's acceptance floor of 1,000 ticks/s about 90 minutes serial or half an hour on four cores. Every confirmatory run in this plan fits in an afternoon on the owner's machine.
+
+**First result it aims at:** a short paper or a Cosyne/CCN-style abstract: *"Prioritised replay under an embodied, noisy state estimate: which of the Mattar & Daw phenomena survive, and which rule's content matches the 8-arm data"*, plus the open, deterministic instrument itself, which is the part most likely to be used by others. If the embodied results equal the oracle ones, the fallback is a ReScience-style replication of the Mattar & Daw phenomenon set with the rule ranking, which is still publishable there.
+
+---
+
+## 5. Milestone 0: the honest base
+
+Both judges and the critic independently list the same prerequisites. None carries scientific risk. It is split so that the biggest confound goes away in one weekend and something scientific is visible within the first burst.
+
+### M0a, the first weekend
+
+1. **Decouple the TRN gate from path integration**: `SpatialConfig.gate_scales_egomotion: bool = True` (legacy) and `Engine._spatial_step` passes `sensory_gain = 1.0` when it is False. The single largest confound every audit found.
+2. **Freeze the energy model in the research profile**: `AstrocyteConfig.scales_motion: bool = True` (legacy) and `TRNConfig.microsleep_enabled: bool = True` (legacy); in `research` both are False, the astrocyte sits at `atp_baseline` so `energy_scale ≡ 1.0`, and sleep exists only as a protocol rest phase. The hard-coded 0.35/0.55/1.1 gate thresholds move into `TRNConfig`. *Acceptance:* over a 3,000-tick open-field run in the research profile, zero microsleep ticks and the realised step equals the commanded thrust on every tick.
+3. **The `research` config profile** (`EngineConfig.research()`): the two flags above off, `generalization_radius = 0`, `goal_vector = False`, `dwell_extinction = 0.0`, criticality and neuromodulator coupling gains 0. The legacy profile is `EngineConfig()` unchanged, labelled.
+4. **Honesty pass** on README (it still says criticality "behaves correctly across regimes", "whiskers drive behaviour", "all four neuromodulators are causal"), on the console panel labels and reference lines, and on the headless protocol names: `morris_water_maze`, `t_maze` and `survival_arena` are renamed with a `_toy` suffix and honest docstrings, and the regression harness is re-pointed to `beacon` and `foraging`. The checksum novelty bit is labelled as what it is.
+5. **Decisions entry G22**: the legacy/research split, the list of tests that now run under the legacy profile explicitly, and the acceptance that G14–G21 are legacy-profile results. One baseline regeneration for each profile.
+
+### M0b, the instrument base
+
+6. **Declare physical units once** in `UnitsConfig(dt_s = 0.2, metres_per_unit = 0.1)`: the current 20-unit arena is a 2 m × 2 m open field, full thrust is 0.5 m/s (only true once energy scaling is pinned, item 2), a turn is 1.5 rad/s, and the maze's 300-tick timeout is the standard 60 s. No constants change; they acquire meaning. Replay events (~100 ms in the animal) are shorter than a tick, which is why replay is an event object between ticks rather than per-tick dynamics. Check the calibration against rat track-running speeds (0.2–0.6 m/s) before freezing it.
+7. **Separate the physics trace from the behavioural hash**: κ, avalanche size, active cells and `replay_index` into their own hashed trace, so criticality and replay internals can change without invalidating behavioural baselines (the log records nine regenerations between B1 and G3 alone).
+8. **Make seeds samples**: seeded multiplicative speed noise and additive angular noise on egomotion (`sensors.noise` already perturbs the rangefinder; this is the odometry counterpart, listed once here and characterised in M1), a seeded softmax temperature on the arbiter, and a guard that refuses multi-seed claims when no stochastic element is on.
+9. **numpy enters, with rules**: one `numpy.random.Generator(PCG64(child_seed))` per named stream, child seeds from the existing `core/rng` tree; thread pinning (`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS` = 1) set in `core/determinism.py`; float64 only; values cast to Python floats at the `TickData` boundary so logs and hashes keep their types; hashed quantities accumulated in fixed order, never through a BLAS reduction. Measured on this machine (numpy 2.4.6, OpenBLAS 0.3.31): `Generator` draws, element-wise `exp` and numpy's pairwise `sum` are bit-identical across 1, 2 and 4 threads and across forced OpenBLAS kernels; `np.dot` over 2 M elements and a 1500 × 1500 matrix product are not (they differ between thread counts and between kernels) but are repeatable at a fixed thread count and kernel. So matrix products that feed behaviour (the SR read-out V = M·R) run with one BLAS thread and the manifest records the kernel: "same platform" means same CPU family and pinned threads. Two baselines (legacy, research) in `regression/baseline/`; a macOS CI job asserts agreement within a stated tolerance, not bit identity.
+10. **Statistics module** (`analysis/stats.py`): BCa bootstrap CIs, paired per-seed effects, Cliff's δ, IQM and probability of improvement (Agarwal et al. 2021), TOST equivalence, and a pseudo-replication guard.
+11. **Provenance**: every run writes a manifest (git SHA + dirty flag, full `EngineConfig`, profile name, seeds, dt, platform, Python and numpy versions); console scenarios registered as headless protocols that write `ticks.jsonl` + `scene.json` + manifest.
+12. **Commit the audit's probes** as `tools/probes/` with a characterisation test that they still run. **Done on this branch** (17 probes, their recorded outputs in `tools/probes/README.md`, 18 tests, suite at 264); the numbers in §1 are their output.
+13. **Packaging**: `pyproject.toml`, lockfile, `LICENSE` (§9), `CITATION.cff`, CI on Ubuntu + macOS, with the determinism claim restated as same-platform bit identity plus a cross-platform tolerance.
+14. **`docs/references.bib`** from the audit's verified list: 109 entries, 100 verified, 8 verified with a correction, 1 unverified (§7). **On this branch now**; later milestones add to it under the same verification rule.
+15. **Re-measure G16 / G19 / G21 as the first CI-bearing result**: legacy profile, 30 seeds with odometry noise and softmax on, BCa CIs on the hidden-food multiplier, the steering band and the maze recall rate, written up as decisions entry **G23, "what survives 30 seeds"**. Two or three sessions once items 8 and 10 exist; the first table with a confidence interval in the repository.
+
+Trial structure as an engine concept moves to M3, where the first protocol that needs it lives; M2a's track uses a protocol-local lap counter.
+
+---
+
+## 6. Legacy profile and research profile
+
+Nothing is deleted. Every mechanism below is a configuration flag today or becomes one in M0a; the legacy profile keeps today's behaviour and the research profile switches it off.
+
+| Mechanism | Legacy profile | Research profile | Why it is off in research |
 |---|---|---|---|
-| **0** | **Honest base** (§5) | 3–4 | All of §5 done; one baseline regeneration recorded as a decisions-log entry listing every retired test; README and console labels match the code. |
-| **1** | **Value rule and odometry** — remove the kernel and dwell extinction; tabular TD(0) and linear TD(λ) over Gaussian place features; seeded multiplicative speed noise and additive angular noise on egomotion; the TRN gate no longer touches path integration; goal vector moved behind an explicit `oracle_homing` flag (off); replay refactored into an event object | 2–3 | On a 12-cell chain with terminal reward 1.0, V(d) = γ^d within 1e-2 for both learners at every feature width (today: 10.0 at radius 1, 4.27 at radius 2). Path-integration error grows ~√distance over 200 m of travel, independent of ATP. |
-| **2** | **Place population + SR + boundary reset** — Gaussian place cells over the corrected estimate (RatInABox conventions); SR learned online by TD with V = M·R; wall-contact position reset and landmark heading reset (Hardcastle, Ganguli & Giocomo 2015); rate-map and SR-field metrics; console shows the population and the SR field | 3–4 | After 50 laps on a 1-D track, SR fields skew backward against the running direction (Stachenfeld 2017); near walls, fields elongate along the wall. Decoding error drops at wall contact. *Caveat (engineer judge): the skew bound may fail for kinematic reasons on short tracks with 0.3 rad turns; measure before fixing the threshold.* |
-| **3** | **Prioritized replay generator + linear-track assay (RQ1)** — gain × need with SR-based need and a Dyna model over (place × heading) × action; Diekmann–Cheng; random; trajectory-only; none. Stochastic under a named `replay` RNG stream. Awake events at reward/pauses, sleep events in rest phases. Ambrose 2016 track protocol. Replay metrics module. | 7–9 (**the long pole**) | With one parameter set over ≥ 20 seeds: reverse fraction at reward > 0.6 and forward fraction before runs > 0.6; reverse rate up at the 4× end and down at the reduced end with bootstrap 95% CIs excluding zero, forward-rate CI including zero; replay rate falls across laps; ≥ 10% of events start remote. Random and trajectory-only controls fail at least the reward-magnitude and remote effects. |
-| **4a** | **Arena geometry + two protocols (RQ2, RQ3)** — polygon walls shared by ray casting and collisions; a body radius; 8-arm changing-goal and barrier-rerouting protocols with trial/probe/ITI/rest phases | 4–5 | Gillespie-style enrichment indices of the right sign and ordering with the upcoming-choice index at chance; post-barrier replay crossing fraction < 0.1 with pre/post field correlation > 0.8; SR + replay detour shorter than controls with paired CIs. |
-| **5** | **Statistics, model comparison, first results document** — `analysis/stats.py` (BCa bootstrap CIs, paired effects, Cliff's δ, probability of improvement; a pseudo-replication guard); one tidy (rule, task, seed, metric) table from one runner; run manifests; a results document laid against the published numbers | 2 | Every headline number carries n, a CI and the seed set; the five rules are ranked on every task with paired CIs; a clean checkout on a second machine reproduces the tables within the reported CIs. |
-| **4b** | Morris water maze with pool, probe and reversal; Pathfinder-compatible export (RQ4) | 2–3 | As RQ4. Deferred until after the first result; it is a gate. |
-| **6** | RPE-gated replay rate (RQ5) | 2 | As RQ5. Optional. |
-| **7** | Spiking replay generator behind the same event interface (§2.1) | 4–6 | Sequence compression and event-duration statistics in the range reported for rat ripples. Optional; only after a first result exists. |
+| Kernel smoothing in `ValueMemory` (`generalization_radius`) | 2 in the maze scenarios | 0 | Inflates values (V = 10 for reward 1); V is not an expected return. |
+| Dwell extinction | 0.02 | 0.0 | A non-stationary reward penalty with no RL or biological reading. |
+| TRN gate × egomotion | on | off | Freezes the place estimate while the body moves. |
+| Goal-vector slot | available (`goal_vector`, default False) | off, relabelled `oracle_homing` as an explicit control condition | Did the off-axis maze work the value map was credited with. |
+| Energy scaling of thrust and turn; microsleep | on | off (ATP at baseline) | Makes every latency and path length a physiology artefact; sleep becomes a protocol phase. |
+| Microsleep as the replay trigger; pacing | on | off | Replay becomes a protocol-driven event stream; pacing is an environment setting the legacy scenarios declare. |
+| Checksum "novelty" bit; TRN replay buffer; `wm_load` | on, labelled | logged, not coupled | Not what their names say. |
+| Criticality lattice; neuromodulator scalars | on at defaults (already dormant) | coupling gains 0; traces logged | Dead at defaults; kept as readouts. |
+| Headless `morris_water_maze` / `t_maze` / `survival_arena` | renamed `*_toy`, honest docstrings | not used | No pool, no T, no sensed hazard; solved in 5 ticks. |
 
-**Minimum publishable unit:** M0 + M1 + M2 + M3 + M4a + M5 ≈ **21–27 FTE weeks** → roughly 12–18 months at 10–15 h/week, 8–12 months at 20 h/week. Ship M0, M1 and M2 as tagged releases so each is a visible, usable stopping point; the program's own warning is that M3 is where motivation is most at risk.
+Tests: the 85 tests that pin legacy mechanisms or toy protocols run under the legacy profile explicitly and keep passing; ten of them edit a protocol list when the toy assays are renamed. `tests/engine/steering_legacy_hashes.json` is never re-recorded. New research-profile tests sit beside them, and they must do what about sixteen of the existing gates cannot: the barren-world determinism and integration gates (reward 0, value map never written) pass whatever happens to the science, so a research-profile regression needs its own assertions on replay content, value learning and navigation. The determinism gate holds two baselines.
 
-**First result it aims at:** a short paper or a Cosyne/CCN-style abstract — *"Prioritized replay in an embodied agent with noisy, boundary-corrected path integration reproduces the reverse-replay reward-magnitude asymmetry (Ambrose et al. 2016) and the past-goal enrichment dissociation (Gillespie et al. 2021); trajectory-only and random replay do not"* — plus the open, deterministic instrument itself, which is the part most likely to be used by others. The fallback, if embodiment adds nothing, is a ReScience-style replication of the Mattar & Daw phenomenon set in an embodied setting, which is still publishable there.
-
----
-
-## 5. Milestone 0: the honest base (do first, whatever happens later)
-
-Both judges and the critic independently list the same prerequisites. None carries scientific risk; all are needed before any number can be reported with units and a confidence interval.
-
-1. **Declare physical units once** in `EngineConfig`: proposed **1 arena unit = 0.1 m and dt = 0.2 s** (5 Hz). Under that calibration the current 20-unit arena is a 2 m × 2 m open field, full thrust is 0.5 m/s, a turn is 1.5 rad/s, and the maze's 300-tick timeout is the standard 60 s. No constants change; they acquire meaning. Replay events (~100 ms in the animal) are shorter than a tick, which is one reason replay becomes an event object between ticks rather than per-tick dynamics. Check the calibration against rat track-running speeds (0.2–0.6 m/s) before freezing it.
-2. **Decouple the TRN gate from path integration** (`sensory_gain = 1.0` in `Engine._spatial_step`, behind a flag). The single largest confound every audit found.
-3. **Separate the physics trace from the behavioural hash**: κ, avalanche size, active cells and `replay_index` into their own hashed trace, so criticality and replay internals can change without invalidating behavioural baselines (the log records nine regenerations between B1 and G3 alone).
-4. **Make seeds samples**: seeded odometry noise, a seeded softmax temperature on the arbiter, and a guard that refuses multi-seed claims at `sensors.noise = 0` with no stochastic element.
-5. **Statistics module** (`analysis/stats.py`): BCa bootstrap CIs, paired per-seed effects, Cliff's δ, IQM and probability of improvement (Agarwal et al. 2021).
-6. **Provenance**: every run writes a manifest (git SHA + dirty flag, full `EngineConfig`, seeds, dt, platform, Python version); console scenarios registered as headless protocols that write `ticks.jsonl` + `scene.json` + manifest.
-7. **Trial structure as an engine concept** (start-pose lists; trial/probe/ITI/rest phases) shared by the console and the headless runner, which today disagree about what an episode is.
-8. **One energy model, not two**: the hard-coded 0.35/0.55/1.1 thresholds move into `TRNConfig`; every assay declares pacing on or off.
-9. **Honesty pass** on README (it still says criticality "behaves correctly across regimes", "whiskers drive behaviour", "all four neuromodulators are causal"), console panel labels and reference lines, and the protocol names `morris_water_maze` / `t_maze` / `survival_arena` (retire or rename). Replace the checksum novelty bit.
-10. **Commit the audit's probes** as `tools/probes/` with recorded outputs, so the pre-conversion state is reproducible (in progress on branch `research/probes`).
-11. **Packaging**: `pyproject.toml`, lockfile, LICENSE, CITATION.cff, CI on Ubuntu + macOS, with the determinism claim restated as same-platform bit identity plus a cross-platform tolerance (numpy enters at M1; BLAS reductions are not bit-portable).
-12. **A `research` config profile** distinct from the legacy defaults, so the current acceptance numbers can stay as regression guards while the research configuration evolves.
-13. **A written acceptance** in `docs/decisions.md` that the G14–G21 numbers measured a patch stack, listing every retired test.
-
----
-
-## 6. What gets deleted, frozen or retired
-
-| Removed from the model | Why |
-|---|---|
-| Kernel smoothing in `ValueMemory` | Inflates values; V is not an expected return. |
-| Dwell extinction | A non-stationary reward penalty with no RL or biological reading. |
-| TRN gate × egomotion | Freezes the place estimate while the body moves. |
-| Goal-vector slot (→ explicit `oracle_homing` control condition) | Did the off-axis maze work the value map was credited with. |
-| Microsleep as the replay trigger; pacing as a memory crutch | Replay becomes a protocol-driven event stream; pacing is an environment setting declared per assay. |
-| Checksum "novelty" bit; write-only TRN replay buffer; `wm_load` | Not what their names say. |
-| Headless `morris_water_maze` / `t_maze` / `survival_arena` | No pool, no T, no sensed hazard; solved in 5 ticks. |
-| Tests pinning the above (`test_replay_geometry`, `test_off_axis_maze`, `test_goal_vector`, `test_goal_extinction`, the hidden-food multipliers, parts of the steering guards) | They pin single deterministic samples of removed mechanisms. The count is being measured now; expect roughly a third of the 246. |
-
-Frozen as environment, with honest labels: criticality lattice (coupling gain 0), neuromodulator scalars (coupling gains 0), the salience arbiter (plus softmax), the energy model.
-
-Kept and built on: the World → Observation → Brain boundary, named RNG streams, JSONL logging, the determinism gate (regenerated once per milestone), the sweep harness, the console (re-pointed; the engineer judge budgets 1–2 weeks for the new place-population and replay-event panels).
+Kept and built on: the World → Observation → Brain boundary, named RNG streams, JSONL logging, the determinism gate (regenerated once per milestone, per profile), the sweep harness, the console (its scenarios under the legacy profile; new panels in M2a and M2b).
 
 ---
 
 ## 7. Publication path and rigor
 
-- **Preregistration**: each RQ gets `docs/prereg/<claim>.md` with hypothesis, metric, config, seed set and CI procedure fixed before the confirmatory run.
-- **Comparison discipline**: compare directions and orderings of effects to published summary statistics (decoder outputs have their own biases); absolute rates only with declared units. Published figures first; raw datasets (Gillespie 2021 on Dryad, CRCNS hc-*) later and only if a comparison needs them.
-- **References**: `docs/references.bib` with a verification-status field for every entry (being built now). The audit already caught one wrong volume (Kleinman & Foster) and two unverifiable code/data claims.
-- **Releases**: a tagged release with a Zenodo DOI per result; the model-comparison table and manifests shipped with it.
-- **Venue**: Cosyne / CCN abstract for the first unit; a ReScience-style or eLife Research Advance / PLOS Comp Bio short paper if the controls hold up.
+- **Preregistration**: each RQ gets `docs/prereg/<claim>.md` with hypothesis, per-rule predictions, metric definitions (§2), budget mode, config, seed set and CI procedure fixed before the confirmatory run.
+- **Comparison discipline**: compare directions and orderings of effects to published summary statistics (decoder outputs have their own biases, which M7 step 0 emulates); absolute rates only with declared units. Published figures first; raw datasets (Gillespie 2021 on DANDI 000115, CRCNS hc-3 / hc-11) only if a comparison needs them.
+- **References**: `docs/references.bib` carries a `verification` field on every entry. Status at this revision: 109 entries, 100 verified, 8 verified with a correction, 1 unverified. The corrections already caught: Kleinman & Foster is eLife volume 14 (2025), not 12; Krause & Drugowitsch 2022 is Neuron 110(4):722–733; the Gillespie 2021 data are on DANDI, not the 72 GB Dryad release the program text named; "Evaluating hippocampal replay without a ground truth" is Takigawa et al. (UCL, 2024), not a Frank-lab preprint; the Zweifel 2021 article number, the Adapt-A-Maze author list and the RatInABox author lists were fixed. Sorscher et al. 2023 (Neuron) is still unverified. The session's proxy blocked most publisher sites, so DOIs appear only where a search result carried them; nothing was invented.
+- **Releases**: a tagged release per milestone (§4) and a Zenodo DOI per result, with the model-comparison table and manifests shipped.
+- **Venue**: Cosyne / CCN abstract for the first unit; a ReScience-style or eLife Research Advance / PLOS Comp Bio short paper if the rule ranking holds up.
+- **A collaborator or lab contact** is strongly recommended before M5: replay-decoding biases and estimator pitfalls are where a solo researcher is most likely to be caught.
 
 ---
 
 ## 8. Risks
 
-- **Crowded modelling literature** (Mattar & Daw 2018; Diekmann & Cheng 2023; Antonov et al. 2022; Jensen et al. 2024; Sagiv et al. 2025). The reviewer's first question will be "what does embodiment add?" — the answer must come from the controls and from where the gridworld predictions break.
-- **Tautology**: building gain × need and finding reverse replay after reward is what the rule is designed to do. Only the preregistered bounds, the controls and the effects not built in (reward-magnitude asymmetry, remote replay, rerouting) are evidence.
-- **M3 is finicky**: function approximation plus a learned SR under a stochastic policy in continuous space, with a heading-dependent Dyna model. Keep tabular TD(0) as the fallback state representation for the replay module.
-- **The world layer is thin**: walls, collisions and five trial-structured protocols are 5–6 weeks, not 3.
-- **Oracle senses remain**: cue identity is given, not recognised; cue-rotation and landmark-conflict experiments are out of reach without a visual front end this plan deliberately does not build.
-- **Solo pace**: ~24 FTE weeks is a year or more of evenings. Ship milestones as releases; M0–M2 are each useful on their own.
-- **numpy enters**: same-platform determinism holds; cross-platform bit identity will not. State the scope.
+- **Crowded modelling literature** (Mattar & Daw 2018; Diekmann & Cheng 2023 with CoBeL-RL already embodied; Antonov et al. 2022; Jensen et al. 2024; Sagiv et al. 2025). The reviewer's first question will be "what does embodiment add?" The answer is the measured oracle-vs-embodied difference (§3 RQ1) and the rule ranking (RQ2), not the floors.
+- **Tautology**: building gain × need and finding reverse replay after reward is what the rule is designed to do. Only the preregistered bounds, the positive control, the ablations and the effects not built in (reward-magnitude asymmetry, remote replay, rerouting, the RQ2 ranking) are evidence.
+- **Oracle senses remain**: cue identity and allocentric heading are given, not recognised; cue-rotation and landmark-conflict experiments are out of reach without a visual front end this plan deliberately does not build. Stated in every write-up.
+- **M3 is finicky**: function approximation plus a learned SR under a stochastic policy in continuous space. M2a's tabular result exists before M3 starts, so a failing M3 still leaves a result; tabular TD(0) stays as the fallback state representation for the replay module.
+- **The world layer is thin**: walls, collisions and three trial-structured protocols are 4–5 weeks, not 3.
+- **Solo pace**: ~28 FTE weeks is one and a half to two and a half years of evenings at 10–15 h/week. Every milestone ends in a tagged release; the plan survives a long gap after any of them.
+- **numpy enters**: same-platform determinism holds; cross-platform bit identity will not. The claim is scoped (§5 item 9).
+- **Calibration is nominal until M0a item 2 lands**: with `energy_scale` live, no latency or rate is in physical units.
 
 ---
 
@@ -172,18 +237,24 @@ Kept and built on: the World → Observation → Brain boundary, named RNG strea
 
 Recommended defaults in bold; the plan assumes them unless told otherwise.
 
-1. **Break the current results?** The plan requires it. **Yes**, with the numbers preserved in the decisions log as the record of the patch stack.
-2. **Hours per week and horizon?** Sets which milestone is the first release. The plan is written for **10–15 h/week over 12–18 months**, with M0–M2 as early stopping points.
-3. **numpy (and later scipy) as hard dependencies; same-platform determinism as the claim?** **Yes** to both.
-4. **Level of comparison?** **Behaviour and replay-event level** first; neural level (ripples, spike timing) only at M7.
-5. **Real datasets or published summary statistics?** **Published statistics first**; Dryad/CRCNS data only when a comparison needs them.
-6. **Should eating feed the agent?** Today food is reward without nourishment and the agent cannot starve. The critic calls this "the single change that ties the subsystems to one variable." **Not in this program** (it would couple the energy model to every result); parked as a future direction (homeostatic foraging).
-7. **Keep the rat framing?** **Yes**, with every claim phrased "in a 2-D point agent with labelled range sensors and noisy odometry."
-8. **A collaborator or lab contact?** Strongly recommended before M5: replay-decoding biases and estimator pitfalls are where a solo researcher is most likely to be caught.
-9. **Tolerance for a null?** The most likely honest outcome of RQ1–RQ3 is "the embodied results equal the gridworld ones." Preregistration makes that reportable; the instrument is still the contribution.
+1. **Accept that G14–G21 are legacy-profile results?** They stay, their tests stay, and they are re-measured with CIs as G23. **Yes.**
+2. **Must the console's six scenarios keep working throughout?** **Yes**: they run under the legacy profile, labelled; the research profile adds panels and never removes a scenario.
+3. **Tabular linear-track replay (M2a) before the place code (M2b)?** It puts the first scientific number 9–14 FTE weeks in instead of 20+, and makes "embodied vs tabular" a measured comparison. **Yes.**
+4. **A declared heading oracle?** The alternative is a landmark or visual front end, which is a separate project. **Yes**, declared in every write-up.
+5. **Hours per week and horizon?** The plan is written in bursts (§4); the calendar figures assume 10–15 h/week with M0a, M0b, M1 and M2a as early stopping points. Say if the cadence is different.
+6. **Licence?** **MIT** for the code; **CC-BY-4.0** for docs and figures, which is what Zenodo and ReScience expect.
+7. **Should eating feed the agent?** Today food is reward without nourishment and the agent cannot starve. The critic calls this "the single change that ties the subsystems to one variable." **Not in this program** (it would couple the energy model to every result); parked as a future direction (homeostatic foraging).
+8. **Keep the rat framing?** **Yes**, with every claim phrased "in a 2-D point agent with labelled range sensors, a heading oracle and noisy position odometry."
+9. **Tolerance for a null?** The most likely honest outcome of RQ1 is "the embodied results equal the oracle ones." Preregistration makes that reportable; the rule ranking in RQ2 and the instrument are still the contribution.
+
+**Decisions already taken in this plan (say if you disagree):** numpy and later scipy as hard dependencies, with same-platform determinism as the claim; comparison at the behaviour and replay-event level first, neural level only at M7; published summary statistics first, raw datasets only when a comparison needs them; the energy model frozen in the research profile; the nine-rule set and the two budget modes of §2.
 
 ---
 
 ## 10. Immediately after approval
 
-Milestone 0 as a single sprint on this branch, in this order: units → gate decoupling → physics-trace split → seeds-as-samples → stats module → manifests and headless scenarios → trial structure → energy thresholds into config → honesty pass → probes merged → packaging → research profile → the written acceptance entry. One baseline regeneration at the end. Then M1.
+**First session (one evening), on a branch `research/m0` from `main`:** add `SpatialConfig.gate_scales_egomotion: bool = True` and pass `sensory_gain = 1.0` in `Engine._spatial_step` when it is False; add `AstrocyteConfig.scales_motion` and `TRNConfig.microsleep_enabled` the same way; add `EngineConfig.research()` with the flags of §5 item 3; run the suite under both profiles; regenerate the baselines once; write decisions entry G22 listing the legacy/research split.
+
+**First weekend:** the rest of M0a (honesty pass, toy-assay renames, regression harness re-pointed), tagged `v1.0-honest`.
+
+**Then:** M0b items 8 and 10 (seeds as samples, stats module), the G23 re-measurement, the remaining M0b items, tagged `v1.1-base`. Then M1.

@@ -1,0 +1,1338 @@
+% references.bib -- quantum-rat research-readiness audit, spatial-memory-and-replay direction.
+% Built 2026-10-03 from audit_result.json (spatial, value-replay, sensors-world-tasks and
+% infrastructure-stats audits; spatial-memory-replay program; critic cross-cutting list).
+%
+% Every entry carries two non-standard fields:
+%   verification = {verified | verified-with-correction | unverified | could-not-find}
+%   note         = what was checked, by what means, and what remains unconfirmed.
+% Method: WebSearch (standard/extended) plus WebFetch of github.com and PyPI only; the session
+% proxy blocked CrossRef, PubMed/PMC, eLife, Dryad, bioRxiv, Cell/ScienceDirect and most
+% publisher hosts, so DOIs are only given where a search result URL or page explicitly carried
+% them. Fields that could not be confirmed are flagged in the note rather than invented.
+% Verification is of the bibliographic record, not of the scientific claims the audits attach to it.
+
+%% =====================================================================
+%% A. Spatial audit (brain/systems/spatial.py) key references
+%% =====================================================================
+
+@article{okeefe1971hippocampus,
+  author  = {O'Keefe, John and Dostrovsky, Jonathan},
+  title   = {The hippocampus as a spatial map. {P}reliminary evidence from unit activity in the freely-moving rat},
+  journal = {Brain Research},
+  year    = {1971},
+  volume  = {34},
+  number  = {1},
+  pages   = {171--175},
+  verification = {verified},
+  note    = {Authors, title, journal, volume 34 and pages 171-175 confirmed by search (multiple index records).}
+}
+
+@article{taube1990headdirection,
+  author  = {Taube, Jeffrey S. and Muller, Robert U. and Ranck, James B.},
+  title   = {Head-direction cells recorded from the postsubiculum in freely moving rats. {I}. {D}escription and quantitative analysis},
+  journal = {Journal of Neuroscience},
+  year    = {1990},
+  volume  = {10},
+  number  = {2},
+  pages   = {420--435},
+  verification = {verified},
+  note    = {Confirmed by search against the J Neurosci 10(2):420 record (jneurosci.org PDF and PMC6570151). Audit omitted the "I. Description and quantitative analysis" subtitle; added.}
+}
+
+@article{hafting2005microstructure,
+  author  = {Hafting, Torkel and Fyhn, Marianne and Molden, Sturla and Moser, May-Britt and Moser, Edvard I.},
+  title   = {Microstructure of a spatial map in the entorhinal cortex},
+  journal = {Nature},
+  year    = {2005},
+  volume  = {436},
+  number  = {7052},
+  pages   = {801--806},
+  doi     = {10.1038/nature03721},
+  verification = {verified},
+  note    = {Citation and DOI confirmed via the NIRD dataset readme that cites it. Open data: see dataset entry hafting2005data (DOI 10.11582/2014.00001).}
+}
+
+@article{sargolini2006conjunctive,
+  author  = {Sargolini, Francesca and Fyhn, Marianne and Hafting, Torkel and McNaughton, Bruce L. and Witter, Menno P. and Moser, May-Britt and Moser, Edvard I.},
+  title   = {Conjunctive representation of position, direction, and velocity in entorhinal cortex},
+  journal = {Science},
+  year    = {2006},
+  volume  = {312},
+  number  = {5774},
+  pages   = {758--762},
+  doi     = {10.1126/science.1125572},
+  verification = {verified},
+  note    = {Citation and DOI confirmed by search. A NIRD/Norstore dataset titled "Grid cell data Sargolini et al 2006" was listed in search results (archive.sigma2.no) but its dataset DOI and current host were not retrievable here; treat the data location as unconfirmed.}
+}
+
+@article{mcnaughton2006pathintegration,
+  author  = {McNaughton, Bruce L. and Battaglia, Francesco P. and Jensen, Ole and Moser, Edvard I. and Moser, May-Britt},
+  title   = {Path integration and the neural basis of the `cognitive map'},
+  journal = {Nature Reviews Neuroscience},
+  year    = {2006},
+  volume  = {7},
+  number  = {8},
+  pages   = {663--678},
+  doi     = {10.1038/nrn1932},
+  verification = {verified},
+  note    = {Confirmed by search (PMID 16858394, DOI 10.1038/nrn1932).}
+}
+
+@article{burak2009accurate,
+  author  = {Burak, Yoram and Fiete, Ila R.},
+  title   = {Accurate path integration in continuous attractor network models of grid cells},
+  journal = {PLoS Computational Biology},
+  year    = {2009},
+  volume  = {5},
+  number  = {2},
+  pages   = {e1000291},
+  doi     = {10.1371/journal.pcbi.1000291},
+  verification = {verified},
+  note    = {Confirmed by search (PMC2632741, DOAJ record).}
+}
+
+@article{bush2015usinggrid,
+  author  = {Bush, Daniel and Barry, Caswell and Manson, Daniel and Burgess, Neil},
+  title   = {Using grid cells for navigation},
+  journal = {Neuron},
+  year    = {2015},
+  volume  = {87},
+  number  = {3},
+  pages   = {507--520},
+  verification = {verified},
+  note    = {Confirmed by search (UCL Discovery, ModelDB 182685). The audit's note that "Hornsby" is not an author is correct.}
+}
+
+@article{hardcastle2015boundaries,
+  author  = {Hardcastle, Kiah and Ganguli, Surya and Giocomo, Lisa M.},
+  title   = {Environmental boundaries as an error correction mechanism for grid cells},
+  journal = {Neuron},
+  year    = {2015},
+  volume  = {86},
+  number  = {3},
+  pages   = {827--839},
+  verification = {verified},
+  note    = {Confirmed by search (Neuron 86:827-839, 6 May 2015).}
+}
+
+@article{stachenfeld2017predictivemap,
+  author  = {Stachenfeld, Kimberly L. and Botvinick, Matthew M. and Gershman, Samuel J.},
+  title   = {The hippocampus as a predictive map},
+  journal = {Nature Neuroscience},
+  year    = {2017},
+  volume  = {20},
+  number  = {11},
+  pages   = {1643--1653},
+  verification = {verified},
+  note    = {Volume 20(11), first page 1643 and Nov 2017 date confirmed by search; end page 1653 from the audit (consistent with the record). DOI not retrieved, so not given.}
+}
+
+@article{banino2018vectorbased,
+  author  = {Banino, Andrea and Barry, Caswell and Uria, Benigno and Blundell, Charles and Lillicrap, Timothy and Mirowski, Piotr and Pritzel, Alexander and Chadwick, Martin J. and Degris, Thomas and Modayil, Joseph and Wayne, Greg and Soyer, Hubert and Viola, Fabio and Zhang, Brian and Goroshin, Ross and Rabinowitz, Neil and Pascanu, Razvan and Beattie, Charlie and Petersen, Stig and Sadik, Amir and Gaffney, Stephen and King, Helen and Kavukcuoglu, Koray and Hassabis, Demis and Hadsell, Raia and Kumaran, Dharshan},
+  title   = {Vector-based navigation using grid-like representations in artificial agents},
+  journal = {Nature},
+  year    = {2018},
+  volume  = {557},
+  number  = {7705},
+  pages   = {429--433},
+  doi     = {10.1038/s41586-018-0102-6},
+  verification = {verified},
+  note    = {Volume/issue/pages/DOI confirmed by search (RePEc record of the Nature DOI). Full author list reproduced from the published paper's byline; only the lead authors were confirmed by the search summary.}
+}
+
+@inproceedings{cueva2018emergence,
+  author    = {Cueva, Christopher J. and Wei, Xue-Xin},
+  title     = {Emergence of grid-like representations by training recurrent neural networks to perform spatial localization},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2018},
+  eprint    = {1803.07770},
+  archivePrefix = {arXiv},
+  verification = {verified},
+  note      = {ICLR 2018 poster and arXiv:1803.07770 confirmed by search.}
+}
+
+@article{whittington2020tem,
+  author  = {Whittington, James C. R. and Muller, Timothy H. and Mark, Shirley and Chen, Guifen and Barry, Caswell and Burgess, Neil and Behrens, Timothy E. J.},
+  title   = {The {T}olman-{E}ichenbaum {M}achine: Unifying space and relational memory through generalization in the hippocampal formation},
+  journal = {Cell},
+  year    = {2020},
+  volume  = {183},
+  number  = {5},
+  pages   = {1249--1263.e23},
+  verification = {verified},
+  note    = {Confirmed by search (PMC7707106). Audit gave the short title only; full title added.}
+}
+
+@article{gardner2022toroidal,
+  author  = {Gardner, Richard J. and Hermansen, Erik and Pachitariu, Marius and Burak, Yoram and Baas, Nils A. and Dunn, Benjamin A. and Moser, May-Britt and Moser, Edvard I.},
+  title   = {Toroidal topology of population activity in grid cells},
+  journal = {Nature},
+  year    = {2022},
+  volume  = {602},
+  number  = {7895},
+  pages   = {123--128},
+  doi     = {10.1038/s41586-021-04268-7},
+  verification = {verified},
+  note    = {Authors, volume 602(7895) and DOI confirmed by search; pages 123-128 from the audit, consistent with the record. Data: figshare 16764508 (see gardner2022data).}
+}
+
+@inproceedings{schaeffer2022nofreelunch,
+  author    = {Schaeffer, Rylan and Khona, Mikail and Fiete, Ila R.},
+  title     = {No free lunch from deep learning in neuroscience: A case study through models of the entorhinal-hippocampal circuit},
+  booktitle = {Advances in Neural Information Processing Systems 35 (NeurIPS 2022)},
+  year      = {2022},
+  verification = {verified},
+  note      = {NeurIPS 2022 proceedings PDF confirmed by search.}
+}
+
+@article{sorscher2023unified,
+  author  = {Sorscher, Ben and Mel, Gabriel C. and Ocko, Samuel A. and Giocomo, Lisa M. and Ganguli, Surya},
+  title   = {A unified theory for the computational and mechanistic origins of grid cells},
+  journal = {Neuron},
+  year    = {2023},
+  volume  = {111},
+  number  = {1},
+  pages   = {121--137},
+  verification = {unverified},
+  note    = {Two searches found only the bioRxiv preprint (10.1101/2022.11.14.516537, Nov 2022) and the 2019 NeurIPS precursor; the Neuron 111:121-137 (2023) details given by the audit were not confirmed. Confirm volume/pages/DOI before citing.}
+}
+
+@inproceedings{nayebi2021heterogeneity,
+  author    = {Nayebi, Aran and Attinger, Alexander and Campbell, Malcolm G. and Hardcastle, Kiah and Low, Isabel I. C. and Mallory, Caitlin S. and Mel, Gabriel C. and Sorscher, Ben and Williams, Alex H. and Ganguli, Surya and Giocomo, Lisa M. and Yamins, Daniel L. K.},
+  title     = {Explaining heterogeneity in medial entorhinal cortex with task-driven neural networks},
+  booktitle = {Advances in Neural Information Processing Systems 34 (NeurIPS 2021)},
+  year      = {2021},
+  verification = {verified},
+  note      = {Full author list and NeurIPS 2021 venue confirmed by search (neurips.cc poster 28227).}
+}
+
+@article{george2024ratinabox,
+  author  = {George, Tom M. and Rastogi, Mehul and de Cothi, William and Clopath, Claudia and Stachenfeld, Kimberly and Barry, Caswell},
+  title   = {{RatInABox}, a toolkit for modelling locomotion and neuronal activity in continuous environments},
+  journal = {eLife},
+  year    = {2024},
+  volume  = {13},
+  pages   = {e85274},
+  doi     = {10.7554/eLife.85274},
+  verification = {verified-with-correction},
+  note    = {Citation and DOI confirmed from the RatInABox GitHub README citation block. Correction: the audit lists "Mathis MW" as a seventh author; the repository's own citation lists six authors (George, Rastogi, de Cothi, Clopath, Stachenfeld, Barry). Software: see ratinabox_software.}
+}
+
+@article{george2023rapidsr,
+  author  = {George, Tom M. and de Cothi, William and Stachenfeld, Kimberly L. and Barry, Caswell},
+  title   = {Rapid learning of predictive maps with {STDP} and theta phase precession},
+  journal = {eLife},
+  year    = {2023},
+  volume  = {12},
+  pages   = {e80663},
+  doi     = {10.7554/eLife.80663},
+  verification = {verified-with-correction},
+  note    = {Published 2023-03-16, eLife 12:e80663, DOI confirmed by search. Author list: the bioRxiv preprint (10.1101/2022.04.20.488882) lists four authors, George, de Cothi, Stachenfeld and Barry (SWC/UCL and DeepMind). DOAJ and some eLife index records append "Michael J Frank", who is the eLife reviewing editor, not an author; the audit's suspicion was correct. Cite four authors.}
+}
+
+@misc{dorrell2026gridreview,
+  author  = {Dorrell, William and Whittington, James C. R.},
+  title   = {If grid cells are the answer, what is the question? {A} review of normative grid cell theory},
+  year    = {2026},
+  eprint  = {2601.12424},
+  archivePrefix = {arXiv},
+  howpublished = {arXiv:2601.12424; eLife reviewed preprint 111058},
+  verification = {verified},
+  note    = {arXiv id and eLife reviewed-preprint number 111058 confirmed by search. Not yet a version of record; cite as preprint.}
+}
+
+@inproceedings{skaggs1995hdmodel,
+  author    = {Skaggs, William E. and Knierim, James J. and Kudrimoti, Hemant S. and McNaughton, Bruce L.},
+  title     = {A model of the neural basis of the rat's sense of direction},
+  booktitle = {Advances in Neural Information Processing Systems 7 (NIPS 1994)},
+  year      = {1995},
+  pages     = {173--180},
+  publisher = {MIT Press},
+  verification = {verified},
+  note      = {NIPS 7 (conference 1994, volume published 1995), pages 173-180 confirmed via proceedings.neurips.cc.}
+}
+
+@article{zhang1996headdirection,
+  author  = {Zhang, Kechen},
+  title   = {Representation of spatial orientation by the intrinsic dynamics of the head-direction cell ensemble: a theory},
+  journal = {Journal of Neuroscience},
+  year    = {1996},
+  volume  = {16},
+  number  = {6},
+  pages   = {2112--2126},
+  verification = {verified},
+  note    = {Confirmed by search (J Neurosci 16(6):2112-2126, 15 Mar 1996).}
+}
+
+@article{hartley2000bvc,
+  author  = {Hartley, Tom and Burgess, Neil and Lever, Colin and Cacucci, Francesca and O'Keefe, John},
+  title   = {Modeling place fields in terms of the cortical inputs to the hippocampus},
+  journal = {Hippocampus},
+  year    = {2000},
+  volume  = {10},
+  number  = {4},
+  pages   = {369--379},
+  doi     = {10.1002/1098-1063(2000)10:4<369::AID-HIPO3>3.0.CO;2-0},
+  verification = {verified},
+  note    = {Confirmed by search; DOI as reported in the search result.}
+}
+
+@article{guanella2007twistedtorus,
+  author  = {Guanella, Alexis and Kiper, Daniel and Verschure, Paul},
+  title   = {A model of grid cells based on a twisted torus topology},
+  journal = {International Journal of Neural Systems},
+  year    = {2007},
+  volume  = {17},
+  number  = {4},
+  pages   = {231--240},
+  doi     = {10.1142/S0129065707001093},
+  verification = {verified},
+  note    = {Confirmed by search (ETH Research Collection, DOI).}
+}
+
+@article{etienne2004pathintegration,
+  author  = {Etienne, Ariane S. and Jeffery, Kathryn J.},
+  title   = {Path integration in mammals},
+  journal = {Hippocampus},
+  year    = {2004},
+  volume  = {14},
+  number  = {2},
+  pages   = {180--192},
+  doi     = {10.1002/hipo.10173},
+  verification = {verified},
+  note    = {Confirmed by search. Cited by both the spatial and the sensors audits.}
+}
+
+@article{fiete2008gridconvey,
+  author  = {Fiete, Ila R. and Burak, Yoram and Brookings, Ted},
+  title   = {What grid cells convey about rat location},
+  journal = {Journal of Neuroscience},
+  year    = {2008},
+  volume  = {28},
+  number  = {27},
+  pages   = {6858--6871},
+  doi     = {10.1523/JNEUROSCI.5684-07.2008},
+  verification = {verified},
+  note    = {Confirmed by search (Fiete lab post-print, DOI).}
+}
+
+@article{jayakumar2019recalibration,
+  author  = {Jayakumar, Ravikrishnan P. and Madhav, Manu S. and Savelli, Francesco and Blair, Hugh T. and Cowan, Noah J. and Knierim, James J.},
+  title   = {Recalibration of path integration in hippocampal place cells},
+  journal = {Nature},
+  year    = {2019},
+  volume  = {566},
+  number  = {7745},
+  pages   = {533--537},
+  doi     = {10.1038/s41586-019-0939-3},
+  verification = {verified},
+  note    = {Confirmed by search (PMC6629428; RePEc record of DOI).}
+}
+
+@article{barry2007rescaling,
+  author  = {Barry, Caswell and Hayman, Robin and Burgess, Neil and Jeffery, Kathryn J.},
+  title   = {Experience-dependent rescaling of entorhinal grids},
+  journal = {Nature Neuroscience},
+  year    = {2007},
+  volume  = {10},
+  number  = {6},
+  pages   = {682--684},
+  verification = {verified},
+  note    = {Confirmed by search (UCL Discovery record).}
+}
+
+@article{khona2022attractor,
+  author  = {Khona, Mikail and Fiete, Ila R.},
+  title   = {Attractor and integrator networks in the brain},
+  journal = {Nature Reviews Neuroscience},
+  year    = {2022},
+  volume  = {23},
+  number  = {12},
+  pages   = {744--766},
+  doi     = {10.1038/s41583-022-00642-0},
+  verification = {verified},
+  note    = {Audit flagged "not confirmed by search"; now confirmed (DSpace@MIT record; McGovern-hosted PDF named by DOI). arXiv:2112.03978.}
+}
+
+@article{mittelstaedt1980homing,
+  author  = {Mittelstaedt, Marie-Luise and Mittelstaedt, Horst},
+  title   = {Homing by path integration in a mammal},
+  journal = {Naturwissenschaften},
+  year    = {1980},
+  volume  = {67},
+  number  = {11},
+  pages   = {566--567},
+  doi     = {10.1007/BF00450672},
+  verification = {verified},
+  note    = {Confirmed by search (doi.org/10.1007/BF00450672).}
+}
+
+%% =====================================================================
+%% B. Value-replay audit key references
+%% =====================================================================
+
+@inproceedings{sutton1990dyna,
+  author    = {Sutton, Richard S.},
+  title     = {Integrated architectures for learning, planning, and reacting based on approximating dynamic programming},
+  booktitle = {Proceedings of the Seventh International Conference on Machine Learning (ICML 1990)},
+  year      = {1990},
+  pages     = {216--224},
+  publisher = {Morgan Kaufmann},
+  verification = {verified},
+  note      = {Confirmed by search (U Alberta papers database; pp. 216-224).}
+}
+
+@article{lin1992selfimproving,
+  author  = {Lin, Long-Ji},
+  title   = {Self-improving reactive agents based on reinforcement learning, planning and teaching},
+  journal = {Machine Learning},
+  year    = {1992},
+  volume  = {8},
+  number  = {3--4},
+  pages   = {293--321},
+  doi     = {10.1007/BF00992699},
+  verification = {verified},
+  note    = {Confirmed by search (ML Anthology; DOI).}
+}
+
+@article{foster2006reversereplay,
+  author  = {Foster, David J. and Wilson, Matthew A.},
+  title   = {Reverse replay of behavioural sequences in hippocampal place cells during the awake state},
+  journal = {Nature},
+  year    = {2006},
+  volume  = {440},
+  number  = {7084},
+  pages   = {680--683},
+  doi     = {10.1038/nature04587},
+  verification = {verified},
+  note    = {Confirmed by search (RePEc record of DOI; MIT news).}
+}
+
+@article{diba2007forwardreverse,
+  author  = {Diba, Kamran and Buzs{\'a}ki, Gy{\"o}rgy},
+  title   = {Forward and reverse hippocampal place-cell sequences during ripples},
+  journal = {Nature Neuroscience},
+  year    = {2007},
+  volume  = {10},
+  number  = {10},
+  pages   = {1241--1242},
+  doi     = {10.1038/nn1961},
+  verification = {verified},
+  note    = {Confirmed by search (PMC2039924; DOI).}
+}
+
+@article{lee2002sequential,
+  author  = {Lee, Albert K. and Wilson, Matthew A.},
+  title   = {Memory of sequential experience in the hippocampus during slow wave sleep},
+  journal = {Neuron},
+  year    = {2002},
+  volume  = {36},
+  number  = {6},
+  pages   = {1183--1194},
+  verification = {verified},
+  note    = {Confirmed by search (Janelia publication record; 19 Dec 2002).}
+}
+
+@article{ji2007coordinated,
+  author  = {Ji, Daoyun and Wilson, Matthew A.},
+  title   = {Coordinated memory replay in the visual cortex and hippocampus during sleep},
+  journal = {Nature Neuroscience},
+  year    = {2007},
+  volume  = {10},
+  number  = {1},
+  pages   = {100--107},
+  verification = {verified},
+  note    = {Confirmed by search (Nat Neurosci Jan 2007, 10:100-107).}
+}
+
+@article{carr2011awakereplay,
+  author  = {Carr, Margaret F. and Jadhav, Shantanu P. and Frank, Loren M.},
+  title   = {Hippocampal replay in the awake state: a potential substrate for memory consolidation and retrieval},
+  journal = {Nature Neuroscience},
+  year    = {2011},
+  volume  = {14},
+  number  = {2},
+  pages   = {147--153},
+  verification = {verified},
+  note    = {Confirmed by search (PMC3215304).}
+}
+
+@article{mattar2018prioritized,
+  author  = {Mattar, Marcelo G. and Daw, Nathaniel D.},
+  title   = {Prioritized memory access explains planning and hippocampal replay},
+  journal = {Nature Neuroscience},
+  year    = {2018},
+  volume  = {21},
+  number  = {11},
+  pages   = {1609--1617},
+  doi     = {10.1038/s41593-018-0232-z},
+  verification = {verified},
+  note    = {Citation and DOI confirmed by search (PMC6203620). Code: the authors' MATLAB code is at https://github.com/marcelomattar/PrioritizedReplay ("Code accompanying the paper: Mattar & Daw (2018)"), confirmed by fetching the GitHub profile. The paper's own Code Availability wording could not be fetched (PMC blocked); see mattar2018code.}
+}
+
+@article{olafsdottir2018role,
+  author  = {{\'O}lafsd{\'o}ttir, H. Freyja and Bush, Daniel and Barry, Caswell},
+  title   = {The role of hippocampal replay in memory and planning},
+  journal = {Current Biology},
+  year    = {2018},
+  volume  = {28},
+  number  = {1},
+  pages   = {R37--R50},
+  verification = {verified},
+  note    = {Confirmed by search (PMC5847173; UCL Discovery).}
+}
+
+@article{gupta2010notsimple,
+  author  = {Gupta, Anoopum S. and van der Meer, Matthijs A. A. and Touretzky, David S. and Redish, A. David},
+  title   = {Hippocampal replay is not a simple function of experience},
+  journal = {Neuron},
+  year    = {2010},
+  volume  = {65},
+  number  = {5},
+  pages   = {695--705},
+  verification = {verified},
+  note    = {Confirmed by search (CMU RI record; PMC4460981).}
+}
+
+@article{pfeiffer2013futurepaths,
+  author  = {Pfeiffer, Brad E. and Foster, David J.},
+  title   = {Hippocampal place-cell sequences depict future paths to remembered goals},
+  journal = {Nature},
+  year    = {2013},
+  volume  = {497},
+  number  = {7447},
+  pages   = {74--79},
+  doi     = {10.1038/nature12112},
+  verification = {verified},
+  note    = {Confirmed by search (PMC3990408; RePEc record of DOI). Raw data are not known to be openly deposited (not found).}
+}
+
+@article{ambrose2016reversereplay,
+  author  = {Ambrose, R. Ellen and Pfeiffer, Brad E. and Foster, David J.},
+  title   = {Reverse replay of hippocampal place cells is uniquely modulated by changing reward},
+  journal = {Neuron},
+  year    = {2016},
+  volume  = {91},
+  number  = {5},
+  pages   = {1124--1136},
+  verification = {verified},
+  note    = {Confirmed by search (PMC6013068; 25 Aug 2016).}
+}
+
+@article{jadhav2012awakeswr,
+  author  = {Jadhav, Shantanu P. and Kemere, Caleb and German, P. Walter and Frank, Loren M.},
+  title   = {Awake hippocampal sharp-wave ripples support spatial memory},
+  journal = {Science},
+  year    = {2012},
+  volume  = {336},
+  number  = {6087},
+  pages   = {1454--1458},
+  verification = {verified},
+  note    = {Confirmed by search (Science 336(6087):1454-1458, 15 Jun 2012).}
+}
+
+@article{girardeau2009ripples,
+  author  = {Girardeau, Gabrielle and Benchenane, Karim and Wiener, Sidney I. and Buzs{\'a}ki, Gy{\"o}rgy and Zugaro, Micha{\"e}l B.},
+  title   = {Selective suppression of hippocampal ripples impairs spatial memory},
+  journal = {Nature Neuroscience},
+  year    = {2009},
+  volume  = {12},
+  number  = {10},
+  pages   = {1222--1223},
+  doi     = {10.1038/nn.2384},
+  verification = {verified},
+  note    = {Confirmed by search (doi.org/10.1038/nn.2384; HAL record).}
+}
+
+@article{stella2019brownian,
+  author  = {Stella, Federico and Baracskay, Peter and O'Neill, Joseph and Csicsvari, Jozsef},
+  title   = {Hippocampal reactivation of random trajectories resembling {B}rownian diffusion},
+  journal = {Neuron},
+  year    = {2019},
+  volume  = {102},
+  number  = {2},
+  pages   = {450--461.e7},
+  doi     = {10.1016/j.neuron.2019.01.052},
+  verification = {verified},
+  note    = {Confirmed by search (ISTA research explorer record 6338, with DOI).}
+}
+
+@article{carey2019revaluation,
+  author  = {Carey, Alyssa A. and Tanaka, Youki and van der Meer, Matthijs A. A.},
+  title   = {Reward revaluation biases hippocampal sequence content away from the preferred outcome},
+  journal = {Nature Neuroscience},
+  year    = {2019},
+  volume  = {22},
+  number  = {9},
+  pages   = {1450--1459},
+  verification = {verified},
+  note    = {Confirmed by search (second query returned volume 22, pages 1450-1459; preprint bioRxiv 10.1101/397950). Title uses "sequence content", as the audit had it.}
+}
+
+@article{igata2021prioritized,
+  author  = {Igata, Hideyoshi and Ikegaya, Yuji and Sasaki, Takuya},
+  title   = {Prioritized experience replays on a hippocampal predictive map for learning},
+  journal = {Proceedings of the National Academy of Sciences},
+  year    = {2021},
+  volume  = {118},
+  number  = {1},
+  pages   = {e2011266118},
+  doi     = {10.1073/pnas.2011266118},
+  verification = {verified},
+  note    = {Confirmed by search (PMC7817193; online 28 Dec 2020, volume 118(1) 2021). Data: Mendeley Data 10.17632/4xk5w69yr5.2 (v2, 5 Dec 2020), see igata2021data.}
+}
+
+@article{gillespie2021replay,
+  author  = {Gillespie, Anna K. and Astudillo Maya, Daniela A. and Denovellis, Eric L. and Liu, Daniel F. and Kastner, David B. and Coulter, Michael E. and Roumis, Demetris K. and Eden, Uri T. and Frank, Loren M.},
+  title   = {Hippocampal replay reflects specific past experiences rather than a plan for subsequent choice},
+  journal = {Neuron},
+  year    = {2021},
+  volume  = {109},
+  number  = {19},
+  pages   = {3149--3163.e6},
+  doi     = {10.1016/j.neuron.2021.07.029},
+  verification = {verified-with-correction},
+  note    = {Volume 109(19), pages 3149-3163.e6, DOI and 2021 date confirmed by search (PubMed 34450026; cell.com PII S0896-6273(21)00573-0). CORRECTION to the program text: the data are NOT the "~72 GB, 10 rats" Dryad release; that Dryad record (10.7272/Q61N7ZC3) belongs to Denovellis et al. 2021 eLife (see denovellis2021realworld). The Gillespie 2021 data are on DANDI, dandiset 000115 (NWB), with analysis code at https://github.com/LorenFrankLab/Gillespie_Neuron_2021 (MIT; MATLAB 2015b; 4 rats; large outputs on figshare 21300147), per that repository's README. First six authors confirmed by search; the remaining three are reproduced from the published byline and should be checked.}
+}
+
+@article{liu2021nonlocal,
+  author  = {Liu, Yunzhe and Mattar, Marcelo G. and Behrens, Timothy E. J. and Daw, Nathaniel D. and Dolan, Raymond J.},
+  title   = {Experience replay is associated with efficient nonlocal learning},
+  journal = {Science},
+  year    = {2021},
+  volume  = {372},
+  number  = {6544},
+  pages   = {eabf1357},
+  verification = {verified},
+  note    = {Confirmed by search (UCL Discovery; Princeton record).}
+}
+
+@article{widloski2022rerouting,
+  author  = {Widloski, John and Foster, David J.},
+  title   = {Flexible rerouting of hippocampal replay sequences around changing barriers in the absence of global place field remapping},
+  journal = {Neuron},
+  year    = {2022},
+  volume  = {110},
+  number  = {9},
+  pages   = {1547--1558.e8},
+  doi     = {10.1016/j.neuron.2022.02.002},
+  verification = {verified},
+  note    = {Authors, Neuron 110(9), pages 1547-1558, 2022 confirmed by search (PMC9473153; cell.com PII S0896-6273(22)00109-X; eScholarship qt4jx5h1m7). The DOI was reported by one search summary and matches the Feb-2022 PII pattern but was not read off a publisher page; the ".e8" suffix is from memory. DATA DEPOSITION: could not be determined; the Data-and-code-availability paragraph was not retrievable (PMC, eScholarship and cell.com all blocked by the proxy) and no Dryad/Zenodo/CRCNS/DANDI record for this paper surfaced in five searches. Treat as not openly deposited until the paper's STAR Methods statement is read.}
+}
+
+@article{bernerslee2022singleexperience,
+  author  = {Berners-Lee, Alice and Feng, Ting and Silva, Delia and Wu, Xiaojing and Ambrose, Ellen R. and Pfeiffer, Brad E. and Foster, David J.},
+  title   = {Hippocampal replays appear after a single experience and incorporate greater detail with more experience},
+  journal = {Neuron},
+  year    = {2022},
+  volume  = {110},
+  number  = {11},
+  pages   = {1829--1842.e5},
+  verification = {verified},
+  note    = {Confirmed by search (PMC9514662; UT Southwestern record): Neuron 110(11):1829-1842.e5, 2022.}
+}
+
+@article{krause2022momentum,
+  author  = {Krause, Emma L. and Drugowitsch, Jan},
+  title   = {A large majority of awake hippocampal sharp-wave ripples feature spatial trajectories with momentum},
+  journal = {Neuron},
+  year    = {2022},
+  volume  = {110},
+  number  = {4},
+  pages   = {722--733},
+  verification = {verified-with-correction},
+  note    = {CORRECTION: published Neuron 110(4):722-733(.e2), 16 Feb 2022 (cell.com PII S0896-6273(21)00952-1; ScienceDirect S0896627321009521), not "110:1815-1827" as the audit had from memory. Preprint bioRxiv 10.1101/2021.05.13.444067. DOI not read off a page, so omitted.}
+}
+
+@article{antonov2022optimism,
+  author  = {Antonov, Georgy and Gagne, Christopher and Eldar, Eran and Dayan, Peter},
+  title   = {Optimism and pessimism in optimised replay},
+  journal = {PLoS Computational Biology},
+  year    = {2022},
+  volume  = {18},
+  number  = {1},
+  pages   = {e1009634},
+  doi     = {10.1371/journal.pcbi.1009634},
+  verification = {verified},
+  note    = {Article id e1009634, 12 Jan 2022, confirmed by search (PMC8809607; OpenAlex DOI record).}
+}
+
+@article{diekmann2023replaymodel,
+  author  = {Diekmann, Nicolas and Cheng, Sen},
+  title   = {A model of hippocampal replay driven by experience and environmental structure facilitates spatial learning},
+  journal = {eLife},
+  year    = {2023},
+  volume  = {12},
+  pages   = {e82301},
+  doi     = {10.7554/eLife.82301},
+  verification = {verified},
+  note    = {eLife article 82301 (2023) confirmed by search. Code: https://github.com/sencheng/-Mechanisms-and-Functions-of-Hippocampal-Replay (fetched: Python, depends on CoBeL-RL, GPL-3.0; reproduces Stella 2019 random walks, Gupta 2010 shortcuts, Widloski & Foster 2022 dynamic environments, Olafsdottir 2015 preplay, Wu 2017 reward/aversive, goal switching). See diekmann2023code.}
+}
+
+@article{jensen2024rollouts,
+  author  = {Jensen, Kristopher T. and Hennequin, Guillaume and Mattar, Marcelo G.},
+  title   = {A recurrent network model of planning explains hippocampal replay and human behavior},
+  journal = {Nature Neuroscience},
+  year    = {2024},
+  volume  = {27},
+  pages   = {1340--1348},
+  doi     = {10.1038/s41593-024-01675-7},
+  verification = {verified},
+  note    = {DOI, authors and 7 Jun 2024 publication confirmed by search (PMC11239510) and by the authors' code repository README. Volume 27 / pages 1340-1348 are from the audit and were not confirmed by any search result. Code and human behavioural data: https://github.com/KrisJensen/planning_code (Julia >= 1.7), see jensen2024code.}
+}
+
+@article{roscow2025rpereplay,
+  author  = {Roscow, Emma L. and Howe, Timothy and Lepora, Nathan F. and Jones, Matthew W.},
+  title   = {Post-learning replay of hippocampal-striatal activity is biased by reward-prediction signals},
+  journal = {Nature Communications},
+  year    = {2025},
+  volume  = {16},
+  doi     = {10.1038/s41467-025-65354-2},
+  verification = {verified},
+  note    = {Authors (University of Bristol), journal, volume 16, DOI 10.1038/s41467-025-65354-2 and publication date 24 Nov 2025 confirmed by search (PMC12644820; RePEc record). Article number not retrieved. Preprint bioRxiv 10.1101/716290.}
+}
+
+@article{dayan1993successor,
+  author  = {Dayan, Peter},
+  title   = {Improving generalization for temporal difference learning: the successor representation},
+  journal = {Neural Computation},
+  year    = {1993},
+  volume  = {5},
+  number  = {4},
+  pages   = {613--624},
+  doi     = {10.1162/neco.1993.5.4.613},
+  verification = {verified},
+  note    = {Confirmed by search (ML Anthology; DOI).}
+}
+
+@inproceedings{schaul2016per,
+  author    = {Schaul, Tom and Quan, John and Antonoglou, Ioannis and Silver, David},
+  title     = {Prioritized experience replay},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2016},
+  eprint    = {1511.05952},
+  archivePrefix = {arXiv},
+  verification = {verified},
+  note      = {ICLR 2016 and arXiv:1511.05952 confirmed by search.}
+}
+
+@article{mcnamara2014dopaminergic,
+  author  = {McNamara, Colin G. and Tejero-Cantero, {\'A}lvaro and Trouche, St{\'e}phanie and Campo-Urriza, Natalia and Dupret, David},
+  title   = {Dopaminergic neurons promote hippocampal reactivation and spatial memory persistence},
+  journal = {Nature Neuroscience},
+  year    = {2014},
+  volume  = {17},
+  number  = {12},
+  pages   = {1658--1660},
+  doi     = {10.1038/nn.3843},
+  verification = {verified},
+  note    = {Confirmed by search (Oxford BNDU record; DOI).}
+}
+
+@article{grosmark2016diversity,
+  author  = {Grosmark, Andres D. and Buzs{\'a}ki, Gy{\"o}rgy},
+  title   = {Diversity in neural firing dynamics supports both rigid and learned hippocampal sequences},
+  journal = {Science},
+  year    = {2016},
+  volume  = {351},
+  number  = {6280},
+  pages   = {1440--1443},
+  verification = {verified},
+  note    = {Confirmed by search. Dataset id confirmed: CRCNS hc-11 (crcns_hc-11_data_description.pdf hosted at buzsakilab.nyumc.org names this paper), see crcns_hc11.}
+}
+
+@article{takigawa2024evaluating,
+  author  = {Takigawa, Masahiro and Huelin Gorriz, Marta and Tirole, Margot and Bendor, Daniel},
+  title   = {Evaluating hippocampal replay without a ground truth},
+  journal = {eLife},
+  year    = {2024},
+  volume  = {13},
+  pages   = {e85635},
+  doi     = {10.7554/eLife.85635},
+  verification = {verified-with-correction},
+  note    = {CORRECTION: the value-replay audit and the program attribute "Evaluating hippocampal replay without a ground truth" to a "Frank lab bioRxiv 2022" preprint. The work is by Takigawa, Huelin Gorriz, Tirole and Bendor (UCL), published in eLife on 28 Nov 2024 (article 85635; DOI confirmed by search). Volume 13 inferred from the 2024 publication year.}
+}
+
+@article{denovellis2021realworld,
+  author  = {Denovellis, Eric L. and Gillespie, Anna K. and Coulter, Michael E. and Sosa, Marielena and Chung, Jason E. and Eden, Uri T. and Frank, Loren M.},
+  title   = {Hippocampal replay of experience at real-world speeds},
+  journal = {eLife},
+  year    = {2021},
+  volume  = {10},
+  pages   = {e64505},
+  doi     = {10.7554/eLife.64505},
+  verification = {verified},
+  note    = {Added because the program's "Frank-lab Dryad release of ~72 GB, 10 rats" is this paper's dataset, not Gillespie 2021's. Authors and Dryad DOI 10.7272/Q61N7ZC3 confirmed by search; eLife DOI from the papers.ecosyste.ms record 10.7554/eLife.64505 (Sept 2021). See franklab_dryad_denovellis2021.}
+}
+
+%% =====================================================================
+%% C. Sensors / world / tasks audit key references
+%% =====================================================================
+
+@article{morris1984watermaze,
+  author  = {Morris, Richard G. M.},
+  title   = {Developments of a water-maze procedure for studying spatial learning in the rat},
+  journal = {Journal of Neuroscience Methods},
+  year    = {1984},
+  volume  = {11},
+  number  = {1},
+  pages   = {47--60},
+  verification = {verified},
+  note    = {Confirmed by search (J Neurosci Methods 11:47-60).}
+}
+
+@article{vorhees2006mwm,
+  author  = {Vorhees, Charles V. and Williams, Michael T.},
+  title   = {Morris water maze: procedures for assessing spatial and related forms of learning and memory},
+  journal = {Nature Protocols},
+  year    = {2006},
+  volume  = {1},
+  number  = {2},
+  pages   = {848--858},
+  doi     = {10.1038/nprot.2006.116},
+  verification = {verified},
+  note    = {Confirmed by search (PMC2895266; Springer DOI page).}
+}
+
+@article{gallagher1993learningindex,
+  author  = {Gallagher, Michela and Burwell, Rebecca and Burchinal, Margaret},
+  title   = {Severity of spatial learning impairment in aging: development of a learning index for performance in the {M}orris water maze},
+  journal = {Behavioral Neuroscience},
+  year    = {1993},
+  volume  = {107},
+  number  = {4},
+  pages   = {618--626},
+  verification = {verified},
+  note    = {Audit had the title from memory; title, authors, Behav Neurosci 107:618-626 (1993) confirmed by search (FPG UNC record; Wikipedia).}
+}
+
+@article{garthe2009strategies,
+  author  = {Garthe, Alexander and Behr, Joachim and Kempermann, Gerd},
+  title   = {Adult-generated hippocampal neurons allow the flexible use of spatially precise learning strategies},
+  journal = {PLoS ONE},
+  year    = {2009},
+  volume  = {4},
+  number  = {5},
+  pages   = {e5464},
+  doi     = {10.1371/journal.pone.0005464},
+  verification = {verified},
+  note    = {Confirmed by search (PMID 19421325; DOI).}
+}
+
+@article{cooke2020pathfinder,
+  author  = {Cooke, Matthew B. and O'Leary, Timothy P. and Harris, Phelan and Ma, Ricky and Brown, Richard E. and Snyder, Jason S.},
+  title   = {Pathfinder: open source software for analyzing spatial navigation search strategies},
+  journal = {F1000Research},
+  year    = {2020},
+  volume  = {8},
+  pages   = {1521},
+  doi     = {10.12688/f1000research.20352.2},
+  verification = {verified},
+  note    = {F1000Research 8:1521; version 2 published 2020-06-15 with DOI 10.12688/f1000research.20352.2 (version 1 appeared 2019), confirmed by search and by the Pathfinder GitHub README citation. First three authors confirmed; the remaining authors are reproduced from the published byline and should be checked. Software: see pathfinder_software.}
+}
+
+@article{deacon2006tmaze,
+  author  = {Deacon, Robert M. J. and Rawlins, J. Nicholas P.},
+  title   = {T-maze alternation in the rodent},
+  journal = {Nature Protocols},
+  year    = {2006},
+  volume  = {1},
+  number  = {1},
+  pages   = {7--12},
+  verification = {verified},
+  note    = {Confirmed by search (ORA Oxford record; Nat Protoc 1(1):7-12).}
+}
+
+@article{olton1976remembrance,
+  author  = {Olton, David S. and Samuelson, Robert J.},
+  title   = {Remembrance of places passed: spatial memory in rats},
+  journal = {Journal of Experimental Psychology: Animal Behavior Processes},
+  year    = {1976},
+  volume  = {2},
+  number  = {2},
+  pages   = {97--116},
+  verification = {verified},
+  note    = {Confirmed by search (JEP:ABP 2:97-116).}
+}
+
+@article{barnes1979senescence,
+  author  = {Barnes, Carol A.},
+  title   = {Memory deficits associated with senescence: a neurophysiological and behavioral study in the rat},
+  journal = {Journal of Comparative and Physiological Psychology},
+  year    = {1979},
+  volume  = {93},
+  number  = {1},
+  pages   = {74--104},
+  verification = {verified},
+  note    = {Audit had title/journal from memory; confirmed by search (PubMed 221551; Feb 1979, 93(1):74-104).}
+}
+
+@article{walsh1976openfield,
+  author  = {Walsh, Roger N. and Cummins, Robert A.},
+  title   = {The open-field test: a critical review},
+  journal = {Psychological Bulletin},
+  year    = {1976},
+  volume  = {83},
+  number  = {3},
+  pages   = {482--504},
+  verification = {verified},
+  note    = {Audit from memory; confirmed by search (Deakin repository record: Psychol Bull 83:482-504).}
+}
+
+@article{treit1988thigmotaxis,
+  author  = {Treit, Dallas and Fundytus, Marian},
+  title   = {Thigmotaxis as a test for anxiolytic activity in rats},
+  journal = {Pharmacology Biochemistry and Behavior},
+  year    = {1988},
+  volume  = {31},
+  number  = {4},
+  pages   = {959--962},
+  verification = {verified},
+  note    = {Vol 31, pages 959-962 confirmed by search. Issue 31(4) is dated December 1988; some indexes (and one search hit) give 1989. Cite 1988 as the audit does, and expect to see 1989 in other bibliographies.}
+}
+
+@article{foster2000tdnavigation,
+  author  = {Foster, David J. and Morris, Richard G. M. and Dayan, Peter},
+  title   = {A model of hippocampally dependent navigation, using the temporal difference learning rule},
+  journal = {Hippocampus},
+  year    = {2000},
+  volume  = {10},
+  number  = {1},
+  pages   = {1--16},
+  verification = {verified},
+  note    = {Authors, Hippocampus 10:1-16 (2000) confirmed by search. TITLE CAUTION: two search summaries rendered the title as "A temporal difference model of hippocampally dependent, one-trial spatial learning", which looks like a paraphrase of the abstract; the audit's title (kept here) is the one commonly indexed (PMID 10706212). Check against the publisher record before quoting the title.}
+}
+
+@article{decothi2022predictivemaps,
+  author  = {de Cothi, William and Nyberg, Nils and Griesbauer, Eva-Maria and Ghaname, Carole and Zisch, Fiona and Lefort, Julie M. and Fletcher, Lydia and Newton, Coco and Renaudineau, Sophie and Bendor, Daniel and Grieves, Roddy and Duvelle, {\'E}l{\'e}onore and Barry, Caswell and Spiers, Hugo J.},
+  title   = {Predictive maps in rats and humans for spatial navigation},
+  journal = {Current Biology},
+  year    = {2022},
+  volume  = {32},
+  number  = {17},
+  pages   = {3676--3689.e5},
+  doi     = {10.1016/j.cub.2022.06.090},
+  verification = {verified},
+  note    = {Full author list, Curr Biol 32(17):3676-3689.e5 and DOI confirmed by search (PMC9616735). The Tartarus-maze trajectory data location was not checked.}
+}
+
+@article{liu2024mwmdrl,
+  author  = {Liu, Andrew and Borisyuk, Alla},
+  title   = {Investigating navigation strategies in the {M}orris water maze through deep reinforcement learning},
+  journal = {Neural Networks},
+  year    = {2024},
+  volume  = {172},
+  pages   = {106050},
+  verification = {verified},
+  note    = {Neural Networks 172:106050 (2024) confirmed by search; arXiv:2306.01066.}
+}
+
+@article{prusky2000acuity,
+  author  = {Prusky, Glen T. and West, Paul W. R. and Douglas, Robert M.},
+  title   = {Behavioral assessment of visual acuity in mice and rats},
+  journal = {Vision Research},
+  year    = {2000},
+  volume  = {40},
+  number  = {16},
+  pages   = {2201--2209},
+  verification = {verified},
+  note    = {Confirmed by search (Vision Res 40(16):2201-2209; Long-Evans rat acuity ~1.0 cpd).}
+}
+
+@article{wallace2013binocular,
+  author  = {Wallace, Damian J. and Greenberg, David S. and Sawinski, Juergen and Rulla, Stefanie and Notaro, Giuseppe and Kerr, Jason N. D.},
+  title   = {Rats maintain an overhead binocular field at the expense of constant fusion},
+  journal = {Nature},
+  year    = {2013},
+  volume  = {498},
+  number  = {7452},
+  pages   = {65--69},
+  doi     = {10.1038/nature12153},
+  verification = {verified},
+  note    = {Confirmed by search (RePEc record of DOI; PMC3790602).}
+}
+
+@article{grant2009activetouch,
+  author  = {Grant, Robyn A. and Mitchinson, Ben and Fox, Charles W. and Prescott, Tony J.},
+  title   = {Active touch sensing in the rat: anticipatory and regulatory control of whisker movements during surface exploration},
+  journal = {Journal of Neurophysiology},
+  year    = {2009},
+  volume  = {101},
+  number  = {2},
+  pages   = {862--874},
+  doi     = {10.1152/jn.90783.2008},
+  verification = {verified},
+  note    = {Audit "moderately confident"; confirmed by search (White Rose eprint 107046; PMC2657060; DOI).}
+}
+
+@article{sofroniew2015whisking,
+  author  = {Sofroniew, Nicholas J. and Svoboda, Karel},
+  title   = {Whisking},
+  journal = {Current Biology},
+  year    = {2015},
+  volume  = {25},
+  number  = {4},
+  pages   = {R137--R140},
+  doi     = {10.1016/j.cub.2015.01.008},
+  verification = {verified},
+  note    = {Confirmed by search (ModelDB citation record; DOI).}
+}
+
+@article{zweifel2021whiskit,
+  author  = {Zweifel, Nadina O. and Bush, Nicholas E. and Abraham, Ian and Murphey, Todd D. and Hartmann, Mitra J. Z.},
+  title   = {A dynamical model for generating synthetic data to quantify active tactile sensing behavior in the rat},
+  journal = {Proceedings of the National Academy of Sciences},
+  year    = {2021},
+  volume  = {118},
+  number  = {27},
+  pages   = {e2011905118},
+  doi     = {10.1073/pnas.2011905118},
+  verification = {verified-with-correction},
+  note    = {CORRECTION: the sensors audit gives two different article numbers (e2011905118 in key_references, e2012381118 in benchmarks_and_data). The correct one is PNAS 118(27):e2011905118, DOI 10.1073/pnas.2011905118, 1 Jul 2021 (PMC8271597), confirmed by search. Authors added.}
+}
+
+@article{aldarondo2024virtualrodent,
+  author  = {Aldarondo, Diego and Merel, Josh and Marshall, Jesse D. and Hasenclever, Leonard and Klibaite, Ugne and Gellis, Amanda and Tassa, Yuval and Wayne, Greg and Botvinick, Matthew and {\"O}lveczky, Bence P.},
+  title   = {A virtual rodent predicts the structure of neural activity across behaviours},
+  journal = {Nature},
+  year    = {2024},
+  volume  = {632},
+  number  = {8025},
+  pages   = {594--602},
+  doi     = {10.1038/s41586-024-07633-4},
+  verification = {verified},
+  note    = {Confirmed by search (RePEc record of DOI; Olveczky lab page). An author correction (2025) concerns a spike-extraction bug with no change to conclusions.}
+}
+
+@article{porter2025adaptamaze,
+  author  = {Porter, Blake S. and Olson, Jacob M. and Leppla, Christopher A. and Duvelle, {\'E}l{\'e}onore and Bladon, John H. and van der Meer, Matthijs A. A. and Jadhav, Shantanu P.},
+  title   = {Adapt-{A}-{M}aze: an open-source adaptable and automated rodent behavior maze system},
+  journal = {eNeuro},
+  year    = {2025},
+  volume  = {12},
+  number  = {7},
+  pages   = {ENEURO.0138-25.2025},
+  verification = {verified-with-correction},
+  note    = {Audit cited this with no authors ("Adapt-A-Maze (2025)"); author list added from search (PMC12243947; eneuro.org article-info page). Volume/issue/article id as the audit had them, confirmed by the eNeuro URL.}
+}
+
+%% =====================================================================
+%% D. Infrastructure / statistics audit key references
+%% =====================================================================
+
+@article{kennedy2019repronim,
+  author  = {Kennedy, David N. and Abraham, Sanu A. and Bates, Julianna F. and Crowley, Albert and Ghosh, Satrajit and Gillespie, Tom and Goncalves, Mathias and Grethe, Jeffrey S. and Halchenko, Yaroslav O. and Hanke, Michael and Haselgrove, Christian and Hodge, Steven M. and Jarecka, Dorota and Kaczmarzyk, Jakub and Keator, David B. and Meyer, Kyle and Martone, Maryann E. and Padhy, Smruti and Poline, Jean-Baptiste and Preuss, Nina and Sincomb, Troy and Travers, Matt},
+  title   = {Everything matters: the {R}epro{N}im perspective on reproducible neuroimaging},
+  journal = {Frontiers in Neuroinformatics},
+  year    = {2019},
+  volume  = {13},
+  pages   = {1},
+  doi     = {10.3389/fninf.2019.00001},
+  verification = {verified},
+  note    = {Journal, volume 13, article 1, DOI and 7 Feb 2019 date confirmed by search. First three authors confirmed; the rest reproduced from the published byline.}
+}
+
+@article{rougier2017rescience,
+  author  = {Rougier, Nicolas P. and Hinsen, Konrad and Alexandre, Fr{\'e}d{\'e}ric and Arildsen, Thomas and Barba, Lorena A. and Benureau, Fabien C. Y. and Brown, C. Titus and de Buyl, Pierre and Caglayan, Ozan and Davison, Andrew P. and Delsuc, Marc-Andr{\'e} and Detorakis, Georgios and Diem, Alexandra K. and Drix, Damien and Enel, Pierre and Girard, Beno{\^i}t and Guest, Olivia and Hall, Matt G. and Henriques, Rafael N. and Hinaut, Xavier and Jaron, Kamil S. and Khamassi, Mehdi and Klein, Almar and Manninen, Tiina and Marchesi, Pietro and McGlinn, Daniel and Metzner, Christoph and Petchey, Owen and Plesser, Hans Ekkehard and Poisot, Timoth{\'e}e and Ram, Karthik and Ram, Yoav and Roesch, Etienne and Rossant, Cyrille and Rostami, Vahid and Shifman, Aaron and Stachelek, Joseph and Stimberg, Marcel and Stollmeier, Frank and Vaggi, Federico and Viejo, Guillaume and Vitay, Julien and Vostinar, Anya E. and Yurchak, Roman and Zito, Tiziano},
+  title   = {Sustainable computational science: the {R}e{S}cience initiative},
+  journal = {PeerJ Computer Science},
+  year    = {2017},
+  volume  = {3},
+  pages   = {e142},
+  doi     = {10.7717/peerj-cs.142},
+  verification = {verified},
+  note    = {Journal, volume 3, e142 and DOI confirmed by search (peerj.com/articles/cs-142; arXiv:1707.04393). Only the first two authors were confirmed by the search; the remainder reproduced from the published byline.}
+}
+
+@article{wilkinson2016fair,
+  author  = {Wilkinson, Mark D. and Dumontier, Michel and Aalbersberg, IJsbrand Jan and others},
+  title   = {The {FAIR} guiding principles for scientific data management and stewardship},
+  journal = {Scientific Data},
+  year    = {2016},
+  volume  = {3},
+  pages   = {160018},
+  doi     = {10.1038/sdata.2016.18},
+  verification = {verified},
+  note    = {Sci Data 3:160018 (15 Mar 2016) and DOI confirmed by search. The 50+ author list is abbreviated with "and others".}
+}
+
+@inproceedings{agarwal2021precipice,
+  author    = {Agarwal, Rishabh and Schwarzer, Max and Castro, Pablo Samuel and Courville, Aaron and Bellemare, Marc G.},
+  title     = {Deep reinforcement learning at the edge of the statistical precipice},
+  booktitle = {Advances in Neural Information Processing Systems 34 (NeurIPS 2021)},
+  year      = {2021},
+  eprint    = {2108.13264},
+  archivePrefix = {arXiv},
+  verification = {verified},
+  note      = {NeurIPS 2021 (outstanding paper award), arXiv:2108.13264 and the rliable library (PyPI "rliable") confirmed by search. Cited by the infrastructure audit, the program (M5) and the critic's cross-cutting list.}
+}
+
+@article{wilson2019tensimplerules,
+  author  = {Wilson, Robert C. and Collins, Anne G. E.},
+  title   = {Ten simple rules for the computational modeling of behavioral data},
+  journal = {eLife},
+  year    = {2019},
+  volume  = {8},
+  pages   = {e49547},
+  verification = {verified},
+  note    = {Confirmed by search (eLife 8:e49547, 26 Nov 2019; PMC6879303).}
+}
+
+@article{rubel2022nwb,
+  author  = {R{\"u}bel, Oliver and Tritt, Andrew and Ly, Ryan and Dichter, Benjamin K. and Ghosh, Satrajit and Niu, Lawrence and Baker, Pamela and Soltesz, Ivan and Ng, Lydia and Svoboda, Karel and Frank, Loren and Bouchard, Kristofer E.},
+  title   = {The {N}eurodata {W}ithout {B}orders ecosystem for neurophysiological data science},
+  journal = {eLife},
+  year    = {2022},
+  volume  = {11},
+  pages   = {e78362},
+  verification = {verified},
+  note    = {eLife 11:e78362, 4 Oct 2022 (PMID 36193886) confirmed by search. First five authors confirmed; remaining authors reproduced from the published byline.}
+}
+
+@article{clauset2009powerlaw,
+  author  = {Clauset, Aaron and Shalizi, Cosma Rohilla and Newman, M. E. J.},
+  title   = {Power-law distributions in empirical data},
+  journal = {SIAM Review},
+  year    = {2009},
+  volume  = {51},
+  number  = {4},
+  pages   = {661--703},
+  verification = {verified},
+  note    = {Confirmed by search (SIAM Rev 51(4):661-703; arXiv:0706.1062).}
+}
+
+@article{alstott2014powerlaw,
+  author  = {Alstott, Jeff and Bullmore, Ed and Plenz, Dietmar},
+  title   = {powerlaw: a {P}ython package for analysis of heavy-tailed distributions},
+  journal = {PLoS ONE},
+  year    = {2014},
+  volume  = {9},
+  number  = {1},
+  pages   = {e85777},
+  doi     = {10.1371/journal.pone.0085777},
+  verification = {verified},
+  note    = {Confirmed by search (PLoS ONE 9(1):e85777, 29 Jan 2014; arXiv:1305.0215).}
+}
+
+@article{shew2009dynamicrange,
+  author  = {Shew, Woodrow L. and Yang, Hongdian and Petermann, Thomas and Roy, Rajarshi and Plenz, Dietmar},
+  title   = {Neuronal avalanches imply maximum dynamic range in cortical networks at criticality},
+  journal = {Journal of Neuroscience},
+  year    = {2009},
+  volume  = {29},
+  number  = {49},
+  pages   = {15595--15600},
+  verification = {verified},
+  note    = {Confirmed by search (jneurosci.org 29/49/15595).}
+}
+
+@article{friedman2012universal,
+  author  = {Friedman, Nir and Ito, Shinya and Brinkman, Braden A. W. and Shimono, Masanori and DeVille, R. E. Lee and Dahmen, Karin A. and Beggs, John M. and Butler, Thomas C.},
+  title   = {Universal critical dynamics in high resolution neuronal avalanche data},
+  journal = {Physical Review Letters},
+  year    = {2012},
+  volume  = {108},
+  number  = {20},
+  pages   = {208102},
+  doi     = {10.1103/PhysRevLett.108.208102},
+  verification = {verified},
+  note    = {Audit "not verified this session"; now confirmed by search (DSpace@MIT; APS accepted-manuscript link with DOI). Full author list added.}
+}
+
+@article{ibl2021standardized,
+  author  = {{International Brain Laboratory} and Aguillon-Rodriguez, Valeria and Angelaki, Dora and Bayer, Hannah and Bonacchi, Niccol{\`o} and Carandini, Matteo and Cazettes, Fanny and Chapuis, Gaelle and Churchland, Anne K. and Dan, Yang and Dewitt, Eric and Faulkner, Mayo and Forrest, Hamish and Haetzel, Laura and Hausser, Michael and Hofer, Sonja B. and Hu, Fei and Khanal, Anup and Krasniak, Christopher and Laranjeira, In{\^e}s and Mainen, Zachary F. and Meijer, Guido and Miska, Nathaniel J. and Mrsic-Flogel, Thomas D. and Murakami, Masayoshi and Noel, Jean-Paul and Pan-Vazquez, Alejandro and Rossant, Cyrille and Sanders, Joshua and Socha, Karolina and Terry, Rebecca and Urai, Anne E. and Vergara, Hernando and Wells, Miles and Wilson, Christian J. and Witten, Ilana B. and Wool, Lauren E. and Zador, Anthony M.},
+  title   = {Standardized and reproducible measurement of decision-making in mice},
+  journal = {eLife},
+  year    = {2021},
+  volume  = {10},
+  pages   = {e63711},
+  doi     = {10.7554/eLife.63711},
+  verification = {verified},
+  note    = {Audit "not verified this session"; eLife 10:e63711 (May 2021) and DOI now confirmed by search. The consortium author list is reproduced from the published byline, not from the search.}
+}
+
+@article{mizuseki2009theta,
+  author  = {Mizuseki, Kenji and Sirota, Anton and Pastalkova, Eva and Buzs{\'a}ki, Gy{\"o}rgy},
+  title   = {Theta oscillations provide temporal windows for local circuit computation in the entorhinal-hippocampal loop},
+  journal = {Neuron},
+  year    = {2009},
+  volume  = {64},
+  number  = {2},
+  pages   = {267--280},
+  verification = {verified},
+  note    = {Confirmed by search (PMC2771122). Dataset: CRCNS hc-3 (crcns-hc3-data-description.pdf hosted at buzsakilab.nyumc.org), see crcns_hc3.}
+}
+
+@misc{nwbext_simulation_output,
+  author = {Dichter, Benjamin},
+  title  = {nwbext-simulation-output: extension for storing large-scale simulation output in the {N}eurodata {W}ithout {B}orders format},
+  year   = {2019},
+  howpublished = {PyPI package, version 0.1},
+  url    = {https://pypi.org/project/nwbext-simulation-output/},
+  verification = {verified},
+  note   = {PyPI JSON metadata fetched directly: name nwbext-simulation-output, version 0.1, author Ben Dichter, summary as given; no homepage or repository URL in the metadata. Year is approximate (package is unmaintained at v0.1). As the audit says, it targets compartment voltages, not behaviour.}
+}
+
+%% =====================================================================
+%% E. Spatial-memory-replay program citations not already listed above
+%% =====================================================================
+
+@article{kleinman2025dopaminereplay,
+  author  = {Kleinman, Matthew R. and Foster, David J.},
+  title   = {Spatial localization of hippocampal replay requires dopamine signaling},
+  journal = {eLife},
+  year    = {2025},
+  volume  = {14},
+  pages   = {RP99678},
+  doi     = {10.7554/eLife.99678},
+  verification = {verified-with-correction},
+  note    = {CORRECTION: the program cites "eLife 12:99678". The version of record was published 24 Mar 2025 as eLife reviewed-preprint article RP99678 (DOI 10.7554/eLife.99678, PMC11932692); the 2025 volume is 14, not 12. Title, authors, DOI and date confirmed by search; preprint bioRxiv 10.1101/2024.06.04.597435. Volume 14 inferred from the year.}
+}
+
+@article{sagiv2025betweenplanning,
+  author  = {Sagiv, Yotam and Akam, Thomas and Witten, Ilana B. and Daw, Nathaniel D.},
+  title   = {Between planning and map building: prioritizing replay when future goals are uncertain},
+  journal = {Neuron},
+  year    = {2025},
+  volume  = {113},
+  number  = {24},
+  pages   = {4278--4292.e5},
+  doi     = {10.1016/j.neuron.2025.09.021},
+  verification = {verified},
+  note    = {Title, authors, Neuron 113(24):4278-4292.e5 (17 Dec 2025; online 27 Oct 2025) and DOI confirmed by search (PubMed-style citation in search result; ScienceDirect PII S0896627325007093; PMC12633763). The preprint (bioRxiv 10.1101/2024.02.29.582822, PMC10942393, PubMed 38496674) carried the shorter title "Prioritizing replay when future goals are unknown"; the program's short title "Between planning and map-building" refers to the published version.}
+}
+
+%% =====================================================================
+%% F. Open code and datasets relevant to the program
+%% =====================================================================
+
+@misc{ratinabox_software,
+  author = {George, Tom M. and contributors},
+  title  = {{RatInABox}: a toolkit for simulating locomotion and spatially-tuned neural activity in continuous 1D/2D environments},
+  year   = {2024},
+  howpublished = {GitHub repository and PyPI package (ratinabox 1.15.3)},
+  url    = {https://github.com/RatInABox-Lab/RatInABox},
+  verification = {verified},
+  note   = {Repository fetched. Contents: Environment (1D/2D, walls, holes, objects), Agent (Ornstein-Uhlenbeck random motion, imported trajectories, policy control), neuron classes PlaceCells, GridCells, BoundaryVectorCells, HeadDirectionCells, VelocityCells and custom subclasses; MIT licence; pip install ratinabox. PyPI metadata fetched: version 1.15.3, author Tom George, MIT. Citation requested: george2024ratinabox (eLife 2024, DOI 10.7554/eLife.85274).}
+}
+
+@misc{diekmann2023code,
+  author = {Diekmann, Nicolas and Cheng, Sen},
+  title  = {Mechanisms and functions of hippocampal replay: simulation code for {D}iekmann \& {C}heng (2023)},
+  year   = {2023},
+  howpublished = {GitHub repository},
+  url    = {https://github.com/sencheng/-Mechanisms-and-Functions-of-Hippocampal-Replay},
+  verification = {verified},
+  note   = {Repository fetched. Python; depends on the CoBeL-RL framework plus requirements.txt (visualisation) and TensorFlow 2 for the Deep SFMA demo; GPL-3.0. Simulation folders reproduce: learning/optimality, replay sequence statistics, random-walk replay (Stella et al. 2019), shortcut replay (Gupta et al. 2010), dynamic environments / barriers (Widloski & Foster 2022), preplay (Olafsdottir et al. 2015), reward and aversive stimuli (Wu et al. 2017), goal switching. Each folder has environment-generation, run, analysis and plotting scripts.}
+}
+
+@misc{mattar2018code,
+  author = {Mattar, Marcelo G.},
+  title  = {PrioritizedReplay: code accompanying {M}attar \& {D}aw (2018), Prioritized memory access explains planning and hippocampal replay},
+  year   = {2018},
+  howpublished = {GitHub repository (MATLAB)},
+  url    = {https://github.com/marcelomattar/PrioritizedReplay},
+  verification = {verified},
+  note   = {Existence, name and description confirmed by fetching github.com/marcelomattar (MATLAB; 35 stars, 15 forks at fetch time). The paper's own Code Availability statement could not be fetched; the audit's remembered name "marcelomattar/PrioritizedReplay" is correct.}
+}
+
+@misc{jensen2024code,
+  author = {Jensen, Kristopher T.},
+  title  = {planning\_code: code and human behavioural data for {J}ensen, {H}ennequin \& {M}attar (2024)},
+  year   = {2024},
+  howpublished = {GitHub repository (Julia)},
+  url    = {https://github.com/KrisJensen/planning_code},
+  verification = {verified},
+  note   = {Repository fetched: human behavioural data (with and without periodic boundaries), RL-agent training (walls_train.jl) and analysis scripts, pre-trained weights; Julia >= 1.7 with Manifest.toml. Cites the Nature Neuroscience 2024 paper (DOI 10.1038/s41593-024-01675-7).}
+}
+
+@misc{gillespie2021code,
+  author = {Gillespie, Anna K.},
+  title  = {Gillespie\_Neuron\_2021: analysis code for {G}illespie et al., Neuron 2021},
+  year   = {2021},
+  howpublished = {GitHub repository, LorenFrankLab (MATLAB)},
+  url    = {https://github.com/LorenFrankLab/Gillespie_Neuron_2021},
+  verification = {verified},
+  note   = {Repository fetched: MATLAB 2015b analysis producing the paper's ripple-content figures from four rats (Trodes 1.6.3, 30 tetrodes, 2018-2020); MIT licence. README points to the data on DANDI (dandiset 000115, NWB) and to large intermediate outputs on figshare (article 21300147).}
+}
+
+@misc{dandi000115_gillespie2021,
+  author = {Gillespie, Anna K. and Frank, Loren M. and others},
+  title  = {{DANDI} dandiset 000115: data for {G}illespie et al. (2021), hippocampal replay reflects specific past experiences},
+  year   = {2021},
+  howpublished = {DANDI Archive, NWB format},
+  url    = {https://dandiarchive.org/dandiset/000115},
+  verification = {verified},
+  note   = {Dandiset id taken from the Gillespie_Neuron_2021 README (link given there as .../dandiset/000115/draft); dandiarchive.org itself was unreachable through the proxy, so size, rat count and version status were not checked. This replaces the program's "Dryad DOI" for Gillespie 2021, which does not exist as such.}
+}
+
+@misc{franklab_dryad_denovellis2021,
+  author = {Denovellis, Eric L. and Gillespie, Anna K. and Coulter, Michael E. and Sosa, Marielena and Chung, Jason E. and Eden, Uri T. and Frank, Loren M.},
+  title  = {Data from: Hippocampal replay of experience at real-world speeds},
+  year   = {2021},
+  howpublished = {Dryad dataset},
+  doi    = {10.7272/Q61N7ZC3},
+  url    = {https://datadryad.org/dataset/doi:10.7272/Q61N7ZC3},
+  verification = {verified},
+  note   = {Dryad DOI, title and authors confirmed by search. Per the Dryad description: extracellular tetrode recordings from ten male Long-Evans rats on a W-track spatial alternation task (CA1, CA2, CA3, MEC, subiculum, dentate gyrus depending on rat), processed to LFP, SWR times, clustered cells, multiunit spikes and position with Frank-lab MATLAB code; distributed as per-animal tar.gz files. This is the Frank-lab Dryad release the program mislabelled as Gillespie 2021. Size (~72 GB) is from the program and was not re-checked.}
+}
+
+@misc{crcns_hc3,
+  author = {Mizuseki, Kenji and Sirota, Anton and Pastalkova, Eva and Teeters, Jeffrey and Buzs{\'a}ki, Gy{\"o}rgy},
+  title  = {{CRCNS} hc-3: multi-unit recordings from dorsal hippocampus and dorsomedial entorhinal cortex of behaving rats},
+  year   = {2013},
+  howpublished = {CRCNS.org dataset},
+  url    = {https://crcns.org/data-sets/hc/hc-3},
+  verification = {verified},
+  note   = {Existence and content confirmed via the data-description PDF (crcns-hc3-data-description.pdf hosted by the Buzsaki lab, found by search): 7,736 neurons from 442 sessions in 11 rats (204.5 h) across eight tasks, silicon-probe recordings in dorsal hippocampus and dorsomedial EC, raw and processed data (spike times, waveforms, sorting, LFP) with behavioural markers and position. Associated papers include mizuseki2009theta. crcns.org itself was unreachable through the proxy, so the dataset DOI and release year were not checked (year is approximate).}
+}
+
+@misc{crcns_hc11,
+  author = {Grosmark, Andres D. and Buzs{\'a}ki, Gy{\"o}rgy},
+  title  = {{CRCNS} hc-11: recordings from hippocampal area {CA}1, pre, during and post novel spatial learning},
+  year   = {2016},
+  howpublished = {CRCNS.org dataset},
+  url    = {https://crcns.org/data-sets/hc/hc-11},
+  verification = {verified},
+  note   = {Existence and content confirmed via crcns_hc-11_data_description.pdf (Buzsaki lab host, found by search): eight bilateral silicon-probe recordings in four male Long-Evans rats; each session a ~4 h PRE sleep in the home cage, a ~45 min novel-maze run in a novel room (water reward), and POST sleep; published as grosmark2016diversity. The audit's uncertainty about the dataset id is resolved: it is hc-11. Dataset DOI not checked (crcns.org blocked).}
+}
+
+@misc{hafting2005data,
+  author = {Hafting, Torkel and Fyhn, Marianne and Molden, Sturla and Moser, May-Britt and Moser, Edvard I.},
+  title  = {Grid cell data {H}afting et al 2005},
+  year   = {2014},
+  howpublished = {NIRD Research Data Archive (Norstore), CC BY 4.0},
+  doi    = {10.11582/2014.00001},
+  verification = {verified},
+  note   = {DOI, licence (CC BY 4.0), size (~1.5 GB) and content confirmed by search (archive.sigma2.no and the readme.txt at ns9999k.webs.sigma2.no/10.11582_2014.00001): MATLAB files of spike and position times for simultaneously recorded layer-II dorsocaudal MEC grid cells, rats running in a 180 cm cylinder, one file per brain location per hemisphere per rat.}
+}
+
+@misc{gardner2022data,
+  author = {Gardner, Richard J. and Hermansen, Erik},
+  title  = {Toroidal topology of population activity in grid cells (dataset)},
+  year   = {2022},
+  howpublished = {figshare dataset 16764508},
+  url    = {https://figshare.com/articles/dataset/Toroidal_topology_of_population_activity_in_grid_cells/16764508},
+  verification = {verified},
+  note   = {figshare record (posted 2022-05-10, authors Gardner and Hermansen) confirmed by search. Contents per the paper: Neuropixels recordings of hundreds of simultaneously recorded grid cells per module during open-field foraging, wheel running and sleep; file list not inspected.}
+}
+
+@misc{igata2021data,
+  author = {Igata, Hideyoshi and Ikegaya, Yuji and Sasaki, Takuya},
+  title  = {Prioritized experience replays on a hippocampal predictive map for learning (dataset)},
+  year   = {2020},
+  howpublished = {Mendeley Data, version 2},
+  doi    = {10.17632/4xk5w69yr5.2},
+  verification = {verified},
+  note   = {Mendeley Data DOI 10.17632/4xk5w69yr5.2 (v2, 5 Dec 2020) with a readme.txt confirmed by search; contents not inspected.}
+}
+
+@misc{pathfinder_software,
+  author = {Cooke, Matthew B. and Snyder, Jason S. and contributors},
+  title  = {Pathfinder: search-strategy analysis for the {M}orris water maze and other spatial navigation tasks},
+  year   = {2020},
+  howpublished = {GitHub repository (Python, GPL-3.0)},
+  url    = {https://github.com/MatthewBCooke/Pathfinder},
+  verification = {verified},
+  note   = {Repository fetched. Classifies trials into eight strategies (direct swim, directed search, focal search, spatial indirect, chaining, scanning, thigmotaxis, random search) from X-Y tracking; reads Excel/CSV from Ethovision, Anymaze, WaterMaze and ezTrack, with a "Define" feature for other formats; entropy, heatmaps and multiple regions of interest; GPL-3.0. Citation requested: cooke2020pathfinder (F1000Research 8:1521, DOI 10.12688/f1000research.20352.2). A Pathfinder-compatible CSV exporter is what program milestone M4 needs.}
+}
