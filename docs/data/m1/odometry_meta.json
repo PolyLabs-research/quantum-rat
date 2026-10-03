@@ -1,0 +1,176 @@
+{
+ "atp": {
+  "seeds": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "speed": 0.05,
+  "ticks": 3000,
+  "transient": 200,
+  "turn": 0.01
+ },
+ "bounds": [
+  2500.0,
+  2500.0
+ ],
+ "checkpoint": 25.0,
+ "command": "python3 -m experiments.odometry_characterisation --workers 4",
+ "commit": "48c5817e80d115a06239419c8daae539115e4f80",
+ "conditions": [
+  {
+   "name": "speed_only",
+   "speed": 0.05,
+   "turn": 0.0,
+   "walk": "straight"
+  },
+  {
+   "name": "turn_only",
+   "speed": 0.0,
+   "turn": 0.01,
+   "walk": "straight"
+  },
+  {
+   "name": "both",
+   "speed": 0.05,
+   "turn": 0.01,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.0025_speed0.0",
+   "speed": 0.0,
+   "turn": 0.0025,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.0025_speed0.05",
+   "speed": 0.05,
+   "turn": 0.0025,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.0025_speed0.1",
+   "speed": 0.1,
+   "turn": 0.0025,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.005_speed0.0",
+   "speed": 0.0,
+   "turn": 0.005,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.005_speed0.05",
+   "speed": 0.05,
+   "turn": 0.005,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.005_speed0.1",
+   "speed": 0.1,
+   "turn": 0.005,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.01_speed0.0",
+   "speed": 0.0,
+   "turn": 0.01,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.01_speed0.05",
+   "speed": 0.05,
+   "turn": 0.01,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.01_speed0.1",
+   "speed": 0.1,
+   "turn": 0.01,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.02_speed0.0",
+   "speed": 0.0,
+   "turn": 0.02,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.02_speed0.05",
+   "speed": 0.05,
+   "turn": 0.02,
+   "walk": "straight"
+  },
+  {
+   "name": "grid_turn0.02_speed0.1",
+   "speed": 0.1,
+   "turn": 0.02,
+   "walk": "straight"
+  },
+  {
+   "name": "speed_only_turning",
+   "speed": 0.05,
+   "turn": 0.0,
+   "walk": "turning"
+  },
+  {
+   "name": "turn_only_turning",
+   "speed": 0.0,
+   "turn": 0.01,
+   "walk": "turning"
+  },
+  {
+   "name": "both_turning",
+   "speed": 0.05,
+   "turn": 0.01,
+   "walk": "turning"
+  }
+ ],
+ "fit_range": [
+  50.0,
+  2000.0
+ ],
+ "full": true,
+ "n_boot": 10000,
+ "platform": "linux",
+ "python": "3.11.15",
+ "runtime_s": 57.0,
+ "seeds": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29,
+  30
+ ],
+ "target_distance": 2000.0,
+ "tick_cap": 20000,
+ "turning_forward_bias": 0.15,
+ "workers": 4
+}

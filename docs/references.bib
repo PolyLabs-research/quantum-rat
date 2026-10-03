@@ -1415,3 +1415,61 @@
   verification = {verified},
   note    = {Author, title, journal, volume 37, issue 3 and pages 477-484 confirmed by search (the algorithm's published PDF and the ASA241 reference implementations). The PPND16 routine is the normal quantile in analysis/stats.py, which does not import scipy.}
 }
+
+%% =====================================================================
+%% H. Milestone 1, odometry characterisation (docs/odometry.md)
+%% Path-integration error growth and head-direction drift in darkness, the
+%% rodent data the research profile's odometry placeholders are read against.
+%% Verified by WebSearch on 2026-10-03 (the proxy still blocks publisher hosts).
+%% =====================================================================
+
+@article{valerio2012pathintegration,
+  author  = {Valerio, Stephane and Taube, Jeffrey S.},
+  title   = {Path integration: how the head direction signal maintains and corrects spatial orientation},
+  journal = {Nature Neuroscience},
+  year    = {2012},
+  volume  = {15},
+  number  = {10},
+  pages   = {1445--1453},
+  verification = {verified},
+  note    = {Authors, title, journal, year, volume 15 and pages 1445-1453 confirmed by search (Dartmouth press coverage and index records; published online 16 September 2012). The issue number (10) is as usually cited and was not shown by a search result; no search result carried the DOI, so none is given. Rats returning to a home in darkness: the head-direction signal drifts, the behavioural heading error follows it, small errors are corrected by resetting on landmarks and large ones end in a remapped directional frame.}
+}
+
+@article{cheung2012darkness,
+  author  = {Cheung, Allen and Ball, David and Milford, Michael and Wyeth, Gordon and Wiles, Janet},
+  title   = {Maintaining a cognitive map in darkness: the need to fuse boundary knowledge with path integration},
+  journal = {PLoS Computational Biology},
+  year    = {2012},
+  volume  = {8},
+  number  = {8},
+  pages   = {e1002651},
+  doi     = {10.1371/journal.pcbi.1002651},
+  verification = {verified},
+  note    = {Authors, title, journal, year, article number and DOI confirmed by search (PMC3420935, DOAJ and RePEc records). Volume 8, issue 8 inferred from the article number and the August 2012 date; not shown by a search result. Reads the recordings as a head-direction system that becomes unstable within about three minutes without vision while place and grid fields stay stable for half an hour or more, and shows with a head-direction error model that idiothetic path integration alone cannot keep a stable place representation beyond two to three minutes: boundary information has to be fused in. The argument for M2b's wall-contact reset.}
+}
+
+@article{cheung2010noisybrain,
+  author  = {Cheung, Allen and Vickerstaff, Robert},
+  title   = {Finding the way with a noisy brain},
+  journal = {PLoS Computational Biology},
+  year    = {2010},
+  volume  = {6},
+  number  = {11},
+  pages   = {e1000992},
+  doi     = {10.1371/journal.pcbi.1000992},
+  verification = {verified},
+  note    = {Authors, title, journal, November 2010, volume 6, issue 11, article number and DOI confirmed by search (PMC2978673, Altmetric record). Which coordinate representations of a path integrator tolerate per-step noise; the analytic treatment of error accumulation under heading and distance noise that the expectations in experiments/odometry_characterisation.py follow.}
+}
+
+@article{souman2009circles,
+  author  = {Souman, Jan L. and Frissen, Ilja and Sreenivasa, Manish N. and Ernst, Marc O.},
+  title   = {Walking straight into circles},
+  journal = {Current Biology},
+  year    = {2009},
+  volume  = {19},
+  number  = {18},
+  pages   = {1538--1542},
+  doi     = {10.1016/j.cub.2009.07.053},
+  verification = {verified},
+  note    = {Authors, title, journal, year, volume 19, issue 18, pages 1538-1542 and DOI confirmed by search (PubMed 19699093 and press coverage). Humans without a visible sun or landmarks veer and walk in circles: the heading estimate random-walks with no systematic bias, the behavioural counterpart of the additive heading noise in core/sensors.py. Supporting reference only; not rodent data.}
+}

@@ -66,10 +66,16 @@ Metrics per run (higher is better unless noted):
                 hidden trial, reached or timed out; lower is better; None if no
                 hidden trial started), train_ticks (the visible trial; None if
                 it did not end) and timeouts (hidden trials that timed out)
-  all           vrest: share of all ticks on which REST was chosen although the
-                same tick's scores without the value terms (FORWARD, TURN_LEFT and
-                TURN_RIGHT minus value_gain * the value signal fed to them) would
-                not choose REST. Microsleep ticks never count. Lower is better.
+  all           vrest: share of all ticks on which the agent rested, REST was the
+                argmax of the tick's scores, and the same scores without the value
+                terms (FORWARD, TURN_LEFT and TURN_RIGHT minus value_gain * the
+                value signal fed to them) would not make REST the argmax. Under a
+                softmax temperature a REST the sampler drew while the argmax was a
+                move is the sampler's, not the value drive's, and does not count
+                (M1; before it every sampled REST whose counterfactual argmax was
+                a move counted, docs/decisions.md G24 D). At temperature 0 the two
+                readings are the same tick set. Microsleep ticks never count.
+                Lower is better.
 
 Summary per noise block: per scenario and gain the mean/min/max score and mean
 vrest; robustness() (gains within 80% of each scenario's own best);
@@ -188,7 +194,7 @@ def _winner(scores: Mapping[str, float]) -> str:
 
 
 def is_value_rest(ctx: Any, value_gain: float) -> bool:
-    """True when this tick chose REST but the no-value counterfactual would not.
+    """True when this tick rested, REST is the argmax of its scores, and the no-value counterfactual argmax is not REST.
 
     Reads the display-only readouts the engine leaves on its context:
     ``action_scores``, ``value_signals`` (the effective signals fed to action
@@ -199,13 +205,23 @@ def is_value_rest(ctx: Any, value_gain: float) -> bool:
     checks this against the engine's own scores recomputed with zero value input.
     Microsleep ticks (scores ``{"REST": 1.0}`` only) and engines that expose no
     scores never count.
+
+    The attribution is made on the argmax of the scores, not on the sampled
+    action: under ``basal_ganglia.softmax_temperature > 0`` a REST the sampler
+    drew while the argmax was a move is the sampler's doing, not the value
+    drive's, and is not counted (so at value_gain 0 nothing is, the
+    counterfactual being the scores themselves). At temperature 0 the
+    engine's action is the argmax with the same tie order, so the two
+    readings coincide and the pinned outputs are unchanged. Without
+    ``action_name`` the argmax stands in for the action taken.
     """
     scores = getattr(ctx, "action_scores", None) or {}
     if any(name not in scores for name in ACTION_ORDER):
         return False  # microsleep ({"REST": 1.0}) or no readout
-    chosen = getattr(ctx, "action_name", None) or _winner(scores)
-    if chosen != "REST":
-        return False
+    argmax = _winner(scores)
+    rested = getattr(ctx, "action_name", None) or argmax
+    if rested != "REST" or argmax != "REST":
+        return False  # no REST happened, or a sampled REST the argmax would not have chosen
     signals = tuple(getattr(ctx, "value_signals", None) or (0.0, 0.0, 0.0))
     ahead, left, right = (tuple(signals) + (0.0, 0.0, 0.0))[:3]
     counterfactual = dict(scores)
