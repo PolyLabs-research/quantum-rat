@@ -3,6 +3,7 @@
     python3 -m experiments.g23_remeasure                     # 30 seeds, settings A and B, 4 workers
     python3 -m experiments.g23_remeasure --seeds 2 --quick   # the smoke test's run (tiny budgets)
     python3 -m experiments.g23_remeasure --setting B --claims 1,3 --out /tmp/g23
+    python3 -m experiments.g23_remeasure --setting separation --claims 3 --maze-gains 1.5 --tag separation
 
 The result is docs/decisions.md entry G23 (docs/research_plan.md section 5, M0b item 15):
 the first table in the repository with a confidence interval on it.
@@ -18,6 +19,19 @@ settings, each run in full, both at sensor noise 0.03:
      element the engine has (M0b item 8), so seeds are samples of the whole model;
   B  sensors.noise 0.03 only: the setting the G-entries themselves ran when they wrote
      "noise 0.03", so the comparison with their numbers is like for like.
+
+Three more settings separate A's elements (entry G23 section G): each adds ONE of them to
+sensor noise 0.03, so what A changes against B can be laid at one element's door:
+
+  A_speed    sensors.noise 0.03 + sensors.odometry_speed_noise 0.05;
+  A_turn     sensors.noise 0.03 + sensors.odometry_turn_noise 0.01;
+  A_softmax  sensors.noise 0.03 + basal_ganglia.softmax_temperature 0.05.
+
+``--setting separation`` runs the three together; ``--setting both`` (the default) runs
+A and B. ``--tag NAME`` suffixes every output file name (maze_recall_NAME.csv, ...), so a
+partial run next to the committed A / B tables does not overwrite them; ``--maze-gains``
+restricts claim 3 to a subset of its gains (the paired gain-to-gain effect is reported
+only when exactly two are run).
 
 Thirty seeds (1-30) in every arm of every setting. The pseudo-replication guard
 ``core.seeds.require_seeds_are_samples`` runs on every config (inside the harness's
@@ -68,10 +82,10 @@ Verdict rules (per setting; the entry's overall verdict is the weaker of A and B
   claim 2  survives when both the guard band and the G16 band, read from the CIs, cover
            0.4-3.0; weakened when either band is non-empty but narrower; does not survive
            when no gain satisfies the bounds;
-  claim 3  survives when, at both gains, the recall-rate CI's lower end is >= 0.9 and the
-           headings-recalling CI's lower end is >= 15 of 16 (the off-axis guard's own
-           bound); weakened when one of the two holds at every gain; does not survive
-           otherwise.
+  claim 3  survives when, at every gain run (both by default), the recall-rate CI's lower
+           end is >= 0.9 and the headings-recalling CI's lower end is >= 15 of 16 (the
+           off-axis guard's own bound); weakened when one of the two holds at every gain;
+           does not survive otherwise.
 
 Statistics: ``analysis.stats`` throughout (BCa bootstrap, 10,000 replicates, a fixed
 hashed seed per statistic so every interval is reproducible and independent of the order
@@ -86,13 +100,15 @@ metric, value; condition is "<setting>/<arm>" or "<setting>/gain=<g>"), with the
 the claim is read from: hidden food score and sites_found; steering band score and vrest
 for the open scenarios, score and attempted for the maze (its recall rate is the quotient,
 and its vrest, like hidden food's, is in summary.csv per cell as vrest_mean and vrest_max);
-maze recall per seed recalls, attempted, recall_rate and headings_recalling.
+maze recall per seed recalls, attempted, recall_rate and headings_recalling. A claim that
+did not run (``--claims``) writes no tidy table.
 maze_recall_by_heading.csv has one row per (setting, gain, seed, heading) run;
 summary.csv has one row per statistic (claim, setting, task, condition, statistic, n,
 estimate, low, high, method, label, note) including the verdict rows; guard.csv has the
 guard results; meta.json records the command, the budgets and the wall-clock runtime (the
-one file that is not reproducible byte for byte). Identical arguments give byte-identical
-CSVs. The full run writes about 320 KB.
+one file that is not reproducible byte for byte). With ``--tag NAME`` every file is
+written as <stem>_NAME.<ext> instead. Identical arguments give byte-identical CSVs. The
+full run writes about 320 KB.
 
 ``--quick`` shrinks the budgets for the smoke test (300 ticks, gains 0 and 1.5, 4 maze
 headings, 200 bootstrap replicates); its numbers mean nothing.
@@ -147,8 +163,14 @@ SETTINGS: Dict[str, Overrides] = {
         ("basal_ganglia.softmax_temperature", 0.05),
     ),
     "B": (),
+    # One element each on top of sensor noise 0.03 (section G of the entry): A's three, separated.
+    "A_speed": (("sensors.odometry_speed_noise", 0.05),),
+    "A_turn": (("sensors.odometry_turn_noise", 0.01),),
+    "A_softmax": (("basal_ganglia.softmax_temperature", 0.05),),
 }
-SETTING_ORDER = ("A", "B")
+SETTING_ORDER = ("A", "B")  # --setting both, the default
+SEPARATION_ORDER = ("A_speed", "A_turn", "A_softmax")  # --setting separation
+SETTING_GROUPS: Dict[str, Tuple[str, ...]] = {"both": SETTING_ORDER, "separation": SEPARATION_ORDER}
 CLAIM2_SCENARIOS = ("beacon", "foraging", "hazard_field", "memory_maze")
 OPEN_SCENARIOS = ("beacon", "foraging", "hazard_field")
 COST_SCENARIOS = ("foraging", "hazard_field")  # the guard's "outside the maze" scenarios
@@ -180,12 +202,13 @@ VERDICTS = ("survives", "weakened", "does not survive")
 
 @dataclass(frozen=True)
 class Budget:
-    """Everything ``--quick`` changes."""
+    """Everything ``--quick`` changes, plus the claim-3 gains (``--maze-gains``)."""
 
     ticks: Dict[str, int]
     gains: Tuple[float, ...]
     headings: List[float]
     n_boot: int
+    maze_gains: Tuple[float, ...] = CLAIM3_GAINS
 
     @classmethod
     def full(cls) -> "Budget":
@@ -277,10 +300,9 @@ def run_moved_sites(job: MovedJob) -> Dict[str, Any]:
 
 def run_moved_jobs(jobs: Sequence[MovedJob], workers: Optional[int]) -> List[Dict[str, Any]]:
     """The moved-sites runs, after the seeds-are-samples guard on each setting's config."""
-    for setting in SETTING_ORDER:
+    for setting in sorted({j.setting for j in jobs}, key=list(SETTINGS).index):
         seeds = {j.seed for j in jobs if j.setting == setting}
-        if seeds:
-            require_seeds_are_samples(setting_config(setting, HiddenFood().config()), len(seeds))
+        require_seeds_are_samples(setting_config(setting, HiddenFood().config()), len(seeds))
     if len(jobs) <= 1 or workers == 1:
         return [run_moved_sites(job) for job in jobs]
     with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -700,9 +722,10 @@ def claim_maze_recall(res: Results, settings: Sequence[str], seeds: Sequence[int
                       workers: Optional[int]) -> int:
     claim = "3"
     headings = budget.headings
+    gains = budget.maze_gains
     ticks = budget.ticks["memory_maze"]
     jobs = [Job("memory_maze", gain, seed, NOISE, ticks, SETTINGS[s], h)
-            for s in settings for gain in CLAIM3_GAINS for seed in seeds for h in headings]
+            for s in settings for gain in gains for seed in seeds for h in headings]
     rows = run_jobs(jobs, workers)
     table = {(j.overrides, j.value_gain, j.seed, j.heading): r for j, r in by_index(jobs, rows)}
     from ui.scenarios import make_scenario
@@ -715,7 +738,7 @@ def claim_maze_recall(res: Results, settings: Sequence[str], seeds: Sequence[int
         counts: Dict[float, np.ndarray] = {}
         rate_cis: Dict[float, CI] = {}
         heading_cis: Dict[float, CI] = {}
-        for gain in CLAIM3_GAINS:
+        for gain in gains:
             condition = f"{setting}/gain={gain:g}"
             per_seed: List[Dict[str, Any]] = []
             per_seed_runs: List[List[Tuple[int, int]]] = []
@@ -761,8 +784,8 @@ def claim_maze_recall(res: Results, settings: Sequence[str], seeds: Sequence[int
             for hi, h in enumerate(headings):
                 res.record(claim, setting, task, f"{condition}/heading={h:.2f}", "fraction_seeds_recalling_heading",
                            len(seeds), float(per_heading_ok[hi] / len(seeds)))
-        if len(CLAIM3_GAINS) == 2:
-            lo_gain, hi_gain = CLAIM3_GAINS
+        if len(gains) == 2:
+            lo_gain, hi_gain = gains
             res.record_paired(claim, setting, task, f"{setting}/gain={lo_gain:g}_to_{hi_gain:g}", pooled[lo_gain],
                               pooled[hi_gain], "recall_rate")
         res.verdict(claim, setting, *verdict_maze(rate_cis, heading_cis, len(headings)))
@@ -801,23 +824,31 @@ def write_tidy(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
     write_csv(path, TIDY_COLUMNS, [dict(zip(TIDY_COLUMNS, record)) for record in df.itertuples(index=False)])
 
 
-def write_outputs(out: Path, res: Results, meta: Mapping[str, Any]) -> List[Path]:
+def output_name(stem: str, ext: str, tag: Optional[str]) -> str:
+    """``<stem>.<ext>``, or ``<stem>_<tag>.<ext>`` under ``--tag``."""
+    return f"{stem}_{tag}.{ext}" if tag else f"{stem}.{ext}"
+
+
+def write_outputs(out: Path, res: Results, meta: Mapping[str, Any], tag: Optional[str] = None) -> List[Path]:
     out.mkdir(parents=True, exist_ok=True)
     files = []
     for name, rows in res.tidy.items():
-        path = out / f"{name}.csv"
+        if not rows:
+            continue  # the claim did not run
+        path = out / output_name(name, "csv", tag)
         write_tidy(path, rows)
         files.append(path)
-    path = out / "maze_recall_by_heading.csv"
-    write_csv(path, BY_HEADING_COLUMNS, res.by_heading)
-    files.append(path)
-    path = out / "summary.csv"
+    if res.by_heading:
+        path = out / output_name("maze_recall_by_heading", "csv", tag)
+        write_csv(path, BY_HEADING_COLUMNS, res.by_heading)
+        files.append(path)
+    path = out / output_name("summary", "csv", tag)
     write_csv(path, SUMMARY_COLUMNS, res.summary)
     files.append(path)
-    path = out / "guard.csv"
+    path = out / output_name("guard", "csv", tag)
     write_csv(path, GUARD_COLUMNS, res.guard)
     files.append(path)
-    path = out / "meta.json"
+    path = out / output_name("meta", "json", tag)
     path.write_text(json.dumps(meta, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     files.append(path)
     return files
@@ -854,10 +885,14 @@ def main(argv: Optional[Sequence[str]] = None) -> Results:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--seeds", type=int, default=30, help="number of seeds, 1..N (default 30)")
     parser.add_argument("--seed-start", type=int, default=1, help="first seed (default 1)")
-    parser.add_argument("--setting", choices=("A", "B", "both"), default="both")
+    parser.add_argument("--setting", choices=tuple(SETTINGS) + tuple(SETTING_GROUPS), default="both",
+                        help="one setting, 'both' (A and B, the default) or 'separation' (A_speed, A_turn, A_softmax)")
     parser.add_argument("--claims", default="1,2,3", help="comma-separated subset of 1,2,3 (default all)")
+    parser.add_argument("--maze-gains", default=None,
+                        help=f"comma-separated subset of claim 3's gains {','.join(f'{g:g}' for g in CLAIM3_GAINS)} (default all)")
     parser.add_argument("--workers", type=int, default=4, help="worker processes (default 4)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"output directory (default {DEFAULT_OUT})")
+    parser.add_argument("--tag", default=None, help="suffix for the output file names (summary_TAG.csv, ...)")
     parser.add_argument("--n-boot", type=int, default=None, help=f"bootstrap replicates (default {N_BOOT})")
     parser.add_argument("--quick", action="store_true", help="tiny budgets for the smoke test; the numbers mean nothing")
     args = parser.parse_args(argv)
@@ -869,12 +904,23 @@ def main(argv: Optional[Sequence[str]] = None) -> Results:
     unknown = [c for c in claims if c not in CLAIMS]
     if unknown or not claims:
         parser.error(f"--claims must name a subset of {','.join(CLAIMS)}, got {args.claims!r}")
+    maze_gains = CLAIM3_GAINS
+    if args.maze_gains is not None:
+        try:
+            chosen = tuple(float(g) for g in args.maze_gains.split(",") if g.strip())
+        except ValueError:
+            parser.error(f"--maze-gains must be numbers, got {args.maze_gains!r}")
+        if not chosen or any(g not in CLAIM3_GAINS for g in chosen) or len(set(chosen)) != len(chosen):
+            parser.error(f"--maze-gains must name a subset of {','.join(f'{g:g}' for g in CLAIM3_GAINS)}, got {args.maze_gains!r}")
+        maze_gains = tuple(g for g in CLAIM3_GAINS if g in chosen)
+    if args.tag is not None and (not args.tag or any(c in args.tag for c in "/\\.")):
+        parser.error(f"--tag must be a plain name, got {args.tag!r}")
 
-    settings = list(SETTING_ORDER) if args.setting == "both" else [args.setting]
+    settings = list(SETTING_GROUPS.get(args.setting, (args.setting,)))
     seeds = list(range(args.seed_start, args.seed_start + args.seeds))
     budget = Budget.quick() if args.quick else Budget.full()
-    if args.n_boot is not None:
-        budget = Budget(budget.ticks, budget.gains, budget.headings, int(args.n_boot))
+    budget = Budget(budget.ticks, budget.gains, budget.headings,
+                    budget.n_boot if args.n_boot is None else int(args.n_boot), maze_gains)
     res = Results(budget.n_boot)
     started = time.perf_counter()
     jobs = 0
@@ -891,17 +937,18 @@ def main(argv: Optional[Sequence[str]] = None) -> Results:
         "claims": claims,
         "ticks": budget.ticks,
         "gains_claim2": list(budget.gains),
-        "gains_claim3": list(CLAIM3_GAINS),
+        "gains_claim3": list(budget.maze_gains),
         "maze_headings": len(budget.headings),
         "n_boot": budget.n_boot,
         "alpha": ALPHA,
         "workers": args.workers,
         "jobs": jobs,
         "quick": bool(args.quick),
+        "tag": args.tag,
         "runtime_s": round(runtime, 1),
         "verdicts": {c: {**v, "overall": weaker(list(v.values()))} for c, v in res.verdicts.items()},
     }
-    files = write_outputs(args.out, res, meta)
+    files = write_outputs(args.out, res, meta, args.tag)
     print_summary(res)
     total = sum(p.stat().st_size for p in files)
     print(f"\n{jobs} runs in {runtime:.0f} s; wrote {len(files)} files ({total / 1024:.0f} KB) to {args.out}")

@@ -8,7 +8,12 @@ run that must give byte-identical CSVs. The numbers of a quick run mean nothing;
 the full run (30 seeds, 10,000 replicates) is the one the entry reports.
 
 The unit checks pin the pure helpers: the seed-bootstrap ratio of means, G16's
-worst-scenario fraction, the contiguous band, and the three verdict rules.
+worst-scenario fraction, the contiguous band, and the three verdict rules. The
+separation settings of the entry's section G (A_speed, A_turn, A_softmax: one of
+A's elements each on top of sensor noise) are checked at the config level, and
+each gets a tiny tagged ``--quick`` run of claim 3 at gain 1.5 (one seed, four
+headings, under a second) that pins the ``--tag`` file names, the ``--maze-gains``
+restriction and the guard's one-element list.
 
 These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
@@ -188,6 +193,53 @@ def test_verdict_rules():
                             {0.8: _ci(14.0, 13.0, 15.0), 1.5: heads[1.5]}, 16)[0] == "does not survive"
     assert g23.weaker(["survives", "weakened"]) == "weakened"
     assert g23.weaker(["survives", "does not survive", "weakened"]) == "does not survive"
+
+
+SEPARATION = [
+    ("A_speed", "sensors.odometry_speed_noise=0.05"),
+    ("A_turn", "sensors.odometry_turn_noise=0.01"),
+    ("A_softmax", "basal_ganglia.softmax_temperature=0.05"),
+]
+
+
+def test_separation_settings_split_a_and_leave_a_and_b_alone():
+    assert g23.SEPARATION_ORDER == ("A_speed", "A_turn", "A_softmax")
+    assert g23.SETTING_GROUPS == {"both": ("A", "B"), "separation": g23.SEPARATION_ORDER}
+    assert g23.SETTINGS["A"] == (("sensors.odometry_speed_noise", 0.05), ("sensors.odometry_turn_noise", 0.01),
+                                 ("basal_ganglia.softmax_temperature", 0.05))
+    assert g23.SETTINGS["B"] == ()
+    assert all(len(g23.SETTINGS[s]) == 1 for s in g23.SEPARATION_ORDER)
+    assert tuple(g23.SETTINGS[s][0] for s in g23.SEPARATION_ORDER) == g23.SETTINGS["A"]
+
+
+@pytest.mark.parametrize("setting, element", SEPARATION)
+def test_separation_setting_quick_run_reaches_one_element(setting, element, tmp_path):
+    from ui.scenarios import make_scenario
+
+    assert g23.elements_of(setting, make_scenario("memory_maze").config()) == [f"sensors.noise={g23.NOISE}", element]
+    out = tmp_path / setting
+    res = g23.main(["--seeds", "1", "--quick", "--workers", "1", "--claims", "3", "--setting", setting,
+                    "--maze-gains", "1.5", "--tag", setting, "--out", str(out)])
+    # Tagged file names, and no tidy table for the claims that did not run.
+    assert {p.name for p in out.iterdir()} == {f"maze_recall_{setting}.csv", f"maze_recall_by_heading_{setting}.csv",
+                                               f"summary_{setting}.csv", f"guard_{setting}.csv", f"meta_{setting}.json"}
+    meta = json.loads((out / f"meta_{setting}.json").read_text())
+    assert meta["gains_claim3"] == [1.5] and meta["tag"] == setting and meta["claims"] == ["3"]
+    assert meta["settings"] == {setting: [list(g23.SETTINGS[setting][0])]}
+    assert meta["jobs"] == 1 * 1 * g23.QUICK_HEADINGS
+    assert res.verdicts == {"3": {setting: meta["verdicts"]["3"][setting]}}
+    rows = _read(out / f"summary_{setting}.csv")
+    assert {r["setting"] for r in rows} == {setting}
+    assert {r["condition"] for r in rows if r["condition"]} >= {f"{setting}/gain=1.5"}
+    assert all(r["condition"].startswith(f"{setting}/gain=1.5") for r in rows if r["condition"])
+    stats = {r["statistic"] for r in rows}
+    assert {"recall_rate_mean", "headings_recalling_mean", "fraction_runs_recalling", "verdict"} <= stats
+    assert not any(s.startswith("recall_rate_paired") or s.endswith("cliffs_delta") for s in stats)  # one gain: no pair
+    guard = _read(out / f"guard_{setting}.csv")
+    assert [r["stochastic_elements"] for r in guard] == [f"sensors.noise={g23.NOISE} {element}"]
+    by_heading = _read(out / f"maze_recall_by_heading_{setting}.csv")
+    assert {(r["setting"], r["gain"]) for r in by_heading} == {(setting, "1.5")}
+    assert len(by_heading) == g23.QUICK_HEADINGS
 
 
 def test_moved_sites_jumps_stay_in_the_band_and_repeat():
