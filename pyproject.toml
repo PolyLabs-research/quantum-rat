@@ -1,0 +1,66 @@
+# Packaging for quantum-rat (docs/research_plan.md, §5 item 13).
+#
+# What is claimed: the legacy profile (EngineConfig() defaults) reproduces the
+# committed trace hashes bit for bit on the same platform. Across platforms only
+# agreement within a stated tolerance is claimed; see .github/workflows/ci.yml.
+
+[build-system]
+# >=77 for the SPDX `license` string and `license-files` below (PEP 639);
+# the TOML-table form is deprecated in setuptools 77+ with removal announced.
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantum-rat"
+version = "1.0.0"
+description = "A deterministic embodied rat-brain simulator and lab console"
+readme = "README.md"
+requires-python = ">=3.11"
+# MIT for the code (LICENSE); docs, figures and the decisions log are CC BY 4.0 (LICENSE-docs).
+license = "MIT"
+license-files = ["LICENSE", "LICENSE-docs"]
+authors = [{name = "PolyLabs Research"}]
+keywords = ["simulation", "hippocampal replay", "spatial memory", "determinism"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering",
+]
+# Minimums match requirements.txt. numpy and scipy are hard dependencies
+# (plan §9, "decisions already taken in this plan").
+dependencies = [
+  "numpy>=2",
+  "scipy>=1.14",
+  "pandas",
+  "pyarrow",
+  "matplotlib",
+]
+
+[project.optional-dependencies]
+console = ["Flask>=2.3"]  # python -m ui
+dev = ["pytest>=8,<9"]    # python -m pytest
+
+[project.urls]
+Repository = "https://github.com/PolyLabs-research/quantum-rat"
+
+[tool.setuptools]
+# Listed explicitly so that tests/, docs/, runs/ and artifacts/ are not installed.
+packages = [
+  "agents",
+  "analysis",
+  "brain",
+  "brain.systems",
+  "core",
+  "experiments",
+  "experiments.protocols",
+  "metrics",
+  "regression",
+  "tools",
+  "tools.probes",
+  "tournaments",
+  "ui",
+]
+
+[tool.setuptools.package-data]
+# The console's static frontend; ui/server.py serves it from next to the module.
+ui = ["static/*", "static/*/*"]

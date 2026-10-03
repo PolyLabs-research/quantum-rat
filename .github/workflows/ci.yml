@@ -4,19 +4,37 @@ on:
   push:
   pull_request:
 
+# Determinism claim (docs/research_plan.md, §5 items 9 and 13): the committed
+# trace hashes are reproduced bit for bit on the same platform, which the Ubuntu
+# job checks. Across platforms only agreement within a stated tolerance is
+# claimed; the gate that measures it arrives in the next wave, so the macOS job
+# runs everything except the two bit-identity gates.
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install dependencies
+      - name: Install
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Run tests
-        run: python -m pytest
+          python -m pip install -e ".[console,dev]"
+      - name: Run tests (Ubuntu, full suite including the bit-identity gates)
+        if: runner.os == 'Linux'
+        run: python -m pytest -q
+      - name: Run tests (macOS, full suite minus the bit-identity gates)
+        if: runner.os == 'macOS'
+        # cross-platform bit identity is not claimed; the tolerance gate (plan §5 item 9) replaces this deselect in the next wave
+        run: |
+          python -m pytest -q \
+            --deselect tests/determinism/test_trace_hash.py \
+            --deselect tests/engine/test_steering_robustness.py::test_all_features_off_reproduces_the_pre_redesign_traces

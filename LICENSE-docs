@@ -1,0 +1,14 @@
+Documentation licence
+
+The documentation of quantum-rat (everything under docs/, including the
+decisions log docs/decisions.md) and the figures are licensed under the
+Creative Commons Attribution 4.0 International licence (CC BY 4.0):
+
+    https://creativecommons.org/licenses/by/4.0/
+
+You may share and adapt this material for any purpose, including commercially,
+provided you give appropriate credit, link to the licence and indicate any
+changes. The licence text lives at the URL above and is not reproduced here.
+
+The source code is licensed separately under the MIT licence (see LICENSE).
+Copyright (c) 2025-2026 quantum-rat contributors.
