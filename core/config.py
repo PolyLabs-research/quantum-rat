@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field, fields, is_dataclass
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any, ClassVar, Dict, List, Mapping, Tuple
 
 from brain.systems.criticality import CriticalityConfig
 
@@ -193,8 +193,10 @@ class ValueMemoryConfig:
     # ~150-200 ticks old, every second one, in forward order. TickData.replay_index
     # is the TRN index either way.
     replay_recent: bool = True
-    # Goal-vector memory: remember the place cell where reward was found and,
-    # wherever the value map is locally flat (largest sampled advantage below
+    # Oracle homing: the goal-vector slot, an explicit oracle control condition
+    # (docs/research_plan.md section 6; relabelled from ``goal_vector`` in M1).
+    # Remember the place cell where reward was found and, wherever the sampled
+    # value map is locally flat (largest sampled advantage below
     # goal_vector_flat), turn toward it by path integration. The TD map's
     # values fall by ``discount`` per step of the demonstration, so after a long
     # first trial (a start facing away from the goal: 34-129 ticks of search)
@@ -210,7 +212,12 @@ class ValueMemoryConfig:
     # FORWARD giving way by the same amount, and nothing while the goal lies
     # inside the ~1 m circle a run of turns traces (turning would orbit it; see
     # brain.systems.basal_ganglia.goal_vector_signals). False disables.
-    goal_vector: bool = False
+    # ``goal_vector`` stays as a read/write alias of this field (the property
+    # below), so existing call sites and ``--set value_memory.goal_vector=...``
+    # keep working; to_dict writes ``oracle_homing`` and from_dict accepts
+    # either name. The goal_vector_* fields below name the mechanism and keep
+    # their names.
+    oracle_homing: bool = False
     goal_vector_source: str = "replay"
     # The vector steers only where the map's largest sampled advantage is below
     # this (the map's own flatness threshold, Engine.VALUE_FLAT, where split and
@@ -226,6 +233,19 @@ class ValueMemoryConfig:
     # miss can be a pass through the part of the cell outside it. 0 disables
     # extinction. Measured in docs/decisions.md G21.
     goal_extinction_misses: int = 2
+
+    # Former field names accepted by ``EngineConfig.from_dict`` (not fields: not
+    # in ``fields()``, ``to_dict`` or ``diff``).
+    FIELD_ALIASES: ClassVar[Mapping[str, str]] = {"goal_vector": "oracle_homing"}
+
+    @property
+    def goal_vector(self) -> bool:
+        """Alias of :attr:`oracle_homing` (the field's name before M1); reads and writes it."""
+        return self.oracle_homing
+
+    @goal_vector.setter
+    def goal_vector(self, value: bool) -> None:
+        self.oracle_homing = value
 
 
 @dataclass
@@ -438,9 +458,10 @@ class EngineConfig:
           :meth:`stochastic_elements` and ``core.seeds`` can check.
 
         Also set explicitly, but already the legacy value, so not in the diff:
-        ``value_memory.generalization_radius = 0``, ``value_memory.goal_vector =
-        False`` and ``basal_ganglia.criticality_gain = 0.0`` (the criticality
-        coupling to cognition; kappa is still computed and logged).
+        ``value_memory.generalization_radius = 0``, ``value_memory.oracle_homing
+        = False`` (the goal-vector slot) and ``basal_ganglia.criticality_gain =
+        0.0`` (the criticality coupling to cognition; kappa is still computed
+        and logged).
 
         Nothing else differs. Not yet in this profile: a wall-contact reset
         for the odometry, a place population and replay as an event stream
@@ -455,7 +476,7 @@ class EngineConfig:
         cfg.trn.microsleep_enabled = False
         cfg.trn.narrow_above_kappa = float("inf")
         cfg.value_memory.generalization_radius = 0
-        cfg.value_memory.goal_vector = False
+        cfg.value_memory.oracle_homing = False
         cfg.value_memory.dwell_extinction = 0.0
         bg = cfg.basal_ganglia
         bg.criticality_gain = 0.0
@@ -511,10 +532,12 @@ class EngineConfig:
     def from_dict(cls, data: Mapping[str, Any]) -> "EngineConfig":
         """The inverse of :meth:`to_dict`.
 
-        Every key must name a field at its level (an unknown key raises
-        ``ValueError`` naming the dotted path, so a typo or a field from a
-        later version is never dropped silently); a key that is missing keeps
-        the field's default. A list is turned back into a tuple where the
+        Every key must name a field at its level, or a former name of one that
+        the section lists in ``FIELD_ALIASES`` (``value_memory.goal_vector``
+        for ``oracle_homing``; giving both with different values raises); an
+        unknown key raises ``ValueError`` naming the dotted path, so a typo or
+        a field from a later version is never dropped silently. A key that is
+        missing keeps the field's default. A list is turned back into a tuple where the
         field holds a tuple, and the strings ``"inf"``, ``"-inf"`` and
         ``"nan"`` back into floats where the field holds a float; nothing
         else changes type. Each section's ``__post_init__`` runs after its
@@ -545,9 +568,22 @@ def _dataclass_to_plain(obj: Any) -> Dict[str, Any]:
     return out
 
 
+def _resolve_aliases(obj: Any, data: Mapping[str, Any], prefix: str) -> Dict[str, Any]:
+    """``data`` with the section's former field names (``FIELD_ALIASES``) replaced by the current ones."""
+    aliases: Mapping[str, str] = getattr(type(obj), "FIELD_ALIASES", {})
+    out: Dict[str, Any] = {}
+    for key, value in data.items():
+        name = aliases.get(key, key) if isinstance(key, str) else key
+        if name in out and out[name] != value:
+            raise ValueError(f"config field {prefix}{name} given twice ({key!r} is an alias of it) with different values")
+        out[name] = value
+    return out
+
+
 def _dataclass_from_plain(obj: Any, data: Mapping[str, Any], prefix: str) -> None:
     if not isinstance(data, Mapping):
         raise ValueError(f"config section {prefix or '<root>'}: expected a mapping, got {type(data).__name__}")
+    data = _resolve_aliases(obj, data, prefix)
     known = [f.name for f in fields(obj)]
     unknown = sorted(str(k) for k in data if k not in known)
     if unknown:

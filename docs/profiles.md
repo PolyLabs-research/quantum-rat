@@ -38,10 +38,14 @@ EngineConfig.legacy().diff(EngineConfig.research())         # the table below, a
 | `basal_ganglia.softmax_temperature` | `0.0` | `0.1` | Seeded softmax action selection over the four channel scores (one draw per tick) instead of the deterministic argmax, so the arbiter is a sample too. The logged scores are unchanged. Placeholder value, characterised in M1. |
 
 `research()` also sets `value_memory.generalization_radius = 0`,
-`value_memory.goal_vector = False` and `basal_ganglia.criticality_gain = 0.0`
+`value_memory.oracle_homing = False` (the goal-vector slot, relabelled in M1 as
+an explicit oracle control condition) and `basal_ganglia.criticality_gain = 0.0`
 (the criticality coupling to cognition); these are already the legacy defaults
 (the console's maze scenarios set the radius to 2 themselves), so they are not
-in the diff. Kappa, avalanche sizes and the modulators are logged in both.
+in the diff. `goal_vector` is kept as a read/write alias of `oracle_homing` on
+`ValueMemoryConfig`, so existing code and `--set value_memory.goal_vector=...`
+still work; `to_dict` writes `oracle_homing` and `from_dict` accepts either
+name. Kappa, avalanche sizes and the modulators are logged in both.
 `units` (`UnitsConfig`: 0.2 s per tick, 0.1 m per unit; docs/units.md, M0b item 6)
 is declared once and identical in both profiles, so it is not in the diff either.
 
@@ -145,13 +149,18 @@ M2b work on.
   with only the gate flag off; the gate's own capture was 22.8). M2b adds the
   reset.
 - A place population and a successor representation (M2b).
-- Replay as an event stream between ticks: with microsleep off there is no
-  replay at all in this profile until M1 refactors it into an event object.
+- Replay as an event stream between ticks: M1 made each replay an event
+  object (`brain/systems/replay_events.py`; `engine.replay_log`, written to
+  `replay_events.jsonl` by the headless runner and the console's recording),
+  but its only trigger is still microsleep and its only rules the two that
+  existed, so with microsleep off this profile produces no replay events
+  until a rule and its triggers arrive (M2a).
 - The checksum "novelty" bit decoupled: it still enters action selection in
   both profiles (`basal_ganglia.novelty_gain` 0.2 on FORWARD and a literal 0.3
-  on each TURN channel); plan section 6 lists it as logged-only in research,
-  which M1 does together with the `oracle_homing` relabel of the goal-vector
-  slot. The TRN replay buffer and `wm_load` are logged only.
+  on each TURN channel); plan section 6 lists it as logged-only in research.
+  The `oracle_homing` relabel of the goal-vector slot (above) is done; the
+  novelty bit is not touched by it. The TRN replay buffer and `wm_load` are
+  logged only.
 - Behavioural assertions of its own: the barren-world gates pass whatever the
   science does (plan section 6).
 
