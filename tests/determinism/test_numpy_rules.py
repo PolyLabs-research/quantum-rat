@@ -2,9 +2,10 @@
 
 The engine does not use numpy yet (the first BLAS product that feeds behaviour
 is M2b); these tests pin the entry points: importing the engine never imports
-numpy, importing ``core`` pins the thread counts before numpy can load, numpy
-streams are seeded from the ``core.rng`` seed tree, and ``blas_info`` reports
-the build without raising.
+numpy, importing ``core`` pins the thread counts before numpy can load (which
+``tests/conftest.py`` does for the suite, so the pin is in force inside every
+test run), numpy streams are seeded from the ``core.rng`` seed tree, and
+``blas_info`` reports the build without raising.
 """
 
 from __future__ import annotations
@@ -62,6 +63,31 @@ def test_importing_core_pins_the_thread_counts_before_numpy_loads() -> None:
         "MKL_NUM_THREADS": "1",
         "NUMEXPR_NUM_THREADS": "1",
     }
+
+
+def test_the_thread_counts_are_pinned_inside_this_test_run(thread_vars_preset_by_environment) -> None:
+    """``tests/conftest.py`` imports ``core`` before any test module, so the pin is in
+    force for the whole suite; numpy is loaded by now (this module imports it). A value
+    the environment set before the run is left alone, so only the others must read 1."""
+    assert "core" in sys.modules and "numpy" in sys.modules
+    for var in BLAS_THREAD_VARS:
+        assert os.environ.get(var) == thread_vars_preset_by_environment.get(var, "1"), var
+
+
+def test_a_test_run_started_without_the_variables_sees_openblas_pinned_to_one_thread() -> None:
+    """The subprocess form of the statement above: a pytest run whose environment has none
+    of the four variables set sees ``OPENBLAS_NUM_THREADS == "1"`` (and the other three)
+    inside its tests, from the conftest alone."""
+    target = f"{Path(__file__).relative_to(ROOT)}::test_the_thread_counts_are_pinned_inside_this_test_run"
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", target],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        env=_env_without_thread_vars(),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 passed" in result.stdout
 
 
 def test_numpy_generator_is_reproducible_across_processes_and_distinct_per_name() -> None:

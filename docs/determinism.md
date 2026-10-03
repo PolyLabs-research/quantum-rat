@@ -80,9 +80,11 @@ deselected. On the machine that wrote the references the agreement is exact.
 2. Threads pinned: `pin_blas_threads()` sets `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`,
    `MKL_NUM_THREADS` and `NUMEXPR_NUM_THREADS` to `1` with `setdefault` (an explicit
    environment value wins). `core/__init__.py` calls it at import; the runtimes read the
-   variables when numpy loads, so `import core` must precede the first `import numpy`. The
-   test suite imports numpy at collection (`tests/analysis`) before `core`, so it does not
-   rely on the pin; importing `core.engine` never imports numpy (`test_numpy_rules.py`).
+   variables when numpy loads, so `import core` must precede the first `import numpy`.
+   `tests/conftest.py` imports `core` before any test module, so the pin is in force for
+   the whole suite (`test_numpy_rules.py` checks the four variables inside the run, and in
+   a fresh pytest subprocess started with none of them set); importing `core.engine` never
+   imports numpy.
 3. float64 only.
 4. Values cast to Python floats at the `TickData` boundary, so logs and hashes keep their types.
 5. Hashed scalars accumulated in a fixed order, never over dict or set iteration.

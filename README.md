@@ -73,9 +73,17 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   memory off (by searching near recent finds, not by remembering sites; see the next paragraph)
   and loses no paired run (G19, G21). All of these were measured with the legacy mechanisms on
   (the TRN gate scaling path integration, energy scaling of motion, the radius-2 value kernel),
-  and where a number comes from sensor noise 0, different seeds are copies of one run
-  (`tools/probes/seed_pseudoreplication`); they are re-measured with confidence intervals as the
-  first result of the research programme (`docs/research_plan.md`, G23).
+  as single deterministic samples or a few seeds, and where a number comes from sensor noise 0,
+  different seeds are copies of one run (`tools/probes/seed_pseudoreplication`). G23 re-measured
+  the three headline numbers over 30 seeds with BCa confidence intervals (`docs/data/g23/`): the
+  steering band survives (0.4-3.0 in both settings, value-induced REST below 0.001 of ticks in
+  every run); the hidden-food multiplier is 2.91 [2.43, 3.59] under sensor noise 0.03 alone, with
+  one seed of 30 losing, and 1.34 [1.15, 1.52] once action selection has a 0.05 softmax
+  temperature, because the exploring agent then finds 9.4 items on its own instead of 3.5; the
+  maze recalls in 471 of 480 full-circle runs under sensor noise alone and in 371-380 once
+  odometry noise and the softmax are on, the twelve off-axis headings recalling for 60-83% of
+  seeds (turn noise 0.01 rad and the softmax temperature each cost about a tenth of the recalls
+  on their own, speed noise 0.05 costs none).
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the
@@ -122,10 +130,12 @@ baselines per profile and the cross-platform tolerance gate are described in
 the research programme: the TRN gate no longer scales path integration, the energy model no
 longer scales motion and microsleep is off, the value kernel radius is 0, dwell extinction is 0,
 and the criticality and neuromodulator couplings are 0 (the traces are still logged), ATP is held
-at baseline with the gate's κ branch off, and the goal-vector slot is off. It has no noisy
-odometry, physical units, place population or replay events yet: with microsleep off there is no
-replay at all in this profile until M1 (`docs/profiles.md`). See `docs/profiles.md` and
-`docs/research_plan.md` (§6).
+at baseline with the gate's κ branch off, and the goal-vector slot is off. Since M0b it has
+seeded odometry noise and a seeded softmax temperature (placeholder values, characterised in M1),
+so that its seeds are samples, and declared physical units (0.2 s per tick, 0.1 m per unit,
+identical in both profiles: `docs/units.md`). It has no place population or replay events yet:
+with microsleep off there is no replay at all in this profile until M1 (`docs/profiles.md`). See
+`docs/profiles.md` and `docs/research_plan.md` (§6).
 
 ---
 
@@ -250,6 +260,9 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 * Extract tournament/experiment runs to **Parquet**.
 * Compute κ distribution, avalanche distributions, sleep/replay rates, score distributions.
 * Generate `analysis/report/report.md` + plots.
+* `analysis/stats.py`: BCa bootstrap intervals, paired per-seed effects, Cliff's δ, TOST
+  equivalence and the pseudo-replication guard every multi-seed claim goes through
+  (`docs/stats.md`).
 
 ### Lab console (`python -m ui`)
 * **Live**: six scenarios run on the real engine with live brain panels and live parameters.
@@ -283,4 +296,5 @@ The code is under the MIT licence (`LICENSE`). The documentation in `docs/` (inc
 decisions log) and the figures are under CC BY 4.0 (`LICENSE-docs`,
 https://creativecommons.org/licenses/by/4.0/). To cite the software, use `CITATION.cff` (GitHub
 renders it as "Cite this repository"). Releases are tagged per milestone (`docs/research_plan.md`
-§7): `v1.0-honest` is Milestone 0a, the legacy/research profile split (G22).
+§7): `v1.0-honest` is Milestone 0a, the legacy/research profile split (G22); `v1.1-base` is
+Milestone 0b, the instrument base (G24).

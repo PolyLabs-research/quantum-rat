@@ -107,7 +107,14 @@ first tick.
 
 The three values are placeholders: M1 characterises them (what sigma and tau
 give biologically reasonable path-integration drift and action variability)
-and M2b adds the wall-contact reset the drift makes necessary.
+and M2b adds the wall-contact reset the drift makes necessary. What they do
+to a legacy-profile result is already measured (docs/decisions.md G23,
+section G): on the off-axis memory maze over 30 seeds, turn noise 0.01 rad
+alone takes the runs that recall from 471 to 424 of 480 and a softmax
+temperature of 0.05 alone to 430, while speed noise 0.05 alone leaves 469;
+the two losses add, and the research temperature of 0.1 is twice what was
+run there. M1 therefore characterises turn noise and temperature separately
+and together, with the speed sweep last.
 
 ## What the research profile measures as (tests/engine/test_profiles.py)
 
@@ -150,10 +157,23 @@ M2b work on.
 
 ## Baselines
 
-The determinism gate holds one baseline per profile, both at seed 1337 over
-200 ticks: `tests/determinism/baseline_hashes.json` (legacy, never re-recorded
-by a profile change) and `tests/determinism/baseline_hashes_research.json`
-(re-recorded once for M0b item 8, when the seeded elements went on by default
-in `research()`). Regenerate one with `python -m
-tools.update_determinism_baseline --profile research --i-know-what-im-doing`
-(once per milestone, per profile).
+The determinism gate holds one set of baselines per profile, each at seed 1337
+over 200 ticks, in `tests/determinism/` (docs/determinism.md is the canonical
+description: what each hash kind contains, the tolerance gate and the numpy
+rules):
+
+| profile | full hash | behaviour hash | physics hash | reference trace |
+|---|---|---|---|---|
+| legacy | `baseline_hashes.json` | `baseline_behaviour_legacy.json` | `baseline_physics_legacy.json` | `reference_trace_legacy.jsonl` |
+| research | `baseline_hashes_research.json` | `baseline_behaviour_research.json` | `baseline_physics_research.json` | `reference_trace_research.jsonl` |
+
+`baseline_meta.json` and `baseline_meta_research.json` record seed, ticks,
+schema version and the file set. The legacy set is never re-recorded by a
+profile change (bit-identical by rule, G22; the behaviour and physics files
+and the reference trace were added by M0b item 7 without moving the full
+hash). The research set was re-recorded for M0b item 8, when the seeded
+elements went on by default in `research()`, and again when their odometry
+placeholders were lowered (87f824e). Regenerate the research set with
+`python3 tools/update_determinism_baseline.py --profile research
+--i-know-what-im-doing` (once per milestone, per profile); one engine run
+writes all three hash kinds, the meta file and the reference trace.
