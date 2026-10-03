@@ -360,7 +360,7 @@ class EngineConfig:
           and logged; they just do not reach action selection.
 
         - Seeds are samples (milestone 0b, item 8): ``sensors.odometry_speed_noise
-          = 0.1``, ``sensors.odometry_turn_noise = 0.05`` (seeded noise on the
+          = 0.05``, ``sensors.odometry_turn_noise = 0.01`` (seeded noise on the
           self-motion estimate; the body moves exactly as before) and
           ``basal_ganglia.softmax_temperature = 0.1`` (seeded softmax action
           selection). These three values are placeholders, to be characterised
@@ -378,8 +378,8 @@ class EngineConfig:
         (later milestones).
         """
         cfg = cls(profile="research")
-        cfg.sensors.odometry_speed_noise = 0.1
-        cfg.sensors.odometry_turn_noise = 0.05
+        cfg.sensors.odometry_speed_noise = 0.05
+        cfg.sensors.odometry_turn_noise = 0.01
         cfg.spatial.gate_scales_egomotion = False
         cfg.astrocyte.scales_motion = False
         cfg.astrocyte.frozen = True

@@ -23,8 +23,8 @@ EngineConfig.legacy().diff(EngineConfig.research())         # the table below, a
 | Field | legacy | research | Why it is off in research |
 |---|---|---|---|
 | `profile` | `"legacy"` | `"research"` | The label. |
-| `sensors.odometry_speed_noise` | `0.0` | `0.1` | Seeded multiplicative Gaussian error on the self-motion estimate's forward displacement, d' = d (1 + 0.1 xi): odometry is no longer exact ground truth. The body moves exactly as before. Placeholder value, characterised in M1. |
-| `sensors.odometry_turn_noise` | `0.0` | `0.05` | Seeded additive Gaussian error (radians) on the estimated heading change, N(0, 0.05) per tick. Placeholder value, characterised in M1. |
+| `sensors.odometry_speed_noise` | `0.0` | `0.05` | Seeded multiplicative Gaussian error on the self-motion estimate's forward displacement, d' = d (1 + 0.05 xi): odometry is no longer exact ground truth. The body moves exactly as before. Placeholder value, characterised in M1. |
+| `sensors.odometry_turn_noise` | `0.0` | `0.01` | Seeded additive Gaussian error (radians) on the estimated heading change, N(0, 0.01) per tick (a heading random walk of about 0.5 rad standard deviation over 3,000 ticks). Placeholder value, characterised in M1. |
 | `spatial.gate_scales_egomotion` | `True` | `False` | The TRN gate multiplied egomotion before path integration, so low ATP froze the place estimate while the body moved (22.8 units of error after 3000 barren-world ticks, `tools/probes/path_integration_capture`). |
 | `astrocyte.scales_motion` | `True` | `False` | `World.step` multiplied thrust and turn by the ATP throttle, so step length was a physiology artefact (mean step 0.088 of the nominal 1.0, `tools/probes/open_field_motion`). |
 | `astrocyte.frozen` | `False` | `True` | The astrocyte does not tick: ATP and glycogen stay at their initial values (1.0 and 3.0), the TRN gate stays OPEN (its κ branch is off too, next row), and energy cannot trigger sleep. |
@@ -121,11 +121,11 @@ floating-point rounding, below 1e-12). The legacy profile at the same seed
 gives a mean step of 0.088 and 1270 microsleep ticks.
 
 At the research defaults (seeded elements on) the energy statements hold tick
-for tick and the estimate drifts: its error first exceeds 0.5 units at tick 6,
-is 18.5 units at tick 3000 and 33.8 at most; the softmax wanders the body to
+for tick and the estimate drifts: its error first exceeds 0.5 units at tick 37,
+is 9.2 units at tick 3000 and 11.6 at most; the softmax wanders the body to
 the walls (clamped on 753 of 3000 ticks, against none in the deterministic
 run), mean step 0.57, 3 REST ticks. The drift is the heading estimate's random
-walk (sd 0.05 rad per tick) plus the wall clamps below; both are what M1 and
+walk (sd 0.01 rad per tick) plus the wall clamps below; both are what M1 and
 M2b work on.
 
 ## What the research profile does not have yet

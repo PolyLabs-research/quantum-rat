@@ -127,8 +127,8 @@ def test_trn_gate_defaults_match_trn_config() -> None:
 
 EXPECTED_RESEARCH_DIFF = [
     ("profile", "legacy", "research"),
-    ("sensors.odometry_speed_noise", 0.0, 0.1),
-    ("sensors.odometry_turn_noise", 0.0, 0.05),
+    ("sensors.odometry_speed_noise", 0.0, 0.05),
+    ("sensors.odometry_turn_noise", 0.0, 0.01),
     ("astrocyte.scales_motion", True, False),
     ("astrocyte.frozen", False, True),
     ("value_memory.dwell_extinction", 0.02, 0.0),
@@ -211,11 +211,11 @@ def test_research_open_field_has_no_microsleep_full_thrust_steps_and_exact_path_
 
 
 def test_research_defaults_keep_the_energy_acceptance_and_let_the_estimate_drift() -> None:
-    """The research profile as shipped (odometry noise 0.1 / 0.05 rad, softmax 0.1; M0b
+    """The research profile as shipped (odometry noise 0.05 / 0.01 rad, softmax 0.1; M0b
     item 8) at seed 1337 over 3000 open-field ticks: the energy acceptance holds on
     every tick as above, and the path-integration estimate now drifts away from the
     body by more than 0.5 units within the run. Measured: the error first exceeds 0.5
-    at tick 6, is 18.5 units at the end and 33.8 at most, with the body clamped at a
+    at tick 37, is 9.2 units at the end and 11.6 at most, with the body clamped at a
     wall on 753 ticks (the softmax wanders it to the walls; the deterministic run
     above never touches one). The sigmas are placeholders to be characterised in
     milestone 1, so only the direction of the drift is asserted."""
