@@ -240,8 +240,8 @@ def test_guard_refuses_two_seeds_at_legacy_defaults_and_passes_one_seed_sensor_n
     noisy.sensors.noise = 0.03
     assert require_seeds_are_samples(noisy, 2) == ["sensors.noise=0.03"]
     assert require_seeds_are_samples(EngineConfig.research(), 2) == [
-        "sensors.odometry_speed_noise=0.1",
-        "sensors.odometry_turn_noise=0.05",
+        "sensors.odometry_speed_noise=0.05",
+        "sensors.odometry_turn_noise=0.01",
         "basal_ganglia.softmax_temperature=0.1",
     ]
     # The bypass: one warning line, and the call returns instead of raising.
@@ -294,8 +294,8 @@ def test_stochastic_elements_lists_exactly_the_enabled_elements() -> None:
     assert EngineConfig().stochastic_elements() == []
     assert EngineConfig.legacy().stochastic_elements() == []
     assert EngineConfig.research().stochastic_elements() == [
-        "sensors.odometry_speed_noise=0.1",
-        "sensors.odometry_turn_noise=0.05",
+        "sensors.odometry_speed_noise=0.05",
+        "sensors.odometry_turn_noise=0.01",
         "basal_ganglia.softmax_temperature=0.1",
     ]
     values = {"sensors.noise": 0.03, "sensors.odometry_speed_noise": 0.2, "sensors.odometry_turn_noise": 0.01,
