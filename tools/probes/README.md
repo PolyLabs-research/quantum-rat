@@ -54,6 +54,7 @@ The criticality-computation program's feasibility probe (a NumPy Kinouchi-Copell
 | `seed_pseudoreplication` | at sensors.noise 0 seeds 1-4 give bit-identical trajectories (only the kappa series differs); at noise 0.03 they diverge by up to 18 m | 1.04 |
 | `runtime` | default engine ~7,500-8,900 ticks/s and console scenarios ~6,000-7,000 ticks/s in pure Python on this machine (wall-clock; the only non-deterministic probe) | 1.86 |
 | `realised_speed` | under the declared units (0.2 s per tick, 0.1 m per unit) the research-profile open-field agent moves at 0.32 m/s on moving ticks (rats run tracks at 0.2-0.6 m/s), is immobile on 14% of ticks (stops mostly one tick, max 12 s) and clamped at a wall on 29%; legacy: 0.077 m/s, 43% immobile, 5 s microsleep stops, seeds 1-4 identical | 3.05 |
+| `odometry_growth` | research odometry on the straight open-world walk, 4 seeds, 2,000 units: speed noise 0.05 alone grows linearly (slope 0.97) because the forward clamp turns it into a 0.02-per-unit shortfall; turn noise 0.01 rad alone is the integrated heading random walk (1.70 at 4 seeds, 1.47 [1.31, 1.62] at 30); legacy profile: the per-tick step error tracks ATP at r 0.87 with the gate scaling egomotion and \|r\| < 0.08 without | 5.76 |
 
 
 ### `kappa_defaults`
@@ -679,3 +680,96 @@ moving ticks and 0.044 m/s over all ticks (the 0.088-unit mean step of
 per seed of median 5.0 s (the 25-tick microsleep), turns by a throttle-scaled
 0.08-0.28 rad, and gives the same numbers at all four seeds (no stochastic
 element is on). docs/units.md recommends freezing the calibration as it is.
+
+### `odometry_growth`
+
+`python -m tools.probes.odometry_growth` (5.76 s)
+
+Path-integration error growth under the research odometry placeholders, and
+its decorrelation from ATP. Added for Milestone 1 (docs/research_plan.md
+section 4, M1; docs/odometry.md; the full 30-seed characterisation is
+`experiments/odometry_characterisation.py`, whose tables live in
+docs/data/m1), recorded on the M1 branch at commit 48c5817; not an audit
+claim.
+
+Claims (docs/odometry.md):
+
+* In an open barren world the research profile's walk is a straight line (a
+  TURN is about a 1-in-500 softmax draw when nothing is in view), so over
+  2,000 units of travel: speed noise 0.05 alone gives a log-log slope of
+  error against distance near 1.0, not the 0.5 of a zero-mean error, because
+  the noise is applied before the Observation's +-1 forward clamp and a
+  FORWARD step sits at its top, which turns the zero-mean error into a
+  shortfall of 0.05 / sqrt(2 pi) = 0.020 units per unit travelled (the clamp
+  bias, measured as the signed along-track error per unit travelled);
+  turn noise 0.01 rad alone gives the integrated heading random walk, 1.70 at
+  these 4 seeds (one seed's lateral error is one realisation; 1.47 [1.31,
+  1.62] over 30 seeds); both together read like turn noise alone.
+* Legacy profile, default barren box, odometry noise at the research values,
+  3,000 ticks: with `spatial.gate_scales_egomotion` on, the relative step
+  error on moving ticks (|estimated step| / |true step| - 1) tracks ATP
+  (r 0.87: the gate freezes the estimate when ATP is low); with it off
+  |r| < 0.08. The error itself correlates with ATP at about -0.23 under both
+  flags over all ticks, a shared trend of ATP's initial decay and the
+  growing error, and within +-0.08 once the first 200 ticks are dropped.
+
+`--scale` multiplies the distance travelled (floor 100 units) and the ATP tick
+budget (floor 100 ticks); at a small scale the "after transient" correlation
+is NaN (no ticks left after the 200-tick transient).
+
+Recorded output:
+
+```
+== odometry error growth and ATP decorrelation
+config: EngineConfig.research() in a 5000-unit barren box (no wall is reached), seeds (1, 2, 3, 4), each run to 2000 units of travel, checkpoints every 25 units, log-log fit of the mean error over [50, 2000]; ATP: legacy profile, 20x20 box, odometry 0.05 / 0.01 rad, 3000 ticks, gate_scales_egomotion on and off
+expectation: zero-mean speed error: slope 0.5; heading random walk on a straight walk: 1.5 or above; the forward clamp turns the speed error into a shortfall of 0.02 per unit, so speed_only reads near 1.0
+speed_only_slope: 0.9732
+speed_only_seed_slope_min_max: [0.9503, 0.9964]
+speed_only_ticks_by_seed: [2003, 2005, 2004, 2005]
+speed_only_final_error_by_seed: [40.2392, 39.2114, 38.3075, 36.6105]
+speed_only_final_hd_error_by_seed: [0, 0, 0, 0]
+speed_only_bias_per_unit_by_seed: [-0.0203, -0.0202, -0.0197, -0.0187]
+speed_only_actions_seed1: {FORWARD: 2001, TURN: 1, REST: 1}
+turn_only_slope: 1.7035
+turn_only_seed_slope_min_max: [0.6331, 2.4944]
+turn_only_ticks_by_seed: [2004, 2005, 2004, 2006]
+turn_only_final_error_by_seed: [193.7425, 551.4781, 847.4159, 1152.1527]
+turn_only_final_hd_error_by_seed: [-0.2523, -0.5913, 0.8079, 1.0067]
+turn_only_bias_per_unit_by_seed: [0, 0, 0, 0]
+turn_only_actions_seed1: {FORWARD: 2001, TURN: 2, REST: 1}
+both_slope: 1.6076
+both_seed_slope_min_max: [1.4508, 1.7592]
+both_ticks_by_seed: [2004, 2005, 2004, 2006]
+both_final_error_by_seed: [221.9763, 398.0513, 389.4197, 533.9371]
+both_final_hd_error_by_seed: [-0.2721, -0.1724, 0.1062, 0.1047]
+both_bias_per_unit_by_seed: [-0.0207, -0.0195, -0.0201, -0.0195]
+both_actions_seed1: {FORWARD: 2001, TURN: 2, REST: 1}
+gate_on_r_step_error_by_seed: [0.8717, 0.8747, 0.8742, 0.8752]
+gate_on_r_error_by_seed: [-0.237, -0.2441, -0.2434, -0.2344]
+gate_on_r_error_after_transient_by_seed: [-0.0214, -0.0223, -0.0205, -0.022]
+gate_on_r_error_increment_by_seed: [0.0744, 0.0653, 0.0671, 0.082]
+gate_on_final_error_by_seed: [21.2504, 22.2816, 20.8876, 20.9181]
+gate_off_r_step_error_by_seed: [-0.0631, -0.0724, -0.0418, -0.0385]
+gate_off_r_error_by_seed: [-0.229, -0.2333, -0.306, -0.1322]
+gate_off_r_error_after_transient_by_seed: [-0.0346, -0.0393, -0.0784, 0.0246]
+gate_off_r_error_increment_by_seed: [0.0686, 0.0245, 0.0489, 0.1205]
+gate_off_final_error_by_seed: [1.0627, 1.1101, 4.6043, 0.3889]
+```
+
+Interpretation: the walk is 2,001 FORWARD ticks of 2,003-2,006, so the laws
+are the straight-line ones. Speed noise alone reads slope 0.97 (per seed
+0.95-1.00) with a final error of 37-40 units: that is the clamp bias of
+-0.019 to -0.020 per unit times the distance, not the sqrt(distance) law of a
+zero-mean error, whose random part would be under 2 units here. Turn noise
+alone reads 1.70 at these four seeds with per-seed slopes from 0.63 to 2.49
+and final errors from 194 to 1,152 units, because each seed's lateral error
+is one realisation of an integrated random walk; over 30 seeds the mean
+curve's slope is 1.47 [1.31, 1.62] (docs/odometry.md). Both noises together
+read like turn noise alone with the same -0.02 bias per unit. In the legacy
+profile the relative step error tracks ATP at r 0.87 at every seed with the
+gate scaling egomotion (the estimate freezes when ATP is low) and stays
+within +-0.08 of 0 with the flag off; the error itself is at -0.13 to -0.31
+under both flags because ATP's initial decay and the growing error share a
+trend, and within +-0.08 once the first 200 ticks are dropped. The final
+error at tick 3,000 is 21-22 units with the gate scaling egomotion and
+0.4-4.6 without.
