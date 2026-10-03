@@ -1473,3 +1473,35 @@
   verification = {verified},
   note    = {Authors, title, journal, year, volume 19, issue 18, pages 1538-1542 and DOI confirmed by search (PubMed 19699093 and press coverage). Humans without a visible sun or landmarks veer and walk in circles: the heading estimate random-walks with no systematic bias, the behavioural counterpart of the additive heading noise in core/sensors.py. Supporting reference only; not rodent data.}
 }
+
+%% =====================================================================
+%% I. Milestone 1, value learners (docs/value_learners.md)
+%% The TD(lambda) rule with eligibility traces that brain/systems/value_learners.py
+%% implements, and the convergence result for on-policy linear TD(lambda) that the
+%% normalisation note rests on. Verified by WebSearch on 2026-10-03.
+%% =====================================================================
+
+@book{sutton2018reinforcement,
+  author    = {Sutton, Richard S. and Barto, Andrew G.},
+  title     = {Reinforcement Learning: An Introduction},
+  edition   = {Second},
+  publisher = {MIT Press},
+  address   = {Cambridge, MA},
+  year      = {2018},
+  series    = {Adaptive Computation and Machine Learning},
+  isbn      = {978-0-262-03924-6},
+  verification = {verified},
+  note      = {Authors, title, second edition, publisher, year (13 November 2018), series and ISBN 9780262039246 confirmed by search (publisher and bookseller records: hardback, 552 pp.). The address is the publisher's and was not separately shown. Tabular TD(0) (chapter 6), linear function approximation (chapter 9) and TD(lambda) with accumulating and replacing eligibility traces (chapter 12) as implemented in brain/systems/value_learners.py.}
+}
+
+@article{tsitsiklis1997analysis,
+  author  = {Tsitsiklis, John N. and Van Roy, Benjamin},
+  title   = {An analysis of temporal-difference learning with function approximation},
+  journal = {IEEE Transactions on Automatic Control},
+  year    = {1997},
+  volume  = {42},
+  number  = {5},
+  pages   = {674--690},
+  verification = {verified},
+  note    = {Authors, title, journal, year, volume 42, issue 5 and pages 674-690 confirmed by search (the authors' MIT copy of the paper and a reading-list record citing it the same way). No DOI shown by a search result, so none is given. Convergence with probability one of on-policy linear TD(lambda) when states are sampled along the chain's own trajectory, with a bound on the approximation error: why the unnormalised features also converge on the chain centres (docs/value_learners.md, Normalisation).}
+}

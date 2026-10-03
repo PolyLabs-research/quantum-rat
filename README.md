@@ -134,9 +134,10 @@ and the criticality and neuromodulator couplings are 0 (the traces are still log
 at baseline with the gate's κ branch off, and the goal-vector slot is off. Since M0b it has
 seeded odometry noise and a seeded softmax temperature (placeholder values, characterised in M1),
 so that its seeds are samples, and declared physical units (0.2 s per tick, 0.1 m per unit,
-identical in both profiles: `docs/units.md`). It has no place population or replay events yet:
-with microsleep off there is no replay at all in this profile until M1 (`docs/profiles.md`). See
-`docs/profiles.md` and `docs/research_plan.md` (§6).
+identical in both profiles: `docs/units.md`). Since M1 its odometry noise is characterised
+(`docs/odometry.md`) and every replay is an event object, but it has no place population yet and,
+with microsleep off, produces no replay events until M2a adds a rule and its triggers
+(`docs/profiles.md`). See `docs/profiles.md` and `docs/research_plan.md` (§6).
 
 ---
 
@@ -250,6 +251,10 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   with wall-clock time in it. Tournaments write one at their root; console recordings too.
   `--profile legacy|research` picks the base config for protocols that do not supply their own
   (the `console_*` ones do, and theirs wins; the manifest records both).
+* A run in which the engine replayed also writes `replay_events.jsonl`, one replay event per line
+  (`brain/systems/replay_events.py`: the ticks it ran over, its trigger and rule, the cells it
+  backed up in order), and `summary.json` carries `n_replay_events`; the research profile never
+  sleeps, so it writes neither the file nor any event.
 
 ### Tournaments
 * **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.

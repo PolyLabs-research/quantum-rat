@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantum-rat"
-version = "1.1.0"
+version = "1.2.0"
 description = "A deterministic embodied rat-brain simulator and lab console"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -52,6 +52,9 @@ offline.
    `manifest.json`: git SHA and dirty flag, the full engine config and profile, seeds,
    platform, Python and numpy versions, BLAS build and thread settings, wall-clock and
    ticks/s. It is provenance only, never part of a hash, and the replay viewer ignores it.
+   A run in which the engine replayed also gets `replay_events.jsonl` (one replay event per
+   line: the ticks it ran over, its trigger and rule, the cells it backed up) and
+   `n_replay_events` in `summary.json`; the research profile never sleeps, so it writes neither.
    `python -m experiments.runner --list` prints every protocol name.
    Press **Refresh** in the Replay tab to see new runs.
 
