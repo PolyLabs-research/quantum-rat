@@ -3,7 +3,8 @@
 `EngineConfig()` is the **legacy** profile: today's behaviour, bit-identical to
 the determinism baseline and to every result in `docs/decisions.md` up to G21.
 `EngineConfig.research()` is the **research** profile: the same engine with the
-mechanisms `docs/research_plan.md` section 6 lists as confounds switched off.
+mechanisms `docs/research_plan.md` section 6 lists as confounds switched off,
+and (since M0b item 8) with seeded noise on, so that its seeds are samples.
 Nothing is deleted; every difference is a configuration field, and `profile`
 is a label only (not logged, so it never enters a trace hash).
 
@@ -22,6 +23,8 @@ EngineConfig.legacy().diff(EngineConfig.research())         # the table below, a
 | Field | legacy | research | Why it is off in research |
 |---|---|---|---|
 | `profile` | `"legacy"` | `"research"` | The label. |
+| `sensors.odometry_speed_noise` | `0.0` | `0.1` | Seeded multiplicative Gaussian error on the self-motion estimate's forward displacement, d' = d (1 + 0.1 xi): odometry is no longer exact ground truth. The body moves exactly as before. Placeholder value, characterised in M1. |
+| `sensors.odometry_turn_noise` | `0.0` | `0.05` | Seeded additive Gaussian error (radians) on the estimated heading change, N(0, 0.05) per tick. Placeholder value, characterised in M1. |
 | `spatial.gate_scales_egomotion` | `True` | `False` | The TRN gate multiplied egomotion before path integration, so low ATP froze the place estimate while the body moved (22.8 units of error after 3000 barren-world ticks, `tools/probes/path_integration_capture`). |
 | `astrocyte.scales_motion` | `True` | `False` | `World.step` multiplied thrust and turn by the ATP throttle, so step length was a physiology artefact (mean step 0.088 of the nominal 1.0, `tools/probes/open_field_motion`). |
 | `astrocyte.frozen` | `False` | `True` | The astrocyte does not tick: ATP and glycogen stay at their initial values (1.0 and 3.0), the TRN gate stays OPEN (its κ branch is off too, next row), and energy cannot trigger sleep. |
@@ -32,6 +35,7 @@ EngineConfig.legacy().diff(EngineConfig.research())         # the table below, a
 | `basal_ganglia.ach_precision_gain` | `0.5` | `0.0` | Acetylcholine no longer scales vision precision. Trace still logged. |
 | `basal_ganglia.ne_threat_gain` | `0.5` | `0.0` | Norepinephrine no longer scales pain avoidance and freezing. Trace still logged. |
 | `basal_ganglia.fiveht_patience_gain` | `0.4` | `0.0` | Serotonin no longer adds a REST drive. Trace still logged. |
+| `basal_ganglia.softmax_temperature` | `0.0` | `0.1` | Seeded softmax action selection over the four channel scores (one draw per tick) instead of the deterministic argmax, so the arbiter is a sample too. The logged scores are unchanged. Placeholder value, characterised in M1. |
 
 `research()` also sets `value_memory.generalization_radius = 0`,
 `value_memory.goal_vector = False` and `basal_ganglia.criticality_gain = 0.0`
@@ -53,21 +57,79 @@ The TRN gate thresholds (`trn.closed_below_atp` 0.35, `trn.open_at_atp` 0.55,
 the values that were hard-coded before; the research profile sets
 `narrow_above_kappa` to `inf` (table above) and keeps the other three.
 
+## Seeds are samples (M0b item 8)
+
+At the legacy defaults no behavioural path draws from the RNG (the seed reaches
+only the dormant criticality lattice), so N seeds are N copies of one run:
+`tools/probes/seed_pseudoreplication` measures seeds 1-4 identical to the last
+bit at `sensors.noise` 0. The research profile has three seeded elements on by
+default, each on its own named stream (a new name derives its own child seed,
+so the four existing streams are untouched), and each draws nothing at 0:
+
+- Odometry noise (`core.sensors._compute_egomotion`, stream `sensors_odometry`):
+  on every tick the raw forward displacement is multiplied by
+  `1 + odometry_speed_noise * xi` and the raw heading change gets
+  `+ N(0, odometry_turn_noise)`, forward draw first, then turn, before the
+  usual clamps; the spatial system integrates the noisy deltas and the body is
+  not touched (two `gauss` draws per tick). The clamp is kept as it is, and
+  a FORWARD step (1.0) sits at the top of the egomotion range, so on
+  full-thrust ticks only slowing speed errors reach the estimate; a TURN's
+  0.3 gets both signs. M1 takes this into account when it characterises
+  the sigma.
+- Softmax action selection (`brain.systems.basal_ganglia.softmax_sample`, stream
+  `action_softmax`): at `softmax_temperature` tau > 0 the action is sampled with
+  probability proportional to exp((s_i - max s) / tau) over the channels in the
+  argmax's fixed order, from one `random()` draw per tick walked over the
+  cumulative sums; the scores logged in `action_scores` are still the scores.
+  At tau = 0 the deterministic argmax with its tie order runs as before.
+- The guard (`core.seeds.require_seeds_are_samples`): `EngineConfig
+  .stochastic_elements()` lists which of `sensors.noise`,
+  `sensors.odometry_speed_noise`, `sensors.odometry_turn_noise` and
+  `basal_ganglia.softmax_temperature` are above 0; asking for more than one
+  seed when none is raises `PseudoReplicationError`. `experiments
+  .steering_sensitivity` (`run_jobs`, `sweep`, `sweep_both`, `--seeds`) and
+  `experiments.memory_navigation` (`run_memory_navigation_seeds`, `--seeds`)
+  call it; `--allow-identical-seeds` (kwarg `allow_identical_seeds=True`) runs
+  the seeds anyway after printing one warning line.
+
+Measured (tests/engine/test_seeds_as_samples.py, barren default world): at the
+research defaults seeds 1-4 give four different position trajectories, each
+pair first differing at tick 3-5, and the same seed twice gives the same trace
+hash; at the legacy defaults the two new streams' states are unchanged after a
+run and the legacy baseline is bit-identical. The softmax sampler returns the
+argmax on 54 tie-free score vectors at tau = 1e-9 and matches the softmax
+probabilities within 0.008 over 20,000 draws at tau = 1 on a four-channel
+example. With the softmax at 0 and odometry noise on, the body's 300-tick path
+is identical to the exact-odometry run while the estimate differs from the
+first tick.
+
+The three values are placeholders: M1 characterises them (what sigma and tau
+give biologically reasonable path-integration drift and action variability)
+and M2b adds the wall-contact reset the drift makes necessary.
+
 ## What the research profile measures as (tests/engine/test_profiles.py)
 
-Open field, seed 1337, 3000 ticks, `EngineConfig.research()`: 0 microsleep
-ticks, `trn_state` OPEN on every tick, `energy_scale` 1.0 and ATP 1.0 on every
-tick, the realised step equal to the commanded thrust on every tick (1.0 for
-FORWARD, 0.3 for a TURN; `World.step` moves the agent `thrust * energy_scale`
-world units, there is no separate step length), and the path-integration
-estimate equal to the true position throughout (sensor noise is 0, so odometry
-is exact; the difference is floating-point rounding, below 1e-12). The legacy
-profile at the same seed gives a mean step of 0.088 and 1270 microsleep ticks.
+Open field, seed 1337, 3000 ticks, `EngineConfig.research()` with its three
+seeded elements set to 0 (the M0a acceptance is about the deterministic
+mechanics): 0 microsleep ticks, `trn_state` OPEN on every tick, `energy_scale`
+1.0 and ATP 1.0 on every tick, the realised step equal to the commanded thrust
+on every tick (1.0 for FORWARD, 0.3 for a TURN; `World.step` moves the agent
+`thrust * energy_scale` world units, there is no separate step length), and
+the path-integration estimate equal to the true position throughout (sensor
+and odometry noise are 0, so odometry is exact; the difference is
+floating-point rounding, below 1e-12). The legacy profile at the same seed
+gives a mean step of 0.088 and 1270 microsleep ticks.
+
+At the research defaults (seeded elements on) the energy statements hold tick
+for tick and the estimate drifts: its error first exceeds 0.5 units at tick 6,
+is 18.5 units at tick 3000 and 33.8 at most; the softmax wanders the body to
+the walls (clamped on 753 of 3000 ticks, against none in the deterministic
+run), mean step 0.57, 3 REST ticks. The drift is the heading estimate's random
+walk (sd 0.05 rad per tick) plus the wall clamps below; both are what M1 and
+M2b work on.
 
 ## What the research profile does not have yet
 
-- Noisy odometry: egomotion is still exact ground truth, so every seed gives the
-  same path at noise 0 (M0b item 8; characterised in M1).
 - A wall-contact reset: the box clamps the body at a wall, and that clamp is not
   in the egomotion (the displacement projected on the heading), so each wall
   contact offsets the estimate once (0.47 units after 48 clamp ticks at seed 1
@@ -90,6 +152,8 @@ profile at the same seed gives a mean step of 0.088 and 1270 microsleep ticks.
 
 The determinism gate holds one baseline per profile, both at seed 1337 over
 200 ticks: `tests/determinism/baseline_hashes.json` (legacy, never re-recorded
-by a profile change) and `tests/determinism/baseline_hashes_research.json`.
-Regenerate one with `python -m tools.update_determinism_baseline --profile
-research --i-know-what-im-doing` (once per milestone, per profile).
+by a profile change) and `tests/determinism/baseline_hashes_research.json`
+(re-recorded once for M0b item 8, when the seeded elements went on by default
+in `research()`). Regenerate one with `python -m
+tools.update_determinism_baseline --profile research --i-know-what-im-doing`
+(once per milestone, per profile).

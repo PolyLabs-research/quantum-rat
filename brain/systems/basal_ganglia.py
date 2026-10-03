@@ -1,18 +1,21 @@
 """Deterministic Basal Ganglia-style action selector.
 
 Scores four action channels from the Observation and selects the best with a
-fixed tie-break. Weights come from a ``BasalGangliaConfig`` so AgentDNA and
-protocols can tune behaviour. The selector now uses vision: it drives toward a
-visible "target" and turns away from a close wall ahead.
+fixed tie-break, or, at ``softmax_temperature > 0``, samples one from the
+softmax of the scores with one seeded draw (``softmax_sample``). Weights come
+from a ``BasalGangliaConfig`` so AgentDNA and protocols can tune behaviour.
+The selector now uses vision: it drives toward a visible "target" and turns
+away from a close wall ahead.
 """
 
 from __future__ import annotations
 
 import math
-from typing import Dict, Optional, Tuple
+from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 from brain.contracts import Action, Observation
 from core.config import BasalGangliaConfig
+from core.rng import RNGStream
 
 TURN_STEP = 0.3  # radians per tick equivalent
 TURN_THRUST = 0.3  # forward thrust of a TURN action
@@ -269,6 +272,59 @@ def goal_vector_signals(
 ACTION_ORDER = ("FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST")
 
 
+def argmax_action(scores: Mapping[str, float], order: Sequence[str] = ACTION_ORDER) -> str:
+    """The channel with the highest score; ties go to the earliest in ``order``.
+
+    A channel missing from ``scores`` (microsleep scores only REST) counts as
+    -inf. No RNG.
+    """
+    names = list(order)
+    return max(names, key=lambda name: (scores.get(name, float("-inf")), -names.index(name)))
+
+
+def softmax_sample(
+    scores: Mapping[str, float],
+    temperature: float,
+    stream: RNGStream,
+    order: Sequence[str] = ACTION_ORDER,
+) -> str:
+    """One channel sampled from the softmax of ``scores`` at ``temperature``.
+
+    The probabilities are proportional to exp((s_i - max_j s_j) / temperature)
+    over the channels in ``order`` (the same fixed order the argmax uses; a
+    channel missing from ``scores`` has weight 0). Exactly one ``random()``
+    draw is taken from ``stream`` and walked over the cumulative sums in that
+    order, so two configs that differ only in channel scores consume the
+    stream alike. Subtracting the maximum keeps every exponent <= 0, so the
+    weights never overflow; as the temperature goes to 0 the maximum's weight
+    is 1 and every other weight underflows to 0, which is the argmax (an exact
+    tie is then split by the draw, where the argmax takes the earliest).
+    ``temperature`` must be > 0.
+    """
+    if temperature <= 0.0:
+        raise ValueError(f"softmax temperature must be > 0, got {temperature}")
+    names = list(order)
+    values = [scores.get(name, float("-inf")) for name in names]
+    top = max(values)
+    if top == float("-inf"):
+        raise ValueError("softmax_sample needs at least one scored channel")
+    weights = [math.exp((v - top) / temperature) for v in values]  # exp(-inf) == 0.0
+    total = 0.0
+    for w in weights:  # same summation order as the walk below, so the last cumulative sum == total
+        total += w
+    u = stream.random() * total
+    acc = 0.0
+    chosen = names[0]
+    for name, w in zip(names, weights):
+        if w <= 0.0:
+            continue
+        chosen = name
+        acc += w
+        if u < acc:
+            return name
+    return chosen  # u rounded up to total: the last channel with positive weight
+
+
 def _action_for(name: str) -> Action:
     if name == "FORWARD":
         return Action(name="FORWARD", thrust=1.0, turn=0.0)
@@ -292,11 +348,16 @@ def select_action_with_scores(
     criticality_gain: float = 1.0,
     freeze_habituation: float = 1.0,
     pacing_rest: float = 0.0,
+    action_stream: Optional[RNGStream] = None,
 ) -> Tuple[Action, Dict[str, float]]:
     """Select an action and also return the channel scores that produced it.
 
     The scores are what a "decision" readout displays; returning them does not
-    change which action is chosen.
+    change which action is chosen. At ``config.softmax_temperature == 0`` the
+    action is the argmax with its fixed tie order and ``action_stream`` is not
+    touched; at a temperature > 0 it is ``softmax_sample``d from
+    ``action_stream`` (required then; ValueError without one), and the
+    returned scores are still the scores.
     """
     config = config if config is not None else BasalGangliaConfig()
     modulators = modulators if modulators is not None else {}
@@ -314,9 +375,12 @@ def select_action_with_scores(
         freeze_habituation,
         pacing_rest,
     )
-    # Deterministic tie-break order.
-    order = list(ACTION_ORDER)
-    best = max(order, key=lambda name: (scores.get(name, float("-inf")), -order.index(name)))
+    if config.softmax_temperature > 0.0:
+        if action_stream is None:
+            raise ValueError("softmax_temperature > 0 needs an action_stream to draw from")
+        best = softmax_sample(scores, config.softmax_temperature, action_stream)
+    else:
+        best = argmax_action(scores)  # deterministic tie-break order, no draw
     return _action_for(best), scores
 
 
@@ -333,6 +397,7 @@ def select_action(
     criticality_gain: float = 1.0,
     freeze_habituation: float = 1.0,
     pacing_rest: float = 0.0,
+    action_stream: Optional[RNGStream] = None,
 ) -> Action:
     action, _ = select_action_with_scores(
         observation,
@@ -347,6 +412,7 @@ def select_action(
         criticality_gain,
         freeze_habituation,
         pacing_rest,
+        action_stream,
     )
     return action
 
@@ -354,6 +420,8 @@ def select_action(
 __all__ = [
     "select_action",
     "select_action_with_scores",
+    "argmax_action",
+    "softmax_sample",
     "cue_gate_weight",
     "goal_vector_signals",
     "split_value_signals",

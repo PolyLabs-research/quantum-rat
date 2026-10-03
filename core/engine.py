@@ -110,6 +110,12 @@ class Engine:
             "criticality": self.rng.stream("criticality"),
             "sensors_vision": self.rng.stream("sensors_vision"),
             "sensors_noise": self.rng.stream("sensors_noise"),
+            # Seeds-are-samples streams (docs/research_plan.md M0b item 8). Each
+            # named stream derives its own child seed, so adding these leaves the
+            # four above exactly as they were; at the legacy defaults (noise
+            # parameters 0) neither is ever drawn from.
+            "sensors_odometry": self.rng.stream("sensors_odometry"),
+            "action_softmax": self.rng.stream("action_softmax"),
         }
         self.world = World(bounds=c.world.bounds)
         self.agent = Agent(id=agent_offset, pos=(0.0, 0.0))
@@ -218,6 +224,7 @@ class Engine:
             config=self.config.sensors,
             vision_stream=self.streams["sensors_vision"],
             noise_stream=self.streams["sensors_noise"],
+            odometry_stream=self.streams["sensors_odometry"],
         )
         ctx.observation = obs
         ctx.observation_checksum = observation_checksum(obs)
@@ -551,7 +558,8 @@ class Engine:
         pacing = self._recovering and not ctx.microsleep_active and bg.pace_rest_bonus > 0.0
         pacing_rest = bg.pace_rest_bonus if pacing else 0.0
 
-        # Deterministic action selection; dopamine modulates exploration.
+        # Action selection: the deterministic argmax, or at softmax_temperature > 0
+        # one seeded softmax draw per tick; dopamine modulates exploration.
         action, scores = select_action_with_scores(
             observation=ctx.observation,
             wm_novelty=ctx.wm_novelty,
@@ -565,6 +573,7 @@ class Engine:
             criticality_gain=crit_gain,
             freeze_habituation=freeze_h,
             pacing_rest=pacing_rest,
+            action_stream=self.streams["action_softmax"],
         )
         pain = ctx.observation.pain_signal
         if action.name == "REST" and not ctx.microsleep_active and pain > bg.freeze_pain_threshold:

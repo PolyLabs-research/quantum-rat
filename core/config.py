@@ -34,6 +34,17 @@ class SensorConfig:
     whisker_range: float = 1.0  # contact distance for a whisker hit
     pain_zone: float = 1.5  # distance from a hazard surface at which pain begins
     noise: float = 0.0  # additive sensor noise (0 => fully deterministic, no RNG draw)
+    # Odometry noise on the agent's self-motion estimate (the egomotion the
+    # spatial system integrates; the body moves exactly as before). Drawn from
+    # the "sensors_odometry" stream in core.sensors._compute_egomotion, forward
+    # first then turn, each only when its sigma is > 0 (0 => no draw).
+    # odometry_speed_noise: standard deviation of a multiplicative Gaussian
+    # factor on the raw forward displacement, d' = d * (1 + sigma * xi).
+    # odometry_turn_noise: standard deviation (radians) of an additive Gaussian
+    # term on the raw heading change. Both are counted by
+    # EngineConfig.stochastic_elements (core.seeds).
+    odometry_speed_noise: float = 0.0
+    odometry_turn_noise: float = 0.0
 
 
 @dataclass
@@ -215,6 +226,14 @@ class BasalGangliaConfig:
     # vision_gain: 0 = off, the default; at 1.0 it flips no decision in the
     # probed worlds (tools/probes/dormant_couplings).
     criticality_gain: float = 0.0
+    # Softmax action selection. 0 (default): the deterministic argmax over the
+    # channel scores with its fixed tie order (ACTION_ORDER), no RNG draw. tau > 0:
+    # the action is sampled with probability proportional to exp((s_i - max_j
+    # s_j) / tau) over the channels in that same order, from one random() draw
+    # per tick on the "action_softmax" stream (brain.systems.basal_ganglia
+    # .softmax_sample); the logged scores stay the scores. Counted by
+    # EngineConfig.stochastic_elements (core.seeds).
+    softmax_temperature: float = 0.0
     # Freeze habituation: pain-driven REST habituates while the agent keeps freezing
     # in pain, so a freeze is not an absorbing state. The pain->REST drive is scaled
     # by exp(-F / freeze_tau), where F counts recent pain-freeze ticks (+1 per REST
@@ -275,6 +294,18 @@ class BasalGangliaConfig:
     value_common_mode: float = 0.0
 
 
+# The config fields that make a run depend on its seed, in the order
+# EngineConfig.stochastic_elements reports them. Every other RNG stream the
+# engine opens is either unused (neuromod) or behaviourally dormant at the
+# defaults (criticality, tools/probes/seed_pseudoreplication).
+STOCHASTIC_PARAMETERS: Tuple[str, ...] = (
+    "sensors.noise",
+    "sensors.odometry_speed_noise",
+    "sensors.odometry_turn_noise",
+    "basal_ganglia.softmax_temperature",
+)
+
+
 @dataclass
 class EngineConfig:
     """Aggregate of every subsystem's configuration.
@@ -328,15 +359,27 @@ class EngineConfig:
           and ``fiveht_patience_gain``. The modulator traces are still computed
           and logged; they just do not reach action selection.
 
+        - Seeds are samples (milestone 0b, item 8): ``sensors.odometry_speed_noise
+          = 0.1``, ``sensors.odometry_turn_noise = 0.05`` (seeded noise on the
+          self-motion estimate; the body moves exactly as before) and
+          ``basal_ganglia.softmax_temperature = 0.1`` (seeded softmax action
+          selection). These three values are placeholders, to be characterised
+          in milestone 1 (docs/profiles.md); what they fix now is that two
+          seeds under this profile are two different runs, which
+          :meth:`stochastic_elements` and ``core.seeds`` can check.
+
         Also set explicitly, but already the legacy value, so not in the diff:
         ``value_memory.generalization_radius = 0``, ``value_memory.goal_vector =
         False`` and ``basal_ganglia.criticality_gain = 0.0`` (the criticality
         coupling to cognition; kappa is still computed and logged).
 
-        Nothing else differs. Not yet in this profile: noisy odometry, a place
-        population and replay as an event stream (later milestones).
+        Nothing else differs. Not yet in this profile: a wall-contact reset
+        for the odometry, a place population and replay as an event stream
+        (later milestones).
         """
         cfg = cls(profile="research")
+        cfg.sensors.odometry_speed_noise = 0.1
+        cfg.sensors.odometry_turn_noise = 0.05
         cfg.spatial.gate_scales_egomotion = False
         cfg.astrocyte.scales_motion = False
         cfg.astrocyte.frozen = True
@@ -351,7 +394,27 @@ class EngineConfig:
         bg.ach_precision_gain = 0.0
         bg.ne_threat_gain = 0.0
         bg.fiveht_patience_gain = 0.0
+        bg.softmax_temperature = 0.1
         return cfg
+
+    def stochastic_elements(self) -> List[str]:
+        """The stochastic elements this config has on, as ``"dotted.field=value"``.
+
+        One entry per parameter in :data:`STOCHASTIC_PARAMETERS` that is > 0,
+        in that order: sensor noise (rangefinder and pain), odometry speed
+        noise, odometry turn noise and the softmax temperature. Empty means
+        no behavioural path draws from the RNG, so every seed gives the same
+        run (the criticality lattice is seeded but dormant at the defaults,
+        docs/profiles.md); ``core.seeds.require_seeds_are_samples`` refuses a
+        multi-seed claim on such a config.
+        """
+        out: List[str] = []
+        for name in STOCHASTIC_PARAMETERS:
+            section, field_name = name.split(".")
+            value = getattr(getattr(self, section), field_name)
+            if value > 0.0:
+                out.append(f"{name}={value!r}")
+        return out
 
     def diff(self, other: "EngineConfig") -> List[Tuple[str, Any, Any]]:
         """Fields where ``self`` and ``other`` differ: (dotted.field, self_value, other_value).
@@ -387,5 +450,6 @@ __all__ = [
     "WorkingMemoryConfig",
     "BasalGangliaConfig",
     "EngineConfig",
+    "STOCHASTIC_PARAMETERS",
     "config_diff",
 ]

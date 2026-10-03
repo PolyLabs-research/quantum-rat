@@ -2,7 +2,9 @@
 
 Vision, whiskers and pain are computed from real world geometry (walls and
 circular objects), not from noise. Egomotion stays derived from the agent's
-own motion. Sensors are allowed to read the World (that is their job); the
+own motion, optionally with seeded odometry noise (a multiplicative speed
+error and an additive heading error, ``SensorConfig.odometry_*``) on the
+estimate only. Sensors are allowed to read the World (that is their job); the
 Brain only ever sees the resulting immutable Observation.
 """
 
@@ -24,13 +26,38 @@ def _normalize(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def _compute_egomotion(agent: Agent) -> Tuple[float, float]:
+def _compute_egomotion(
+    agent: Agent,
+    config: Optional[SensorConfig] = None,
+    odometry_stream: Optional[RNGStream] = None,
+) -> Tuple[float, float]:
+    """(forward_delta, turn_delta): the agent's own estimate of its motion this tick.
+
+    The raw displacement is projected on the heading (sign = forward/backward)
+    and the raw heading change is taken as is; both are then clamped to the
+    Observation's ranges ([-1, 1] units and [-pi, pi] radians). Odometry noise
+    (``SensorConfig.odometry_speed_noise`` / ``odometry_turn_noise``) perturbs
+    the raw values before the clamp: the forward displacement d becomes
+    d * (1 + sigma_speed * xi) and the heading change gets + N(0, sigma_turn),
+    with xi a standard normal deviate. The forward draw is made first, then
+    the turn draw, each only when its sigma is > 0 (so at 0 nothing is drawn
+    and the trace is bit-identical to exact odometry), and each on every tick
+    its sigma is on, whether or not the body moved. The body's true motion is
+    never touched: this is the estimate the spatial system integrates. The
+    clamp is unchanged, and a FORWARD step (1.0) sits at the top of its range,
+    so on full-thrust ticks only a slowing speed error survives it.
+    """
     dx = agent.pos[0] - agent.last_pos[0]
     dy = agent.pos[1] - agent.last_pos[1]
     # Project displacement onto heading to preserve forward/backward sign.
     heading = agent.heading
     distance = dx * math.cos(heading) + dy * math.sin(heading)
     turn_delta = agent.heading - agent.last_heading
+    if config is not None and odometry_stream is not None:
+        if config.odometry_speed_noise > 0.0:
+            distance *= 1.0 + config.odometry_speed_noise * odometry_stream.gauss(0.0, 1.0)
+        if config.odometry_turn_noise > 0.0:
+            turn_delta += odometry_stream.gauss(0.0, config.odometry_turn_noise)
     # Clamp egomotion to normalized ranges to satisfy validation.
     return _normalize(distance, -1.0, 1.0), _normalize(turn_delta, -math.pi, math.pi)
 
@@ -115,8 +142,15 @@ def gather_observation(
     config: Optional[SensorConfig] = None,
     vision_stream: Optional[RNGStream] = None,
     noise_stream: Optional[RNGStream] = None,
+    odometry_stream: Optional[RNGStream] = None,
 ) -> Observation:
-    """Collect normalized sensor outputs for the agent from world geometry."""
+    """Collect normalized sensor outputs for the agent from world geometry.
+
+    ``vision_stream`` and ``noise_stream`` carry ``config.noise`` (rangefinder
+    and pain); ``odometry_stream`` carries the odometry noise on egomotion (see
+    ``_compute_egomotion``). A stream that is None, or a noise parameter that
+    is 0, means no draw from it.
+    """
     world = world if world is not None else World()
     config = config if config is not None else SensorConfig()
 
@@ -135,7 +169,7 @@ def gather_observation(
     if config.noise > 0.0 and noise_stream is not None:
         pain_signal = _normalize(pain_signal + noise_stream.uniform(-config.noise, config.noise), 0.0, 1.0)
 
-    forward_delta, turn_delta = _compute_egomotion(agent)
+    forward_delta, turn_delta = _compute_egomotion(agent, config, odometry_stream)
     obs = Observation(
         vision_rays=tuple(rays),
         whisker_hits=whisker_hits,

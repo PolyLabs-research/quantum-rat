@@ -43,7 +43,11 @@ Noise caveat: sensor noise (default 0.03) makes each seed a genuinely different
 run, so the numbers are distributions. At noise 0 the seed barely matters
 (different seeds usually give the identical run), so ``--seeds N`` at noise 0
 is close to N copies of one sample; vary the start heading instead
-(``--noise 0 --seeds 1 --headings 8``). Noise is also not neutral. In the stock
+(``--noise 0 --seeds 1 --headings 8``). Since M0b item 8 the harness refuses
+several seeds on a config with no stochastic element on (noise 0 and no
+odometry noise or softmax temperature among the ``--set`` overrides) unless
+``--allow-identical-seeds`` is given, which prints a warning and runs them
+(``core.seeds``). Noise is also not neutral. In the stock
 engine (6c0ea9d, max-norm steering with shaping in the map) clamped pain noise
 entered the value map and acted as a hidden cost on dwelling, which masked
 value-induced REST. Since G14 and G16 the map only learns pain above max(0.05,
@@ -85,7 +89,9 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import ui.scenarios as scenarios_module
 from brain.systems.spatial import wrap_angle
+from core.config import EngineConfig
 from core.engine import Engine
+from core.seeds import require_seeds_are_samples
 from ui.scenarios import make_scenario
 
 SCENARIOS = ("beacon", "foraging", "hazard_field", "hidden_food", "memory_maze")
@@ -195,6 +201,46 @@ def _apply_heading(engine: Engine, heading: float) -> None:
     engine.spatial.state.hd_angle = wrap_angle(heading)
 
 
+def _job_config(job: Job, scenario: Any) -> EngineConfig:
+    """The engine config a job runs with: the scenario's own, plus the job's noise, overrides and gain."""
+    config = scenario.config()
+    config.sensors.noise = job.noise
+    for key, value in job.overrides:
+        _set(config, key, value)
+    if job.value_gain is not None:
+        config.basal_ganglia.value_gain = job.value_gain
+    return config
+
+
+def check_seeds_are_samples(jobs: Sequence[Job], allow_identical_seeds: bool = False) -> None:
+    """The pseudo-replication guard (core.seeds) over a job list.
+
+    Jobs that differ only in their seed are one group; a group of more than
+    one seed must have a stochastic element on in its config (sensor noise,
+    odometry noise or a softmax temperature, possibly from ``--set``), or
+    ``PseudoReplicationError`` is raised, unless ``allow_identical_seeds``, in
+    which case a warning line is printed and the jobs run. The guard is called
+    once per distinct set of enabled elements, so the warning prints once.
+    """
+    seeds: Dict[Tuple[Any, ...], set] = {}
+    first: Dict[Tuple[Any, ...], Job] = {}
+    for job in jobs:
+        key = (job.scenario, job.noise, job.overrides, job.value_gain, job.heading, job.ticks)
+        seeds.setdefault(key, set()).add(job.seed)
+        first.setdefault(key, job)
+    checked: set = set()
+    for key, group in seeds.items():  # insertion order: the job order
+        if len(group) < 2:
+            continue
+        job = first[key]
+        config = _job_config(job, make_scenario(job.scenario))
+        elements = tuple(config.stochastic_elements())
+        if elements in checked:
+            continue
+        checked.add(elements)
+        require_seeds_are_samples(config, len(group), allow_identical_seeds=allow_identical_seeds)
+
+
 def run_job(job: Job) -> Dict[str, Any]:
     saved_pose = scenarios_module.START_POSE
     maze_pose = job.heading is not None and job.scenario == "memory_maze"
@@ -203,12 +249,7 @@ def run_job(job: Job) -> Dict[str, Any]:
             # The maze teleports to START_POSE at every trial, so the heading must live there.
             scenarios_module.START_POSE = (0.0, 0.0, float(job.heading))
         scenario = make_scenario(job.scenario)
-        config = scenario.config()
-        config.sensors.noise = job.noise
-        for key, value in job.overrides:
-            _set(config, key, value)
-        if job.value_gain is not None:
-            config.basal_ganglia.value_gain = job.value_gain
+        config = _job_config(job, scenario)
         engine = Engine(seed=job.seed, config=config)
         scenario.setup(engine)
         if job.heading is not None and not maze_pose:
@@ -283,8 +324,15 @@ def make_jobs(
     ]
 
 
-def run_jobs(jobs: Sequence[Job], workers: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Run jobs in order; in-process when there is one job or ``workers == 1``."""
+def run_jobs(
+    jobs: Sequence[Job], workers: Optional[int] = None, *, allow_identical_seeds: bool = False
+) -> List[Dict[str, Any]]:
+    """Run jobs in order; in-process when there is one job or ``workers == 1``.
+
+    ``check_seeds_are_samples`` runs first: several seeds on a config with no
+    stochastic element are refused unless ``allow_identical_seeds``.
+    """
+    check_seeds_are_samples(jobs, allow_identical_seeds)
     if len(jobs) <= 1 or workers == 1:
         return [run_job(job) for job in jobs]
     with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -301,9 +349,11 @@ def sweep(
     workers: Optional[int] = None,
     headings: Optional[int] = None,
     maze_headings: MazeHeadings = None,
+    allow_identical_seeds: bool = False,
 ) -> List[Dict[str, Any]]:
     """Rows for every (scenario, gain, seed, heading). ``ticks``: int or per-scenario budgets."""
-    return run_jobs(make_jobs(scenarios, gains, seeds, noise, overrides, ticks, headings, maze_headings), workers)
+    jobs = make_jobs(scenarios, gains, seeds, noise, overrides, ticks, headings, maze_headings)
+    return run_jobs(jobs, workers, allow_identical_seeds=allow_identical_seeds)
 
 
 def sweep_both(
@@ -316,11 +366,12 @@ def sweep_both(
     workers: Optional[int] = None,
     headings: int = NOISE_BOTH_HEADINGS,
     maze_headings: MazeHeadings = None,
+    allow_identical_seeds: bool = False,
 ) -> List[Dict[str, Any]]:
     """``noise`` over ``seeds`` at the default heading, then noise 0 over headings at ``seeds[0]``."""
     seeded = make_jobs(scenarios, gains, seeds, noise, overrides, ticks)
     headed = make_jobs(scenarios, gains, list(seeds)[:1], 0.0, overrides, ticks, headings, maze_headings)
-    return run_jobs(seeded + headed, workers)
+    return run_jobs(seeded + headed, workers, allow_identical_seeds=allow_identical_seeds)
 
 
 def by_noise(rows: Sequence[Mapping[str, Any]]) -> Dict[float, List[Mapping[str, Any]]]:
@@ -516,6 +567,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                         help="config override applied to every run, e.g. value_memory.lookahead=1.5")
     parser.add_argument("--json", action="store_true", help="print raw rows as JSON")
+    parser.add_argument("--allow-identical-seeds", action="store_true",
+                        help="run several seeds although no stochastic element is on (one sample, "
+                             "not N; prints a warning instead of refusing, see core.seeds)")
     args = parser.parse_args(argv)
     if args.seeds < 1:
         parser.error("--seeds must be >= 1")
@@ -538,10 +592,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     seeds = range(args.seed_start, args.seed_start + args.seeds)
     if args.noise_both:
         rows = sweep_both(scenarios, gains, seeds, args.noise, overrides, args.ticks, args.workers,
-                          args.headings or NOISE_BOTH_HEADINGS, args.maze_headings)
+                          args.headings or NOISE_BOTH_HEADINGS, args.maze_headings,
+                          allow_identical_seeds=args.allow_identical_seeds)
     else:
         rows = sweep(scenarios, gains, seeds, args.noise, overrides, args.ticks, args.workers, args.headings,
-                     args.maze_headings)
+                     args.maze_headings, allow_identical_seeds=args.allow_identical_seeds)
     if args.json:
         print(json.dumps(rows, indent=1))
         return

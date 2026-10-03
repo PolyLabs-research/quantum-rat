@@ -38,6 +38,17 @@ class RNGStream:
     def uniform(self, a: float, b: float) -> float:
         return self._random.uniform(a, b)
 
+    def gauss(self, mu: float, sigma: float) -> float:
+        """One normal deviate (``random.Random.gauss``: a Box-Muller pair, so two
+        calls consume one pair of uniforms; the cached half lives in this
+        stream's own ``Random``, never in a module global)."""
+        return self._random.gauss(mu, sigma)
+
+    def getstate(self) -> Any:
+        """The underlying ``Random`` state (read-only use: a test compares the
+        state before and after a run to prove that nothing was drawn)."""
+        return self._random.getstate()
+
     def choice(self, seq: Sequence[Any]) -> Any:
         return self._random.choice(seq)
 

@@ -127,6 +127,8 @@ def test_trn_gate_defaults_match_trn_config() -> None:
 
 EXPECTED_RESEARCH_DIFF = [
     ("profile", "legacy", "research"),
+    ("sensors.odometry_speed_noise", 0.0, 0.1),
+    ("sensors.odometry_turn_noise", 0.0, 0.05),
     ("astrocyte.scales_motion", True, False),
     ("astrocyte.frozen", False, True),
     ("value_memory.dwell_extinction", 0.02, 0.0),
@@ -137,6 +139,7 @@ EXPECTED_RESEARCH_DIFF = [
     ("basal_ganglia.ach_precision_gain", 0.5, 0.0),
     ("basal_ganglia.ne_threat_gain", 0.5, 0.0),
     ("basal_ganglia.fiveht_patience_gain", 0.4, 0.0),
+    ("basal_ganglia.softmax_temperature", 0.0, 0.1),
 ]
 
 
@@ -160,9 +163,29 @@ def test_research_profile_changes_the_trace_at_the_gate_seed() -> None:
 # --- (c) the plan's acceptance for the research profile ---------------------
 
 
+def _research_without_stochastic_elements() -> EngineConfig:
+    """``EngineConfig.research()`` with its three seeded elements (M0b item 8) set to 0.
+
+    The M0a acceptance below is a statement about the deterministic mechanics
+    (the gate, the energy model, exact odometry), so it is checked with
+    odometry noise and the softmax temperature at 0: with odometry noise on
+    the estimate is meant to drift away from the body (the next test), and
+    with the softmax on the trajectory is a different one. At 0 nothing is
+    drawn from the two streams they use (tests/engine/test_seeds_as_samples.py),
+    so this run is the research profile as it was at M0a.
+    """
+    cfg = EngineConfig.research()
+    cfg.sensors.odometry_speed_noise = 0.0
+    cfg.sensors.odometry_turn_noise = 0.0
+    cfg.basal_ganglia.softmax_temperature = 0.0
+    assert cfg.stochastic_elements() == []
+    return cfg
+
+
 def test_research_open_field_has_no_microsleep_full_thrust_steps_and_exact_path_integration() -> None:
-    """docs/research_plan.md section 5, M0a item 2, at seed 1337 over 3000 ticks."""
-    rows, scales, headings, proto = _open_field_run(EngineConfig.research())
+    """docs/research_plan.md section 5, M0a item 2, at seed 1337 over 3000 ticks, with the
+    M0b seeded elements off (see ``_research_without_stochastic_elements``)."""
+    rows, scales, headings, proto = _open_field_run(_research_without_stochastic_elements())
     assert len(rows) == TICKS
     assert proto.summarize()["microsleep_count"] == 0
     assert sum(td.microsleep_active for td in rows) == 0
@@ -175,7 +198,7 @@ def test_research_open_field_has_no_microsleep_full_thrust_steps_and_exact_path_
     assert checked == TICKS - 1  # this run never touches a bound, so no tick was skipped
     assert {td.action_thrust for td in rows} >= {1.0, 0.3}  # both step sizes were exercised
     # Path integration equals the true position and heading on every tick: sensor
-    # noise is 0, so odometry is exact, and the gate no longer scales it.
+    # and odometry noise are 0, so odometry is exact, and the gate no longer scales it.
     assert max(_estimate_errors(rows)) < 1e-9
     assert max(abs(wrap_angle(td.hd_angle - h)) for td, h in zip(rows, headings)) < 1e-9
     # The legacy profile at the same seed (tools/probes/open_field_motion): 1270
@@ -185,6 +208,27 @@ def test_research_open_field_has_no_microsleep_full_thrust_steps_and_exact_path_
     legacy_mean = sum(_step(legacy_rows[t - 1], legacy_rows[t]) for t in range(1, TICKS)) / (TICKS - 1)
     research_mean = sum(_step(rows[t - 1], rows[t]) for t in range(1, TICKS)) / (TICKS - 1)
     assert legacy_mean < 0.1 < 0.7 < research_mean
+
+
+def test_research_defaults_keep_the_energy_acceptance_and_let_the_estimate_drift() -> None:
+    """The research profile as shipped (odometry noise 0.1 / 0.05 rad, softmax 0.1; M0b
+    item 8) at seed 1337 over 3000 open-field ticks: the energy acceptance holds on
+    every tick as above, and the path-integration estimate now drifts away from the
+    body by more than 0.5 units within the run. Measured: the error first exceeds 0.5
+    at tick 6, is 18.5 units at the end and 33.8 at most, with the body clamped at a
+    wall on 753 ticks (the softmax wanders it to the walls; the deterministic run
+    above never touches one). The sigmas are placeholders to be characterised in
+    milestone 1, so only the direction of the drift is asserted."""
+    rows, scales, headings, proto = _open_field_run(EngineConfig.research())
+    assert proto.summarize()["microsleep_count"] == 0
+    assert sum(td.replay_active for td in rows) == 0
+    assert all(td.trn_state == "OPEN" for td in rows)
+    assert all(s == 1.0 for s in scales)
+    assert all(td.atp == 1.0 for td in rows)
+    assert _assert_steps_equal(rows, lambda prev, cur: prev.action_thrust) > 0.5 * TICKS
+    errors = _estimate_errors(rows)
+    assert max(errors) > 0.5
+    assert max(abs(wrap_angle(td.hd_angle - h)) for td, h in zip(rows, headings)) > 0.1
 
 
 # --- (d) the gate flag on its own -------------------------------------------

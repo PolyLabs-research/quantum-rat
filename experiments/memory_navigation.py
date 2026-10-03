@@ -18,7 +18,9 @@ Two findings:
   An agent doing repeated hidden-recall trials keeps reaching the goal and gets
   faster as it learns from experience. At sensor noise 0 (this config) every
   seed is the same run, so this is one sample; it also held at noise 0.03 on
-  the seeds tried (G12).
+  the seeds tried (G12). ``run_memory_navigation_seeds`` (and ``--seeds`` on
+  the command line) refuses several seeds on such a config unless told
+  ``allow_identical_seeds`` (``--allow-identical-seeds``), see ``core.seeds``.
 * **Replay is a modest, fragile data-efficiency speed-up, not a precondition.**
   After a single demonstration both agents reach the hidden goal at the default
   settings. With the default split steering, at the default
@@ -46,9 +48,10 @@ fields, plus sparse reward (approach_weight 0).
 
 from __future__ import annotations
 
+import argparse
 import math
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from brain.systems.spatial import SpatialState
 from core.config import (
@@ -58,6 +61,7 @@ from core.config import (
     ValueMemoryConfig,
 )
 from core.engine import Engine
+from core.seeds import require_seeds_are_samples
 from core.world import WorldObject
 
 DEFAULT_GOAL: Tuple[float, float] = (6.0, 3.0)
@@ -149,12 +153,46 @@ def run_memory_navigation(
     return results
 
 
-def main() -> None:
+def run_memory_navigation_seeds(
+    replay: bool,
+    seeds: Sequence[int],
+    *,
+    allow_identical_seeds: bool = False,
+    **kwargs: Any,
+) -> Dict[int, List[TrialResult]]:
+    """``run_memory_navigation`` once per seed, after the pseudo-replication guard.
+
+    With more than one distinct seed the config (``kwargs["config"]`` or
+    ``memory_nav_config()``) must have a stochastic element on, or
+    ``core.seeds.PseudoReplicationError`` is raised; ``allow_identical_seeds``
+    prints a warning and runs them anyway. Returns ``{seed: results}`` in the
+    order given.
+    """
+    config = kwargs.get("config") or memory_nav_config()
+    require_seeds_are_samples(config, len(set(seeds)), allow_identical_seeds=allow_identical_seeds)
+    return {seed: run_memory_navigation(replay, seed=seed, **kwargs) for seed in seeds}
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description="Memory navigation with and without replay (one seed by default).")
+    parser.add_argument("--seeds", type=int, default=1, help="number of seeds (default 1)")
+    parser.add_argument("--seed-start", type=int, default=1337, help="first seed (default 1337)")
+    parser.add_argument("--allow-identical-seeds", action="store_true",
+                        help="run several seeds although no stochastic element is on (one sample, "
+                             "not N; prints a warning instead of refusing, see core.seeds)")
+    args = parser.parse_args(argv)
+    if args.seeds < 1:
+        parser.error("--seeds must be >= 1")
+    seeds = range(args.seed_start, args.seed_start + args.seeds)
     for replay in (True, False):
-        rows = run_memory_navigation(replay)
+        by_seed = run_memory_navigation_seeds(replay, seeds, allow_identical_seeds=args.allow_identical_seeds)
         tag = "replay   " if replay else "no-replay"
-        summary = [(r.trial, "vis" if r.visible else "hid", r.ticks_to_goal) for r in rows]
-        print(tag, summary)
+        for seed, rows in by_seed.items():
+            summary = [(r.trial, "vis" if r.visible else "hid", r.ticks_to_goal) for r in rows]
+            if args.seeds == 1:
+                print(tag, summary)  # the output as it was before --seeds existed
+            else:
+                print(tag, f"seed {seed}", summary)
 
 
 if __name__ == "__main__":
