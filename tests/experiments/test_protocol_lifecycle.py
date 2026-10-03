@@ -22,24 +22,24 @@ def test_protocol_lifecycle_open_field():
         assert key in summary
 
 
-def test_protocol_lifecycle_t_maze():
-    tick_lines, summary = _run_protocol("t_maze")
+def test_protocol_lifecycle_t_maze_toy():
+    tick_lines, summary = _run_protocol("t_maze_toy")
     assert 0 < len(tick_lines) <= 200
     assert summary["ticks_run"] == len(tick_lines)
     for key in ["ticks_run", "reward_reached", "time_to_reward", "score"]:
         assert key in summary
 
 
-def test_protocol_lifecycle_morris_water_maze():
-    tick_lines, summary = _run_protocol("morris_water_maze")
+def test_protocol_lifecycle_morris_water_maze_toy():
+    tick_lines, summary = _run_protocol("morris_water_maze_toy")
     assert 0 < len(tick_lines) <= 200
     assert summary["ticks_run"] == len(tick_lines)
     for key in ["ticks_run", "platform_reached", "time_to_platform", "path_length", "score"]:
         assert key in summary
 
 
-def test_protocol_lifecycle_survival_arena():
-    tick_lines, summary = _run_protocol("survival_arena")
+def test_protocol_lifecycle_survival_arena_toy():
+    tick_lines, summary = _run_protocol("survival_arena_toy")
     assert 0 < len(tick_lines) <= 200
     assert summary["ticks_run"] == len(tick_lines)
     for key in ["ticks_run", "dead", "hazard_ticks", "safe_ticks", "damage", "score"]:

@@ -111,9 +111,13 @@ class OpenField(Scenario):
     title = "Open field"
     summary = "An empty arena. The agent explores, tires, sleeps and replays."
     watch = (
-        "Wall-following exploration driven by novelty and wall avoidance",
+        "Exploration driven by a forward bias, the novelty bit (1 on any tick whose observation "
+        "changed, which here means the agent moved) and wall avoidance at 12 m range; the agent "
+        "keeps to the middle (85% of ticks in the central 10 x 10 m, under 3% within 1 m of a wall)",
         "Effort drains ATP; sustained running triggers microsleep and replay",
-        "Avalanches spreading on the criticality lattice; drag the E/I coupling to change regime",
+        "Avalanches spreading on the criticality lattice. It is bond percolation: subcritical at "
+        "the default coupling 0.25 (κ settles near 0.91 with the exponent-1.5 estimator), spanning "
+        "avalanches from 0.35, critical at 0.5, just above the slider's 0.45",
     )
 
     def __init__(self) -> None:
@@ -137,7 +141,8 @@ class Beacon(Scenario):
     summary = "A visible beacon hops to a new spot each time the agent reaches it."
     watch = (
         "Vision rays lock onto the beacon and steer the agent toward it",
-        "Dopamine spikes on arrival (better than expected), then dips when the beacon jumps away",
+        "Dopamine (reward minus its running mean) hits 1.0 on arrival; between beacons it tracks "
+        "the approach reward against that mean",
         "The value map remembers where the beacon was, but memory is muted while the beacon is "
         "in view (cue gating). Set cue gating of memory to 0 and old spots can pull the agent "
         "away from the beacon it is looking at",
@@ -186,7 +191,8 @@ class Foraging(Scenario):
     summary = "Five food items to collect; the patch refills once it is cleared."
     watch = (
         "A wide field of view lets the agent notice food off to the side",
-        "Each collection is a reward: watch dopamine and the value map build up",
+        "Each collection is a reward: dopamine (reward minus its running mean) hits 1.0 on contact "
+        "and sits below 0.5 on most other ticks once the mean is up; the value map builds up",
         "Narrow the field of view and foraging slows down",
     )
     RADIUS = 1.0
@@ -238,7 +244,7 @@ class HazardField(Scenario):
     title = "Hazard field"
     summary = "Food lies beyond hazards. Contact hurts; the agent learns where not to linger."
     watch = (
-        "Pain near a hazard drives norepinephrine (arousal) and a brief freeze; the freeze "
+        "Pain near a hazard raises norepinephrine (half pain plus half the novelty bit) and a brief freeze; the freeze "
         "habituates, so the agent does not stay stuck in the pain zone",
         "Reward goes negative in the pain zone; the value map turns red there",
         "Raise NE → threat sensitivity for a more cautious agent",

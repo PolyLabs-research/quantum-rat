@@ -247,7 +247,7 @@ been implemented on this branch; the **LATER** list remains open.
   (`tests/tournaments/test_dna_effect.py`).
 - **Energy equilibrium**: effort-scaled demand + glycogen regeneration — a resting agent
   sustains, sustained effort still triggers microsleep (`tests/physiology/test_energy_equilibrium.py`).
-- **Assay positions consistent**: `t_maze` now scores off true `pos`.
+- **Assay positions consistent**: `t_maze` (now `t_maze_toy`) scores off true `pos`.
 - **Vestigial `app/` server removed** (see `docs/decisions.md` DEC-2).
 
 Test count went from 40 to 50, all passing.
@@ -257,7 +257,10 @@ Test count went from 40 to 50, all passing.
 - Make neuromodulators causal (they are still logged but inert) and give replay a plastic
   substrate to consolidate — or relabel both as toys.
 - Add behavioural assertions to the other assays (does t_maze beat chance? does path
-  integration track truth?), and wire the regression harness into CI.
+  integration track truth?), and wire the regression harness into CI. (2026-10-03: no, it is
+  reached in 6 ticks by walking forward, so `t_maze`, `morris_water_maze` and `survival_arena`
+  are now `t_maze_toy`, `morris_water_maze_toy` and `survival_arena_toy`, and the harness runs
+  `open_field,beacon,foraging`.)
 - Decide and state, in the README, whether this is an engineering sandbox or a scientific model.
 
 ### LATER — mostly done (2026-10-01)
@@ -378,3 +381,31 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
   - Searching for a goal that starts out of view on the visible maze trial (one noise-0.03 full-circle run never finds it).
   - A memory task where the agent must tour several remembered places; the value gradient reaches only about 3 m.
   - Make `steering_sensitivity --set` reject or accept Python-style `False`; it currently parses JSON, so `False` becomes a truthy string.
+
+### Honesty pass and toy renames (2026-10-03, research plan M0a)
+
+The research-readiness audit measured the model with the probes now in `tools/probes/`
+(`tools/probes/README.md`). This pass makes the repository's own text agree with them.
+
+- **Toy protocols renamed**: `morris_water_maze`, `t_maze` and `survival_arena` are now
+  `morris_water_maze_toy`, `t_maze_toy` and `survival_arena_toy` (modules, registry keys and
+  tests; the old keys are gone and fail loudly). Their docstrings say what they are not: no pool
+  or probe trial (platform reached in 5 ticks by walking forward; 1,804 from heading pi; two of
+  five placements never within 2,000 ticks), no T (reached in 6 ticks), no hazard the agent can
+  sense (`tools/probes/assay_triviality`, `neuromod_traces`).
+- **Regression harness re-pointed** to `open_field,beacon,foraging` and `regression/baseline/`
+  regenerated with the harness's own command.
+- **README** no longer says the criticality statistics behave correctly across regimes (the
+  lattice is bond percolation, subcritical at the default coupling 0.25, critical at 0.5), that
+  whiskers drive behaviour (they are computed and not read by action selection) or that all
+  four neuromodulators are causal (four scalar traces: DA = reward minus a running mean, ACh =
+  the checksum-changed "novelty" bit, NE = half pain + half that bit, 5HT = the running mean).
+  The place-value, replay and steering results are labelled legacy-profile results. A Profiles
+  section introduces the legacy / research split.
+- **Console labels**: the "near-critical sensory gain" panel says the gain is a readout at
+  defaults; the criticality panel states the estimator's exponent and where the critical point
+  is; the histogram line is labelled a reference slope; the neuromodulator panel carries a
+  one-line note on what the traces are; "Novelty" is "Novelty (checksum change)". No DOM id,
+  class or behaviour changed.
+- **The novelty bit is labelled at its source** (`brain/systems/working_memory.py`,
+  `metrics/schema.py`).

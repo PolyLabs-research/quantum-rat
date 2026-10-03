@@ -64,7 +64,7 @@ export class DecisionPanel {
       el('div', { class: 'subhead' }, el('span', { text: 'Memory steer (value map)' }), this.pullNote),
       pull,
       this.mods,
-      el('div', { class: 'subhead' }, el('span', { text: 'Near-critical sensory gain' })),
+      el('div', { class: 'subhead' }, el('span', { text: 'Criticality → vision gain' }), el('span', { class: 'muted', text: 'off at defaults' })),
       this.gain,
     );
   }
@@ -119,10 +119,18 @@ export class DecisionPanel {
     }
     this.mods.replaceChildren(...lines);
     this.mods.hidden = lines.length === 0;
+    // crit_gain is exp(-((κ - 1) / 0.3)²), computed every tick. It multiplies vision drive
+    // only in proportion to the "Criticality → sensory gain" parameter, which is 0 at
+    // defaults; at the default coupling 0.25 it stays within 0.93-1.0 after warm-up and
+    // changes no decision even at full strength (tools/probes/dormant_couplings).
     this.gain.replaceChildren(
-      'Vision is scaled by ',
+      'Gain from κ ',
       el('span', { class: 'num', text: `×${fmt(action.crit_gain, 2)}` }),
-      action.crit_gain > 0.9 ? ' (cortex near-critical: best processing)' : ' (cortex away from criticality: weaker processing)',
+      ' (peaks at κ = 1, width 0.3). ',
+      el('span', {
+        class: 'hint',
+        text: 'It scales vision only in proportion to "Criticality → sensory gain", which is 0 at defaults, so this is a readout. At coupling 0.25 it stays within 0.93–1.0 after warm-up and changes no decision even at 1.0.',
+      }),
     );
   }
 }
@@ -146,6 +154,13 @@ export class ModulatorPanel {
       host.append(row);
       return { m, dot, value, spark };
     });
+    // What the four traces are (core/neuromodulation.py), so the names are not over-read.
+    this.note = el('p', {
+      class: 'hint',
+      text: 'Four scalar traces, not models of these systems: DA = reward − its running mean; ACh = the novelty bit (1 when the observation checksum changed) and NE = ½ pain + ½ that bit; 5HT = the running mean itself, lagging DA\'s input. Each enters action selection through one small gain.',
+    });
+    this.note.style.margin = '8px 0 0';
+    host.append(this.note);
     this.history = {};
   }
 
@@ -216,7 +231,9 @@ export class CriticalityPanel {
     clear(host);
     this.lattice = el('canvas', { class: 'lattice', role: 'img', 'aria-label': 'Criticality lattice: cells firing in the current avalanche' });
     this.kappa = el('div', { class: 'kappa-big num' });
-    this.regime = el('div');
+    this.regime = el('div', {
+      title: 'The κ estimator (reference exponent 1.5) read against the 0.85–1.05 band, not the lattice\'s critical point: at the default coupling 0.25 the lattice is subcritical; it is critical at coupling 0.5.',
+    });
     this.sigma = el('div', { class: 'crit-line' });
     this.count = el('div', { class: 'crit-line' });
     const sw = (cls) => {
@@ -236,7 +253,11 @@ export class CriticalityPanel {
     host.append(
       el('div', { class: 'crit-top' }, el('div', {}, this.lattice, key), el('div', { class: 'crit-stats' }, this.kappa, this.regime, this.sigma, this.count)),
       this.gauge,
-      el('div', { class: 'subhead' }, el('span', { text: 'Avalanche sizes' }), el('span', { class: 'muted', text: 'critical ⇒ points follow the line' })),
+      el('div', {
+        class: 'crit-line',
+        text: 'κ compares the avalanche-size distribution with a reference power law of exponent 1.5 (Shew et al. 2009); the chip calls κ 0.85–1.05 "near-critical". The lattice is bond percolation on a 16 × 16 torus: subcritical at the default coupling 0.25 (κ settles near 0.91 after warm-up), spanning avalanches from 0.35, critical at 0.5, above the slider\'s range.',
+      }),
+      el('div', { class: 'subhead' }, el('span', { text: 'Avalanche sizes' }), el('span', { class: 'muted', text: 'dashed line: reference slope −1.5' })),
     );
     this.hist = new AvalancheHistogram(host);
     this.last = null;
@@ -271,7 +292,7 @@ export class CriticalityPanel {
     };
     const [st, ic, lb] = chips[crit.regime] || chips.measuring;
     this.regime.replaceChildren(chip(st, ic, lb));
-    this.sigma.replaceChildren('Branching ratio σ = 4 × ', el('span', { class: 'num', text: fmt(crit.coupling, 2) }), ' = ', el('span', { class: 'num', text: fmt(crit.sigma, 2) }));
+    this.sigma.replaceChildren('Branching ratio σ = 4 × ', el('span', { class: 'num', text: fmt(crit.coupling, 2) }), ' = ', el('span', { class: 'num', text: fmt(crit.sigma, 2) }), ' (mean-field; this lattice is critical at coupling 0.5)');
     this.count.replaceChildren(el('span', { class: 'num', text: fmtInt(crit.n) }), measuring ? ' avalanches (need 20 for κ)' : ' avalanches measured');
     drawKappaGauge(this.gauge, crit.kappa, measuring);
   }
@@ -379,7 +400,7 @@ export function frameTableGroups(f) {
     ['Senses', [['Vision rays', f.vision.rays.map((r) => r[2]).join(' · ') || '—'], ['Whiskers L / R', f.vision.whiskers.map((w) => (w ? 'touch' : '—')).join(' / ')], ['Pain', fmt(f.vision.pain, 2)]]],
     ['Neuromodulators', MODULATORS.map((m) => [`${m.name} (${m.mod})`, fmt(f.mod[m.mod] ?? 0, 3)])],
     ['Energy', [['ATP', fmt(f.energy.atp, 3)], ['Glycogen', fmt(f.energy.glycogen, 3)], ['Sensory gate', `${f.trn.state} (${fmt(f.trn.gate, 2)})`], ['Microsleep', f.microsleep.active ? `yes, ${f.microsleep.remaining} left` : 'no'], ['Fatigue pacing', f.energy.pacing ? 'resting to recover' : 'no'], ['Replay', f.replay.active ? replayText(f.replay) : 'no']]],
-    ['Criticality', [['κ', fmt(f.crit.kappa, 3)], ['Regime', f.crit.regime], ['Coupling (σ)', `${fmt(f.crit.coupling, 2)} (${fmt(f.crit.sigma, 2)})`], ['Active cells', f.crit.active], ['Avalanches', f.crit.n], ['Sensory gain', `×${fmt(f.crit.gain, 3)}`]]],
-    ['Working memory', [['Load', f.wm.load], ['Novelty', fmt(f.wm.novelty, 3)]]],
+    ['Criticality', [['κ (exponent 1.5)', fmt(f.crit.kappa, 3)], ['Regime (κ band)', f.crit.regime], ['Coupling (σ)', `${fmt(f.crit.coupling, 2)} (${fmt(f.crit.sigma, 2)})`], ['Active cells', f.crit.active], ['Avalanches', f.crit.n], ['Gain from κ (off at defaults)', `×${fmt(f.crit.gain, 3)}`]]],
+    ['Working memory', [['Load', f.wm.load], ['Novelty (checksum change)', fmt(f.wm.novelty, 3)]]],
   ];
 }

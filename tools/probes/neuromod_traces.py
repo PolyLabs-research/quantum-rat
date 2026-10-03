@@ -3,7 +3,7 @@
 Claims (neuromodulation audit, 2026-10-03, scratch trace_stats.py; 1500
 ticks, seeds 1-2):
 
-* open_field and survival_arena at noise 0: DA == 0.5 and 5HT == 0.5 on 100%
+* open_field and survival_arena_toy at noise 0: DA == 0.5 and 5HT == 0.5 on 100%
   of ticks (no reward ever), ACh == 1 on 63% of ticks, NE mean 0.32.
 * At sensors.noise 0.03: novelty == 1 on 100% of ticks in every scenario, so
   ACh is pinned at 1.0 and NE sits at 0.50-0.51; pain > 0 on ~50% of ticks

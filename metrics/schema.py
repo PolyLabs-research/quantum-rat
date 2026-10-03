@@ -43,6 +43,8 @@ class TickData:
     place_id: int = 0
     # Working memory / action
     wm_load: int = 0
+    # 1.0 iff the observation checksum differs from the previous tick's, else 0.0
+    # (a checksum-changed bit, not a novelty measure; 1 on every tick at sensor noise 0.03)
     wm_novelty: float = 0.0
     action_name: str = "REST"
     action_thrust: float = 0.0

@@ -1,3 +1,19 @@
+"""Toy T-maze protocol (headless): a reward line in the open box.
+
+What it is: the agent starts at the origin facing +x, and the protocol scores
+the first tick at which its true x position reaches ``reward_threshold``
+(default 5.0), then stops five ticks later.
+
+What it is not: there is no T, no arms, no choice point and no walls in the
+World; nothing is sensed and no memory is involved. With the defaults the
+reward line is reached in 6 ticks by any agent that walks forward (84 ticks
+from heading pi/2, 40 from heading pi; ``python -m
+tools.probes.assay_triviality``, recorded in tools/probes/README.md).
+
+It is kept as a toy under the legacy profile. The research programme's
+trial-structured protocols are described in docs/research_plan.md.
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -7,7 +23,7 @@ from metrics.schema import TickData
 
 
 class TMazeProtocol(Protocol):
-    name = "t_maze"
+    name = "t_maze_toy"
 
     def __init__(self, config: dict | None = None) -> None:
         cfg = config or {}

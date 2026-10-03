@@ -28,7 +28,7 @@ def test_seeding_fairness():
         seed = 1337
         n_agents = 4
         ticks = 10
-        protocols = "open_field,morris_water_maze"
+        protocols = "open_field,beacon,foraging"
 
         run_tournament(seed, n_agents, ticks, protocols, out_dir)
 
