@@ -35,10 +35,24 @@ offline.
    # one experiment run -> runs/foraging_1337/
    python -m experiments.runner --protocol foraging --ticks 2000
 
+   # the same run under the research profile (docs/profiles.md); the bare
+   # protocols take --profile, the console_* ones below bring their own config
+   python -m experiments.runner --protocol foraging --ticks 2000 --profile research
+
+   # a console scenario headless: console_open_field, console_beacon, console_foraging,
+   # console_hazard_field, console_hidden_food or console_memory_maze. Same ticks as a
+   # live session of that scenario at that seed, plus events.jsonl (the event log)
+   python -m experiments.runner --protocol console_hidden_food --seed 7 --ticks 3000
+
    # a tournament with per-tick logs (without --include-ticks only summaries are saved)
    python -m tournaments.runner --seed 7 --n-agents 2 --ticks 300 \
        --protocols beacon,open_field --include-ticks --out runs/my_tournament
    ```
+   Every run directory (and the tournament root, and a console recording) also gets a
+   `manifest.json`: git SHA and dirty flag, the full engine config and profile, seeds,
+   platform, Python and numpy versions, BLAS build and thread settings, wall-clock and
+   ticks/s. It is provenance only, never part of a hash, and the replay viewer ignores it.
+   `python -m experiments.runner --list` prints every protocol name.
    Press **Refresh** in the Replay tab to see new runs.
 
 Stop the server with `Ctrl+C`.

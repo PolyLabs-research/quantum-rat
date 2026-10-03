@@ -28,6 +28,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from core.engine import Engine
 from metrics.logger import _canonical_json
+from metrics.manifest import build_manifest, finish_manifest, write_manifest
 from metrics.scene import write_scene
 from metrics.schema import SCHEMA_VERSION
 from ui.scenarios import START_POSE, Scenario, make_scenario
@@ -163,6 +164,7 @@ class SimSession:
         self._regime_tick = -REGIME_EVENT_GAP
         self._gate = "OPEN"
         self._gate_tick = -GATE_EVENT_GAP
+        self._built_at = time.monotonic()  # for the recording's manifest (wall-clock, pauses included)
         self.tick = -1
         self._emit({"tick": 0, "text": f"{self.scenario.title} started (seed {self.seed})", "level": "info", "kind": "session"})
         self._advance()  # one tick so there is always a sensory snapshot to show
@@ -467,6 +469,25 @@ class SimSession:
             "scenario": self.scenario.describe(),
             "snapshot_tick": self.tick,
         })
+        # Provenance (metrics.manifest): the config as it stands now, parameter
+        # overrides included, since those are what ran. The replay viewer
+        # ignores this file. A live session has no tick budget, so
+        # ticks_requested is how far the session advanced; the history deque
+        # may hold fewer rows than that (ticks_run is what was written).
+        manifest = build_manifest(
+            self.engine.config,
+            protocol=self.scenario_id,
+            seeds=[self.seed],
+            ticks_requested=self.tick + 1,
+            extra={
+                "source": "live console",
+                "params": dict(self.overrides),
+                "scenario": self.scenario.describe(),
+                "timing_note": "wall_seconds is the time since the session was built, pauses included",
+            },
+        )
+        finish_manifest(manifest, ticks_run=len(self.history), wall_seconds=time.monotonic() - self._built_at)
+        write_manifest(run_dir / "manifest.json", manifest)
         self._emit({"tick": self.tick, "text": f"Recorded {len(self.history)} ticks as run '{run_id}'", "level": "good", "kind": "session"})
         return run_id
 

@@ -59,9 +59,11 @@ def compare_dirs(dir1: Path, dir2: Path) -> dict:
     """Recursively compares two directories of tournament results."""
     report = {"differs": False, "files": []}
     
-    # We only care about json files for comparison
-    files1 = sorted(list(dir1.glob("**/*.json")))
-    files2 = sorted(list(dir2.glob("**/*.json")))
+    # We only care about json files for comparison. manifest.json is provenance
+    # (git SHA, wall-clock, platform; metrics/manifest.py): it differs between
+    # any two runs by design and is not behaviour, so it is left out.
+    files1 = sorted(p for p in dir1.glob("**/*.json") if p.name != "manifest.json")
+    files2 = sorted(p for p in dir2.glob("**/*.json") if p.name != "manifest.json")
 
     relative_files1 = {p.relative_to(dir1) for p in files1}
     relative_files2 = {p.relative_to(dir2) for p in files2}
