@@ -55,6 +55,10 @@ offline.
    A run in which the engine replayed also gets `replay_events.jsonl` (one replay event per
    line: the ticks it ran over, its trigger and rule, the cells it backed up) and
    `n_replay_events` in `summary.json`; the research profile never sleeps, so it writes neither.
+   A console recording keeps the newest 50,000 ticks and the newest 4,096 replay events of the
+   live session and writes only the events that end inside the recorded ticks (`n_replay_events`
+   counts those; `n_replay_events_total` is every event the session saw since it was built or
+   reset).
    `python -m experiments.runner --list` prints every protocol name.
    Press **Refresh** in the Replay tab to see new runs.
 

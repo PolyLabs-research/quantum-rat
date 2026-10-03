@@ -132,11 +132,13 @@ the research programme: the TRN gate no longer scales path integration, the ener
 longer scales motion and microsleep is off, the value kernel radius is 0, dwell extinction is 0,
 and the criticality and neuromodulator couplings are 0 (the traces are still logged), ATP is held
 at baseline with the gate's κ branch off, and the goal-vector slot is off. Since M0b it has
-seeded odometry noise and a seeded softmax temperature (placeholder values, characterised in M1),
-so that its seeds are samples, and declared physical units (0.2 s per tick, 0.1 m per unit,
-identical in both profiles: `docs/units.md`). Since M1 its odometry noise is characterised
-(`docs/odometry.md`) and every replay is an event object, but it has no place population yet and,
-with microsleep off, produces no replay events until M2a adds a rule and its triggers
+seeded odometry noise and a seeded softmax temperature (placeholder values; the odometry noise
+characterised in M1 and kept, `docs/odometry.md`; the temperature not yet, G25 D), so that its
+seeds are samples, and declared physical units (0.2 s per tick, 0.1 m per unit, identical in both
+profiles: `docs/units.md`). Since M1 its odometry noise is characterised (`docs/odometry.md`) and
+every microsleep replay is an event object (the offline consolidation sweep,
+`ValueMemory.consolidate`, is not yet; G25 D), but it has no place population yet and, with
+microsleep off, produces no replay events until M2a adds a rule and its triggers
 (`docs/profiles.md`). See `docs/profiles.md` and `docs/research_plan.md` (§6).
 
 ---

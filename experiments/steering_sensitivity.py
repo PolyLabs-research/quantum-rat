@@ -178,15 +178,10 @@ def headings_for(scenario: str, n: Optional[int], maze: MazeHeadings = None) -> 
     return [2.0 * math.pi * i / n for i in range(n)]
 
 
-def set_field(config: Any, key: str, value: Any) -> None:
-    """Set the dotted config field ``key`` (``"sensors.noise"``) to ``value``; an unknown field is an error."""
-    obj = config
-    parts = key.split(".")
-    for part in parts[:-1]:
-        obj = getattr(obj, part)
-    if not hasattr(obj, parts[-1]):
-        raise AttributeError(f"config has no field {key!r}")
-    setattr(obj, parts[-1], value)
+def set_field(config: EngineConfig, key: str, value: Any) -> None:
+    """Set the dotted config field ``key`` (``"sensors.noise"``) to ``value``: ``EngineConfig.set_field``
+    (an unknown field is an ``AttributeError``), kept here as the name the harness's callers import."""
+    config.set_field(key, value)
 
 
 def _winner(scores: Mapping[str, float]) -> str:

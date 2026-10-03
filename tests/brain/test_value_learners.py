@@ -141,13 +141,35 @@ def test_parameters_are_json_serialisable_and_carry_the_discount() -> None:
         assert "learning_rate" in params
 
 
+def _learners_with_a_value_at_the_goal(goal_value: float):
+    """A fresh pair of learners whose read at the goal cell is ``goal_value`` (the
+    tabular cell, or the weight of the goal's feature at a one-hot width)."""
+    (x11, y11) = chain_positions()[11]
+    tab = TabularTD0(learning_rate=LR, discount=GAMMA)
+    tab.values[tab.cell(x11, y11)] = goal_value
+    lin = LinearTDLambda(chain_features(0.125), LR, GAMMA)  # features one-hot to 1e-14
+    lin.weights[-1] = goal_value
+    assert tab.value(x11, y11) == goal_value and lin.value(x11, y11) == pytest.approx(goal_value, abs=1e-12)
+    return tab, lin
+
+
 def test_update_returns_the_td_error_and_a_terminal_bootstraps_on_zero() -> None:
+    (x9, y9), (x10, y10), (x11, y11) = chain_positions()[9:12]
     for learner in (TabularTD0(learning_rate=LR, discount=GAMMA), LinearTDLambda(chain_features(0.125), LR, GAMMA)):
-        (x9, y9), (x10, y10), (x11, y11) = chain_positions()[9:12]
         assert learner.update(x10, y10, 1.0, x11, y11, True) == 1.0  # target is the reward alone
         assert learner.value(x10, y10) == pytest.approx(LR * 1.0, abs=1e-12)
         delta = learner.update(x9, y9, 0.0, x10, y10, False)
         assert delta == pytest.approx(GAMMA * LR, abs=1e-12)  # bootstraps on V(cell 10)
+    # The terminal flag, not the arrival place, is what sets the bootstrap to 0: a
+    # value already stored at the goal is ignored by a terminal update (an update
+    # that bootstrapped on it would return 1 + gamma * 5 = 5.5) and used by a
+    # non-terminal one into the same place.
+    for learner in _learners_with_a_value_at_the_goal(5.0):
+        assert learner.update(x10, y10, 1.0, x11, y11, True) == pytest.approx(1.0, abs=1e-12)
+        assert learner.value(x10, y10) == pytest.approx(LR * 1.0, abs=1e-12)
+        assert learner.value(x11, y11) == pytest.approx(5.0, abs=1e-12)  # the goal's own value is untouched
+    for learner in _learners_with_a_value_at_the_goal(5.0):
+        assert learner.update(x10, y10, 1.0, x11, y11, False) == pytest.approx(1.0 + GAMMA * 5.0, abs=1e-12)
 
 
 # --- features ---------------------------------------------------------------
@@ -178,10 +200,38 @@ def test_feature_arguments_are_checked() -> None:
         GaussianPlaceFeatures([], 0.5)
     with pytest.raises(ValueError):
         GaussianPlaceFeatures([(0.0, 0.0)], 0.0)
+    for width in (float("nan"), float("inf"), -0.5):
+        with pytest.raises(ValueError):
+            GaussianPlaceFeatures([(0.0, 0.0)], width)
+    with pytest.raises(ValueError):
+        GaussianPlaceFeatures([(0.0, float("nan"))], 0.5)
     with pytest.raises(ValueError):
         LinearTDLambda(chain_features(0.5), traces="dutch")
     with pytest.raises(ValueError):
         LinearTDLambda(chain_features(0.5), lam=1.5)
+
+
+def test_learning_rate_and_discount_are_checked_in_both_learners() -> None:
+    # A rate of 0 or below, or a non-finite one, and a discount outside [0, 1]
+    # (1.5 would converge to V = 1.5^d, 57.7 at the start of the chain, with no
+    # bound to check against) are refused; the bound of the learning rate against
+    # the features is not checked (the class docstring says what diverges).
+    nan, inf = float("nan"), float("inf")
+    for learning_rate in (0.0, -0.5, nan, inf):
+        with pytest.raises(ValueError):
+            TabularTD0(learning_rate=learning_rate)
+        with pytest.raises(ValueError):
+            LinearTDLambda(chain_features(0.5), learning_rate=learning_rate)
+    for discount in (-0.1, 1.5, nan, inf):
+        with pytest.raises(ValueError):
+            TabularTD0(discount=discount)
+        with pytest.raises(ValueError):
+            LinearTDLambda(chain_features(0.5), discount=discount)
+    for bin_size in (0.0, nan, inf):
+        with pytest.raises(ValueError):
+            TabularTD0(bin_size=bin_size)
+    TabularTD0(learning_rate=1.0, discount=0.0)  # the edges of the ranges are allowed
+    LinearTDLambda(chain_features(0.5), learning_rate=1.0, discount=1.0, lam=1.0)
 
 
 # --- (a) tabular ------------------------------------------------------------
@@ -320,6 +370,33 @@ def test_replacing_and_accumulating_traces_both_converge_on_the_chain(chain_tabl
         _one(chain_table, learner="linear_td_lambda", width_cells=0.5, lam=0.9, traces="replacing")["passes"]
         < _one(chain_table, learner="linear_td_lambda", width_cells=0.5, lam=0.0, traces="replacing")["passes"]
     )
+
+
+def test_three_hand_computed_updates_pin_the_trace_decay_and_the_replacing_rule() -> None:
+    # Width 0.125 cell: the features are one-hot to 1e-14, so the three updates
+    # below are the textbook arithmetic (Sutton & Barto 2018, ch. 12) by hand, at
+    # lr 0.2, gamma 0.9, lambda 0.5 (decay gamma * lambda = 0.45). Two zero-reward
+    # updates from cell 9 (delta 0, the trace builds), then the rewarded terminal
+    # update from cell 10 (delta 1):
+    #   accumulating: e = e9 -> 1.45 e9 -> 0.45 * 1.45 e9 + e10 = 0.6525 e9 + e10,
+    #                 so V(10) = 0.2 and V(9) = 0.2 * 0.6525 = 0.1305;
+    #   replacing:    e = e9 -> max(0.45 e9, e9) = e9 -> 0.45 e9 + e10,
+    #                 so V(10) = 0.2 and V(9) = 0.2 * 0.45 = 0.09.
+    # A trace decayed by lambda alone would give 0.15 and 0.1; replacing traces
+    # computed as accumulating would give 0.1305 for both. The chain table cannot
+    # tell these apart (every variant converges to gamma^d there), so this pins the
+    # forms themselves.
+    (x9, y9), (x10, y10), (x11, y11) = chain_positions()[9:12]
+    expected = {"accumulating": 0.2 * 0.45 * 1.45, "replacing": 0.2 * 0.45}
+    for traces, v9 in expected.items():
+        lin = LinearTDLambda(chain_features(0.125), 0.2, 0.9, 0.5, traces)
+        assert lin.update(x9, y9, 0.0, x10, y10, False) == 0.0
+        assert lin.update(x9, y9, 0.0, x10, y10, False) == 0.0
+        assert lin.update(x10, y10, 1.0, x11, y11, True) == pytest.approx(1.0, abs=1e-12)
+        assert lin.value(x10, y10) == pytest.approx(0.2, abs=1e-12), traces
+        assert lin.value(x9, y9) == pytest.approx(v9, abs=1e-12), traces
+        assert float(lin.trace.max()) == 0.0  # the terminal transition cleared the trace
+    assert expected["accumulating"] == pytest.approx(0.1305) and expected["replacing"] == pytest.approx(0.09)
 
 
 def test_lambda_zero_is_td_zero_for_both_trace_kinds() -> None:

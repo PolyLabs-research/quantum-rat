@@ -506,6 +506,25 @@ class EngineConfig:
                 out.append(f"{name}={value!r}")
         return out
 
+    def get_field(self, key: str) -> Any:
+        """The value of the dotted field ``key`` (``"sensors.noise"``); an unknown field is an ``AttributeError``."""
+        obj, attr = _walk_dotted(self, key)
+        return getattr(obj, attr)
+
+    def set_field(self, key: str, value: Any) -> None:
+        """Set the dotted field ``key`` (``"sensors.noise"``) to ``value``.
+
+        The one dotted setter: the harness's ``--set``, the G23 overrides and
+        the console's live parameters all go through it. A former field name
+        that a section keeps as a property alias (``value_memory.goal_vector``
+        for ``oracle_homing``) works; an unknown field raises
+        ``AttributeError`` naming the dotted path, so a typo is never a silent
+        new attribute. The value is assigned as given (no coercion and no
+        ``__post_init__`` re-validation: that is ``from_dict``'s job).
+        """
+        obj, attr = _walk_dotted(self, key)
+        setattr(obj, attr, value)
+
     def diff(self, other: "EngineConfig") -> List[Tuple[str, Any, Any]]:
         """Fields where ``self`` and ``other`` differ: (dotted.field, self_value, other_value).
 
@@ -547,6 +566,19 @@ class EngineConfig:
         cfg = cls()
         _dataclass_from_plain(cfg, data, "")
         return cfg
+
+
+def _walk_dotted(config: Any, key: str) -> Tuple[Any, str]:
+    """The object and attribute name a dotted ``key`` names, or ``AttributeError`` for an unknown field."""
+    obj = config
+    parts = key.split(".")
+    for part in parts[:-1]:
+        if not hasattr(obj, part):
+            raise AttributeError(f"config has no field {key!r}")
+        obj = getattr(obj, part)
+    if not hasattr(obj, parts[-1]):
+        raise AttributeError(f"config has no field {key!r}")
+    return obj, parts[-1]
 
 
 _NON_FINITE_TO_STR = {math.inf: "inf", -math.inf: "-inf"}

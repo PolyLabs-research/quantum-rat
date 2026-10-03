@@ -20,8 +20,13 @@ extinction and the replay log) is not an instance yet: M2b adapts it, and until 
 - `GaussianPlaceFeatures(centres, width, normalise=True)`, or `.grid(x_min, x_max, y_min, y_max, spacing, width)`
   for centres at the bin centres of a rectangle: `φ_j = exp(-|p - c_j|² / (2 width²))`, divided by its sum when
   normalised, so the features are a partition of unity and `V = Σ w φ` is a convex combination of the weights,
-  `min w ≤ V ≤ max w` at every position, between centres and outside the grid included. That is the bound the
-  "V ≤ 1/(1 − γ)" acceptance rests on: V never reads above the largest weight, which the table reports (`max w`).
+  `min w ≤ V ≤ max w` wherever any feature is nonzero: inside the grid, between centres and near it. Far enough
+  out that every feature underflows to 0, more than about 38.6 widths from the nearest centre (`exp` of the
+  squared distance below the smallest float64 subnormal: 19.3 units at a width of 0.5), V reads 0, outside
+  [min w, max w] when the weights are all positive, and the position's own weights receive no update; at a
+  width of 0.01 cell that already happens halfway between two chain cells (50 widths). M2b's arena has to sit
+  inside that radius of its grid. That is the bound the "V ≤ 1/(1 − γ)" acceptance rests on: V never reads
+  above the largest weight, which the table reports (`max w`).
 - `LinearTDLambda(features, learning_rate, discount, lam, traces="replacing"|"accumulating")`: `δ = r + γ V(s') −
   V(s)` (`r − V(s)` into a terminal), `e <- γλ e + φ(s)` (accumulating) or `e <- max(γλ e, φ(s))` elementwise
   (replacing), `w <- w + lr δ e`; traces start at zero in every episode (`reset_episode`, and a terminal
@@ -60,10 +65,15 @@ The goal column is the features' interpolation (the terminal convention binds on
 
 What the wide widths cost on this chain is conditioning, not representation: twelve features over eleven states
 represent any value vector, and the batch TD(0) fixed point of the normal equations (solved once, outside the
-suite) is γ^d to 4e-13 even at 2.0 cells. The iteration gets there slowly, through an alternating-weight mode the
-overlapping features barely see: at 1.0 cell the error is 1.6e-3 after 2000 passes, 3.5e-5 after 20,000 and 1.2e-6
-after 40,000; at 2.0 cells 7.1e-3, 1.9e-3 and 1.5e-3, still falling. The table's "bias" at 1.0 and 2.0 cells is
-thus the error after a finite budget; M2b's 400 cells over a continuous arena add a representation bias, to measure.
+suite) is γ^d to 4e-13 even at 2.0 cells. The iteration gets there at the rate of the slowest mode of the per-pass
+map (its eigenvalues on row(Φ), λ = 0, computed once outside the suite): 0.898 per pass at 0.5 cell (an e-fold
+every 10 passes), 0.99983 at 1.0 cell (an e-fold every 5,960 passes: 1.6e-3 after 2000 passes, 3.5e-5 after
+20,000 and 1.2e-6 after 40,000), and at 2.0 cells four modes at 1 − 6e-12, 1 − 8e-10, 1 − 4.4e-8 and 1 − 1.3e-6
+per pass, alternating-weight modes the overlapping features barely see, which carry about 3e-6, 3e-5, 1e-4 and
+7.5e-4 of the error: 7.1e-3 after 2000 passes, 1.9e-3 after 20,000, 1.5e-3 after 40,000, and about 3e-4 left
+after a million, so the 2.0-cell row does not reach the 5e-9 floor at any practical budget. The table's "bias" at 1.0 and
+2.0 cells is thus the error after a finite budget; M2b's 400 cells over a continuous arena add a representation
+bias, to measure.
 
 **Normalisation.** Without it the learner still converges on the chain centres (on-policy linear TD converges
 either way, Tsitsiklis & Van Roy 1997): 4.9e-4 after 2000 passes at 1.0 cell, V ≤ 1 and monotone; 1.5e-2 at 2.0

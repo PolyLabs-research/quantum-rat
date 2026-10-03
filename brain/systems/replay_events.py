@@ -20,14 +20,17 @@ waits for the place population that gives a distance its meaning.
 replay is in progress; :class:`ReplayLog` is the bounded record the finished
 events go to (``engine.replay_log``). The headless runner writes them to
 :data:`REPLAY_EVENTS_FILE` as they close, and the console's recording does
-the same for the events its session holds.
+the same for the events its session holds, both through
+:func:`write_replay_events` (one canonical JSON line per ``to_dict``).
 """
 
 from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Deque, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Deque, Dict, Iterable, Iterator, List, Mapping, Optional, TextIO, Tuple
+
+from metrics.logger import _canonical_json
 
 Cell = Tuple[int, int]
 
@@ -159,6 +162,20 @@ class ReplayLog:
         return bool(self._events)
 
 
+def write_replay_events(fh: TextIO, events: Iterable[Mapping[str, Any]]) -> int:
+    """Write ``events`` (``ReplayEvent.to_dict`` dicts) to ``fh`` as replay_events.jsonl lines; returns how many.
+
+    One ``_canonical_json`` line per event (sorted keys, no whitespace), the
+    same rendering for the headless runner's streaming writer and the console
+    recording's one-shot write, so the two files of one run compare equal.
+    """
+    written = 0
+    for event in events:
+        fh.write(_canonical_json(event) + "\n")
+        written += 1
+    return written
+
+
 __all__ = [
     "Cell",
     "DEFAULT_LOG_SIZE",
@@ -171,4 +188,5 @@ __all__ = [
     "ReplayEvent",
     "ReplayLog",
     "TRIGGER_MICROSLEEP",
+    "write_replay_events",
 ]

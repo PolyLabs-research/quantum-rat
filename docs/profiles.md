@@ -23,8 +23,8 @@ EngineConfig.legacy().diff(EngineConfig.research())         # the table below, a
 | Field | legacy | research | Why it is off in research |
 |---|---|---|---|
 | `profile` | `"legacy"` | `"research"` | The label. |
-| `sensors.odometry_speed_noise` | `0.0` | `0.05` | Seeded multiplicative Gaussian error on the self-motion estimate's forward displacement, d' = d (1 + 0.05 xi): odometry is no longer exact ground truth. The body moves exactly as before. Placeholder value, characterised in M1. |
-| `sensors.odometry_turn_noise` | `0.0` | `0.01` | Seeded additive Gaussian error (radians) on the estimated heading change, N(0, 0.01) per tick (a heading random walk of about 0.5 rad standard deviation over 3,000 ticks). Placeholder value, characterised in M1. |
+| `sensors.odometry_speed_noise` | `0.0` | `0.05` | Seeded multiplicative Gaussian error on the self-motion estimate's forward displacement, d' = d (1 + 0.05 xi): odometry is no longer exact ground truth. The body moves exactly as before. Placeholder value, characterised in M1 (docs/odometry.md; kept, G25 C1). |
+| `sensors.odometry_turn_noise` | `0.0` | `0.01` | Seeded additive Gaussian error (radians) on the estimated heading change, N(0, 0.01) per tick (a heading random walk of about 0.5 rad standard deviation over 3,000 ticks). Placeholder value, characterised in M1 (docs/odometry.md; kept, G25 C1). |
 | `spatial.gate_scales_egomotion` | `True` | `False` | The TRN gate multiplied egomotion before path integration, so low ATP froze the place estimate while the body moved (22.8 units of error after 3000 barren-world ticks, `tools/probes/path_integration_capture`). |
 | `astrocyte.scales_motion` | `True` | `False` | `World.step` multiplied thrust and turn by the ATP throttle, so step length was a physiology artefact (mean step 0.088 of the nominal 1.0, `tools/probes/open_field_motion`). |
 | `astrocyte.frozen` | `False` | `True` | The astrocyte does not tick: ATP and glycogen stay at their initial values (1.0 and 3.0), the TRN gate stays OPEN (its κ branch is off too, next row), and energy cannot trigger sleep. |
@@ -35,7 +35,7 @@ EngineConfig.legacy().diff(EngineConfig.research())         # the table below, a
 | `basal_ganglia.ach_precision_gain` | `0.5` | `0.0` | Acetylcholine no longer scales vision precision. Trace still logged. |
 | `basal_ganglia.ne_threat_gain` | `0.5` | `0.0` | Norepinephrine no longer scales pain avoidance and freezing. Trace still logged. |
 | `basal_ganglia.fiveht_patience_gain` | `0.4` | `0.0` | Serotonin no longer adds a REST drive. Trace still logged. |
-| `basal_ganglia.softmax_temperature` | `0.0` | `0.1` | Seeded softmax action selection over the four channel scores (one draw per tick) instead of the deterministic argmax, so the arbiter is a sample too. The logged scores are unchanged. Placeholder value, characterised in M1. |
+| `basal_ganglia.softmax_temperature` | `0.0` | `0.1` | Seeded softmax action selection over the four channel scores (one draw per tick) instead of the deterministic argmax, so the arbiter is a sample too. The logged scores are unchanged. Placeholder value, not yet characterised: M1 measured the odometry only (docs/odometry.md, G25 D); G24 B5's sweep of the temperature waits for a research-profile assertion to tune it against (M2a's track). |
 
 `research()` also sets `value_memory.generalization_radius = 0`,
 `value_memory.oracle_homing = False` (the goal-vector slot, relabelled in M1 as
@@ -149,12 +149,15 @@ M2b work on.
   with only the gate flag off; the gate's own capture was 22.8). M2b adds the
   reset.
 - A place population and a successor representation (M2b).
-- Replay as an event stream between ticks: M1 made each replay an event
-  object (`brain/systems/replay_events.py`; `engine.replay_log`, written to
-  `replay_events.jsonl` by the headless runner and the console's recording),
+- Replay as an event stream between ticks: M1 made each microsleep replay an
+  event object (`brain/systems/replay_events.py`; `engine.replay_log`, written
+  to `replay_events.jsonl` by the headless runner and the console's recording),
   but its only trigger is still microsleep and its only rules the two that
   existed, so with microsleep off this profile produces no replay events
-  until a rule and its triggers arrive (M2a).
+  until a rule and its triggers arrive (M2a). The offline consolidation sweep
+  (`ValueMemory.consolidate`, the console maze's sleep after each visible
+  trial and `experiments.memory_navigation`'s sleep phase) is a replay that
+  is not an event yet (G25 D).
 - The checksum "novelty" bit decoupled: it still enters action selection in
   both profiles (`basal_ganglia.novelty_gain` 0.2 on FORWARD and a literal 0.3
   on each TURN channel); plan section 6 lists it as logged-only in research.

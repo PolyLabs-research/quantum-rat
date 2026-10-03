@@ -78,22 +78,35 @@ default 20 x 20 barren box (the walls clamp the body, so the per-tick
 statistics matter more than the absolute error), odometry noise at the
 research values, 3,000 ticks, seeds 1-4, ``spatial.gate_scales_egomotion``
 True (the legacy gate multiplies egomotion before integration) and False.
-Four Pearson correlations with ATP are reported per run: the error itself
-over all ticks and from tick 200 on (ATP decays from 1.0 to its limit cycle
-over the first ~100 ticks while any error grows, a shared trend that
-correlates the two whatever the mechanism), the per-tick increment of the
-error magnitude, and the relative step error on moving ticks, (|estimated
-step| / |true step|) - 1, which is what the odometry gets wrong on a tick
-independently of how far the ATP-throttled body moved. The last is the
-decorrelation statistic: with the gate flag on it equals gate - 1 plus noise
-(-1 when CLOSED, -0.6 when NARROW), so it tracks ATP; with the flag off it is
-the speed noise, 0.05 xi, which cannot.
+Pearson correlations with ATP are reported per run: the error itself over
+all ticks and from tick 200 on (ATP decays from 1.0 to its limit cycle over
+the first ~100 ticks while any error grows, a shared trend that correlates
+the two whatever the mechanism), the per-tick increment of the error
+magnitude, and the relative step error on moving ticks, (|estimated step| /
+|true step|) - 1, which is what the odometry gets wrong on a tick
+independently of how far the ATP-throttled body moved, over all moving ticks,
+from tick 200 on, and on the moving ticks at which the body is not clamped
+against a wall. The step error is the decorrelation statistic: with the gate
+flag on it equals gate - 1 plus noise (-1 when CLOSED, -0.6 when NARROW), so
+it tracks ATP. With the flag off what remains is not the speed noise: a
+zero-noise control run (speed 0, turn 0, flag off; one row of the table)
+gives the same correlation, which comes from the moving ticks at which the
+body slides along a wall (TURN ticks at |pos| = 10: the clamp moves the body
+across the heading, ``_compute_egomotion``'s projection on the heading
+under-reads the step by about a third, and those ticks fall where ATP is in
+its first decay), while the speed noise's own contribution, the off-wall
+ticks, is |r| <= 0.04. The legacy body walk does not depend on the odometry
+draw at all (the estimate is not fed back to the body in a barren box): the
+``body_walk`` column, a digest of the per-tick body position, ATP and action,
+is the same in every run with inexact heading odometry, so the seeds vary
+only the odometry realisation against one ATP series.
 
 Outputs (``--out``, default docs/data/m1): odometry_curves.csv (the mean
 curves per condition), odometry_seeds.csv (one row per run),
 odometry_slopes.csv (one row per condition: the fit, its interval, the clamp
-bias, the walk statistics), odometry_atp.csv (one row per ATP run) and
-odometry_meta.json. Floats are written with six significant digits.
+bias, the walk statistics), odometry_atp.csv (one row per ATP run, the
+zero-noise control last) and odometry_meta.json. Floats are written with six
+significant digits.
 
 Determinism: every random number comes from the engine's own named streams
 (``sensors_odometry``, ``action_softmax``); the bootstrap draws from
@@ -106,6 +119,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import os
@@ -456,12 +470,18 @@ def atp_decorrelation(
     speed: float = RESEARCH_SPEED,
     turn: float = RESEARCH_TURN,
 ) -> Dict[str, Any]:
-    """Legacy profile, default barren box, research odometry noise: how the estimate's error relates to ATP.
+    """Legacy profile, default barren box, odometry noise ``speed`` / ``turn`` (the research values by default):
+    how the estimate's error relates to ATP.
 
-    Returns the four correlations the module docstring defines (``r_error``,
-    ``r_error_after_transient``, ``r_error_increment``, ``r_step_error``),
-    the number of moving ticks the step error is taken over, the error at
-    the last tick and the gate's CLOSED fraction.
+    Returns the correlations the module docstring defines (``r_error``,
+    ``r_error_after_transient``, ``r_error_increment``, ``r_step_error``,
+    ``r_step_error_after_transient``, ``r_step_error_off_wall``), the number
+    of moving ticks the step error is taken over and how many of them had the
+    body clamped against a wall (``n_wall_moving``) with the mean step error
+    on those (``wall_step_error_mean``), the error at the last tick, the
+    gate's CLOSED fraction, and ``body_walk``, a 16-hex-digit SHA-256 digest
+    of the per-tick body position, ATP and action name (equal across runs
+    whose bodies walked the same path).
     """
     cfg = EngineConfig()
     cfg.sensors.odometry_speed_noise = float(speed)
@@ -469,42 +489,60 @@ def atp_decorrelation(
     cfg.spatial.gate_scales_egomotion = bool(gate_scales_egomotion)
     engine = Engine(seed=seed, config=cfg)
     agent = engine.agent
+    bound_x, bound_y = engine.config.world.bounds
     atp: List[float] = []
     err: List[float] = []
     inc: List[float] = []
     step_err: List[float] = []
     step_atp: List[float] = []
+    step_tick: List[int] = []
+    step_wall: List[bool] = []
     closed = 0
     prev_est = (0.0, 0.0)
     prev_pos = (0.0, 0.0)
     prev_err = 0.0
+    walk = hashlib.sha256()
     for i in range(ticks):
         td = engine.run(1, reset=(i == 0))[0]
-        e = math.hypot(td.grid_x - agent.pos[0], td.grid_y - agent.pos[1])
+        pos = (float(agent.pos[0]), float(agent.pos[1]))
+        e = math.hypot(td.grid_x - pos[0], td.grid_y - pos[1])
         est_step = math.hypot(td.grid_x - prev_est[0], td.grid_y - prev_est[1])
-        true_step = math.hypot(agent.pos[0] - prev_pos[0], agent.pos[1] - prev_pos[1])
+        true_step = math.hypot(pos[0] - prev_pos[0], pos[1] - prev_pos[1])
         atp.append(td.atp)
         err.append(e)
         inc.append(e - prev_err)
         if true_step > 1e-12:
             step_err.append(est_step / true_step - 1.0)
             step_atp.append(td.atp)
+            step_tick.append(i)
+            step_wall.append(abs(pos[0]) >= bound_x - 1e-9 or abs(pos[1]) >= bound_y - 1e-9)
         closed += td.trn_state == "CLOSED"
+        walk.update(repr((pos, td.atp, td.action_name)).encode("ascii"))
         prev_est = (td.grid_x, td.grid_y)
-        prev_pos = agent.pos
+        prev_pos = pos
         prev_err = e
+    after = [k for k, t in enumerate(step_tick) if t >= transient]
+    off_wall = [k for k, w in enumerate(step_wall) if not w]
+    on_wall = [k for k, w in enumerate(step_wall) if w]
     return {
         "profile": "legacy",
         "gate_scales_egomotion": bool(gate_scales_egomotion),
+        "speed": float(speed),
+        "turn": float(turn),
         "seed": seed,
         "ticks": ticks,
         "r_error": pearson(err, atp),
         "r_error_after_transient": pearson(err[transient:], atp[transient:]),
         "r_error_increment": pearson(inc, atp),
         "r_step_error": pearson(step_err, step_atp),
+        "r_step_error_after_transient": pearson([step_err[k] for k in after], [step_atp[k] for k in after]),
+        "r_step_error_off_wall": pearson([step_err[k] for k in off_wall], [step_atp[k] for k in off_wall]),
         "n_moving": len(step_err),
+        "n_wall_moving": len(on_wall),
+        "wall_step_error_mean": _mean([step_err[k] for k in on_wall]) if on_wall else float("nan"),
         "final_error": err[-1] if err else float("nan"),
         "frac_closed": closed / ticks if ticks else float("nan"),
+        "body_walk": walk.hexdigest()[:16],
     }
 
 
@@ -575,8 +613,9 @@ SLOPE_COLUMNS = (
     "net_displacement_mean", "bias_per_unit_mean", "bias_per_unit_min", "bias_per_unit_max", "capped",
 )
 ATP_COLUMNS = (
-    "profile", "gate_scales_egomotion", "seed", "ticks", "r_error", "r_error_after_transient", "r_error_increment",
-    "r_step_error", "n_moving", "final_error", "frac_closed",
+    "profile", "gate_scales_egomotion", "speed", "turn", "seed", "ticks", "r_error", "r_error_after_transient",
+    "r_error_increment", "r_step_error", "r_step_error_after_transient", "r_step_error_off_wall", "n_moving",
+    "n_wall_moving", "wall_step_error_mean", "final_error", "frac_closed", "body_walk",
 )
 OUTPUT_FILES = (
     "odometry_curves.csv", "odometry_seeds.csv", "odometry_slopes.csv", "odometry_atp.csv", "odometry_meta.json",
@@ -642,6 +681,9 @@ def characterise(
             fit["slope_low"] = fit["slope_high"] = float("nan")
         slopes.append(fit)
     atp_rows = [atp_decorrelation(s, flag, atp_ticks) for flag in (True, False) for s in atp_seeds]
+    # The zero-noise control: what the flag-off step error correlates with when
+    # the odometry is exact (the wall-sliding ticks, module docstring).
+    atp_rows.append(atp_decorrelation(atp_seeds[0], False, atp_ticks, speed=0.0, turn=0.0))
     return {"runs": runs, "curves": curves, "seeds": seed_rows, "slopes": slopes, "atp": atp_rows}
 
 
@@ -669,12 +711,16 @@ def print_summary(result: Mapping[str, Any]) -> None:
             f"{s['seed_slope_min']:5.2f}-{s['seed_slope_max']:5.2f}  {s['final_mean_err']:9.2f}  "
             f"{s['bias_per_unit_mean']:+8.4f}  {s['mean_ticks']:6.0f}"
         )
-    print("ATP (legacy profile): gate  seed  r_error  r_after_transient  r_increment  r_step_error  n_moving  final_error")
+    print(
+        "ATP (legacy profile): gate  noise        seed  r_error  r_after_transient  r_increment  r_step_error  "
+        "r_step_after200  r_step_off_wall  n_moving  n_wall  final_error"
+    )
     for a in result["atp"]:
         print(
-            f"  {'on ' if a['gate_scales_egomotion'] else 'off'}   {a['seed']:>3}  {a['r_error']:+7.3f}  "
-            f"{a['r_error_after_transient']:+9.3f}          {a['r_error_increment']:+7.3f}      {a['r_step_error']:+7.3f}"
-            f"     {a['n_moving']:>5}   {a['final_error']:8.3f}"
+            f"  {'on ' if a['gate_scales_egomotion'] else 'off'}   {a['speed']:<5} {a['turn']:<6} {a['seed']:>3}  "
+            f"{a['r_error']:+7.3f}  {a['r_error_after_transient']:+9.3f}          {a['r_error_increment']:+7.3f}      "
+            f"{a['r_step_error']:+7.3f}        {a['r_step_error_after_transient']:+7.3f}         "
+            f"{a['r_step_error_off_wall']:+7.3f}     {a['n_moving']:>5}  {a['n_wall_moving']:>4}   {a['final_error']:8.3f}"
         )
 
 

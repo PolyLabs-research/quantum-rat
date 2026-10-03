@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional, TextIO, Type
 
-from brain.systems.replay_events import REPLAY_EVENTS_FILE
+from brain.systems.replay_events import REPLAY_EVENTS_FILE, write_replay_events
 from core.config import EngineConfig
 from core.engine import Engine
 from experiments.protocols.base import Protocol
@@ -101,21 +101,24 @@ class ReplayEventWriter:
     ``drain(engine)`` empties ``engine.replay_log`` into the file (opened on the
     first event, so the file exists only when a replay happened) and ``count``
     is how many were written. Call it every tick: the log is bounded, and
-    draining it keeps a long run from losing its oldest events.
+    draining it keeps a long run from losing its oldest events. A file left
+    by an earlier run of the same directory is removed when the writer is
+    made, so a run that never replays leaves none behind.
     """
 
     def __init__(self, outdir: Path) -> None:
         self.path = Path(outdir) / REPLAY_EVENTS_FILE
+        self.path.unlink(missing_ok=True)
         self.count = 0
         self._fh: Optional[TextIO] = None
 
     def drain(self, engine: Engine) -> int:
-        written = 0
-        for event in engine.replay_log.drain():
-            if self._fh is None:
-                self._fh = open(self.path, "w", encoding="utf-8")
-            self._fh.write(_canonical_json(event.to_dict()) + "\n")
-            written += 1
+        events = engine.replay_log.drain()
+        if not events:
+            return 0
+        if self._fh is None:
+            self._fh = open(self.path, "w", encoding="utf-8")
+        written = write_replay_events(self._fh, (event.to_dict() for event in events))
         self.count += written
         return written
 

@@ -4,10 +4,12 @@
 microsleep replay is recorded as one ``ReplayEvent`` in ``engine.replay_log``,
 with the cells it backed up in order; the headless runner and the console write
 them to ``replay_events.jsonl``. The event is bookkeeping beside the backups:
-the legacy trace hash is unchanged (the exact-hash gate below), and
-tests/engine/test_replay_recent.py and tests/engine/test_goal_vector.py pin the
-backups and the goal memory exactly as before. ``ValueMemoryConfig.goal_vector``
-is now a read/write alias of the field ``oracle_homing``.
+the legacy trace hash is pinned by the determinism gate
+(tests/determinism/test_trace_hash.py, which runs the same engine over the same
+ticks as the committed baseline), and tests/engine/test_replay_recent.py and
+tests/engine/test_goal_vector.py pin the backups and the goal memory exactly as
+before. ``ValueMemoryConfig.goal_vector`` is now a read/write alias of the
+field ``oracle_homing``.
 
 These tests pin the legacy profile (EngineConfig() defaults) except where they
 say research; see docs/decisions.md G22 and docs/profiles.md.
@@ -29,10 +31,9 @@ from brain.systems.replay_events import (
     ReplayLog,
 )
 from core.config import EngineConfig, ValueMemoryConfig
-from core.determinism import build_current_trace, load_baseline
 from core.engine import Engine
 from experiments.runner import run
-from experiments.steering_sensitivity import set_field
+from ui import sim_session
 from ui.sim_session import FRAME_REPLAY_EVENTS, SimSession
 
 TICKS = 3000
@@ -187,11 +188,6 @@ def test_research_profile_has_no_microsleep_and_so_no_replay_events():
     assert len(engine.replay_log) == 0 and engine._replay_event is None
 
 
-@pytest.mark.exact_hash  # reads the committed legacy hashes (pytest.ini, docs/determinism.md)
-def test_the_event_log_leaves_the_legacy_trace_hash_unchanged():
-    assert build_current_trace() == load_baseline()
-
-
 # --------------------------------------------------------- the event objects
 
 
@@ -258,6 +254,12 @@ def test_runner_writes_replay_events_beside_the_run_files(tmp_path):
     run("open_field", seed=1337, ticks=600, outdir=tmp_path / "research", profile="research")
     assert not (tmp_path / "research" / REPLAY_EVENTS_FILE).exists()
     assert json.loads((tmp_path / "research" / "summary.json").read_text())["n_replay_events"] == 0
+    # A reused run directory does not keep the previous run's file either (the
+    # default outdir is runs/<protocol>_<seed>, so a legacy run followed by a
+    # research run of the same protocol and seed lands here).
+    run("open_field", seed=1337, ticks=600, outdir=out, profile="research")
+    assert not (out / REPLAY_EVENTS_FILE).exists()
+    assert json.loads((out / "summary.json").read_text())["n_replay_events"] == 0
 
 
 def test_console_frame_carries_the_latest_events_and_the_recording_writes_them(tmp_path):
@@ -277,7 +279,8 @@ def test_console_frame_carries_the_latest_events_and_the_recording_writes_them(t
     run_id = session.record(tmp_path)
     lines = (tmp_path / run_id / REPLAY_EVENTS_FILE).read_text().splitlines()
     assert [json.loads(line) for line in lines] == list(session.replay_events)
-    assert json.loads((tmp_path / run_id / "summary.json").read_text())["n_replay_events"] == len(lines)
+    summary = json.loads((tmp_path / run_id / "summary.json").read_text())
+    assert summary["n_replay_events"] == summary["n_replay_events_total"] == session.n_replay_events == len(lines)
     # The headless console protocol of the same scenario and seed logs the same events.
     run("console_open_field", seed=7, ticks=600, outdir=tmp_path / "headless")
     headless = [json.loads(line) for line in (tmp_path / "headless" / REPLAY_EVENTS_FILE).read_text().splitlines()]
@@ -288,6 +291,34 @@ def test_console_frame_carries_the_latest_events_and_the_recording_writes_them(t
     quiet_id = quiet.record(tmp_path)
     assert not (tmp_path / quiet_id / REPLAY_EVENTS_FILE).exists()
     assert quiet.frame()["replay_events"] == []
+
+
+def test_a_recording_past_the_history_limit_writes_only_the_events_inside_its_ticks(tmp_path, monkeypatch):
+    # The tick history is capped at HISTORY_LIMIT and the event keep at
+    # REPLAY_EVENT_LIMIT, which are not tied: a long live session holds events
+    # whose ticks have left the history. The recording writes only the kept
+    # events that end inside ticks.jsonl (and counts those as n_replay_events),
+    # and keeps the whole deque for the frame. Shrunk limits stand in for the
+    # 50,000-tick history: 100 ticks of history out of 600 run (about two
+    # bouts), 4 of the 7 events kept (about 200 ticks of bouts).
+    monkeypatch.setattr(sim_session, "HISTORY_LIMIT", 100)
+    monkeypatch.setattr(sim_session, "REPLAY_EVENT_LIMIT", 4)
+    session = SimSession("open_field", seed=1337)
+    for _ in range(3):
+        session.step(200)
+    first = session.history[0]["tick"]
+    assert len(session.history) == 100 and first == session.tick - 99  # the newest 100 of 600 ticks
+    assert len(session.replay_events) == 4 < session.n_replay_events == 7
+    inside = [e for e in session.replay_events if e["tick_end"] >= first]
+    assert 1 <= len(inside) < len(session.replay_events)  # some kept events end before the history
+    run_id = session.record(tmp_path)
+    lines = (tmp_path / run_id / REPLAY_EVENTS_FILE).read_text().splitlines()
+    assert [json.loads(line) for line in lines] == inside
+    first_recorded = json.loads((tmp_path / run_id / "ticks.jsonl").read_text().splitlines()[0])["tick"]
+    assert first_recorded == first and all(json.loads(line)["tick_end"] >= first for line in lines)
+    summary = json.loads((tmp_path / run_id / "summary.json").read_text())
+    assert summary["n_replay_events"] == len(inside) and summary["n_replay_events_total"] == session.n_replay_events
+    assert session.frame()["replay_events"] == list(session.replay_events)[-FRAME_REPLAY_EVENTS:]  # the frame keeps all
 
 
 # ------------------------------------------------------------ oracle_homing
@@ -311,13 +342,23 @@ def test_oracle_homing_is_the_field_and_goal_vector_its_alias():
 @pytest.mark.parametrize("key", ["value_memory.goal_vector", "value_memory.oracle_homing"])
 def test_dotted_override_and_the_engine_work_through_either_name(key):
     config = EngineConfig()
-    set_field(config, key, True)  # the harness's --set
-    assert config.value_memory.oracle_homing is True
+    config.set_field(key, True)  # the one dotted setter (the harness's --set, the console's parameters)
+    assert config.value_memory.oracle_homing is True and config.get_field(key) is True
     assert config.diff(EngineConfig()) == [("value_memory.oracle_homing", True, False)]
     engine = Engine(seed=1, config=config)
     engine.value_memory.goal_cell = (-12, 2)  # as in test_goal_vector: a flat map steers by the goal
     engine.run(1)
     assert engine.context.goal_vector_active
+
+
+def test_the_dotted_setter_refuses_an_unknown_field():
+    config = EngineConfig()
+    for key in ("value_memory.goal_vectors", "value_memories.goal_vector", "goal_vector"):
+        with pytest.raises(AttributeError, match="config has no field"):
+            config.set_field(key, True)
+        with pytest.raises(AttributeError, match="config has no field"):
+            config.get_field(key)
+    assert config.diff(EngineConfig()) == [] and not hasattr(config, "goal_vector")
 
 
 def test_to_dict_carries_oracle_homing_and_from_dict_accepts_both_names():

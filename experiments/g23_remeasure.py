@@ -160,7 +160,6 @@ from experiments.steering_sensitivity import (
     maze_heading_set,
     outcome_fields,
     run_jobs,
-    set_field,
 )
 from ui.scenarios import HiddenFood
 
@@ -233,9 +232,9 @@ class Budget:
 
 
 def apply_overrides(config: EngineConfig, overrides: Overrides) -> None:
-    """Set dotted config fields with the harness's ``set_field`` (unknown fields are an error)."""
+    """Set dotted config fields with ``EngineConfig.set_field`` (unknown fields are an error)."""
     for key, value in overrides:
-        set_field(config, key, value)
+        config.set_field(key, value)
 
 
 def setting_config(setting: str, scenario_config: EngineConfig) -> EngineConfig:

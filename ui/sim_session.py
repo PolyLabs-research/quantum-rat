@@ -28,7 +28,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
-from brain.systems.replay_events import REPLAY_EVENTS_FILE
+from brain.systems.replay_events import REPLAY_EVENTS_FILE, write_replay_events
 from core.engine import Engine
 from metrics.logger import _canonical_json
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
@@ -43,7 +43,10 @@ HISTORY_LIMIT = 50_000
 EVENT_LIMIT = 300
 # Finished replay events kept for the frame and the recording, drained from the
 # engine's bounded log every tick. At the legacy defaults a microsleep bout
-# comes about every 60 ticks, so this covers more ticks than HISTORY_LIMIT.
+# comes about every 60 ticks, so this covers more ticks than HISTORY_LIMIT; the
+# keep is not tied to the history, so ``record`` writes only the kept events
+# that end inside the recorded ticks (``n_replay_events`` counts those, and
+# ``n_replay_events_total`` every event the session saw).
 REPLAY_EVENT_LIMIT = 4096
 FRAME_REPLAY_EVENTS = 5  # how many of the latest replay events a frame carries
 REGIME_EVENT_GAP = 60  # ticks between criticality-regime announcements
@@ -167,6 +170,7 @@ class SimSession:
         self.history: Deque[Dict[str, Any]] = deque(maxlen=HISTORY_LIMIT)
         self.events: Deque[Event] = deque(maxlen=EVENT_LIMIT)
         self.replay_events: Deque[Dict[str, Any]] = deque(maxlen=REPLAY_EVENT_LIMIT)
+        self.n_replay_events = 0  # every finished replay event since the session was built or reset
         self._seq = 0
         self._prev_microsleep = False
         self._regime: Optional[str] = None
@@ -244,6 +248,7 @@ class SimSession:
             self._emit(event)
         for replay_event in self.engine.replay_log.drain():
             self.replay_events.append(replay_event.to_dict())
+            self.n_replay_events += 1
         m = td.neuromodulators
         return {
             "t": td.tick,
@@ -405,13 +410,6 @@ class SimSession:
 
     # ---------------------------------------------------------------- params
 
-    def _target(self, key: str) -> Tuple[Any, str]:
-        obj: Any = self.engine.config
-        parts = key.split(".")
-        for part in parts[:-1]:
-            obj = getattr(obj, part)
-        return obj, parts[-1]
-
     def _apply_param(self, key: str, value: Any) -> float:
         param = PARAM_INDEX.get(key)
         if param is None:
@@ -424,8 +422,7 @@ class SimSession:
             raise ValueError(f"Parameter {key!r} needs a finite number")
         number = min(param.max, max(param.min, number))
         applied: float = int(round(number)) if param.integer else number
-        obj, attr = self._target(key)
-        setattr(obj, attr, applied)
+        self.engine.config.set_field(key, applied)
         if key == "criticality.coupling":
             self.engine.criticality.reset_statistics()
         self.overrides[key] = applied
@@ -439,11 +436,8 @@ class SimSession:
         return applied
 
     def params(self) -> List[Dict[str, Any]]:
-        out = []
-        for p in PARAMS:
-            obj, attr = self._target(p.key)
-            out.append({**asdict(p), "value": getattr(obj, attr)})
-        return out
+        config = self.engine.config
+        return [{**asdict(p), "value": config.get_field(p.key)} for p in PARAMS]
 
     # --------------------------------------------------------------- actions
 
@@ -454,6 +448,16 @@ class SimSession:
     # ---------------------------------------------------------------- record
 
     def record(self, runs_dir: Path) -> str:
+        """Save the session as a run directory the replay viewer can open; returns the run id.
+
+        ``ticks.jsonl`` holds the history deque (the newest ``HISTORY_LIMIT``
+        ticks). ``replay_events.jsonl`` holds the kept replay events
+        (``REPLAY_EVENT_LIMIT``, the newest) that end inside those ticks, so
+        the file never begins before the ticks it sits beside; the summary's
+        ``n_replay_events`` counts the lines written and
+        ``n_replay_events_total`` every event the session saw. No events file
+        when there is nothing to write.
+        """
         runs_dir.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d-%H%M%S")
         base = f"live_{self.scenario_id}_s{self.seed}_{stamp}"
@@ -466,12 +470,14 @@ class SimSession:
         with open(run_dir / "ticks.jsonl", "w", encoding="utf-8") as fh:
             for row in self.history:
                 fh.write(_canonical_json(row) + "\n")
-        # The finished replay events the session holds (the newest REPLAY_EVENT_LIMIT),
-        # as the headless runner writes them; no file when there were none.
-        if self.replay_events:
+        # The kept replay events that end inside the recorded ticks, as the
+        # headless runner writes them; no file when there are none.
+        first_tick = self.history[0]["tick"] if self.history else 0
+        recorded_events = [e for e in self.replay_events if e["tick_end"] >= first_tick]
+        n_written = 0
+        if recorded_events:
             with open(run_dir / REPLAY_EVENTS_FILE, "w", encoding="utf-8") as fh:
-                for replay_event in self.replay_events:
-                    fh.write(_canonical_json(replay_event) + "\n")
+                n_written = write_replay_events(fh, recorded_events)
         summary = {
             "protocol": self.scenario_id,
             "source": "live console",
@@ -480,7 +486,8 @@ class SimSession:
             "schema_version": SCHEMA_VERSION,
             "params": dict(self.overrides),
             "status": self.scenario.status(),
-            "n_replay_events": len(self.replay_events),
+            "n_replay_events": n_written,
+            "n_replay_events_total": self.n_replay_events,
         }
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
         # Objects as they stand now (a beacon shows its latest spot); the start

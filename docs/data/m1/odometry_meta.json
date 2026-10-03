@@ -17,7 +17,7 @@
  ],
  "checkpoint": 25.0,
  "command": "python3 -m experiments.odometry_characterisation --workers 4",
- "commit": "48c5817e80d115a06239419c8daae539115e4f80",
+ "commit": "8d0ba7bcbf0828b5e5f0c3ff0ec2fc871cd75c01",
  "conditions": [
   {
    "name": "speed_only",
@@ -136,7 +136,7 @@
  "n_boot": 10000,
  "platform": "linux",
  "python": "3.11.15",
- "runtime_s": 57.0,
+ "runtime_s": 48.9,
  "seeds": [
   1,
   2,

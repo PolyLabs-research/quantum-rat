@@ -55,6 +55,19 @@ class ValueFunction(Protocol):
     def parameters(self) -> Dict[str, object]: ...
 
 
+def _check_finite_positive(name: str, value: float) -> None:
+    if not math.isfinite(value) or value <= 0.0:
+        raise ValueError(f"{name} must be a finite positive number, not {value!r}")
+
+
+def _check_rates(learning_rate: float, discount: float) -> None:
+    """A finite ``learning_rate > 0`` and a finite ``discount`` in [0, 1]: the
+    bound V <= max reward / (1 - discount) and the TD fixed point need both."""
+    _check_finite_positive("learning_rate", learning_rate)
+    if not math.isfinite(discount) or not 0.0 <= discount <= 1.0:
+        raise ValueError(f"discount must be a finite number in [0, 1], not {discount!r}")
+
+
 class TabularTD0:
     """TD(0) over floor-binned cells, with V(terminal) = 0.
 
@@ -72,8 +85,8 @@ class TabularTD0:
     """
 
     def __init__(self, bin_size: float = 0.5, learning_rate: float = 0.2, discount: float = 0.9) -> None:
-        if bin_size <= 0.0:
-            raise ValueError("bin_size must be positive")
+        _check_finite_positive("bin_size", bin_size)
+        _check_rates(learning_rate, discount)
         self.bin_size = float(bin_size)
         self.lr = float(learning_rate)
         self.gamma = float(discount)
@@ -124,8 +137,11 @@ class GaussianPlaceFeatures:
     research profile's "V <= 1/(1 - discount)" acceptance is stated for
     normalised features (docs/value_learners.md).
 
-    A position where every feature underflows to 0 (far outside the covered
-    rectangle at a small width) reads V = 0 and receives no update.
+    A position where every feature underflows to 0 (more than about 38.6
+    widths from the nearest centre, where ``exp`` of the squared distance is
+    below the smallest float64 subnormal; 19.3 units at a width of 0.5) reads
+    V = 0 and receives no update; the convex-combination bound holds wherever
+    any feature is nonzero (docs/value_learners.md).
 
     Computed with elementwise numpy and ``numpy.sum`` only (docs/determinism.md).
     """
@@ -134,8 +150,9 @@ class GaussianPlaceFeatures:
         c = np.asarray(centres, dtype=np.float64).reshape(-1, 2)
         if c.shape[0] == 0:
             raise ValueError("at least one centre is needed")
-        if width <= 0.0:
-            raise ValueError("width must be positive")
+        if not np.all(np.isfinite(c)):
+            raise ValueError("every centre must be finite")
+        _check_finite_positive("width", width)
         self.cx = np.ascontiguousarray(c[:, 0])
         self.cy = np.ascontiguousarray(c[:, 1])
         self.width = float(width)
@@ -214,6 +231,13 @@ class LinearTDLambda:
     whose error against the true V is bounded by the best representable
     approximation; on the chain that bias is measured per width in
     docs/value_learners.md.
+
+    The constructor checks the parameters (a finite ``learning_rate > 0``, a
+    finite ``discount`` in [0, 1], ``lam`` in [0, 1]); it does not bound the
+    learning rate against the features, so a rate too large for them (2.5 on
+    the chain at 0.5 cell) diverges to non-finite weights without an error,
+    which is left to the caller: ``run_chain`` stops at the first non-finite
+    pass, and the engine's wiring in M2b checks the TD error it is returned.
     """
 
     TRACES = ("replacing", "accumulating")
@@ -230,6 +254,7 @@ class LinearTDLambda:
             raise ValueError(f"traces must be one of {self.TRACES}, not {traces!r}")
         if not 0.0 <= lam <= 1.0:
             raise ValueError("lam must lie in [0, 1]")
+        _check_rates(learning_rate, discount)
         self.features = features
         self.lr = float(learning_rate)
         self.gamma = float(discount)

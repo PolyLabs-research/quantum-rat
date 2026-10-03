@@ -116,16 +116,41 @@ def test_the_turning_walk_turns_and_cancels_part_of_the_clamp_bias():
 def test_atp_decorrelation_in_the_legacy_profile_at_seed_1():
     on = oc.atp_decorrelation(1, True)
     off = oc.atp_decorrelation(1, False)
-    assert on["n_moving"] == off["n_moving"] > 1000  # the same body walk under both flags
-    # With the gate scaling egomotion the per-tick odometry shortfall tracks ATP; with it off it cannot.
-    assert on["r_step_error"] > 0.3, on
+    # The same body walk under both flags (the estimate is not fed back to the body in a barren box).
+    assert on["body_walk"] == off["body_walk"] and on["n_moving"] == off["n_moving"] > 1000
+    assert on["n_wall_moving"] == off["n_wall_moving"] > 0
+    # With the gate scaling egomotion the per-tick odometry shortfall tracks ATP; with it off the gate
+    # is out of the estimate and what remains is the wall-sliding under-read (the next test), not the gate.
+    assert on["r_step_error"] > 0.3 and on["r_step_error_after_transient"] > 0.3, on
     assert abs(off["r_step_error"]) < 0.1, off
+    assert -0.2 < off["r_step_error_after_transient"] < 0.0, off  # the wall ticks sit in ATP's first decay
+    assert abs(off["r_step_error_off_wall"]) < 0.05, off  # the speed noise's own contribution
     # The error itself correlates with ATP under both flags through the shared initial trend ...
     assert off["r_error"] < -0.1 and on["r_error"] < -0.1
     # ... and not once the transient is dropped.
     assert abs(off["r_error_after_transient"]) < 0.1, off
     assert on["final_error"] > 10.0 * off["final_error"]
     assert on["frac_closed"] == off["frac_closed"] > 0.5
+
+
+def test_the_flag_off_step_error_residual_is_wall_sliding_and_not_the_noise():
+    # Zero-noise control: exact odometry, gate off. The step error is 0 wherever
+    # the body's displacement is along its heading; it is not on the moving ticks
+    # at which the box clamps the body against a wall (the body slides across its
+    # heading, which the projection on the heading under-reads), and those ticks
+    # carry the whole correlation. The body shares its first 1,637 ticks (and so
+    # the 14 wall ticks, at 276 and 311-323) with the research-noise runs; exact
+    # heading odometry flips one action at tick 1,638 (turn noise 1e-9 already
+    # gives the noisy runs' body), hence the different body_walk digest.
+    control = oc.atp_decorrelation(1, False, speed=0.0, turn=0.0)
+    noisy = oc.atp_decorrelation(1, False)
+    assert control["speed"] == control["turn"] == 0.0 and not control["gate_scales_egomotion"]
+    assert control["n_wall_moving"] == noisy["n_wall_moving"] > 0 and control["body_walk"] != noisy["body_walk"]
+    assert control["wall_step_error_mean"] < -0.2 and noisy["wall_step_error_mean"] < -0.2
+    assert abs(control["r_step_error_off_wall"]) < 0.02  # exact odometry off the walls
+    assert abs(control["r_step_error"]) < 0.1 and -0.25 < control["r_step_error_after_transient"] < -0.1
+    assert abs(control["r_step_error"] - noisy["r_step_error"]) < 0.02  # the noise adds nothing to it
+    assert control["final_error"] < noisy["final_error"] and control["final_error"] < 1.0  # the wall offsets only
 
 
 def _read(path: Path):
@@ -153,7 +178,10 @@ def test_runner_writes_its_tables_byte_identically(tmp_path):
     assert [r["condition"] for r in slopes] == ["speed_only", "turn_only", "both"]
     assert all(r["slope_low"] != "nan" and r["slope_high"] != "nan" for r in slopes)
     atp = _read(first / "odometry_atp.csv")
-    assert list(atp[0]) == list(oc.ATP_COLUMNS) and [r["gate_scales_egomotion"] for r in atp] == ["True", "False"]
+    assert list(atp[0]) == list(oc.ATP_COLUMNS)
+    assert [r["gate_scales_egomotion"] for r in atp] == ["True", "False", "False"]  # the zero-noise control last
+    assert [(r["speed"], r["turn"]) for r in atp] == [("0.05", "0.01"), ("0.05", "0.01"), ("0", "0")]
+    assert len({r["body_walk"] for r in atp[:2]}) == 1 and len(atp[2]["body_walk"]) == 16
     meta = json.loads((first / "odometry_meta.json").read_text())
     assert meta["full"] is False and meta["seeds"] == [1, 2] and meta["n_boot"] == 20
     assert meta["fit_range"] == [50.0, 100.0]

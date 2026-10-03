@@ -14,16 +14,18 @@ Claims (docs/odometry.md):
   FORWARD step sits at its top, which turns the zero-mean error into a
   shortfall of 0.05 / sqrt(2 pi) = 0.020 units per unit travelled (the clamp
   bias, measured as the signed along-track error per unit travelled);
-  turn noise 0.01 rad alone gives a slope above 1.5 (the lateral error is the
-  running sum of a heading random walk, t^1.5, plus a t^2 cosine shortfall);
-  both together read like turn noise alone.
+  turn noise 0.01 rad alone gives the integrated heading random walk, 1.70 at
+  these 4 seeds (one seed's lateral error is one realisation; 1.47 [1.31,
+  1.62] over 30 seeds); both together read like turn noise alone.
 * Legacy profile, default barren box, odometry noise at the research values,
   3,000 ticks: with ``spatial.gate_scales_egomotion`` on, the relative step
   error on moving ticks (|estimated step| / |true step| - 1) tracks ATP
-  (r about 0.87: the gate freezes the estimate when ATP is low); with it off
-  |r| < 0.1. The error itself correlates with ATP at about -0.23 under both
-  flags over all ticks, a shared trend of ATP's initial decay and the
-  growing error, and within +-0.1 once the first 200 ticks are dropped.
+  (r 0.87: the gate freezes the estimate when ATP is low); with it off
+  |r| < 0.08 (the residual is the wall-sliding under-read of 14 clamped TURN
+  ticks, present with zero noise too, docs/odometry.md). The error itself
+  correlates with ATP at about -0.23 under both flags over all ticks, a
+  shared trend of ATP's initial decay and the growing error, and within
+  +-0.08 once the first 200 ticks are dropped.
 
 ``--scale`` multiplies the distance travelled (floor 100 units) and the ATP
 tick budget (floor 100 ticks); at a small scale the "after transient"
