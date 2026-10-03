@@ -803,3 +803,99 @@ README, the console labels (`ui/static`, `ui/sim_session.py`), `ui/scenarios.py`
 G14–G21 are results of the legacy profile, measured as single deterministic samples at sensor noise 0 unless the entry states otherwise. They stay in this log as the record of that profile, their tests stay, and they are re-measured with confidence intervals over seeds in G23 (docs/research_plan.md §5, M0b item 15), once odometry noise and the softmax temperature make seeds samples. The research profile has no behavioural assertion of its own yet; the barren-world gates pass whatever the science does.
 
 **Impact:** `core/config.py`, `core/engine.py`, `brain/systems/trn_microsleep_replay.py`, `tools/update_determinism_baseline.py`, `tests/determinism/`, `tests/engine/test_profiles.py`, `experiments/protocols/`, `regression/`, README, `ui/`, `docs/profiles.md`, `docs/research_plan.md` (status and the §5 / §10 marks), the twelve test docstrings above.
+
+## G23 — What survives 30 seeds
+**Date:** 2026-10-03  
+**Why:** G22 accepted that G14–G21 are legacy-profile results measured as single deterministic samples, or as eight seeds at sensor noise 0.03, and docs/research_plan.md §1.1 says what they are read to mean. M0b item 15 asks for the first table with a confidence interval in the repository: the three headline numbers of G16 (the steering band), G19 (hidden food) and G18 / G21 (off-axis maze recall), each over thirty seeds, with the seeds made samples through every stochastic element the engine has (M0b item 8) and the statistics of M0b item 10. The script is `experiments/g23_remeasure.py`; every number below is read from `docs/data/g23/` (`summary.csv` has each statistic with its interval, the three tidy tables and `maze_recall_by_heading.csv` have every run).
+
+**Design** (the script's docstring has the full version):
+- Profile: legacy, `EngineConfig()` plus each console scenario's own config, run through `experiments.steering_sensitivity.run_jobs`. Two stochastic settings, both at sensor noise 0.03, both run in full: **A** adds odometry speed noise 0.05, odometry turn noise 0.01 rad and a softmax temperature of 0.05 on action selection (the seed reaches every stochastic element); **B** is sensor noise alone (what the G-entries ran when they wrote "noise 0.03", so their numbers and B's are like for like). Seeds 1–30 in every arm.
+- Claim 1 (G19 / G21): hidden food over 3,000 ticks, memory on (the scenario's `value_gain` 1.5) against off (0), paired by seed, plus the moved-sites control of `tests/experiments/test_hidden_food.py` (every site jumps to a random place in the food band every 150 ticks, before the engine step; the same jumps for every seed and gain, drawn from one named `core.rng` stream).
+- Claim 2 (G16 / G20): the four G16 scenarios (beacon, foraging, hazard_field, memory_maze; pacing on, as their configs say) over the harness's ten default gains, 0 to 3.0. Per gain: the steering guard's memory-cost statistic (mean score at the gain over mean score at gain 0, paired by seed) for foraging and hazard_field, vrest for all four, the maze recall rate, and G16's own band statistic, the worst-scenario fraction (min over the four of mean / own best mean). The *guard band* is the run of gains whose 95% intervals stay inside the guard's bounds (ratio ≥ 0.8 for foraging and hazard_field, vrest ≤ 0.15 everywhere); the *G16 band* is the run whose worst-fraction interval stays ≥ 0.8.
+- Claim 3 (G18 / G21): the maze over the harness's full 16-heading set at gains 0.8 and 1.5, 1,500 ticks per run. Per seed: the recall rate pooled over the 16 headings (recalled hidden trials / hidden trials) and the number of headings whose run recalls (its own rate ≥ 0.9, the harness's `recall_ok`).
+- Statistics: `analysis.stats`, BCa bootstrap with 10,000 replicates and one hashed seed per statistic. Ratios of means and the worst fraction resample seeds, so both sides of a ratio come from the same seeds in every replicate; Cliff's δ resamples the two samples independently.
+- Guards: `core.seeds.require_seeds_are_samples` on every config (inside `run_jobs`, and directly for the moved-sites control); `analysis.stats.pseudo_replication_guard` on every per-seed outcome vector, with the counts in `guard.csv`.
+- Verdict rules, written into the script before it ran: *survives* when the intervals are consistent with the entry's claim (claim 1: the ratio interval overlaps 2.8–4.1× and no seed loses; claim 2: both bands, read from the intervals, cover 0.4–3.0; claim 3: at both gains the recall-rate interval's lower end is ≥ 0.9 and the headings-recalling interval's lower end is ≥ 15 of 16, the off-axis guard's own bound); *weakened* when the effect is there but the claim's number is not; *does not survive* when the interval includes no effect. The entry's verdict is the weaker of A and B.
+
+### A. Claim 1, hidden food: "memory finds 2.8–4.1× as much food and loses no paired run" (G19, G21)
+
+| setting | n | memory on, finds [95% CI] | memory off | ratio of means [CI] | paired on − off [CI] | on > off / ties / on < off | Cliff's δ [CI] | from | verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| B, fixed sites | 30 | 10.10 [8.50, 11.58] | 3.47 [2.97, 4.20] | **2.91 [2.43, 3.59]** | 6.63 [5.23, 8.13] | 97% / 0% / 3% | 0.84 [0.63, 0.95], large | G19 ×2.84 / ×2.85 / ×4.08, 8 / 0 | weakened |
+| A, fixed sites | 30 | 12.60 [11.60, 13.60] | 9.40 [8.53, 10.33] | **1.34 [1.15, 1.52]** | 3.20 [1.57, 4.60] | 73% / 7% / 20% | 0.58 [0.31, 0.78], large | same | weakened |
+| B, moved sites | 30 | 11.97 [10.73, 13.23] | 8.20 [7.30, 9.20] | 1.46 [1.28, 1.65] | 3.77 [2.43, 5.00] | 77% / 3% / 20% | 0.60 [0.33, 0.78], large | G21 control ×1.08–1.47 | — |
+| A, moved sites | 30 | 13.27 [11.83, 14.77] | 12.00 [10.80, 13.30] | 1.11 [0.95, 1.26] | 1.27 [−0.63, 3.07] | 60% / 3% / 37% | 0.16 [−0.14, 0.43], small | same | — |
+
+- Fixed-over-moved benefit factor (the ratio of the two ratios; the test's bound is 1.5): B 2.00 [1.62, 2.56], A 1.21 [1.00, 1.54].
+- **Verdict: weakened.** Under B the multiplier itself survives (2.91 [2.43, 3.59] overlaps 2.8–4.1, and 29 of 30 seeds win), but "loses no paired run" does not: 1 of 30 seeds finds less with memory on. Under A the multiplier is 1.34 [1.15, 1.52]: memory still beats no memory (the paired interval excludes 0, δ is large), but by a third, not by three times, and 6 of 30 seeds lose.
+- **A against B.** What A changes is the memory-off agent: 9.40 finds instead of 3.47. With `value_gain` 0 nothing in hidden food reads the place estimate, so the odometry noise cannot act there; checked: the thirty memory-off rows are byte-identical with and without it, and identical to runs with the softmax temperature alone. The rise is the 0.05 softmax temperature: a few sampled off-argmax actions break the wall loop, the agent wanders the interior and brushes the sites, which is exactly the regime G19 described as "memory costs when exploration alone already finds the food" (`forward_bias` 0.5: 37.2 without memory against 19.1 with it). Memory-on finds also rise (10.10 → 12.60), so memory is not harmful in A; it just has far less to add.
+- **The moved-sites control** (G21: ×1.08–1.47 on eight seeds) is 1.46 [1.28, 1.65] in B and 1.11 [0.95, 1.26] in A. Of the extra finds with fixed sites, (1.46 − 1) / (2.91 − 1) = 24% survive without fixed sites in B and (1.11 − 1) / (1.34 − 1) = 32% in A; the plan's "between a twentieth and a quarter" was read from the same control at n = 8.
+
+### B. Claim 2, steering band: "0.4–3.0 without value-induced resting" (G16, G20)
+
+Each ratio is mean score at the gain over mean score at gain 0, paired by seed, with its BCa interval; the worst fraction is G16's statistic over the four scenarios, with the scenario that sets it. "max vrest" is the largest share of value-induced REST in any of the 120 runs at that gain. Setting A:
+
+| gain | foraging ratio | hazard_field ratio | beacon ratio | worst fraction [CI] (limiting) | max vrest | maze recall rate | in guard band / G16 band |
+|---|---|---|---|---|---|---|---|
+| 0.2 | 1.02 [0.96, 1.08] | 0.99 [0.96, 1.01] | 1.01 [0.97, 1.07] | 0.211 [0.188, 0.240] (memory_maze) | 0.0007 | 0.978 [0.953, 0.989] | yes / no |
+| 0.4 | 0.99 [0.94, 1.04] | 0.96 [0.92, 1.00] | 1.00 [0.93, 1.07] | 0.889 [0.856, 0.917] (memory_maze) | 0.0010 | 1.000 | yes / yes |
+| 0.6 | 1.00 [0.94, 1.07] | 0.96 [0.92, 1.00] | 1.00 [0.93, 1.07] | 0.933 [0.911, 0.955] (memory_maze) | 0.0007 | 1.000 | yes / yes |
+| 0.8 | 1.00 [0.94, 1.06] | 0.94 [0.91, 0.98] | 1.00 [0.93, 1.08] | 0.944 [0.917, 0.971] (hazard_field) | 0.0007 | 1.000 | yes / yes |
+| 1.0 | 1.00 [0.94, 1.05] | 0.92 [0.88, 0.96] | 1.02 [0.94, 1.11] | 0.922 [0.884, 0.957] (hazard_field) | 0.0007 | 1.000 | yes / yes |
+| 1.2 | 0.99 [0.93, 1.05] | 0.94 [0.91, 0.97] | 1.01 [0.93, 1.09] | 0.938 [0.913, 0.969] (hazard_field) | 0.0007 | 1.000 | yes / yes |
+| 1.5 | 0.99 [0.94, 1.05] | 0.95 [0.92, 0.98] | 1.01 [0.94, 1.09] | 0.945 [0.921, 0.977] (hazard_field) | 0.0007 | 1.000 | yes / yes |
+| 2.0 | 0.97 [0.92, 1.03] | 0.95 [0.91, 0.98] | 1.01 [0.95, 1.09] | 0.945 [0.927, 0.979] (hazard_field) | 0.0007 | 1.000 | yes / yes |
+| 3.0 | 0.96 [0.90, 1.02] | 0.94 [0.91, 0.97] | 1.01 [0.93, 1.08] | 0.940 [0.925, 0.978] (hazard_field) | 0.0007 | 1.000 | yes / yes |
+
+Setting B:
+
+| gain | foraging ratio | hazard_field ratio | beacon ratio | worst fraction [CI] (limiting) | max vrest | maze recall rate | in guard band / G16 band |
+|---|---|---|---|---|---|---|---|
+| 0.2 | 0.99 [0.96, 1.03] | 1.07 [1.04, 1.11] | 0.97 [0.94, 0.99] | 0.194 [0.174, 0.211] (memory_maze) | 0 | 0.998 [0.993, 1.000] | yes / no |
+| 0.4 | 1.00 [0.97, 1.03] | 1.01 [0.95, 1.05] | 0.97 [0.94, 0.99] | 0.942 [0.917, 0.975] (hazard_field) | 0 | 1.000 [0.998, 1.000] | yes / yes |
+| 0.6 | 0.98 [0.95, 1.01] | 1.04 [1.00, 1.08] | 0.96 [0.93, 0.99] | 0.964 [0.952, 0.982] (beacon) | 0 | 1.000 | yes / yes |
+| 0.8 | 0.98 [0.95, 1.01] | 1.05 [1.02, 1.09] | 0.95 [0.91, 0.97] | 0.948 [0.919, 0.966] (beacon) | 0 | 1.000 | yes / yes |
+| 1.0 | 0.96 [0.93, 1.00] | 1.05 [1.01, 1.09] | 0.95 [0.91, 0.97] | 0.947 [0.926, 0.967] (beacon) | 0 | 1.000 | yes / yes |
+| 1.2 | 0.97 [0.94, 1.01] | 1.04 [1.00, 1.08] | 0.94 [0.91, 0.97] | 0.941 [0.911, 0.963] (beacon) | 0 | 1.000 | yes / yes |
+| 1.5 | 0.97 [0.93, 1.00] | 1.04 [1.00, 1.08] | 0.94 [0.91, 0.97] | 0.942 [0.917, 0.962] (beacon) | 0 | 1.000 | yes / yes |
+| 2.0 | 0.96 [0.92, 0.99] | 1.04 [1.01, 1.08] | 0.94 [0.90, 0.97] | 0.938 [0.910, 0.961] (beacon) | 0 | 1.000 | yes / yes |
+| 3.0 | 0.96 [0.92, 1.00] | 1.04 [1.01, 1.08] | 0.93 [0.89, 0.97] | 0.934 [0.902, 0.961] (beacon) | 0 | 1.000 | yes / yes |
+
+| setting | n per cell | guard band (from CIs; point estimates) | G16 band (from CIs; point estimates) | tightest cost cell at 1.5: ratio, δ, seeds within a fifth | from | verdict |
+|---|---|---|---|---|---|---|
+| A | 30 | 0.2–3.0; 0.2–3.0 | 0.4–3.0; 0.4–3.0 | hazard_field 0.95 [0.92, 0.98], δ −0.41 [−0.65, −0.13] medium, 100% | G16 0.4–3.0 in five blocks, vREST 0.000 | survives |
+| B | 30 | 0.2–3.0; 0.2–3.0 | 0.4–3.0; 0.4–3.0 | foraging 0.97 [0.93, 1.00], δ −0.24 [−0.51, 0.06] small, 100% | same | survives |
+
+- **Verdict: survives.** Both bands cover 0.4–3.0 in both settings, with every interval inside the bounds. Gain 0.2, which G16 never ran, passes the guard's bounds but fails G16's: the maze recalls at 0.2 (rate 0.978 / 0.998) but on 29–31 trials instead of 143–151, so its own-best fraction is 0.19–0.21.
+- **Resting.** The largest vrest in any of the 2,400 runs is 0.0010 of ticks (3 of 3,000), in A; 118 of the 1,800 open-scenario runs have any at all, every one of them in A, and in B it is 0 in all 1,200 runs. Under a softmax temperature the harness's `is_value_rest` also counts a sampled REST that the argmax would not have chosen, so A's figure is an upper bound and is non-zero even at gain 0 (hazard_field mean 0.0002 [0.0001, 0.0004]). Either way it is two orders of magnitude under the 0.15 bound.
+- **Floors at gain 1.5** (mean score [CI]): A beacon 18.7 [17.1, 20.3], foraging 45.8 [44.2, 47.4], hazard_field 32.3 [31.5, 33.4], memory_maze 144.3 [142.3, 146.1]; B 24.3 [23.5, 25.0], 47.2 [45.5, 49.2], 33.2 [32.1, 33.9], 146.8 [145.2, 147.2]. B reproduces G20's eight-seed floors (24.6 / 48.4 / 31.8 / 147.1) within their intervals. At gain 0: A 18.5 / 46.3 / 34.2 / 0, B 25.8 / 48.8 / 31.9 / 0.
+- **What memory buys outside the maze, with intervals** (paired difference at gain 1.5, items per 3,000 ticks): B beacon −1.5 [−2.4, −0.8] (δ −0.41, medium), foraging −1.7 [−3.3, 0.1] (δ −0.24, small), hazard_field +1.3 [0.0, 2.5] (δ +0.39, medium); A beacon +0.3 [−1.0, 1.6], foraging −0.5 [−2.9, 2.0] (both negligible), hazard_field −1.9 [−2.8, −0.7] (δ −0.41, medium). G16's "slightly negative in beacon, neutral in foraging, only the held-out block positive in hazard_field" is what B shows; A turns the beacon cost to nothing and the hazard_field gain into a 6% cost.
+- **A against B.** The band is the same; the small effects change sign (hazard_field +4% → −6%, beacon −6% → 0 at gain 1.5), and the beacon's floor falls from 25.8 to 18.5 with memory off because the softmax agent chases a visible beacon less directly.
+
+### C. Claim 3, maze recall: "16 of 16 headings recall" and "≥ 0.9 across gains" (G18, G21)
+
+| setting | gain | n | recall rate, pooled over 16 headings [CI] | seeds ≥ 0.9 | headings recalling per seed [CI] | seeds at 16 of 16 | runs recalling (of 480) | recalls per seed | from | verdict |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B | 0.8 | 30 | 0.999 [0.998, 0.999] | 100% | 15.70 [15.43, 15.87] | 77% | 98% (471) | 1,325 | G21: 16 / 16 at noise 0; 63 of 64 runs at 0.03 | survives |
+| B | 1.5 | 30 | 0.999 [0.998, 0.999] | 100% | 15.70 [15.37, 15.87] | 77% | 98% (471) | 1,349 | same | survives |
+| A | 0.8 | 30 | 0.989 [0.987, 0.991] | 100% | 12.67 [11.97, 13.30] | 0% | 79% (380) | 1,024 | same | weakened |
+| A | 1.5 | 30 | 0.988 [0.986, 0.990] | 100% | 12.37 [11.73, 12.97] | 3% | 77% (371) | 1,018 | same | weakened |
+
+- Gain 0.8 against 1.5, paired by seed: δ −0.09 [−0.39, 0.20] (A) and −0.11 [−0.39, 0.20] (B), both negligible; the paired difference in pooled rate is within ±0.002. "Across gains" holds at these two.
+- **Verdict: weakened.** Under B the result is G21's: 98% of the 480 runs recall (G21: 63 of 64), 15.7 of 16 headings per seed, 23 of 30 seeds at 16 of 16; the hardest headings are 5.11 (87–90% of seeds) and 3.53 (93–97%). Under A, 21–23% of the runs fail: headings 0, 0.39 and 0.79 recall for every seed and 1.18 for 93%, but the twelve headings from 1.57 to 5.89 recall for only 60–83% of seeds. The pooled rate stays at 0.99 because a failing run times out at 300 ticks and so contributes 3–5 hidden trials where a recalling run contributes about 100: the pooled rate is the wrong statistic for this claim, and the per-run criterion is the one reported.
+- **A against B.** A adds three elements at once, and which of them breaks off-axis recall is not separated here. The mechanism G18 describes is sensitive to all three: the goal vector steers by path integration from the start pose, a long visible-trial search accumulates odometry error that the teleport does not undo until the next trial, and a sampled off-argmax action during that search lengthens it.
+
+### D. Guards
+Every run had sensor noise 0.03 on, so `require_seeds_are_samples` passed on each of the 92 configs (B: `sensors.noise=0.03`; A: the four elements). `pseudo_replication_guard` found 30 distinct outcomes in every one of the 92 per-seed outcome vectors (full rows; `guard.csv`). The scalar scores have 1 to 21 distinct values per vector; the 1s are the maze at gain 0 (0 recalls for every seed), where the rows still differ in their trial timings.
+
+### E. Reproduce
+`python3 -m experiments.g23_remeasure --workers 4` (the defaults: seeds 1–30, settings A and B, output `docs/data/g23/`). Measured: 4,560 runs in 421 s on the 4-core development box, including the bootstraps; `meta.json` records the runtime of the run that wrote the committed tables. `--quick --seeds 2` is the smoke test (`tests/experiments/test_g23_remeasure.py`, 9 tests, about 6 s, which also checks that two runs give byte-identical CSVs). The data directory is about 320 KB.
+
+### F. What this changes in docs/research_plan.md §1.1 (not edited here)
+The five readings of G14–G21 stand, and two of them now carry intervals that should replace the single samples:
+- The hidden-food line should read: the multiplier is 2.91 [2.43, 3.59] over 30 seeds under sensor noise alone (one seed of 30 loses), and 1.34 [1.15, 1.52] once action selection has a 0.05 softmax temperature, because the exploring agent finds 9.4 items on its own instead of 3.5. That is the strongest form of G19's own finding, "place memory pays only where the agent's own exploration would not find the food": the margin is set by the exploration policy, not by the memory. The moved-sites control keeps 24% (B) to 32% (A) of the extra finds, against the plan's "a twentieth to a quarter" from eight seeds; the fixed-over-moved factor is 2.00 [1.62, 2.56] in B and 1.21 [1.00, 1.54] in A, not the 4.5× the test's single sample gives.
+- The maze line ("works only because `pace_low` 0.6 keeps the TRN gate from freezing path integration, and `teleport_to_start` hands the agent an oracle re-anchoring every trial") should add a third condition: exact odometry. With 5% speed noise, 0.01 rad turn noise and the softmax on, off-axis recall drops from 98% to 77–79% of runs while the near-axis headings still recall for every seed. The research profile's odometry placeholders (0.05 / 0.01 rad) are therefore already large enough to change this result, which M1's characterisation of those values has to take into account.
+- The steering band is the one G-number that survives unchanged in both settings: 0.4–3.0 with every interval inside the bounds, and value-induced REST below 0.001 of ticks in every run. It is also the least informative of the three, because memory changes the open scenarios' scores by at most ±7% at any gain in the band; the band says memory is harmless there, not that it helps.
+- §1.1's framing, "measured honestly, but they measure a particular configuration, not a brain mechanism", is what the A-against-B comparison shows directly: the two results that moved are the two that depend on the exploration policy and on exact self-motion, and the plan's M2b wall-contact reset and M1 odometry characterisation are the items that decide whether the maze result has any research-profile counterpart.
+
+**Impact:** `experiments/g23_remeasure.py` (new), `docs/data/g23/` (new, seven files), `tests/experiments/test_g23_remeasure.py` (new, 9 tests; suite 321), `docs/references.bib` (five entries: Efron & Tibshirani 1993, Cliff 1993, Romano et al. 2006 (unverified), Schuirmann 1987, Wichura 1988), this entry. No engine, harness, console or baseline file changed; `tests/engine/steering_legacy_hashes.json` and both determinism baselines are untouched.

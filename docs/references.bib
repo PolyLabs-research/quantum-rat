@@ -1352,3 +1352,66 @@
   verification = {unverified},
   note    = {Added at plan revision 2 for RQ1(c) (replay declines with familiarity). Cited from memory; confirm volume, pages and DOI by search before quoting.}
 }
+
+%% =====================================================================
+%% Added for decisions entry G23 (analysis/stats.py, docs/stats.md): the statistics the
+%% re-measurement of G16 / G19 / G21 rests on. Verified by WebSearch on 2026-10-03.
+%% =====================================================================
+
+@book{efron1993bootstrap,
+  author    = {Efron, Bradley and Tibshirani, Robert J.},
+  title     = {An Introduction to the Bootstrap},
+  publisher = {Chapman and Hall},
+  address   = {New York},
+  year      = {1993},
+  series    = {Monographs on Statistics and Applied Probability},
+  number    = {57},
+  isbn      = {0-412-04231-2},
+  verification = {verified},
+  note      = {Author, title, publisher, year, series number 57 and ISBN confirmed by search (library catalogue records: xvi + 436 pp.). The BCa interval (chapter 14, bias correction from the bootstrap distribution and acceleration from the jackknife) and the percentile interval (chapter 13) in analysis/stats.py follow it.}
+}
+
+@article{cliff1993dominance,
+  author  = {Cliff, Norman},
+  title   = {Dominance statistics: {O}rdinal analyses to answer ordinal questions},
+  journal = {Psychological Bulletin},
+  year    = {1993},
+  volume  = {114},
+  number  = {3},
+  pages   = {494--509},
+  verification = {verified},
+  note    = {Author, title, journal, volume 114 and pages 494-509 confirmed by search (several index records; the rstatix and effectsize R documentation cite it the same way). Cliff's delta, P(b > a) - P(b < a) over all pairs, in analysis/stats.py. Issue number 3 is from the index records and was not separately confirmed.}
+}
+
+@inproceedings{romano2006appropriate,
+  author    = {Romano, Jeanine and Kromrey, Jeffrey D. and Coraggio, Jesse and Skowronek, Jeff},
+  title     = {Appropriate statistics for ordinal level data: {S}hould we really be using t-test and {C}ohen's d for evaluating group differences on the {NSSE} and other surveys?},
+  booktitle = {Annual Meeting of the Florida Association of Institutional Research},
+  year      = {2006},
+  verification = {unverified},
+  note      = {The source of the |delta| magnitude thresholds 0.147 / 0.33 / 0.474 (negligible / small / medium / large) in analysis/stats.py, cited as it is usually cited. The search did not confirm this record: it found a sibling 2006 conference paper by the same four authors plus Linda Devine, "Exploring methods for evaluating group differences on the NSSE and other surveys: Are the t-test and Cohen's d indices the most appropriate choices?", presented at the annual meeting of the Southern Association for Institutional Research, which gives the same thresholds. The two may be one study presented twice; which title and venue is right for the thresholds remains unconfirmed.}
+}
+
+@article{schuirmann1987tost,
+  author  = {Schuirmann, Donald J.},
+  title   = {A comparison of the two one-sided tests procedure and the power approach for assessing the equivalence of average bioavailability},
+  journal = {Journal of Pharmacokinetics and Biopharmaceutics},
+  year    = {1987},
+  volume  = {15},
+  number  = {6},
+  pages   = {657--680},
+  verification = {verified},
+  note    = {Author, title, journal, volume 15, issue 6, pages 657-680 and date (December 1987) confirmed by search (Zenodo record 1232484 and index records). The two one-sided tests of equivalence that analysis/stats.py reads from the (1 - 2 alpha) confidence interval.}
+}
+
+@article{wichura1988as241,
+  author  = {Wichura, Michael J.},
+  title   = {Algorithm {AS} 241: {T}he percentage points of the normal distribution},
+  journal = {Journal of the Royal Statistical Society. Series C (Applied Statistics)},
+  year    = {1988},
+  volume  = {37},
+  number  = {3},
+  pages   = {477--484},
+  verification = {verified},
+  note    = {Author, title, journal, volume 37, issue 3 and pages 477-484 confirmed by search (the algorithm's published PDF and the ASA241 reference implementations). The PPND16 routine is the normal quantile in analysis/stats.py, which does not import scipy.}
+}
