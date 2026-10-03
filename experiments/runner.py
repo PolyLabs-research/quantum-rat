@@ -5,7 +5,12 @@ A run directory holds ``ticks.jsonl`` (one TickData per line), ``scene.json``
 summary plus the run hash) and ``manifest.json`` (provenance: code, config,
 seeds, platform, wall-clock; see ``metrics.manifest``). A protocol whose
 summary carries an ``events`` list (the console adapters,
-``experiments.protocols.console``) also gets ``events.jsonl``.
+``experiments.protocols.console``) also gets ``events.jsonl``. A run in which
+replay happened (microsleep replay, ``brain.systems.replay_events``) also gets
+``replay_events.jsonl``, one finished replay event per line, written as the
+events close so a long run is not capped by the engine's bounded log; the
+summary's ``n_replay_events`` counts them (0, and no file, when none occurred;
+a replay still in progress when the run stops is not an event).
 
 The engine's configuration comes from the protocol when it supplies one
 (``Protocol.engine_config``), else from the base profile: ``--profile legacy``
@@ -18,8 +23,9 @@ import argparse
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional, TextIO, Type
 
+from brain.systems.replay_events import REPLAY_EVENTS_FILE
 from core.config import EngineConfig
 from core.engine import Engine
 from experiments.protocols.base import Protocol
@@ -89,6 +95,36 @@ def write_events(outdir: Path, summary: Dict[str, Any]) -> Optional[int]:
     return len(events)
 
 
+class ReplayEventWriter:
+    """Writes the engine's finished replay events to ``replay_events.jsonl`` as they close.
+
+    ``drain(engine)`` empties ``engine.replay_log`` into the file (opened on the
+    first event, so the file exists only when a replay happened) and ``count``
+    is how many were written. Call it every tick: the log is bounded, and
+    draining it keeps a long run from losing its oldest events.
+    """
+
+    def __init__(self, outdir: Path) -> None:
+        self.path = Path(outdir) / REPLAY_EVENTS_FILE
+        self.count = 0
+        self._fh: Optional[TextIO] = None
+
+    def drain(self, engine: Engine) -> int:
+        written = 0
+        for event in engine.replay_log.drain():
+            if self._fh is None:
+                self._fh = open(self.path, "w", encoding="utf-8")
+            self._fh.write(_canonical_json(event.to_dict()) + "\n")
+            written += 1
+        self.count += written
+        return written
+
+    def close(self) -> None:
+        if self._fh is not None:
+            self._fh.close()
+            self._fh = None
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Headless experiment runner")
     parser.add_argument("--protocol", choices=sorted(PROTOCOLS.keys()))
@@ -141,6 +177,7 @@ def run(
 
     logger = JsonlLogger(tick_path)
     rh = RunHash()
+    replay_events = ReplayEventWriter(outdir)
 
     ticks_run_actual = 0
     started = time.perf_counter()
@@ -149,12 +186,14 @@ def run(
         tick = tickdata_list[0]
         ticks_run_actual += 1
         protocol.on_tick(engine, tick, i)
+        replay_events.drain(engine)  # after on_tick, so a protocol may read the log first
         logger.write_tick(tick)
         rh.update(tick)
         if protocol.is_done(engine, tick, i):
             break
     wall_seconds = time.perf_counter() - started
     logger.close()
+    replay_events.close()
 
     summary = protocol.summarize()
     write_events(outdir, summary)
@@ -167,6 +206,7 @@ def run(
             "schema_version": SCHEMA_VERSION,
             "run_hash": rh.hexdigest(),
             "protocol_config": protocol_config or {},
+            "n_replay_events": replay_events.count,
         }
     )
     summary_path.write_text(json.dumps(summary, sort_keys=True, separators=(",", ":")))

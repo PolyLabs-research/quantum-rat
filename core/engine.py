@@ -18,6 +18,15 @@ from brain.systems.basal_ganglia import (
     wall_gate_signals,
 )
 from brain.systems.criticality import CriticalityField, near_critical_gain
+from brain.systems.replay_events import (
+    DIRECTION_FORWARD,
+    DIRECTION_REVERSE,
+    RULE_REVERSE_TRAJECTORY,
+    RULE_TRN_INDEX,
+    TRIGGER_MICROSLEEP,
+    OpenReplayEvent,
+    ReplayLog,
+)
 from brain.systems.spatial import SpatialSystem, wrap_angle
 from brain.systems.trn_microsleep_replay import TRNGate
 from brain.systems.value_memory import Transition, ValueMemory
@@ -152,6 +161,11 @@ class Engine:
         # snapshotted at sleep onset, most recent first, and the replay step within it.
         self._replay_plan: List[Transition] | None = None
         self._replay_step = 0
+        # Replay as an event object (brain.systems.replay_events, M1): the replay
+        # in progress and the bounded log of finished ones. Bookkeeping beside
+        # the backups: nothing here feeds TickData or the trace hash.
+        self._replay_event: OpenReplayEvent | None = None
+        self.replay_log = ReplayLog()
         # Goal-vector extinction: whether the agent is inside the remembered goal's
         # place cell on this visit, whether it found reward there, and how many
         # visits in a row (to the goal held in _goal_misses_cell) found none.
@@ -278,6 +292,19 @@ class Engine:
         and ``begin_episode`` ends the replay of a sleep in progress.
         TRNGate's replay_index (logged in TickData) is not used for this.
         Without it (legacy), the TRN index is used as a trajectory index.
+
+        Each replay is also recorded as one event (brain.systems.replay_events;
+        ``self.replay_log``): opened on the bout's first replay tick (trigger
+        ``"microsleep"``; rule ``"reverse_trajectory"``, direction
+        ``"reverse"``, span = the snapshot's length under ``replay_recent``;
+        rule ``"trn_index"``, direction ``"forward"``, span = the TRN buffer's
+        length under the legacy indexing), fed the start cell of every
+        transition it backs up, and closed into the log when the sleep ends or
+        ``begin_episode`` cuts it. A replay that backs up nothing (an empty
+        snapshot; every legacy index on an episode boundary) is no event. Under
+        the legacy indexing the backups go on after a reset, so there the cut
+        splits the bout's record in two. The event is bookkeeping: the
+        backups and the context fields above are exactly as they were.
         """
         vm_cfg = self.config.value_memory
         ctx.replay_cell = None
@@ -285,16 +312,27 @@ class Engine:
         ctx.replay_span = 0
         if not replay_active:
             self._replay_plan = None
+            self._close_replay_event()  # the sleep ended: its event is complete
             return
         if not vm_cfg.replay_recent:
+            if self._replay_event is None:
+                self._replay_event = OpenReplayEvent(
+                    ctx.tick, TRIGGER_MICROSLEEP, RULE_TRN_INDEX, DIRECTION_FORWARD, len(self.trn_gate.replay_buffer)
+                )
+            self._replay_event.tick(ctx.tick)
             transition = self.value_memory.transition(replay_index)
             if transition is not None:
                 self.value_memory.replay_backup(transition, dwell_extinction=vm_cfg.dwell_extinction)
                 ctx.replay_cell = transition[0]
+                self._replay_event.backup(ctx.tick, transition[0])
             return
         if self._replay_plan is None:  # sleep onset: snapshot the recent path
             self._replay_plan = self.value_memory.recent_transitions(self.trn_gate.replay_window)
             self._replay_step = 0
+            if self._replay_plan:  # an empty snapshot replays nothing: no event
+                self._replay_event = OpenReplayEvent(
+                    ctx.tick, TRIGGER_MICROSLEEP, RULE_REVERSE_TRAJECTORY, DIRECTION_REVERSE, len(self._replay_plan)
+                )
         plan = self._replay_plan
         if plan:
             position = self._replay_step % len(plan)
@@ -302,7 +340,18 @@ class Engine:
             ctx.replay_cell = plan[position][0]
             ctx.replay_back = position + 1
             ctx.replay_span = len(plan)
+            if self._replay_event is not None:
+                self._replay_event.backup(ctx.tick, ctx.replay_cell)
         self._replay_step += 1
+
+    def _close_replay_event(self) -> None:
+        """Close the replay event in progress, if any, into ``replay_log`` (nothing backed up: no event)."""
+        event = self._replay_event
+        self._replay_event = None
+        if event is not None:
+            finished = event.close()
+            if finished is not None:
+                self.replay_log.append(finished)
 
     def _spatial_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
@@ -416,9 +465,10 @@ class Engine:
         (ahead, best-left, best-right) divided by the largest magnitude. Both are
         relative to the local relief, so they are decisive on a real gradient,
         silent on a locally flat map, and need no re-tuning to the reward scale.
-        With ``value_memory.goal_vector`` on and a goal remembered, a map whose
-        largest sampled advantage is below ``goal_vector_flat`` hands over to
-        ``goal_vector_signals``: turn toward the remembered goal's place.
+        With ``value_memory.oracle_homing`` (the goal-vector slot) on and a
+        goal remembered, a map whose largest sampled advantage is below
+        ``goal_vector_flat`` hands over to ``goal_vector_signals``: turn toward
+        the remembered goal's place.
         """
         look = self.config.value_memory.lookahead
         here = self.value_memory.value_of(self.spatial.bins_at(ctx.grid_x, ctx.grid_y))
@@ -435,7 +485,7 @@ class Engine:
         scale = max(abs(x) for x in [ahead, *left, *right])
         vm = self.config.value_memory
         ctx.goal_vector_active = False
-        goal = self.goal_point() if vm.goal_vector else None
+        goal = self.goal_point() if vm.oracle_homing else None
         if goal is not None and scale < vm.goal_vector_flat:
             # The map gives no direction here; steer by the remembered goal vector.
             ctx.goal_vector_active = True
@@ -524,7 +574,7 @@ class Engine:
             ctx.map_reward,
             dwell_extinction=self.config.value_memory.dwell_extinction,
         )
-        if self.config.value_memory.goal_vector:
+        if self.config.value_memory.oracle_homing:
             self._update_goal_memory(ctx)
 
         bg = self.config.basal_ganglia
@@ -652,10 +702,12 @@ class Engine:
         # snapshot is the previous episode's path, and a fresh one would be too
         # (nothing has been recorded since). When awake, the plan is simply
         # unset, so the next sleep -- even one starting on the very next tick --
-        # snapshots afresh.
+        # snapshots afresh. The replay event of a sleep in progress closes here
+        # (cut by the reset) with the backups it has made so far.
         asleep = bool(getattr(getattr(self, "trn_gate", None), "replay_active", False))
         self._replay_plan = [] if asleep else None
         self._replay_step = 0
+        self._close_replay_event()
         self.value_memory.reset_episode()
 
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:

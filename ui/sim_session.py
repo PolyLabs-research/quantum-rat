@@ -4,11 +4,13 @@ A ``SimSession`` owns one engine running one scenario. It advances the engine
 on request and turns engine state into compact, JSON-serialisable views:
 
 * ``step(n)``      -> a per-tick series (for charts and the trail) + new events
-* ``frame()``      -> the full display state of the latest tick
+* ``frame()``      -> the full display state of the latest tick (``replay_events``:
+  the last five finished replay events, ``brain.systems.replay_events``)
 * ``value_map()``  -> the learned place-value map in world coordinates
 * ``avalanche_histogram()`` -> the avalanche-size distribution (log bins)
 * ``params()`` / ``set_param()`` -> whitelisted live parameters
 * ``record(dir)``  -> save the session as a run the replay viewer can open
+  (with ``replay_events.jsonl`` when any replay event happened)
 
 Everything here is instrumentation: it reads the engine to *show* it, and the
 brain still only ever sees its Observation.
@@ -26,6 +28,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
+from brain.systems.replay_events import REPLAY_EVENTS_FILE
 from core.engine import Engine
 from metrics.logger import _canonical_json
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
@@ -38,6 +41,11 @@ Event = Dict[str, Any]
 MAX_STEPS_PER_CALL = 200
 HISTORY_LIMIT = 50_000
 EVENT_LIMIT = 300
+# Finished replay events kept for the frame and the recording, drained from the
+# engine's bounded log every tick. At the legacy defaults a microsleep bout
+# comes about every 60 ticks, so this covers more ticks than HISTORY_LIMIT.
+REPLAY_EVENT_LIMIT = 4096
+FRAME_REPLAY_EVENTS = 5  # how many of the latest replay events a frame carries
 REGIME_EVENT_GAP = 60  # ticks between criticality-regime announcements
 GATE_EVENT_GAP = 30  # ticks between sensory-gate announcements (the gate can flicker)
 
@@ -158,6 +166,7 @@ class SimSession:
             self._apply_param(key, value)
         self.history: Deque[Dict[str, Any]] = deque(maxlen=HISTORY_LIMIT)
         self.events: Deque[Event] = deque(maxlen=EVENT_LIMIT)
+        self.replay_events: Deque[Dict[str, Any]] = deque(maxlen=REPLAY_EVENT_LIMIT)
         self._seq = 0
         self._prev_microsleep = False
         self._regime: Optional[str] = None
@@ -233,6 +242,8 @@ class SimSession:
         self.history.append(td.to_ordered_dict())
         for event in self.scenario.on_tick(self.engine, td.tick) + self._generic_events(td.tick):
             self._emit(event)
+        for replay_event in self.engine.replay_log.drain():
+            self.replay_events.append(replay_event.to_dict())
         m = td.neuromodulators
         return {
             "t": td.tick,
@@ -279,8 +290,8 @@ class SimSession:
         if ctx and ctx.replay_active and ctx.replay_cell is not None:
             replay_cell = self._cell_center(*ctx.replay_cell)
         scores = ctx.action_scores if ctx else {}
-        goal_cell = None  # the goal-vector memory, in world coordinates (only when that memory is on)
-        goal = eng.goal_point() if eng.config.value_memory.goal_vector else None
+        goal_cell = None  # the goal-vector memory, in world coordinates (only with oracle homing on)
+        goal = eng.goal_point() if eng.config.value_memory.oracle_homing else None
         if goal is not None:
             gx, gy, _ = _to_world(goal[0], goal[1], 0.0)
             goal_cell = [_r(gx, 3), _r(gy, 3)]
@@ -329,6 +340,9 @@ class SimSession:
                 "back": ctx.replay_back if ctx else 0,
                 "span": ctx.replay_span if ctx else 0,
             },
+            # The latest finished replay events (brain.systems.replay_events.ReplayEvent.to_dict),
+            # oldest first; a replay in progress is in "replay" above, not here.
+            "replay_events": list(self.replay_events)[-FRAME_REPLAY_EVENTS:],
             "mod": {k: _r(v) for k, v in (ctx.neuromodulators if ctx else {}).items()},
             "reward": _r(ctx.reward if ctx else 0.0),
             "crit": {
@@ -452,6 +466,12 @@ class SimSession:
         with open(run_dir / "ticks.jsonl", "w", encoding="utf-8") as fh:
             for row in self.history:
                 fh.write(_canonical_json(row) + "\n")
+        # The finished replay events the session holds (the newest REPLAY_EVENT_LIMIT),
+        # as the headless runner writes them; no file when there were none.
+        if self.replay_events:
+            with open(run_dir / REPLAY_EVENTS_FILE, "w", encoding="utf-8") as fh:
+                for replay_event in self.replay_events:
+                    fh.write(_canonical_json(replay_event) + "\n")
         summary = {
             "protocol": self.scenario_id,
             "source": "live console",
@@ -460,6 +480,7 @@ class SimSession:
             "schema_version": SCHEMA_VERSION,
             "params": dict(self.overrides),
             "status": self.scenario.status(),
+            "n_replay_events": len(self.replay_events),
         }
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
         # Objects as they stand now (a beacon shows its latest spot); the start

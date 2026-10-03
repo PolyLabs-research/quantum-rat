@@ -314,7 +314,7 @@ class MemoryMaze(Scenario):
         "drifts (the hollow ghost) and recall starts to fail",
         "Started facing away from the goal, the visible trial is a long search, so the replayed "
         "gradient has faded to nothing at the start. Sleep also stores the goal's place, and where "
-        "the map is flat the agent turns toward it (goal vector). Fatigue pacing keeps the "
+        "the map is flat the agent turns toward it: oracle homing (goal vector). Fatigue pacing keeps the "
         "sensory gate open during the search so that place is stored where it really is. The stored "
         "place is forgotten after two visits in a row that find no goal there, so the stored place of "
         "a goal that moved stops pulling the agent (the value map can still lead it back there for a "
@@ -337,7 +337,7 @@ class MemoryMaze(Scenario):
 
     def config(self) -> EngineConfig:
         config = memory_nav_config()
-        config.value_memory.goal_vector = True
+        config.value_memory.oracle_homing = True  # the goal-vector slot (an oracle control condition)
         config.basal_ganglia.pace_rest_bonus = PACE_REST_BONUS
         config.basal_ganglia.pace_low = MAZE_PACE_LOW
         return config

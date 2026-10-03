@@ -107,7 +107,7 @@ export class DecisionPanel {
       );
     }
     if (action.goal_vector) {
-      lines.push(el('div', {}, 'Value map flat here: turning toward the remembered goal (goal vector)'));
+      lines.push(el('div', {}, 'Value map flat here: turning toward the remembered goal, oracle homing (goal vector)'));
     }
     const wall = action.wall_gate ?? 1;
     if (wall < 0.99) {
