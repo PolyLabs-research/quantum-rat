@@ -24,7 +24,8 @@ EngineConfig.legacy().diff(EngineConfig.research())         # the table below, a
 | `profile` | `"legacy"` | `"research"` | The label. |
 | `spatial.gate_scales_egomotion` | `True` | `False` | The TRN gate multiplied egomotion before path integration, so low ATP froze the place estimate while the body moved (22.8 units of error after 3000 barren-world ticks, `tools/probes/path_integration_capture`). |
 | `astrocyte.scales_motion` | `True` | `False` | `World.step` multiplied thrust and turn by the ATP throttle, so step length was a physiology artefact (mean step 0.088 of the nominal 1.0, `tools/probes/open_field_motion`). |
-| `astrocyte.frozen` | `False` | `True` | The astrocyte does not tick: ATP and glycogen stay at their initial values (1.0 and 3.0), the TRN gate stays OPEN, and energy cannot trigger sleep. |
+| `astrocyte.frozen` | `False` | `True` | The astrocyte does not tick: ATP and glycogen stay at their initial values (1.0 and 3.0), the TRN gate stays OPEN (its κ branch is off too, next row), and energy cannot trigger sleep. |
+| `trn.narrow_above_kappa` | `1.1` | `inf` | The κ branch of the gate was the second criticality coupling to behaviour (the FORWARD drive is `forward_bias` × gate value). With ATP frozen it was the only way the gate could leave OPEN, and at 1.1 it did at 2 of 41 seeds scanned (seeds 1-40 and 1337, 3,000 open-field ticks: seed 13 ticks 105-112, seed 27 ticks 196-197), cutting the FORWARD drive to 0.4× and changing the action from the first NARROW tick on. The research baseline (seed 1337, 200 ticks) is unchanged by it. |
 | `trn.microsleep_enabled` | `True` | `False` | No microsleep bouts, hence no microsleep-gated replay. Sleep becomes a protocol phase in a later milestone. |
 | `value_memory.dwell_extinction` | `0.02` | `0.0` | A non-stationary reward penalty with no RL or biological reading. |
 | `basal_ganglia.dopamine_explore_gain` | `0.6` | `0.0` | Dopamine no longer scales exploration. The trace is still computed and logged. |
@@ -38,9 +39,19 @@ EngineConfig.legacy().diff(EngineConfig.research())         # the table below, a
 (the console's maze scenarios set the radius to 2 themselves), so they are not
 in the diff. Kappa, avalanche sizes and the modulators are logged in both.
 
+ATP also reaches action selection through the gate value, a route
+`scales_motion` does not touch: the FORWARD drive is `forward_bias` × gate
+value, REST gains 0.1 × (1 − gate value), and a microsleep bout forces REST.
+`scales_motion = False` on its own leaves that route live (seed 1337, 3,000
+open-field ticks: `energy_scale` is 1.0 throughout, yet the mean step is 0.24,
+1,231 steps are zero and FORWARD is never chosen on the 1,297 awake CLOSED
+ticks). The research profile removes it because `frozen` holds ATP at 1.0 and
+the κ branch is off, so the gate is OPEN on every tick.
+
 The TRN gate thresholds (`trn.closed_below_atp` 0.35, `trn.open_at_atp` 0.55,
-`trn.narrow_above_kappa` 1.1, `trn.narrow_gain` 0.4) are now configuration in
-both profiles, at the values that were hard-coded before.
+`trn.narrow_above_kappa` 1.1, `trn.narrow_gain` 0.4) are now configuration, at
+the values that were hard-coded before; the research profile sets
+`narrow_above_kappa` to `inf` (table above) and keeps the other three.
 
 ## What the research profile measures as (tests/engine/test_profiles.py)
 
@@ -67,6 +78,11 @@ profile at the same seed gives a mean step of 0.088 and 1270 microsleep ticks.
 - A place population and a successor representation (M2b).
 - Replay as an event stream between ticks: with microsleep off there is no
   replay at all in this profile until M1 refactors it into an event object.
+- The checksum "novelty" bit decoupled: it still enters action selection in
+  both profiles (`basal_ganglia.novelty_gain` 0.2 on FORWARD and a literal 0.3
+  on each TURN channel); plan section 6 lists it as logged-only in research,
+  which M1 does together with the `oracle_homing` relabel of the goal-vector
+  slot. The TRN replay buffer and `wm_load` are logged only.
 - Behavioural assertions of its own: the barren-world gates pass whatever the
   science does (plan section 6).
 

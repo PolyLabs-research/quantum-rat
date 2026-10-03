@@ -27,14 +27,14 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 - [x] Agent-level seed offset support exists
 
 ## 3) TickData + logging (Milestone 0.3)
-- [x] `metrics/schema.py` defines TickData (+ schema_version, now 2.1.5)
+- [x] `metrics/schema.py` defines TickData (+ schema_version, now 2.1.6)
 - [x] `metrics/logger.py` emits JSONL per tick
 - [x] Per-tick hash helper exists (stable ordering, deterministic)
 
 ## 4) CI determinism gate (Milestone 0.4)
 - [x] `tests/determinism/` baseline trace hashes committed
 - [x] CI fails on any determinism regression (`tests/determinism/test_trace_hash.py`)
-- [x] Baseline update requires explicit flag/script (auditable) — last regenerated 2026-10-01 for `criticality_active` logging + schema 2.1.5 (see `docs/decisions.md` G1); earlier regen 2025-12-16 after Criticality integration
+- [x] Baseline update requires explicit flag/script (auditable) — last regenerated 2026-10-01 for `criticality_active` logging + schema 2.1.5 (see `docs/decisions.md` G1; the meta file now records 2.1.6); earlier regen 2025-12-16 after Criticality integration; 2026-10-03 a second baseline for the research profile (`baseline_hashes_research.json`, schema 2.1.6, G22)
 
 ## 5) World + sensors + Observation contract (Milestone 1)
 - [x] Deterministic world stepping (`core/world.py`, `core/entities.py`)
@@ -45,20 +45,20 @@ Rule: no box may be checked unless its DoD is proven (tests/logs/artifacts).
 ## 6) Physiology + neuromodulation (Milestone 2)
 - [x] ATP/glycogen dynamics implemented, logged in TickData (`core/physiology.py`)
 - [x] DA/5HT/NE/ACh updates deterministic + logged (`core/neuromodulation.py`)
-  - Done / partly done (2026-10-01): physiology no longer collapses — effort-scaled demand + glycogen regeneration give a sustainable rest state (`tests/physiology/test_energy_equilibrium.py`). Dopamine is now causal (reward-prediction error → exploration; `tests/engine/test_neuromodulation.py`); NE/ACh/5HT are now state readouts but do not yet drive behaviour (tracked in `RECOMMENDATIONS.md`). See `docs/decisions.md` G4.
+  - Done / partly done (2026-10-01): physiology no longer collapses — effort-scaled demand + glycogen regeneration give a sustainable rest state (`tests/physiology/test_energy_equilibrium.py`). Dopamine is now causal (reward-prediction error → exploration; `tests/engine/test_neuromodulation.py`); NE/ACh/5HT are now state readouts but do not yet drive behaviour (tracked in `RECOMMENDATIONS.md`). See `docs/decisions.md` G4. *2026-10-03: the four traces are DA = reward − its running mean (not a prediction error over states), ACh = the checksum-changed novelty bit, NE = ½ pain + ½ that bit, 5HT = the running mean; each enters action selection through one gain, all four zeroed in the research profile (`tools/probes/neuromod_traces`, G22).*
 
 ## 7) Criticality core (Milestone 3 — highest priority)
 - [x] CriticalityField lattice implemented (`brain/systems/criticality.py`)
 - [x] Avalanche detection + κ (EMA) implemented + logged; `criticality_active` now logged too (2026-10-01)
 - [x] Validation sweep script exists + has assertions (`experiments/criticality_validation.py`)
 - [x] Reduced sweep runs in CI (`tests/experiments/test_criticality_validation.py`)
-  - Done (2026-10-01): reimplemented as a driven branching process; κ is now the Shew et al. (2009) statistic over the avalanche-size distribution. The sweep asserts real physics (κ rises monotonically and crosses ~1, mean avalanche size grows with coupling). See `docs/decisions.md` G3. Criticality is now also coupled to cognition: a near-critical cortical gain (peaking at κ≈1) scales sensory precision in action selection (`experiments/criticality_cognition.py`, `docs/decisions.md` G9).
+  - Done (2026-10-01): reimplemented as a driven branching process; κ is now the Shew et al. (2009) statistic over the avalanche-size distribution. The sweep asserts real physics (κ rises monotonically and crosses ~1, mean avalanche size grows with coupling). See `docs/decisions.md` G3. Criticality is now also coupled to cognition: a near-critical cortical gain (peaking at κ≈1) scales sensory precision in action selection (`experiments/criticality_cognition.py`, `docs/decisions.md` G9). *Re-measured 2026-10-03 (research plan M0a; `tools/probes/criticality_critical_point`, `dormant_couplings`): the lattice is bond percolation, critical at coupling 0.5, subcritical at the default 0.25; the κ = 1 crossing near 0.32 is an artefact of the exponent-1.5 reference and κ reads ~1.44 at the true critical point; `criticality_gain` is 0 by default and at 1.0 changes no position in the probed worlds. The box stays ticked for the lattice, κ and the sweep existing, not for the physics claim.*
 
 ## 8) TRN, microsleep, replay, memory (Milestone 4)
 - [x] TRN gating states logged (`trn_state` in TickData) — proof: `artifacts/agentD_milestone4_proof.md`
 - [x] Microsleep episodes reproducible (determinism gate + `tests/experiments/test_runner_determinism.py`)
 - [x] Replay only occurs during microsleep (enforced by a guard in `core/engine.py` that raises otherwise)
-  - Done (2026-10-01): a plastic place-value map is learned by TD(0) and consolidated by replay (`tests/engine/test_value_memory.py`); the agent uses it to navigate back to a now-hidden goal (`experiments/memory_navigation.py`, `tests/experiments/test_memory_navigation.py`). Repeated recall reinforces the map rather than eroding it, and replay is a data-efficiency speed-up (one demonstration + replay recalls in ~16 ticks vs ~66 for online learning alone) — the honest reading of Epic 4.3's "replay improves performance", at the engine's default spatial resolution and forward bias (spatial value generalisation, `generalization_radius`). See `docs/decisions.md` G4, G7, G8, G11.
+  - Done (2026-10-01): a plastic place-value map is learned by TD(0) and consolidated by replay (`tests/engine/test_value_memory.py`); the agent uses it to navigate back to a now-hidden goal (`experiments/memory_navigation.py`, `tests/experiments/test_memory_navigation.py`). Repeated recall reinforces the map rather than eroding it, and replay is a data-efficiency speed-up (one demonstration + replay recalls in ~16 ticks vs ~66 for online learning alone) — the honest reading of Epic 4.3's "replay improves performance", at the engine's default spatial resolution and forward bias (spatial value generalisation, `generalization_radius`). See `docs/decisions.md` G4, G7, G8, G11. *2026-10-03: a legacy-profile result and a single deterministic sample at sensor noise 0. With `experiments.memory_navigation` defaults the first hidden probe is 13 vs 14 ticks and later probes 17/17 vs 15/13 (`tools/probes/memory_nav_fragility`); the ~16 vs ~66 figure predates G11's online-learning fix. Re-measured with CIs as G23.*
 
 ## 9) Spatial + action selection (Milestone 5)
 - [x] Grid/place/HD uses egomotion (`brain/systems/spatial.py`) — proof: `artifacts/agentF_milestone5_proof.md`

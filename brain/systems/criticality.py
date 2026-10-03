@@ -8,13 +8,14 @@ ratio is ``sigma = 4 * coupling``. Each cell fires at most once per avalanche
 (refractory), so an avalanche always terminates and its size is the number of
 cells that fired.
 
-- sigma < 1 (coupling < 0.25): subcritical -- avalanches die out quickly (small).
-- sigma ~ 1 (coupling ~ 0.25): critical -- avalanche sizes follow a power law.
-- sigma > 1 (coupling > 0.25): supercritical -- avalanches saturate the lattice.
-
-``kappa`` is the Shew et al. (2009) statistic over the avalanche-size
-distribution (reference power-law exponent 1.5): < 1 subcritical, ~ 1 critical,
-> 1 supercritical.
+The mean-field branching ratio sigma = 4 * coupling is 1 at coupling 0.25, but
+on this 2-D torus with refractory cells the process is bond percolation and its
+critical point is at coupling 0.5 (tools/probes/criticality_critical_point): at
+0.25 avalanche statistics are lattice-size independent (mean ~4.2), spanning
+avalanches first appear at 0.35. ``kappa`` is the Shew et al. (2009) statistic
+against a reference exponent of 1.5; it crosses 1 near coupling 0.32 and reads
+~1.44 at the true critical point, so it does not locate criticality in this
+model. At defaults it settles near 0.91.
 """
 
 from __future__ import annotations
@@ -47,12 +48,13 @@ class CriticalityMetrics:
 
 
 def near_critical_gain(kappa: float, width: float = 0.3) -> float:
-    """Cortical gain that peaks at criticality (kappa == 1) and falls off away from it.
+    """A Gaussian in kappa about 1 (width ``width``), computed every tick and logged as a readout.
 
-    Near-criticality is associated with maximal dynamic range / information
-    transmission, so this is used to scale sensory processing: a near-critical
-    field processes input best; a sub- or super-critical field processes it worse.
-    Returns a value in (0, 1].
+    It enters action selection only in proportion to
+    ``BasalGangliaConfig.criticality_gain`` (0 by default); at 1.0 and the
+    default coupling it is a 0.93-1.0 multiplier on vision_gain after warm-up
+    and changes no decision in the probed worlds
+    (tools/probes/dormant_couplings). Returns a value in (0, 1].
     """
     return math.exp(-(((kappa - 1.0) / width) ** 2))
 

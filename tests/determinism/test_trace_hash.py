@@ -35,4 +35,8 @@ def test_research_profile_trace_hash_matches_its_baseline() -> None:
 
     baseline = load_profile_baseline("research")
     current = build_profile_trace("research")
-    assert current == baseline, "Determinism regression: research-profile trace hash differs from its baseline"
+    assert current == baseline, (
+        "Determinism regression: research-profile trace hash differs from its baseline. "
+        "If the change is intended, regenerate with: python -m tools.update_determinism_baseline "
+        "--profile research --i-know-what-im-doing (docs/profiles.md)."
+    )

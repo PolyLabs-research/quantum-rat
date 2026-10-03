@@ -521,7 +521,8 @@ export class AvalancheHistogram {
   }
 }
 
-/** Horizontal kappa gauge with the 0.85-1.05 band the regime chip uses (an estimator band, not the lattice's critical point). */
+/** Horizontal kappa gauge with the 0.85-1.05 band the regime chip uses (an estimator band, not the lattice's critical point).
+ *  κ = 1 is the exponent-1.5 reference, not the lattice critical point (coupling 0.5). */
 export function drawKappaGauge(canvas, kappa, measuring) {
   const { ctx, w, h } = fitCanvas(canvas);
   ctx.clearRect(0, 0, w, h);
@@ -552,11 +553,11 @@ export function drawKappaGauge(canvas, kappa, measuring) {
   }
   ctx.textBaseline = 'bottom';
   ctx.textAlign = 'left';
-  ctx.fillText('subcritical', l, y - 8);
+  ctx.fillText('κ < 0.85', l, y - 8);
   ctx.textAlign = 'right';
-  ctx.fillText('supercritical', l + pw, y - 8);
+  ctx.fillText('κ > 1.05', l + pw, y - 8);
   ctx.textAlign = 'center';
-  ctx.fillText('critical', sx(0.95), y - 8);
+  ctx.fillText('0.85–1.05 band', sx(0.95), y - 8);
 
   if (measuring) return;
   const x = sx(kappa);

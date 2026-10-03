@@ -33,13 +33,16 @@ START_POSE: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # x, y, heading (all s
 # memory_maze and hidden_food pace with a higher threshold (GATE_SAFE_PACE_LOW).
 PACE_REST_BONUS = 5.0
 # Gate-safe pacing (memory_maze, hidden_food): rest before ATP reaches the
-# level (0.55, hard-coded in TRNGate.trn_state) below which the TRN narrows the
+# level (0.55, `TRNConfig.open_at_atp`) below which the TRN narrows the
 # sensory gate. The gate also scales the egomotion fed to path integration, so
 # a fatigued agent's internal frame drifts: in the maze a long search on the
 # visible trial (a start facing away from the goal) shifts it by up to 12 m and
 # the goal it learns is in the wrong place; in hidden_food, where nothing resets
 # the frame, it reaches 16-37 m after 3000 ticks. The default pace_low (0.4)
 # lies below that level and does not prevent the drift.
+# Kept a literal (0.55 + 0.05 is 0.6000000000000001 in floating point, which
+# would move the pacing latch); tests/ui/test_sim_session.py checks it stays
+# above TRNConfig().open_at_atp.
 GATE_SAFE_PACE_LOW = 0.6
 MAZE_PACE_LOW = GATE_SAFE_PACE_LOW
 
@@ -301,9 +304,10 @@ class MemoryMaze(Scenario):
         "Trial 1: vision guides the agent to the goal, laying down a trajectory",
         "Sleep: replay propagates value backward along the path (watch the value map light up)",
         "Later trials: the goal is invisible; the agent navigates from its value map",
-        "Turn replay off and restart to compare: online learning alone still recalls, but each "
-        "recall takes longer (median ~16 vs ~10 ticks), so fewer fit in a session. The very first "
-        "hidden trial is not faster with replay (15 vs 13 ticks at the default goal)",
+        "Turn replay off and restart to compare: online learning alone still recalls, but early "
+        "recalls take longer (median 16 vs 10 ticks over the first 1,500 ticks; by 3,000 ticks both "
+        "medians are 10), so fewer fit in a session (about 240 vs 300 in 3,000 ticks at seed 1337). "
+        "The very first hidden trial is not faster with replay (15 vs 13 ticks at the default goal)",
         "Turn the inter-trial rest off: the agent now has to stop and recover mid-trial "
         "(fatigue pacing), so recalls take longer and fewer fit in a session. Set fatigue "
         "pacing to 0 as well: the agent tires, its sensory gate narrows, path integration "

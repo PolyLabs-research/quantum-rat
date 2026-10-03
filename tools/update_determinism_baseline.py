@@ -15,17 +15,16 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.config import EngineConfig
-from core.determinism import BASELINE_PATH, DEFAULT_SEED, DEFAULT_TICKS
+from core.determinism import BASELINE_PATH, DEFAULT_SEED, DEFAULT_TICKS, hash_trace
 from core.engine import Engine
-from metrics.hash import RunHash
-from metrics.schema import SCHEMA_VERSION, TickData
+from metrics.schema import SCHEMA_VERSION
 
 PROFILES: Dict[str, Callable[[], EngineConfig]] = {
     "legacy": EngineConfig.legacy,
@@ -41,21 +40,6 @@ def baseline_paths(profile: str) -> Tuple[Path, Path]:
         BASELINE_PATH.with_name(f"baseline_hashes_{profile}.json"),
         BASELINE_PATH.with_name(f"baseline_meta_{profile}.json"),
     )
-
-
-def hash_trace(trace: Iterable[TickData]) -> List[Dict[str, Any]]:
-    """Per-tick hashes plus the whole-run hash of a trace, in the gate's format.
-
-    The same ``RunHash`` accumulation as ``core.determinism.build_current_trace``,
-    for a trace produced by any engine.
-    """
-    run_hash = RunHash()
-    hashes: List[Dict[str, Any]] = []
-    for tick in trace:
-        digest = run_hash.update(tick)
-        hashes.append({"tick": tick.tick, "hash": digest})
-    hashes.append({"tick": "run", "hash": run_hash.hexdigest()})
-    return hashes
 
 
 def build_profile_trace(profile: str, seed: int = DEFAULT_SEED, ticks: int = DEFAULT_TICKS) -> List[Dict[str, Any]]:

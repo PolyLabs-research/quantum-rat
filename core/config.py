@@ -54,8 +54,10 @@ class AstrocyteConfig:
     motion_demand: float = 0.8  # additional demand scaled by |thrust|
     # Whether the ATP throttle scales the body's motion. World.step multiplies
     # thrust and turn by the energy_scale the engine hands it: atp / atp_baseline
-    # when this is True (legacy), 1.0 on every tick when it is False (body speed
-    # independent of ATP; the energy stores still move and are still logged).
+    # when this is True (legacy), 1.0 on every tick when it is False (step length
+    # independent of ATP; the gate value still scales the FORWARD drive, so ATP
+    # reaches action selection by that route unless the gate is held OPEN, see
+    # docs/profiles.md; the energy stores still move and are still logged).
     scales_motion: bool = True
     # When True the astrocyte does not tick at all: ATP and glycogen stay at
     # their initial values (``atp``, ``glycogen`` above) for the whole run and
@@ -69,8 +71,8 @@ class AstrocyteConfig:
 
 @dataclass
 class NeuromodConfig:
-    reward_lr: float = 0.1  # EMA rate for expected reward (dopamine RPE baseline)
-    rpe_scale: float = 1.0  # reward-prediction-error scale for dopamine
+    reward_lr: float = 0.1  # EMA rate of the running mean of reward (DA = reward - this mean)
+    rpe_scale: float = 1.0  # scale of (reward - running mean) in DA and of the mean in 5HT
 
 
 @dataclass
@@ -209,7 +211,10 @@ class BasalGangliaConfig:
     ne_threat_gain: float = 0.5  # norepinephrine raises arousal / threat sensitivity
     fiveht_patience_gain: float = 0.4  # serotonin raises patience (willingness to rest)
     value_gain: float = 1.5  # drive toward higher-value directions from the learned map
-    criticality_gain: float = 0.0  # how strongly near-critical cortical gain scales vision (0 = off)
+    # Weight of the kappa gain (brain.systems.criticality.near_critical_gain) on
+    # vision_gain: 0 = off, the default; at 1.0 it flips no decision in the
+    # probed worlds (tools/probes/dormant_couplings).
+    criticality_gain: float = 0.0
     # Freeze habituation: pain-driven REST habituates while the agent keeps freezing
     # in pain, so a freeze is not an absorbing state. The pain->REST drive is scaled
     # by exp(-F / freeze_tau), where F counts recent pain-freeze ticks (+1 per REST
@@ -312,6 +317,11 @@ class EngineConfig:
           so the body moves the commanded thrust.
         - ``trn.microsleep_enabled = False``: no microsleep bouts, hence no
           microsleep-gated replay (sleep becomes a protocol phase later).
+        - ``trn.narrow_above_kappa = inf``: the gate's kappa branch is off. With
+          ATP frozen at 1.0 the gate is then OPEN on every tick, so the
+          criticality lattice cannot reach the FORWARD drive through the gate
+          value (at the legacy 1.1 it did at 2 of 41 seeds scanned, see
+          docs/profiles.md).
         - ``value_memory.dwell_extinction = 0.0``: no charge for dwelling.
         - Neuromodulator coupling gains in ``basal_ganglia`` set to 0:
           ``dopamine_explore_gain``, ``ach_precision_gain``, ``ne_threat_gain``
@@ -331,6 +341,7 @@ class EngineConfig:
         cfg.astrocyte.scales_motion = False
         cfg.astrocyte.frozen = True
         cfg.trn.microsleep_enabled = False
+        cfg.trn.narrow_above_kappa = float("inf")
         cfg.value_memory.generalization_radius = 0
         cfg.value_memory.goal_vector = False
         cfg.value_memory.dwell_extinction = 0.0

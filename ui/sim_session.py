@@ -78,21 +78,27 @@ PARAMS: Tuple[Param, ...] = (
           "instead of trapping it there. Sleep replay applies the same rule, so a peak fades to "
           "about zero (never below one step's charge) instead of turning aversive. 0 turns extinction off."),
     Param("basal_ganglia.dopamine_explore_gain", "Dopamine → exploration", "Neuromodulation", 0.0, 1.5, 0.05,
-          "Below-baseline dopamine (disappointment) boosts novelty seeking."),
+          "Dopamine below 0.5 (reward under its running mean) scales up the novelty term in the "
+          "FORWARD drive."),
     Param("basal_ganglia.ach_precision_gain", "Acetylcholine → precision", "Neuromodulation", 0.0, 1.5, 0.05,
-          "Acetylcholine (uncertainty) sharpens how much vision is trusted."),
+          "Scales the vision drive by (1 + gain × ACh), where ACh is the novelty bit: 1 whenever the "
+          "observation checksum changed, which is every tick at sensor noise 0.03, so there this is a "
+          "constant ×(1 + gain)."),
     Param("basal_ganglia.ne_threat_gain", "Norepinephrine → threat", "Neuromodulation", 0.0, 1.5, 0.05,
-          "Norepinephrine (arousal) amplifies pain avoidance and freezing."),
+          "Scales pain avoidance and the pain → REST (freezing) drive by (1 + gain × NE), "
+          "NE = ½ pain + ½ the novelty bit."),
     Param("basal_ganglia.fiveht_patience_gain", "Serotonin → patience", "Neuromodulation", 0.0, 1.5, 0.05,
-          "Serotonin (mood) raises willingness to rest and wait."),
+          "Adds a REST drive of gain × (5HT − 0.5); 5HT is 0.5 plus half the running mean of reward, "
+          "so 0.5 with no reward."),
     Param("criticality.coupling", "E/I coupling", "Criticality", 0.10, 0.45, 0.01,
           "Per-neighbour activation probability on the 16 × 16 torus (bond percolation). The lattice is "
           "critical at coupling 0.5, above this slider's 0.45; at the default 0.25 it is subcritical "
           "and κ settles near 0.91."),
     Param("basal_ganglia.criticality_gain", "Criticality → sensory gain", "Criticality", 0.0, 1.0, 0.05,
           "How strongly a gain computed from κ scales vision. 0 at defaults, so the panel is a readout. "
-          "With the default coupling the gain is a near-constant 0.91–0.93 multiplier that changes no "
-          "decision in the probed worlds (barren, beacon, foraging; tools/probes/dormant_couplings)."),
+          "With the default coupling the gain is a 0.93–1.0 multiplier after warm-up (0.92 at the "
+          "long-run κ of 0.91) that changes no decision in the probed worlds (barren, beacon, foraging; "
+          "tools/probes/dormant_couplings)."),
     Param("sensors.fov", "Field of view", "Senses", 0.4, 3.0, 0.1,
           "Angular spread of the vision rays, in radians."),
     Param("sensors.vision_rays", "Vision rays", "Senses", 1, 9, 1,
@@ -203,7 +209,16 @@ class SimSession:
         field = self.engine.criticality
         regime = criticality_regime(field.kappa, len(field.avalanche_sizes), field.config.kappa_min_avalanches)
         if regime != "measuring" and regime != self._regime and tick - self._regime_tick >= REGIME_EVENT_GAP:
-            events.append({"tick": tick, "text": f"Criticality: {regime} (κ = {field.kappa:.2f})", "level": "info", "kind": "criticality"})
+            events.append({
+                "tick": tick,
+                "text": (
+                    f"κ = {field.kappa:.2f}, in the {regime} band of the exponent-1.5 estimator "
+                    "(0.85–1.05 is called 'near-critical'); this is not the lattice's critical point, "
+                    "which is at coupling 0.5"
+                ),
+                "level": "info",
+                "kind": "criticality",
+            })
             self._regime = regime
             self._regime_tick = tick
         return events

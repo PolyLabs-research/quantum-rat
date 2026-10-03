@@ -189,17 +189,17 @@ Trial structure as an engine concept moves to M3, where the first protocol that 
 
 ## 6. Legacy profile and research profile
 
-Nothing is deleted. Every mechanism below is a configuration flag today or becomes one in M0a; the legacy profile keeps today's behaviour and the research profile switches it off.
+Nothing is deleted. Every mechanism below is a configuration flag today or becomes one in M0a, except the two parts marked M1, which M0a leaves as they are; the legacy profile keeps today's behaviour and the research profile switches it off.
 
 | Mechanism | Legacy profile | Research profile | Why it is off in research |
 |---|---|---|---|
 | Kernel smoothing in `ValueMemory` (`generalization_radius`) | 2 in the maze scenarios | 0 | Inflates values (V = 10 for reward 1); V is not an expected return. |
 | Dwell extinction | 0.02 | 0.0 | A non-stationary reward penalty with no RL or biological reading. |
 | TRN gate × egomotion | on | off | Freezes the place estimate while the body moves. |
-| Goal-vector slot | available (`goal_vector`, default False) | off, relabelled `oracle_homing` as an explicit control condition | Did the off-axis maze work the value map was credited with. |
+| Goal-vector slot | available (`goal_vector`, default False) | off (`goal_vector = False`, M0a); relabelled `oracle_homing` as an explicit control condition in M1 | Did the off-axis maze work the value map was credited with. |
 | Energy scaling of thrust and turn; microsleep | on | off (ATP at baseline) | Makes every latency and path length a physiology artefact; sleep becomes a protocol phase. |
 | Microsleep as the replay trigger; pacing | on | off | Replay becomes a protocol-driven event stream; pacing is an environment setting the legacy scenarios declare. |
-| Checksum "novelty" bit; TRN replay buffer; `wm_load` | on, labelled | logged, not coupled | Not what their names say. |
+| Checksum "novelty" bit; TRN replay buffer; `wm_load` | on, labelled | logged, not coupled (M1: in M0a the bit still enters action selection in both profiles through `novelty_gain` 0.2 and a 0.3 turn term; the buffer and `wm_load` are logged only) | Not what their names say. |
 | Criticality lattice; neuromodulator scalars | on at defaults (already dormant) | coupling gains 0; traces logged | Dead at defaults; kept as readouts. |
 | Headless `morris_water_maze` / `t_maze` / `survival_arena` | renamed `*_toy`, honest docstrings | not used | No pool, no T, no sensed hazard; solved in 5 ticks. |
 

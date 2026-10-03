@@ -82,9 +82,8 @@ def _channel_scores(
 
     # Dopamine: below-baseline (worse-than-expected reward) boosts exploration.
     novelty_gain = config.novelty_gain * (1.0 + config.dopamine_explore_gain * (0.5 - da))
-    # Acetylcholine sharpens sensory precision; near-critical cortical gain scales it too
-    # (criticality_gain is 1.0 at criticality and <1 away from it). criticality_gain strength
-    # 0 disables the coupling.
+    # ACh gain and the kappa gain scale vision_gain; criticality_gain (the config
+    # weight) is 0 by default, so crit_mod is 1.0.
     crit_mod = (1.0 - config.criticality_gain) + config.criticality_gain * criticality_gain
     vision_gain = config.vision_gain * (1.0 + config.ach_precision_gain * ach) * crit_mod
     # Norepinephrine: arousal raises threat sensitivity (pain avoidance / freezing).

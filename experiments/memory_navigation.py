@@ -16,7 +16,9 @@ Two findings:
   TD(0), so following the gradient on zero-reward steps reinforces it (bootstrap
   on the successor) rather than decaying it toward the immediate zero reward.
   An agent doing repeated hidden-recall trials keeps reaching the goal and gets
-  faster as it learns from experience. This one is robust across seeds.
+  faster as it learns from experience. At sensor noise 0 (this config) every
+  seed is the same run, so this is one sample; it also held at noise 0.03 on
+  the seeds tried (G12).
 * **Replay is a modest, fragile data-efficiency speed-up, not a precondition.**
   After a single demonstration both agents reach the hidden goal at the default
   settings. With the default split steering, at the default

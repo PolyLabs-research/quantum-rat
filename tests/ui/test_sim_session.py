@@ -155,6 +155,16 @@ def test_memory_maze_frame_shows_the_goal_memory():
     assert SimSession("foraging").frame()["goal"] is None  # the goal vector is off there
 
 
+def test_gate_safe_pacing_rests_before_the_trn_narrows():
+    """GATE_SAFE_PACE_LOW is tied to TRNConfig.open_at_atp by prose only (it stays a literal so the
+    pacing latch compares against exactly 0.6); this keeps the tie honest."""
+    from core.config import TRNConfig
+    from ui.scenarios import GATE_SAFE_PACE_LOW, MAZE_PACE_LOW
+
+    assert GATE_SAFE_PACE_LOW == MAZE_PACE_LOW == 0.6
+    assert GATE_SAFE_PACE_LOW > TRNConfig().open_at_atp
+
+
 def test_memory_maze_actions():
     session = SimSession("memory_maze")
     session.do_action("toggle_replay")

@@ -9,17 +9,19 @@ the engine's egomotion and path integration go through cos/sin and hypot, so
 from __future__ import annotations
 
 import math
+from dataclasses import asdict, fields
 from typing import Callable, List, Tuple
 
 from brain.systems.spatial import wrap_angle
-from core.config import EngineConfig
-from core.determinism import DEFAULT_SEED, DEFAULT_TICKS, build_current_trace, load_baseline
+from brain.systems.trn_microsleep_replay import TRNGate
+from core.config import EngineConfig, TRNConfig
+from core.determinism import DEFAULT_SEED, DEFAULT_TICKS, build_current_trace, hash_trace, load_baseline
 from core.engine import Engine
 from core.physiology import Astrocyte
 from experiments.protocols import OpenFieldProtocol
 from metrics.schema import TickData
 from tools.probes._common import run_engine
-from tools.update_determinism_baseline import build_profile_trace, hash_trace
+from tools.update_determinism_baseline import build_profile_trace
 
 TICKS = 3000
 BOUNDS = EngineConfig().world.bounds  # (10, 10): the default square box
@@ -114,6 +116,13 @@ def test_trn_gate_from_config_thresholds_reproduces_the_hard_coded_table() -> No
     assert seen == {"OPEN", "NARROW", "CLOSED"}
 
 
+def test_trn_gate_defaults_match_trn_config() -> None:
+    """TRNGate declares its own defaults for the fields TRNConfig carries; Engine always
+    passes all of them, so a drift between the two would be invisible without this."""
+    gate = TRNGate()
+    assert {f.name: getattr(gate, f.name) for f in fields(TRNConfig)} == asdict(TRNConfig())
+
+
 # --- (b) the profile diff ---------------------------------------------------
 
 EXPECTED_RESEARCH_DIFF = [
@@ -122,6 +131,7 @@ EXPECTED_RESEARCH_DIFF = [
     ("astrocyte.frozen", False, True),
     ("value_memory.dwell_extinction", 0.02, 0.0),
     ("spatial.gate_scales_egomotion", True, False),
+    ("trn.narrow_above_kappa", 1.1, math.inf),
     ("trn.microsleep_enabled", True, False),
     ("basal_ganglia.dopamine_explore_gain", 0.6, 0.0),
     ("basal_ganglia.ach_precision_gain", 0.5, 0.0),
@@ -157,7 +167,7 @@ def test_research_open_field_has_no_microsleep_full_thrust_steps_and_exact_path_
     assert proto.summarize()["microsleep_count"] == 0
     assert sum(td.microsleep_active for td in rows) == 0
     assert sum(td.replay_active for td in rows) == 0
-    assert all(td.trn_state == "OPEN" for td in rows)
+    assert all(td.trn_state == "OPEN" for td in rows)  # ATP frozen at 1.0 and the kappa branch off
     assert all(s == 1.0 for s in scales)
     assert all(td.atp == 1.0 for td in rows)
     # The realised step is the commanded thrust: 1.0 for FORWARD, 0.3 for a TURN.

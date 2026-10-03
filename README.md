@@ -47,17 +47,18 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
 * **Results of the legacy profile** (today's defaults; see Profiles below). A plastic
   place-value map is learned by TD(0) and consolidated by replay; the agent uses it for
   memory-guided navigation back to a now-hidden goal (`experiments/memory_navigation.py`).
-  Repeated recall reinforces the map rather than eroding it, and replay is a modest
-  data-efficiency speed-up: at the default settings, over six goal positions the first replay
+  Repeated recall reinforces the map rather than eroding it, and replay was a modest
+  speed-up in one deterministic sample: at the default settings, over six goal positions the first replay
   probe is no slower on any goal and faster on five (138 vs 174 probe ticks in total; 13 vs 14 at
   the default goal, 42 vs 65 off axis). That margin is fragile (it disappears at gains 0.8-1.3 and
   under sensor noise, and on later probes at the default goal it reverses: 9/13/17/17 vs
-  9/14/15/13 ticks); the robust benefit in the console's maze is more recalls per session (median
-  recall 10 vs 16 ticks), not a faster first recall. Place values generalise to neighbouring cells
-  (overlapping place fields), so this works at the engine's default spatial resolution and
-  forward bias; the same kernel inflates the values (max V 2.1 after one visible trial for a
-  reward of 1.0; on a 12-cell chain with one reward of 1.0, up to 6.6 at radius 2 and 10 at
-  radius 1, against 1.0 at radius 0), so V is not an expected return. Memory
+  9/14/15/13 ticks); the robust benefit in the console's maze is more recalls per session (about
+  300 vs 240 recalls in 3,000 ticks at seed 1337; the median recall is 10 vs 16 ticks over the
+  first 1,500 ticks and 10 vs 10 by 3,000), not a faster first recall. Place values generalise to
+  neighbouring cells (overlapping place fields), so this works at the engine's default spatial
+  resolution and forward bias; the same kernel inflates the values (max V 2.1 after one visible
+  trial for a reward of 1.0; on a 12-cell chain with one reward of 1.0, up to 6.6 at radius 2 and
+  10 at radius 1, against 1.0 at radius 0), so V is not an expected return. Memory
   steering (`value_gain`, default 1.5) works over a wide band (0.4-3.0) without value-induced
   resting, pain freezes or wall pinning (`docs/decisions.md` G14-G16, re-measured in G20 and
   G21). Microsleep replay backs up the recent path in reverse order and never links transitions
@@ -68,7 +69,8 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   (G18). That place is forgotten after two visits in a row that find nothing, so the stored place
   of a goal that moved stops pulling the agent; the replayed value gradient can still lead it
   back to the old place until that gradient extinguishes (G21). In the hidden-food task, where
-  food is invisible and regrows at fixed sites, memory finds 2.8-4.1x as much food as memory off
+  food is invisible and regrows at fixed sites, memory steering finds 2.8-4.1x as much food as
+  memory off (by searching near recent finds, not by remembering sites; see the next paragraph)
   and loses no paired run (G19, G21). All of these were measured with the legacy mechanisms on
   (the TRN gate scaling path integration, energy scaling of motion, the radius-2 value kernel),
   and where a number comes from sensor noise 0, different seeds are copies of one run
@@ -92,11 +94,13 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   replays one place (98% of each sleep snapshot is same-cell transitions): a closed sensory gate
   freezes the place estimate for the ticks before sleep while the body moves on (a median 2.7 m),
   a model artefact. With pacing off the gate is closed or narrowed on 98% of open-field ticks and
-  path integration captures 27% of the true path; with pacing on it is exact, because egomotion
-  is noiseless. The energy model is a limit cycle at defaults: glycogen is pinned at 0.03 from
-  tick ~148, every microsleep bout lasts exactly 25 ticks, and 42% of open-field steps are zero.
-  The maze and hidden-food fixes rely on resting before ATP reaches a gate threshold hard-coded in
-  the TRN, and a visible-trial search can still fail. The large score gains in the beacon, foraging
+  path integration captures 27% of the true path; with gate-safe pacing (`pace_low` 0.6, the maze
+  and hidden-food setting) it is exact, because egomotion is noiseless; the console's beacon,
+  foraging and hazard scenarios pace at 0.4, which still narrows the gate on about a third of
+  ticks and leaves 23.7 units of error. The energy model is a limit cycle at defaults: glycogen is
+  pinned at 0.03 from tick ~148, every microsleep bout lasts exactly 25 ticks, and 42% of
+  open-field steps are zero. The maze and hidden-food fixes rely on resting before ATP reaches
+  the gate threshold (`TRNConfig.open_at_atp`, 0.55), and a visible-trial search can still fail. The large score gains in the beacon, foraging
   and hazard scenarios of the lab console come mostly from fatigue pacing, which is on in those
   scenarios only, not in the core engine. The replay advantage is a single deterministic sample
   and breaks at some gains, steering parameters and noise levels
@@ -112,11 +116,14 @@ measure is reproducible. See `RECOMMENDATIONS.md` for what's done and what's nex
 Two configuration profiles exist. The **legacy profile** is `EngineConfig()` as it is today:
 every console scenario runs under it, the G-entries in `docs/decisions.md` were measured under
 it, and its traces are pinned bit-for-bit by the determinism gate. The **research profile**
-(`EngineConfig.research()`, being added alongside this pass) switches the toy mechanisms off for
+(`EngineConfig.research()`, added in M0a, commit 95667ce) switches the toy mechanisms off for
 the research programme: the TRN gate no longer scales path integration, the energy model no
 longer scales motion and microsleep is off, the value kernel radius is 0, dwell extinction is 0,
-and the criticality and neuromodulator couplings are 0 (the traces are still logged). See
-`docs/profiles.md` and `docs/research_plan.md` (§6).
+and the criticality and neuromodulator couplings are 0 (the traces are still logged), ATP is held
+at baseline with the gate's κ branch off, and the goal-vector slot is off. It has no noisy
+odometry, physical units, place population or replay events yet: with microsleep off there is no
+replay at all in this profile until M1 (`docs/profiles.md`). See `docs/profiles.md` and
+`docs/research_plan.md` (§6).
 
 ---
 
@@ -140,7 +147,7 @@ works offline.
 | Beacon chase | Vision-driven pursuit; dopamine hits 1.0 on arrival; the value map's memory of old beacon spots |
 | Foraging patch | Five food items, wide field of view; reward builds the value map |
 | Hazard field | Food behind hazards; pain raises norepinephrine and the value map turns red there |
-| Hidden food | Invisible food at six fixed sites regrows after it is eaten; the value map learns where it was |
+| Hidden food | Invisible food at six fixed sites regrows after it is eaten; the value map marks recent finds and the agent searches near them (not site memory, G21) |
 | Memory maze | Water-maze recall: one visible trial, sleep/replay, then navigate to the hidden goal from memory |
 
 Panels: the arena (value map, vision rays coloured by what they hit, whiskers, pain zones, trail,

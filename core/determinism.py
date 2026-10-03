@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List
 
 from core.engine import Engine
 from metrics.hash import RunHash
@@ -34,15 +34,24 @@ def generate_trace(seed: int, ticks: int, *, agent_offset: int = 0) -> List[Tick
     return engine.run(ticks)
 
 
-def build_current_trace(seed: int = DEFAULT_SEED, ticks: int = DEFAULT_TICKS) -> List[Dict[str, Any]]:
-    """Build the per-tick + whole-run hash list for the current code."""
+def hash_trace(trace: Iterable[TickData]) -> List[Dict[str, Any]]:
+    """Per-tick hashes plus the whole-run hash of a trace, in the gate's format.
+
+    The one ``RunHash`` accumulation loop behind every determinism baseline
+    (the gate's own path, the profile baselines and the update tool).
+    """
     run_hash = RunHash()
     hashes: List[Dict[str, Any]] = []
-    for tick in generate_trace(seed=seed, ticks=ticks):
+    for tick in trace:
         digest = run_hash.update(tick)
         hashes.append({"tick": tick.tick, "hash": digest})
     hashes.append({"tick": "run", "hash": run_hash.hexdigest()})
     return hashes
+
+
+def build_current_trace(seed: int = DEFAULT_SEED, ticks: int = DEFAULT_TICKS) -> List[Dict[str, Any]]:
+    """Build the per-tick + whole-run hash list for the current code."""
+    return hash_trace(generate_trace(seed=seed, ticks=ticks))
 
 
 def load_baseline() -> List[Dict[str, Any]]:
@@ -57,6 +66,7 @@ __all__ = [
     "DEFAULT_TICKS",
     "BASELINE_PATH",
     "generate_trace",
+    "hash_trace",
     "build_current_trace",
     "load_baseline",
 ]

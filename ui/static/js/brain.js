@@ -285,9 +285,9 @@ export class CriticalityPanel {
     const measuring = crit.regime === 'measuring';
     this.kappa.replaceChildren(el('span', { class: 'kappa-sym', text: 'κ' }), measuring ? '—' : fmt(crit.kappa, 2));
     const chips = {
-      'near-critical': ['good', '✓', 'Near-critical'],
-      subcritical: ['warning', '↓', 'Subcritical'],
-      supercritical: ['warning', '↑', 'Supercritical'],
+      'near-critical': ['neutral', '≈', 'κ 0.85–1.05 (estimator band)'],
+      subcritical: ['neutral', '↓', 'κ < 0.85'],
+      supercritical: ['neutral', '↑', 'κ > 1.05'],
       measuring: ['neutral', '…', 'Measuring'],
     };
     const [st, ic, lb] = chips[crit.regime] || chips.measuring;

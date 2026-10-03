@@ -1,9 +1,11 @@
-"""Criticality validation sweep with scientifically grounded assertions.
+"""Criticality sweep: kappa and mean avalanche size against coupling.
 
-Sweeps the branching ratio (via ``coupling``, where sigma = 4 * coupling) across
-subcritical, critical and supercritical regimes and checks the expected trends:
-the kappa statistic rises monotonically and crosses ~1, and mean avalanche size
-grows with coupling.
+Sweeps the branching ratio (via ``coupling``, where sigma = 4 * coupling)
+across couplings and checks two trends: the kappa estimator rises monotonically
+with coupling and mean avalanche size grows. Where kappa crosses 1 depends on
+the reference exponent (~0.32 with 1.5, ~0.24 with the 2-D value 2.055), and
+the lattice's actual critical point is at 0.5
+(tools/probes/criticality_critical_point).
 """
 
 from __future__ import annotations

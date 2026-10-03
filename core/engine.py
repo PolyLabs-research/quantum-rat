@@ -96,7 +96,8 @@ class EngineContext:
 
 
 class Engine:
-    """No-op engine scaffold; emits TickData each tick."""
+    """Runs the fixed tick pipeline (core/pipeline.py) over World, sensors and
+    brain systems and emits one TickData per tick."""
 
     def __init__(self, seed: int, *, agent_offset: int = 0, config: EngineConfig | None = None) -> None:
         self.seed = seed
@@ -532,7 +533,9 @@ class Engine:
             value_ahead, value_left, value_right, ctx.observation, bg.wall_gate_gain
         )
 
-        # Near-critical cortical gain: criticality state feeds sensory processing.
+        # Gain from kappa (near_critical_gain), logged every tick; it reaches
+        # action selection only in proportion to basal_ganglia.criticality_gain,
+        # 0 by default.
         crit_gain = near_critical_gain(ctx.kappa, self.config.criticality.gain_width)
 
         # Freeze habituation: the pain->REST drive fades with recent pain-freezing.
