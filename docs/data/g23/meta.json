@@ -1,0 +1,105 @@
+{
+ "alpha": 0.05,
+ "claims": [
+  "1",
+  "2",
+  "3"
+ ],
+ "command": "python3 -m experiments.g23_remeasure --workers 4",
+ "gains_claim2": [
+  0.0,
+  0.2,
+  0.4,
+  0.6,
+  0.8,
+  1.0,
+  1.2,
+  1.5,
+  2.0,
+  3.0
+ ],
+ "gains_claim3": [
+  0.8,
+  1.5
+ ],
+ "jobs": 4560,
+ "maze_headings": 16,
+ "n_boot": 10000,
+ "noise": 0.03,
+ "quick": false,
+ "runtime_s": 429.1,
+ "seeds": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29,
+  30
+ ],
+ "settings": {
+  "A": [
+   [
+    "sensors.odometry_speed_noise",
+    0.05
+   ],
+   [
+    "sensors.odometry_turn_noise",
+    0.01
+   ],
+   [
+    "basal_ganglia.softmax_temperature",
+    0.05
+   ]
+  ],
+  "B": []
+ },
+ "ticks": {
+  "beacon": 3000,
+  "foraging": 3000,
+  "hazard_field": 3000,
+  "hidden_food": 3000,
+  "memory_maze": 1500
+ },
+ "verdicts": {
+  "1": {
+   "A": "weakened",
+   "B": "weakened",
+   "overall": "weakened"
+  },
+  "2": {
+   "A": "survives",
+   "B": "survives",
+   "overall": "survives"
+  },
+  "3": {
+   "A": "weakened",
+   "B": "survives",
+   "overall": "weakened"
+  }
+ },
+ "workers": 4
+}
