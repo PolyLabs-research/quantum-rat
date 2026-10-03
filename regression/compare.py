@@ -1,17 +1,39 @@
 
 import json
+import math
 import argparse
 from pathlib import Path
+
+REL_TOL = 1e-6
+ABS_TOL = 1e-9
+
+
+def _differs(a, b) -> bool:
+    """Deep comparison with a numeric tolerance (so float noise is not a regression)."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a != b
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return not math.isclose(a, b, rel_tol=REL_TOL, abs_tol=ABS_TOL)
+    if isinstance(a, dict) and isinstance(b, dict):
+        if a.keys() != b.keys():
+            return True
+        return any(_differs(a[k], b[k]) for k in a)
+    if isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            return True
+        return any(_differs(x, y) for x, y in zip(a, b))
+    return a != b
+
 
 def compare_json_files(file1: Path, file2: Path, base1: Path, base2: Path) -> dict:
     """Compares two JSON files and returns a summary of differences."""
     report = {"file1": str(file1.relative_to(base1)), "file2": str(file2.relative_to(base2)), "differs": False, "details": {}}
-    
+
     if not file1.exists():
         report["differs"] = True
         report["details"]["error"] = f"File not found: {file1}"
         return report
-        
+
     if not file2.exists():
         report["differs"] = True
         report["details"]["error"] = f"File not found: {file2}"
@@ -25,11 +47,11 @@ def compare_json_files(file1: Path, file2: Path, base1: Path, base2: Path) -> di
         report["details"]["error"] = f"JSON decode error: {e}"
         return report
 
-    if data1 != data2:
+    if _differs(data1, data2):
         report["differs"] = True
         # For now, just a simple diff. A more detailed diff could be implemented.
         report["details"]["diff"] = "Content differs"
-        
+
     return report
 
 

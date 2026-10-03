@@ -6,17 +6,22 @@ from pathlib import Path
 from typing import Dict, Type
 
 from experiments.protocols.base import Protocol
+from experiments.protocols.beacon import BeaconProtocol
+from experiments.protocols.foraging import ForagingProtocol
 from experiments.protocols.open_field import OpenFieldProtocol
 from experiments.protocols.t_maze import TMazeProtocol
 from experiments.protocols.morris_water_maze import MorrisWaterMazeProtocol
 from experiments.protocols.survival_arena import SurvivalArenaProtocol
 from metrics.hash import RunHash
 from metrics.logger import JsonlLogger
+from metrics.scene import write_scene
 from metrics.schema import SCHEMA_VERSION, TickData
 from core.engine import Engine
 
 
 PROTOCOLS: Dict[str, Type[Protocol]] = {
+    "beacon": BeaconProtocol,
+    "foraging": ForagingProtocol,
     "open_field": OpenFieldProtocol,
     "t_maze": TMazeProtocol,
     "morris_water_maze": MorrisWaterMazeProtocol,
@@ -48,6 +53,7 @@ def run(protocol_name: str, seed: int, ticks: int, outdir: Path, protocol_config
     outdir.mkdir(parents=True, exist_ok=True)
     tick_path = outdir / "ticks.jsonl"
     summary_path = outdir / "summary.json"
+    write_scene(engine, outdir / "scene.json", {"protocol": protocol_name})
 
     logger = JsonlLogger(tick_path)
     rh = RunHash()

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tests.determinism.test_trace_hash import BASELINE_PATH, DEFAULT_SEED, DEFAULT_TICKS, build_current_trace
+from core.determinism import BASELINE_PATH, DEFAULT_SEED, DEFAULT_TICKS, build_current_trace
 from metrics.schema import SCHEMA_VERSION
 
 

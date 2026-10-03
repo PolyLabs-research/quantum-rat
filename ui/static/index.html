@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quantum Rat Lab</title>
+  <meta name="description" content="Live lab console and replay viewer for the Quantum Rat brain model">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/console.css">
+  <script type="module" src="/static/js/main.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Quantum Rat lab console">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M6 19c0-6 5-10 11-10 4 0 7 2 8.5 5l3 1.5-3 1.5C24 20 21 23 16 23c-3 0-5-.8-6.5-2.2C7.5 22.5 5 24.5 3 24c1.5-1 3-2.8 3-5z" fill="currentColor"/><circle class="brand-eye" cx="21.5" cy="13.5" r="1.3"/></svg>
+      <span class="brand-name">Quantum Rat</span>
+      <span class="brand-sub">lab console</span>
+    </a>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button class="tab" role="tab" id="tab-live" aria-controls="view-live" aria-selected="true">Live</button>
+      <button class="tab" role="tab" id="tab-replay" aria-controls="view-replay" aria-selected="false" tabindex="-1">Replay</button>
+    </nav>
+    <div class="topbar-right">
+      <span id="conn" class="conn" data-state="ok" title="Server connection"><span class="conn-dot" aria-hidden="true"></span><span class="conn-label">Connected</span></span>
+      <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch theme" title="Switch light / dark theme">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm0 1.5v10a5 5 0 0 1 0-10z" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============================== LIVE ============================== -->
+    <section id="view-live" class="view live-grid" role="tabpanel" aria-labelledby="tab-live">
+
+      <div class="col col-side">
+        <section class="card" aria-labelledby="h-scenario">
+          <h2 id="h-scenario" class="card-title">Scenario</h2>
+          <div id="scenario-list" class="scenario-list" role="radiogroup" aria-label="Scenario"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-watch">
+          <h2 id="h-watch" class="card-title">What to watch</h2>
+          <ul id="scenario-watch" class="watch-list"></ul>
+        </section>
+
+        <section class="card" aria-labelledby="h-experiment">
+          <h2 id="h-experiment" class="card-title">Experiment</h2>
+          <dl id="scenario-status" class="kv"></dl>
+          <div id="trial-chart" class="trial-chart" hidden></div>
+          <div id="scenario-actions" class="action-list"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-params">
+          <div class="card-head">
+            <h2 id="h-params" class="card-title">Parameters</h2>
+            <button id="params-reset" class="link-btn" type="button">Reset all</button>
+          </div>
+          <p class="hint">Changes apply on the next tick and survive a reset. Changing the coupling restarts the κ measurement.</p>
+          <div id="params" class="params"></div>
+        </section>
+      </div>
+
+      <div class="col col-stage">
+        <section class="card transport" aria-label="Simulation controls">
+          <div class="transport-group">
+            <button id="btn-play" class="btn btn-primary" type="button" title="Play / pause (Space)">
+              <svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>
+              <svg class="i-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h3v11H4zm5 0h3v11H9z" fill="currentColor"/></svg>
+              <span class="btn-label">Play</span>
+            </button>
+            <button id="btn-step" class="btn" type="button" title="Advance one tick (→)">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5v11l7-5.5zm8 0h2v11h-2z" fill="currentColor"/></svg>
+              <span class="btn-label">Step</span>
+            </button>
+            <button id="btn-reset" class="btn" type="button" title="Restart this scenario with the same seed">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.7l1.4.5A4 4 0 1 0 8 4v2L4.5 3.25 8 .5z" fill="currentColor"/></svg>
+              <span class="btn-label">Reset</span>
+            </button>
+          </div>
+          <div class="transport-group">
+            <label class="field">
+              <span class="field-label">Speed</span>
+              <select id="speed">
+                <option value="10">10 ticks/s</option>
+                <option value="30">30 ticks/s</option>
+                <option value="60" selected>60 ticks/s</option>
+                <option value="120">120 ticks/s</option>
+                <option value="300">300 ticks/s</option>
+                <option value="1000">1000 ticks/s</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Seed</span>
+              <input id="seed" type="number" min="0" max="2147483647" step="1" inputmode="numeric" title="Seeds the criticality lattice and any sensor noise (see Parameters › Senses)">
+            </label>
+            <button id="btn-dice" class="icon-btn" type="button" title="Restart with a random seed" aria-label="Restart with a random seed">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.5h10A1.5 1.5 0 0 1 14.5 3v10a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13V3A1.5 1.5 0 0 1 3 1.5zM5 4a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm6 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2zM8 7a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm3-3a1 1 0 1 0 0 2 1 1 0 0 0 0-2zM5 10a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" fill="currentColor" fill-rule="evenodd"/></svg>
+            </button>
+          </div>
+          <div class="transport-group transport-readout">
+            <span class="readout"><span class="readout-label">Tick</span> <span id="tick-readout" class="num">0</span></span>
+            <span class="readout"><span class="readout-label">Rate</span> <span id="rate-readout" class="num">—</span></span>
+            <button id="btn-record" class="btn" type="button" title="Save this session as a run you can open in Replay">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><circle class="rec-dot" cx="8" cy="8" r="5"/></svg>
+              <span class="btn-label">Record to replay</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="card arena-card" aria-labelledby="h-arena">
+          <div class="card-head">
+            <h2 id="h-arena" class="card-title">Arena</h2>
+            <div class="layer-toggles" role="group" aria-label="Arena layers">
+              <label><input type="checkbox" data-layer="value" checked> Value map</label>
+              <label><input type="checkbox" data-layer="rays" checked> Vision</label>
+              <label><input type="checkbox" data-layer="trail" checked> Trail</label>
+              <label><input type="checkbox" data-layer="estimate" checked> Estimate</label>
+            </div>
+          </div>
+          <div class="arena-wrap">
+            <canvas id="arena" class="arena" role="img" aria-label="Top-down view of the arena"></canvas>
+            <div class="hover-readout" id="arena-hover" hidden></div>
+          </div>
+          <div class="legend" id="arena-legend"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-signals">
+          <div class="card-head">
+            <h2 id="h-signals" class="card-title">Signals over time</h2>
+            <span class="card-meta">last <span id="window-readout">600</span> ticks · shaded = microsleep</span>
+          </div>
+          <div class="charts">
+            <div class="chart-slot" id="chart-mods"></div>
+            <div class="chart-slot" id="chart-reward"></div>
+            <div class="chart-slot" id="chart-kappa"></div>
+            <div class="chart-slot" id="chart-energy"></div>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="h-events">
+          <div class="card-head">
+            <h2 id="h-events" class="card-title">Event log</h2>
+            <button id="events-clear" class="link-btn" type="button">Clear</button>
+          </div>
+          <ol id="event-log" class="event-log" aria-live="polite"></ol>
+        </section>
+      </div>
+
+      <div class="col col-brain">
+        <section class="card" aria-labelledby="h-decision">
+          <div class="card-head">
+            <h2 id="h-decision" class="card-title">Decision</h2>
+            <span class="card-meta">basal ganglia channel scores</span>
+          </div>
+          <div id="decision"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-mods">
+          <h2 id="h-mods" class="card-title">Neuromodulators</h2>
+          <div id="mods"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-energy">
+          <h2 id="h-energy" class="card-title">Energy &amp; sensory gate</h2>
+          <div id="energy"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-crit">
+          <div class="card-head">
+            <h2 id="h-crit" class="card-title">Criticality</h2>
+            <span class="card-meta">16 × 16 branching lattice</span>
+          </div>
+          <div id="criticality"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-heading">
+          <div class="card-head">
+            <h2 id="h-heading" class="card-title">Path integration</h2>
+            <span class="card-meta">where it is vs where it thinks it is</span>
+          </div>
+          <div id="compass"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-inspector">
+          <details class="inspector-details">
+            <summary><h2 id="h-inspector" class="card-title">All readouts (table)</h2></summary>
+            <table id="inspector" class="inspector"></table>
+          </details>
+        </section>
+      </div>
+    </section>
+
+    <!-- ============================== REPLAY ============================== -->
+    <section id="view-replay" class="view replay-grid" role="tabpanel" aria-labelledby="tab-replay" hidden>
+      <div class="col col-side">
+        <section class="card" aria-labelledby="h-runs">
+          <div class="card-head">
+            <h2 id="h-runs" class="card-title">Recorded runs</h2>
+            <button id="runs-refresh" class="link-btn" type="button">Refresh</button>
+          </div>
+          <label class="field field-block">
+            <span class="field-label">Run</span>
+            <select id="run-select"></select>
+          </label>
+          <label class="field field-block">
+            <span class="field-label">Episode</span>
+            <select id="episode-select"></select>
+          </label>
+          <p id="runs-root" class="hint"></p>
+        </section>
+
+        <section class="card" aria-labelledby="h-summary">
+          <h2 id="h-summary" class="card-title">Summary</h2>
+          <div id="summary"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-moments">
+          <div class="card-head">
+            <h2 id="h-moments" class="card-title">Key moments</h2>
+            <span class="card-meta">click to jump</span>
+          </div>
+          <ol id="moments" class="event-log"></ol>
+        </section>
+      </div>
+
+      <div class="col col-stage">
+        <div id="replay-empty" class="card empty-state" hidden></div>
+
+        <section class="card transport" aria-label="Replay controls">
+          <div class="transport-group">
+            <button id="rp-play" class="btn btn-primary" type="button" title="Play / pause (Space)">
+              <svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>
+              <svg class="i-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h3v11H4zm5 0h3v11H9z" fill="currentColor"/></svg>
+              <span class="btn-label">Play</span>
+            </button>
+            <label class="field">
+              <span class="field-label">Speed</span>
+              <select id="rp-speed">
+                <option value="30">30 ticks/s</option>
+                <option value="60">60 ticks/s</option>
+                <option value="120" selected>120 ticks/s</option>
+                <option value="300">300 ticks/s</option>
+                <option value="1000">1000 ticks/s</option>
+              </select>
+            </label>
+          </div>
+          <div class="scrubber">
+            <input id="rp-scrub" type="range" min="0" max="0" value="0" step="1" aria-label="Tick">
+          </div>
+          <div class="transport-group transport-readout">
+            <span class="readout"><span class="readout-label">Tick</span> <span id="rp-tick" class="num">—</span></span>
+          </div>
+        </section>
+
+        <section class="card arena-card" aria-labelledby="h-rp-arena">
+          <div class="card-head">
+            <h2 id="h-rp-arena" class="card-title">Trajectory</h2>
+            <div class="layer-toggles" role="group" aria-label="Replay layers">
+              <label><input type="checkbox" data-rp-layer="trail" checked> Full path</label>
+              <label><input type="checkbox" data-rp-layer="estimate" checked> Estimate</label>
+            </div>
+          </div>
+          <div class="arena-wrap">
+            <canvas id="rp-arena" class="arena" role="img" aria-label="Top-down view of the recorded trajectory"></canvas>
+            <div class="hover-readout" id="rp-arena-hover" hidden></div>
+          </div>
+          <div class="legend" id="rp-legend"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-rp-signals">
+          <div class="card-head">
+            <h2 id="h-rp-signals" class="card-title">Signals over the run</h2>
+            <span class="card-meta">click a chart to jump · shaded = microsleep</span>
+          </div>
+          <div class="charts">
+            <div class="chart-slot" id="rp-chart-mods"></div>
+            <div class="chart-slot" id="rp-chart-reward"></div>
+            <div class="chart-slot" id="rp-chart-kappa"></div>
+            <div class="chart-slot" id="rp-chart-energy"></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col col-brain">
+        <section class="card" aria-labelledby="h-rp-tick">
+          <h2 id="h-rp-tick" class="card-title">Tick inspector</h2>
+          <table id="rp-inspector" class="inspector"></table>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

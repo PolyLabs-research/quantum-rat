@@ -23,7 +23,10 @@ class TMazeProtocol(Protocol):
 
     def on_tick(self, engine: Any, tickdata: TickData, tick_index: int) -> None:
         self.ticks_run += 1
-        if not self.reward_reached and tickdata.grid_x >= self.reward_threshold:
+        # Score on true position (tickdata.pos), consistent with the other
+        # assays. Previously this used tickdata.grid_x, the agent's drifting
+        # internal estimate, so the metric and the other assays disagreed.
+        if not self.reward_reached and tickdata.pos[0] >= self.reward_threshold:
             self.reward_reached = True
             self.time_to_reward = tick_index
 

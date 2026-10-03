@@ -48,6 +48,9 @@ def run_episode(
     
     logger = None
     if include_ticks:
+        from metrics.scene import write_scene
+
+        write_scene(engine, outdir / "scene.json", {"protocol": protocol_name})
         tick_path = outdir / "ticks.jsonl"
         logger = JsonlLogger(tick_path)
 
