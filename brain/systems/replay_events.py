@@ -35,10 +35,15 @@ from metrics.logger import _canonical_json
 Cell = Tuple[int, int]
 
 TRIGGER_MICROSLEEP = "microsleep"
-RULE_REVERSE_TRAJECTORY = "reverse_trajectory"  # value_memory.replay_recent = True (the default)
+TRIGGER_REWARD = "reward"  # a reward-consumption pause (plan section 2; the M2a track, brain.systems.replay_rules)
+RULE_REVERSE_TRAJECTORY = "reverse_trajectory"  # value_memory.replay_recent = True (the default); also the M2a rule
 RULE_TRN_INDEX = "trn_index"  # value_memory.replay_recent = False (legacy)
+RULE_UNIFORM = "uniform"  # M2a: uniform over the stored transitions (the plan's "random" floor)
+RULE_PRIORITISED_TD = "prioritised_td"  # M2a: sampled in proportion to the current |TD error| (the plan's |delta|-gain)
+RULE_NONE = "none"  # the no-replay control (no event is ever made under it)
 DIRECTION_REVERSE = "reverse"
 DIRECTION_FORWARD = "forward"
+DIRECTION_NEITHER = "neither"  # the position-time slope of the replayed states is 0 or undefined (plan section 2)
 DEFAULT_LOG_SIZE = 256
 REPLAY_EVENTS_FILE = "replay_events.jsonl"
 
@@ -180,13 +185,18 @@ __all__ = [
     "Cell",
     "DEFAULT_LOG_SIZE",
     "DIRECTION_FORWARD",
+    "DIRECTION_NEITHER",
     "DIRECTION_REVERSE",
     "OpenReplayEvent",
     "REPLAY_EVENTS_FILE",
+    "RULE_NONE",
+    "RULE_PRIORITISED_TD",
     "RULE_REVERSE_TRAJECTORY",
     "RULE_TRN_INDEX",
+    "RULE_UNIFORM",
     "ReplayEvent",
     "ReplayLog",
     "TRIGGER_MICROSLEEP",
+    "TRIGGER_REWARD",
     "write_replay_events",
 ]

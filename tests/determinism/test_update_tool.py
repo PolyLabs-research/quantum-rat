@@ -19,10 +19,12 @@ from tools import update_determinism_baseline as tool
 
 FILES = {
     "legacy": {"baseline_hashes.json", "baseline_behaviour_legacy.json", "baseline_physics_legacy.json",
-               "baseline_meta.json", "reference_trace_legacy.jsonl"},
+               "baseline_meta.json", "reference_trace_legacy.jsonl", "reference_observations_legacy.jsonl"},
     "research": {"baseline_hashes_research.json", "baseline_behaviour_research.json",
-                 "baseline_physics_research.json", "baseline_meta_research.json", "reference_trace_research.jsonl"},
+                 "baseline_physics_research.json", "baseline_meta_research.json", "reference_trace_research.jsonl",
+                 "reference_observations_research.jsonl"},
 }
+
 
 
 def _mtimes():
@@ -49,7 +51,7 @@ def test_the_legacy_set_is_refused_in_place_even_with_the_flag(capsys):
 
 
 @pytest.mark.parametrize("profile", ["legacy", "research"])
-def test_out_dir_writes_a_profiles_five_files_without_any_flag(profile, tmp_path, capsys):
+def test_out_dir_writes_a_profiles_six_files_without_any_flag(profile, tmp_path, capsys):
     before = _mtimes()
     tool.main(["--profile", profile, "--out-dir", str(tmp_path), "--ticks", "5"])
     assert {p.name for p in tmp_path.iterdir()} == FILES[profile]
@@ -59,7 +61,14 @@ def test_out_dir_writes_a_profiles_five_files_without_any_flag(profile, tmp_path
     for kind in HASH_KINDS:
         rows = json.loads((tmp_path / meta["files"][kind]).read_text())
         assert [r["tick"] for r in rows] == [0, 1, 2, 3, 4, "run"]
+    # The reference trace and its observation sidecar come from the same run: one record per tick,
+    # the sidecar's summary fields equal to the trace's.
+    trace = [json.loads(line) for line in (tmp_path / meta["files"]["reference_trace"]).read_text().splitlines()]
+    sidecar = [json.loads(line) for line in (tmp_path / meta["files"]["reference_observations"]).read_text().splitlines()]
+    assert [r["tick"] for r in trace] == [r["tick"] for r in sidecar] == [0, 1, 2, 3, 4]
+    assert [r["obs_forward_delta"] for r in trace] == [r["forward_delta"] for r in sidecar]
     assert f"profile={profile}" in capsys.readouterr().out
+
 
 
 def test_out_dir_that_is_the_committed_directory_counts_as_in_place(capsys):

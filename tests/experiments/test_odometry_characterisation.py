@@ -1,15 +1,18 @@
 """Fast checks of the odometry characterisation (experiments/odometry_characterisation.py; docs/odometry.md).
 
 Short budgets only: four seeds and 400 units of travel per run (the full
-characterisation is 30 seeds and 2,000 units, docs/data/m1), so the whole
-module runs in a few seconds. The slope bands are the ones docs/odometry.md
+characterisation is 30 seeds and 2,000 units, docs/data/m2a/odometry), so the
+whole module runs in a few seconds. The slope bands are the ones docs/odometry.md
 justifies for the walk the research profile does in an open barren world, a
-straight line: speed noise alone grows linearly (the forward clamp turns the
-zero-mean error into a 0.02-per-unit shortfall), so its slope sits near 1.0,
-and heading noise alone is the running sum of a heading random walk, so its
-slope sits at 1.5 or above. The plan's 0.5-1.5 band is the one for a turning
-walk, which the characterisation runs as a control; here the control only has
-to show that it turns and that turning cancels part of the clamp bias.
+straight line: speed noise alone is zero-mean under the research contract
+(the forward range of 2.0, M2a), so its along-track error is a random walk
+whose slope sits near 0.5 with a wide scatter at four seeds (it read near 1.0
+under the legacy range, where the clamp turned the error into a shortfall of
+0.02 per unit), and heading noise alone is the running sum of a heading random
+walk, so its slope sits at 1.5 or above. The plan's 0.5-1.5 band is the one
+for a turning walk, which the characterisation runs as a control; here the
+control only has to show that it turns and that the along-track error stays
+unbiased on it too.
 
 These tests run the research profile (``EngineConfig.research()``) except
 the ATP decorrelation, which is a legacy-profile measurement by design.
@@ -74,15 +77,19 @@ def test_the_research_walk_in_an_open_box_is_straight():
             assert run.net_displacement >= 0.9 * DISTANCE
 
 
-def test_speed_noise_alone_grows_linearly_because_of_the_clamp():
+def test_speed_noise_alone_is_a_zero_mean_random_walk_under_the_research_range():
     fit = _fit("speed_only")
-    assert 0.8 <= fit["slope"] <= 1.2, fit
-    assert fit["r2"] > 0.95
+    # A random walk's log-log slope is 0.5; four seeds over 400 units scatter around it
+    # (measured 0.67 at these seeds), and nowhere near the clamped contract's 1.0 at r2 > 0.95.
+    assert 0.3 <= fit["slope"] <= 0.95, fit
     _, runs = _runs("speed_only")
     for run in runs:
-        # The clamp bias: the estimate falls short by about 0.05 / sqrt(2 pi) = 0.020 per unit on FORWARD ticks.
-        assert -0.03 <= run.bias_per_unit <= -0.01, (run.seed, run.bias_per_unit)
+        # No clamp bias: the signed along-track error per unit is within sampling error of 0
+        # (0.05 / sqrt(400) = 0.0025 per unit is one sd of the mean error over the run).
+        assert abs(run.bias_per_unit) < 0.0075, (run.seed, run.bias_per_unit)
         assert abs(run.final_hd_err) < 1e-12  # no heading noise: the heading estimate is exact (to wrap_angle's rounding)
+    assert any(run.bias_per_unit > 0.0 for run in runs) and any(run.bias_per_unit < 0.0 for run in runs)
+    assert fit["final_mean_err"] < 3.0  # about 0.05 * sqrt(400) = 1.0 unit; the clamped contract gave about 8
 
 
 def test_heading_noise_alone_is_the_running_sum_of_a_random_walk():
@@ -99,18 +106,19 @@ def test_both_noises_read_like_heading_noise_alone():
     assert 1.2 <= both["slope"] <= 2.0, both
     assert both["final_mean_err"] > speed["final_mean_err"]
     assert abs(both["slope"] - turn["slope"]) < abs(both["slope"] - speed["slope"])
-    assert -0.03 <= both["bias_per_unit_mean"] <= -0.01
+    assert abs(both["bias_per_unit_mean"]) < 0.0075
 
 
-def test_the_turning_walk_turns_and_cancels_part_of_the_clamp_bias():
+def test_the_turning_walk_turns_and_its_along_track_error_is_unbiased_too():
     fit = _fit("speed_only_turning")
     straight = _fit("speed_only")
-    assert fit["walk"] == "turning" and fit["turn_share"] >= 0.3 and fit["forward_share"] >= 0.3, fit
-    # The per-tick bias is the same shortfall along the heading of the moment ...
-    assert -0.03 <= fit["bias_per_unit_mean"] < 0.0
-    # ... but along a walk that turns, the bias vectors partly cancel, so the position error is smaller.
-    assert fit["final_mean_err"] < straight["final_mean_err"]
-    assert fit["net_displacement_mean"] < straight["net_displacement_mean"]
+    # Measured at M2a: FORWARD on about 60% of ticks, a TURN on about 27%, REST on about 13%.
+    assert fit["walk"] == "turning" and fit["turn_share"] >= 0.15 and 0.3 <= fit["forward_share"] <= 0.85, fit
+    assert fit["net_displacement_mean"] < 0.8 * straight["net_displacement_mean"]
+    # No clamp bias on either walk under the research range.
+    assert abs(fit["bias_per_unit_mean"]) < 0.0075
+    _, runs = _runs("speed_only_turning")
+    assert all(abs(run.final_hd_err) < 1e-12 for run in runs)  # speed noise alone: the heading is exact
 
 
 def test_atp_decorrelation_in_the_legacy_profile_at_seed_1():

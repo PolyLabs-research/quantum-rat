@@ -1,22 +1,26 @@
-"""Path-integration error growth under the research odometry placeholders, and its decorrelation from ATP.
+"""Path-integration error growth under the research odometry values, and its decorrelation from ATP.
 
 Added for Milestone 1 (docs/research_plan.md section 4, M1; docs/odometry.md;
 the full 30-seed characterisation is ``experiments.odometry_characterisation``,
-whose tables live in docs/data/m1). Not an audit claim.
+whose current tables live in docs/data/m2a/odometry, the M1 record in
+docs/data/m1). Re-recorded at M2a, when the research profile's forward range
+became 2.0 and the novelty bit left action selection. Not an audit claim.
 
-Claims (docs/odometry.md):
+Claims (docs/odometry.md, the M2a section):
 
 * In an open barren world the research profile's walk is a straight line (a
-  TURN is about a 1-in-500 softmax draw when nothing is in view), so over
-  2,000 units of travel: speed noise 0.05 alone gives a log-log slope of
-  error against distance near 1.0, not the 0.5 of a zero-mean error, because
-  the noise is applied before the Observation's +-1 forward clamp and a
-  FORWARD step sits at its top, which turns the zero-mean error into a
-  shortfall of 0.05 / sqrt(2 pi) = 0.020 units per unit travelled (the clamp
-  bias, measured as the signed along-track error per unit travelled);
-  turn noise 0.01 rad alone gives the integrated heading random walk, 1.70 at
-  these 4 seeds (one seed's lateral error is one realisation; 1.47 [1.31,
-  1.62] over 30 seeds); both together read like turn noise alone.
+  TURN is about an exp(-8) softmax draw per channel when nothing is in view,
+  since M2a decoupled the novelty bit), so over 2,000 units of travel: speed
+  noise 0.05 alone gives a log-log slope of error against distance near 0.5,
+  the law of a zero-mean error, with a wide per-seed spread at 4 seeds (0.73
+  here, 0.48 [0.36, 0.61] over 30 seeds) and an along-track bias per unit of
+  0 within sampling error; under the legacy forward range of 1.0 (the M1
+  record) the same noise read slope 0.97 and a bias of -0.020 per unit,
+  because a FORWARD step sat at the top of the range and only slowing errors
+  survived the clamp; turn noise 0.01 rad alone gives the integrated heading
+  random walk, 1.73 at these 4 seeds (one seed's lateral error is one
+  realisation; 1.48 [1.31, 1.63] over 30 seeds); both together read like turn
+  noise alone.
 * Legacy profile, default barren box, odometry noise at the research values,
   3,000 ticks: with ``spatial.gate_scales_egomotion`` on, the relative step
   error on moving ticks (|estimated step| / |true step| - 1) tracks ATP
@@ -25,7 +29,8 @@ Claims (docs/odometry.md):
   ticks, present with zero noise too, docs/odometry.md). The error itself
   correlates with ATP at about -0.23 under both flags over all ticks, a
   shared trend of ATP's initial decay and the growing error, and within
-  +-0.08 once the first 200 ticks are dropped.
+  +-0.08 once the first 200 ticks are dropped. The legacy profile keeps the
+  forward range of 1.0, so these numbers are the M1 ones.
 
 ``--scale`` multiplies the distance travelled (floor 100 units) and the ATP
 tick budget (floor 100 ticks); at a small scale the "after transient"
@@ -68,8 +73,9 @@ def run(scale: float = 1.0) -> Results:
             f"{RESEARCH_SPEED} / {RESEARCH_TURN} rad, {atp_ticks} ticks, gate_scales_egomotion on and off"
         ),
         "expectation": (
-            "zero-mean speed error: slope 0.5; heading random walk on a straight walk: 1.5 or above; the forward "
-            "clamp turns the speed error into a shortfall of 0.02 per unit, so speed_only reads near 1.0"
+            "zero-mean speed error: slope 0.5 and an along-track bias of 0 (the research forward range of 2.0 "
+            "clips nothing; under the legacy range of 1.0 the clamp turned it into a shortfall of 0.02 per unit "
+            "and slope 1.0); heading random walk on a straight walk: 1.5 or above"
         ),
     }
     for condition in NAMED_CONDITIONS:

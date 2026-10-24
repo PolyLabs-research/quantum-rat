@@ -34,18 +34,26 @@ Keys written by :func:`build_manifest`:
 - ``seeds``: the seeds the run used, as a list.
 - ``ticks_requested``: how many ticks were asked for.
 - ``platform``: ``{system, release, machine, python, numpy, blas,
-  blas_runtime, blas_threads, numpy_loaded_before_pin}``, the numerical
-  facts from ``core.determinism.blas_info()``. ``numpy`` is its version or
+  blas_runtime, blas_runtime_status, blas_threads, blas_threads_verified,
+  numpy_loaded_before_pin}``, the numerical facts from
+  ``core.determinism.blas_info()``. ``numpy`` is its version or
   ``null`` when it is not installed; ``blas`` is numpy's build-time BLAS
   description (name, version and the OpenBLAS configuration string, which
   names the kernel the build targets) or ``"unknown"``; ``blas_runtime`` is
   what the loaded libraries report through ``threadpoolctl`` (kernel,
   version and the thread count in force now, one entry per library), or
-  ``null`` if that package cannot be imported; ``blas_threads`` holds the
-  four ``*_NUM_THREADS`` environment variables as set (``null`` when unset);
-  ``numpy_loaded_before_pin`` is True when numpy was imported before ``core``
-  pinned those variables, in which case the variables say 1 but the loaded
-  library did not read them (``blas_runtime`` then shows the real count).
+  ``null`` if that package cannot be imported; ``blas_runtime_status`` says
+  what that list means: ``"detected"`` (a BLAS library reported itself),
+  ``"none_detected"`` (``threadpoolctl`` knows no BLAS in this process: numpy
+  against Apple's Accelerate gives an empty list) or ``"unavailable"``;
+  ``blas_threads`` holds the four ``*_NUM_THREADS`` environment variables as
+  set (``null`` when unset); ``blas_threads_verified`` is True only when a
+  BLAS library was detected and reported the pinned thread count, so a
+  manifest never claims a verified pin on a platform where no library could
+  be asked; ``numpy_loaded_before_pin`` is True when numpy was imported
+  before ``core`` pinned those variables, in which case the variables say 1
+  but the loaded library did not read them (``blas_runtime`` then shows the
+  real count).
 - ``schema_version``: the ``TickData`` schema version of the data files.
 
 :func:`finish_manifest` adds ``ticks_run`` and ``timing`` ``{wall_seconds,
@@ -165,9 +173,12 @@ def platform_info() -> Dict[str, Any]:
         "numpy": None if info["numpy_version"] == "unknown" else info["numpy_version"],
         "blas": info["blas"],
         "blas_runtime": info["blas_runtime"],
+        "blas_runtime_status": info["blas_runtime_status"],
         "blas_threads": {name: info[name] for name in BLAS_THREAD_VARS},
+        "blas_threads_verified": info["blas_threads_verified"],
         "numpy_loaded_before_pin": info["numpy_loaded_before_pin"],
     }
+
 
 
 def build_manifest(

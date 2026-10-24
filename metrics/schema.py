@@ -25,7 +25,7 @@ class TickData:
     glycogen: float = 0.0
     reward: float = 0.0
     neuromodulators: Dict[str, float] = field(default_factory=dict)
-    # Observation summary
+    # Observation summary (obs_forward_delta within +-sensors.forward_delta_limit: 1.0 legacy, 2.0 research)
     obs_forward_delta: float = 0.0
     obs_turn_delta: float = 0.0
     obs_pain: float = 0.0

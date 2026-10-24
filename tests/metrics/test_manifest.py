@@ -17,7 +17,7 @@ import pytest
 
 from agents.dna import generate_population
 from core.config import EngineConfig
-from core.determinism import BLAS_THREAD_VARS, blas_info
+from core.determinism import BLAS_RUNTIME_STATUSES, BLAS_THREAD_VARS, blas_info
 from metrics.manifest import (
     MANIFEST_VERSION,
     REPO_ROOT,
@@ -38,9 +38,10 @@ TOP_LEVEL_KEYS = {
     "ticks_requested", "platform", "schema_version",
 }
 PLATFORM_KEYS = {
-    "system", "release", "machine", "python", "numpy", "blas", "blas_runtime", "blas_threads",
-    "numpy_loaded_before_pin",
+    "system", "release", "machine", "python", "numpy", "blas", "blas_runtime", "blas_runtime_status",
+    "blas_threads", "blas_threads_verified", "numpy_loaded_before_pin",
 }
+
 
 
 def test_build_manifest_has_the_documented_keys_and_types():
@@ -65,18 +66,44 @@ def test_build_manifest_has_the_documented_keys_and_types():
 def test_platform_block_is_blas_info_and_records_the_pin_and_the_runtime_kernel():
     """The numerical facts come from core.determinism.blas_info(), the one source, so the
     string docs/determinism.md quotes is the one a manifest records; the suite imports
-    core before numpy (conftest), so the manifest says so and the runtime thread count,
-    read from the loaded library through threadpoolctl, is the pinned 1."""
+    core before numpy (conftest), so the manifest says so. What the loaded library reports
+    depends on the platform: where threadpoolctl detects a BLAS (OpenBLAS on the Linux
+    runner) the entries carry kernel and thread count and the status is ``detected``;
+    where it detects none (Apple's Accelerate on the macOS runner gives an empty list) the
+    status is ``none_detected`` and ``blas_threads_verified`` is False, so the manifest
+    never claims a thread count no library confirmed."""
     info = blas_info()
     platform = build_manifest(EngineConfig(), protocol="p", seeds=[1], ticks_requested=1)["platform"]
     assert platform["blas"] == info["blas"] and platform["numpy"] == info["numpy_version"]
     assert platform["blas_threads"] == {var: info[var] for var in BLAS_THREAD_VARS}
     assert platform["numpy_loaded_before_pin"] is False
     assert platform["blas_runtime"] == info["blas_runtime"]
-    assert isinstance(platform["blas_runtime"], list)
+    assert platform["blas_runtime_status"] == info["blas_runtime_status"] in BLAS_RUNTIME_STATUSES
+    assert platform["blas_threads_verified"] is info["blas_threads_verified"]
+    assert isinstance(platform["blas_runtime"], list)  # threadpoolctl is a dependency: at worst empty
     blas = [entry for entry in platform["blas_runtime"] if entry.get("user_api") == "blas"]
-    assert blas, platform["blas_runtime"]
-    assert all({"internal_api", "num_threads"} <= set(entry) for entry in blas)
+    if blas:
+        assert platform["blas_runtime_status"] == "detected"
+        assert all({"internal_api", "num_threads"} <= set(entry) for entry in blas)
+        assert platform["blas_threads_verified"] is all(entry["num_threads"] == 1 for entry in blas)
+    else:
+        assert platform["blas_runtime_status"] == "none_detected"
+        assert platform["blas_threads_verified"] is False
+
+
+def test_an_undetected_blas_is_recorded_as_such_and_not_as_a_verified_pin(monkeypatch):
+    import core.determinism as d
+    monkeypatch.setattr(d, "blas_runtime", lambda: [])
+    platform = build_manifest(EngineConfig(), protocol="p", seeds=[1], ticks_requested=1)["platform"]
+    assert platform["blas_runtime"] == []
+    assert platform["blas_runtime_status"] == "none_detected"
+    assert platform["blas_threads_verified"] is False
+    assert platform["blas_threads"]["OPENBLAS_NUM_THREADS"] == "1"  # the variables are set; the library was not asked
+    monkeypatch.setattr(d, "blas_runtime", lambda: None)
+    platform = build_manifest(EngineConfig(), protocol="p", seeds=[1], ticks_requested=1)["platform"]
+    assert platform["blas_runtime"] is None and platform["blas_runtime_status"] == "unavailable"
+    assert platform["blas_threads_verified"] is False
+
 
 
 def test_git_sha_is_40_hex_or_unknown_and_dirty_is_a_bool_when_known():

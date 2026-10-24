@@ -110,6 +110,17 @@ class SensorConfig:
     # EngineConfig.stochastic_elements (core.seeds).
     odometry_speed_noise: float = 0.0
     odometry_turn_noise: float = 0.0
+    # The Observation's egomotion range: forward_delta is clamped to
+    # [-forward_delta_limit, +forward_delta_limit] after the odometry noise is
+    # applied (core.sensors._compute_egomotion; Observation.validate checks it).
+    # 1.0 (legacy) puts a full-thrust FORWARD step of 1.0 at the top of the
+    # range, so a positive speed error is clamped away and a full-speed step
+    # averages 1 - sigma / sqrt(2 pi) (0.980 at sigma 0.05: the clamp bias,
+    # docs/odometry.md). The research profile sets 2.0, so the estimate carries
+    # the signed, zero-mean error it draws (a clip at 2.0 needs xi > 20 at sigma
+    # 0.05 and never occurs). The body's motion is unchanged by this field.
+    forward_delta_limit: float = 1.0
+
 
 
 @dataclass
@@ -296,7 +307,15 @@ class BasalGangliaConfig:
     forward_bias: float = 0.8  # base FORWARD drive (multiplied by trn_gain)
     pain_avoidance: float = 0.5  # weight pulling FORWARD down under pain
     rest_pain_gain: float = 0.8  # weight pushing REST up under pain
+    # The checksum-changed "novelty" bit (brain.systems.working_memory) in
+    # action selection: novelty_gain adds novelty_gain * novelty (scaled by
+    # dopamine through dopamine_explore_gain) to FORWARD, novelty_turn_gain adds
+    # novelty_turn_gain * novelty to each TURN channel (the 0.3 that was a
+    # literal in _channel_scores until M2a). The research profile sets both to
+    # 0: the bit is still computed, logged (TickData.wm_novelty) and fed to the
+    # ACh and NE traces, but no longer moves the decision (docs/profiles.md).
     novelty_gain: float = 0.2  # exploration drive from working-memory novelty
+    novelty_turn_gain: float = 0.3  # the same bit on the two TURN channels
     turn_bias: float = 0.0  # constant bias: >0 favours TURN_LEFT, <0 favours TURN_RIGHT
     vision_gain: float = 0.6  # drive toward a visible target (0 => blind to vision)
     wall_avoid_gain: float = 0.6  # drive to turn away from a close wall ahead
@@ -452,10 +471,19 @@ class EngineConfig:
           = 0.05``, ``sensors.odometry_turn_noise = 0.01`` (seeded noise on the
           self-motion estimate; the body moves exactly as before) and
           ``basal_ganglia.softmax_temperature = 0.1`` (seeded softmax action
-          selection). These three values are placeholders, to be characterised
-          in milestone 1 (docs/profiles.md); what they fix now is that two
-          seeds under this profile are two different runs, which
-          :meth:`stochastic_elements` and ``core.seeds`` can check.
+          selection). The odometry values were characterised in milestone 1 and
+          kept (docs/odometry.md); the temperature is still a placeholder.
+          What they fix is that two seeds under this profile are two different
+          runs, which :meth:`stochastic_elements` and ``core.seeds`` can check.
+        - ``sensors.forward_delta_limit = 2.0`` (milestone 2a): the Observation's
+          egomotion range is wide enough that the speed error keeps both signs.
+          At the legacy 1.0 a full-thrust step sits at the top of the range, so
+          positive errors were clamped away and a full-speed step averaged 0.980
+          instead of 1.0 (docs/odometry.md); the body is unchanged.
+        - ``basal_ganglia.novelty_gain = 0.0`` and ``novelty_turn_gain = 0.0``
+          (milestone 2a): the checksum-changed "novelty" bit no longer enters
+          action selection. It is still computed and logged (``wm_novelty``)
+          and still feeds the ACh and NE traces, which are logged too.
 
         Also set explicitly, but already the legacy value, so not in the diff:
         ``value_memory.generalization_radius = 0``, ``value_memory.oracle_homing
@@ -465,11 +493,13 @@ class EngineConfig:
 
         Nothing else differs. Not yet in this profile: a wall-contact reset
         for the odometry, a place population and replay as an event stream
-        (later milestones).
+        inside the engine (later milestones; the M2a linear-track experiment
+        runs its replay rules outside the engine, experiments.linear_track_replay).
         """
         cfg = cls(profile="research")
         cfg.sensors.odometry_speed_noise = 0.05
         cfg.sensors.odometry_turn_noise = 0.01
+        cfg.sensors.forward_delta_limit = 2.0
         cfg.spatial.gate_scales_egomotion = False
         cfg.astrocyte.scales_motion = False
         cfg.astrocyte.frozen = True
@@ -480,6 +510,8 @@ class EngineConfig:
         cfg.value_memory.dwell_extinction = 0.0
         bg = cfg.basal_ganglia
         bg.criticality_gain = 0.0
+        bg.novelty_gain = 0.0
+        bg.novelty_turn_gain = 0.0
         bg.dopamine_explore_gain = 0.0
         bg.ach_precision_gain = 0.0
         bg.ne_threat_gain = 0.0

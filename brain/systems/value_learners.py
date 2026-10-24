@@ -40,7 +40,9 @@ class ValueFunction(Protocol):
     ``value(x, y)`` reads V at a position; ``update`` applies one TD backup for
     the transition ``(x, y) -> (x_next, y_next)`` with the reward received on
     arrival (``terminal`` means the arrival place has V = 0 by convention and
-    ends the episode) and returns the TD error; ``reset_episode`` marks an
+    ends the episode) and returns the TD error; ``td_error`` is that error
+    under the current parameters without the backup (what a prioritised
+    replay rule reads, brain.systems.replay_rules); ``reset_episode`` marks an
     episode boundary (traces are cleared, nothing links across it);
     ``parameters`` returns a JSON-serialisable dict for the run manifest,
     including ``learning_rate`` and ``discount``.
@@ -49,6 +51,8 @@ class ValueFunction(Protocol):
     def value(self, x: float, y: float) -> float: ...
 
     def update(self, x: float, y: float, reward: float, x_next: float, y_next: float, terminal: bool) -> float: ...
+
+    def td_error(self, x: float, y: float, reward: float, x_next: float, y_next: float, terminal: bool) -> float: ...
 
     def reset_episode(self) -> None: ...
 
@@ -98,14 +102,17 @@ class TabularTD0:
     def value(self, x: float, y: float) -> float:
         return self.values.get(self.cell(x, y), 0.0)
 
+    def td_error(self, x: float, y: float, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
+        """``reward + discount * V(s') - V(s)`` (``reward - V(s)`` into a terminal) under the current table; no write."""
+        v = self.values.get(self.cell(x, y), 0.0)
+        if terminal:
+            return reward - v
+        return reward + self.gamma * self.values.get(self.cell(x_next, y_next), 0.0) - v
+
     def update(self, x: float, y: float, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
         cell = self.cell(x, y)
         v = self.values.get(cell, 0.0)
-        if terminal:
-            target = reward
-        else:
-            target = reward + self.gamma * self.values.get(self.cell(x_next, y_next), 0.0)
-        delta = target - v
+        delta = self.td_error(x, y, reward, x_next, y_next, terminal)
         self.values[cell] = v + self.lr * delta
         return delta
 
@@ -265,6 +272,13 @@ class LinearTDLambda:
 
     def value(self, x: float, y: float) -> float:
         return float(np.sum(self.weights * self.features(x, y)))
+
+    def td_error(self, x: float, y: float, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
+        """The TD error of the transition under the current weights, without a backup (same arithmetic as ``update``)."""
+        v = float(np.sum(self.weights * self.features(x, y)))
+        if terminal:
+            return reward - v
+        return reward + self.gamma * float(np.sum(self.weights * self.features(x_next, y_next))) - v
 
     def update(self, x: float, y: float, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
         phi = self.features(x, y)

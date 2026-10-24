@@ -131,12 +131,15 @@ EXPECTED_RESEARCH_DIFF = [
     ("profile", "legacy", "research"),
     ("sensors.odometry_speed_noise", 0.0, 0.05),
     ("sensors.odometry_turn_noise", 0.0, 0.01),
+    ("sensors.forward_delta_limit", 1.0, 2.0),
     ("astrocyte.scales_motion", True, False),
     ("astrocyte.frozen", False, True),
     ("value_memory.dwell_extinction", 0.02, 0.0),
     ("spatial.gate_scales_egomotion", True, False),
     ("trn.narrow_above_kappa", 1.1, math.inf),
     ("trn.microsleep_enabled", True, False),
+    ("basal_ganglia.novelty_gain", 0.2, 0.0),
+    ("basal_ganglia.novelty_turn_gain", 0.3, 0.0),
     ("basal_ganglia.dopamine_explore_gain", 0.6, 0.0),
     ("basal_ganglia.ach_precision_gain", 0.5, 0.0),
     ("basal_ganglia.ne_threat_gain", 0.5, 0.0),
@@ -215,13 +218,14 @@ def test_research_open_field_has_no_microsleep_full_thrust_steps_and_exact_path_
 
 def test_research_defaults_keep_the_energy_acceptance_and_let_the_estimate_drift() -> None:
     """The research profile as shipped (odometry noise 0.05 / 0.01 rad, softmax 0.1; M0b
-    item 8) at seed 1337 over 3000 open-field ticks: the energy acceptance holds on
-    every tick as above, and the path-integration estimate now drifts away from the
-    body by more than 0.5 units within the run. Measured: the error first exceeds 0.5
-    at tick 37, is 9.2 units at the end and 11.6 at most, with the body clamped at a
-    wall on 753 ticks (the softmax wanders it to the walls; the deterministic run
-    above never touches one). The sigmas are placeholders to be characterised in
-    milestone 1, so only the direction of the drift is asserted."""
+    item 8; the forward range 2.0 and the novelty bit decoupled, M2a) at seed 1337 over
+    3000 open-field ticks: the energy acceptance holds on every tick as above, and the
+    path-integration estimate drifts away from the body by more than 0.5 units within
+    the run. Measured at M2a: the error first exceeds 0.5 at tick 20, is 11.8 units at
+    the end and 15.8 at most, with the body clamped at a wall on 1,230 ticks (the softmax
+    wanders it to the walls; the deterministic run above never touches one); before M2a
+    (bit coupled, range 1.0) it was tick 37, 9.2, 11.6 and 753 ticks. Only the direction
+    of the drift is asserted (the temperature is still an uncharacterised placeholder)."""
     rows, scales, headings, proto = _open_field_run(EngineConfig.research())
     assert proto.summarize()["microsleep_count"] == 0
     assert sum(td.replay_active for td in rows) == 0
