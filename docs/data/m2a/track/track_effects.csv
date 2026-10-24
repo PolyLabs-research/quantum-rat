@@ -1,0 +1,25 @@
+metric,a,b,n,mean_a,mean_b,mean_diff,low,high,fraction_b_lt_a,fraction_b_gt_a,fraction_ties,cliffs_delta,cliffs_low,cliffs_high,cliffs_magnitude,ci_method,note
+total_steps,none,uniform,30,14487.5,14263,-224.467,-820.413,111.55,0.366667,0.366667,0.266667,-0.0333333,-0.323333,0.261377,negligible,bca,
+total_steps,none,reverse_trajectory,30,14487.5,11662.3,-2825.2,-3496.8,-2147.32,0.9,0.1,0,-0.88,-0.953333,-0.713333,large,bca,
+total_steps,none,prioritised_td,30,14487.5,10471.5,-4016,-4813.08,-3310.34,1,0,0,-0.995556,-1,-0.953771,large,bca,
+total_steps,uniform,reverse_trajectory,30,14263,11662.3,-2600.73,-3254.06,-1971.8,0.933333,0.0666667,0,-0.823333,-0.928889,-0.613333,large,bca,
+total_steps,uniform,prioritised_td,30,14263,10471.5,-3791.53,-4429.73,-3177.16,0.966667,0.0333333,0,-0.948889,-0.991111,-0.82,large,bca,
+total_steps,reverse_trajectory,prioritised_td,30,11662.3,10471.5,-1190.8,-1626,-801.599,0.833333,0.166667,0,-0.5,-0.711111,-0.22,large,bca,
+steps_last_quarter,none,uniform,30,3125.27,3012.13,-113.133,-430.321,90.0496,0.466667,0.3,0.233333,-0.05,-0.343333,0.243333,negligible,bca,
+steps_last_quarter,none,reverse_trajectory,30,3125.27,2101.63,-1023.63,-1347.07,-706.297,0.866667,0.133333,0,-0.706667,-0.86,-0.448889,large,bca,
+steps_last_quarter,none,prioritised_td,30,3125.27,1712.4,-1412.87,-1733.92,-1058.97,0.966667,0.0333333,0,-0.897778,-0.975556,-0.715556,large,bca,
+steps_last_quarter,uniform,reverse_trajectory,30,3012.13,2101.63,-910.5,-1200.9,-584.053,0.833333,0.166667,0,-0.691111,-0.851111,-0.426667,large,bca,
+steps_last_quarter,uniform,prioritised_td,30,3012.13,1712.4,-1299.73,-1592.27,-959.881,0.933333,0.0666667,0,-0.897778,-0.971111,-0.717778,large,bca,
+steps_last_quarter,reverse_trajectory,prioritised_td,30,2101.63,1712.4,-389.233,-639.082,-152.883,0.766667,0.233333,0,-0.433333,-0.66909,-0.131111,medium,bca,
+final_value_rmse,none,uniform,30,0.436724,0.434216,-0.00250817,-0.00277086,-0.00230297,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse,none,reverse_trajectory,30,0.436724,0.396523,-0.0402007,-0.040337,-0.0401636,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse,none,prioritised_td,30,0.436724,0.372465,-0.0642591,-0.0649851,-0.063656,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse,uniform,reverse_trajectory,30,0.434216,0.396523,-0.0376926,-0.0378896,-0.0374493,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse,uniform,prioritised_td,30,0.434216,0.372465,-0.061751,-0.0625024,-0.0610738,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse,reverse_trajectory,prioritised_td,30,0.396523,0.372465,-0.0240584,-0.0247986,-0.0234523,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+laps_capped,none,uniform,30,0.0333333,0.0333333,0,0,0,0,0,1,0,-0.1,0.1,negligible,none,"degenerate: all values equal, nothing resampled"
+laps_capped,none,reverse_trajectory,30,0.0333333,0,-0.0333333,-0.166667,0,0.0333333,0,0.966667,-0.0333333,-0.166667,0,negligible,bca,
+laps_capped,none,prioritised_td,30,0.0333333,0,-0.0333333,-0.166667,0,0.0333333,0,0.966667,-0.0333333,-0.166667,0,negligible,bca,
+laps_capped,uniform,reverse_trajectory,30,0.0333333,0,-0.0333333,-0.166667,0,0.0333333,0,0.966667,-0.0333333,-0.166667,0,negligible,bca,
+laps_capped,uniform,prioritised_td,30,0.0333333,0,-0.0333333,-0.166667,0,0.0333333,0,0.966667,-0.0333333,-0.166667,0,negligible,bca,
+laps_capped,reverse_trajectory,prioritised_td,30,0,0,0,0,0,0,0,1,0,0,0,negligible,none,"degenerate: all values equal, nothing resampled; degenerate: both samples constant, nothing resampled"
