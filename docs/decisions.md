@@ -1106,6 +1106,7 @@ Suite: 531 tests (522 at `a8e0b47`), about 50 s on the 4-core development box.
 
 ### C. Residuals carried forward
 - The plan's reward-window and pre-run-window rates, and the rate's fall with familiarity in thresholded mode, need step 2's pre-run pause, reward schedule and thresholded budget; here every pause is a reward pause in fixed-budget mode, and the per-lap rate of the sequence rule is flat at 1.
+- **Step 2 also runs a dose-response check** (owner's addition, 2026-10-24): the fixed-budget comparison at 5, 10, 20 and 40 backups per pause, same seeds, so that the causal reading of A3 and A4 (the effect tracks error-carrying backups) is tested directly: if replay does the work, each rule's effect against `none` should grow with the dose and uniform's should stay at its floor. Each level is a 7 s run; preregistered with the rest of step 2.
 - Uniform and prioritised replay produce no sequence events in this protocol; whether a sampling rule can under a reward change (where the error concentrates at one end) is step 2's question, not assumed.
 - The sensitivity sweep varies one parameter at a time at 40 laps; interactions and longer runs are untested.
 - Unchanged from G26 D: oracle state, four rules of nine, the rules outside the engine tick, one platform validated locally (CI covers macOS).
