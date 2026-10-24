@@ -77,6 +77,10 @@ offline.
    python -m analysis.replay_metrics docs/data/m2a/track/track_replay_events.jsonl.gz
    # the ranking with one parameter changed at a time, 11 variants x 4 conditions x 30 seeds (about 90 s)
    python -m experiments.linear_track_sensitivity --workers 4
+   # step 2 (docs/prereg/rq1_track_tabular.md): the RQ1 protocol, four reward blocks, two pauses per lap,
+   # fixed and thresholded budgets, and the dose-response of the fixed budget; both write docs/data/m2a/rq1
+   python -m experiments.linear_track_rq1 --workers 4
+   python -m experiments.linear_track_dose_response --workers 4
    ```
 
 Stop the server with `Ctrl+C`.

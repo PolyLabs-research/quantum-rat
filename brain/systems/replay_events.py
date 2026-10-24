@@ -36,6 +36,7 @@ Cell = Tuple[int, int]
 
 TRIGGER_MICROSLEEP = "microsleep"
 TRIGGER_REWARD = "reward"  # a reward-consumption pause (plan section 2; the M2a track, brain.systems.replay_rules)
+TRIGGER_PRE_RUN = "pre_run"  # the pause before a run starts (plan section 2's pre-run window; M2a step 2)
 RULE_REVERSE_TRAJECTORY = "reverse_trajectory"  # value_memory.replay_recent = True (the default); also the M2a rule
 RULE_TRN_INDEX = "trn_index"  # value_memory.replay_recent = False (legacy)
 RULE_UNIFORM = "uniform"  # M2a: uniform over the stored transitions (the plan's "random" floor)
@@ -197,6 +198,7 @@ __all__ = [
     "ReplayEvent",
     "ReplayLog",
     "TRIGGER_MICROSLEEP",
+    "TRIGGER_PRE_RUN",
     "TRIGGER_REWARD",
     "write_replay_events",
 ]

@@ -281,6 +281,11 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   `analysis/replay_metrics.py` reads replay events by the plan's definition (at least 4
   distinct cells spanning 0.3 m) off its event file; `experiments/linear_track_sensitivity.py`
   re-runs the comparison with one parameter changed at a time (11 variants).
+  `experiments/linear_track_rq1.py` runs the preregistered RQ1 protocol
+  (`docs/prereg/rq1_track_tabular.md`: four reward blocks, a pre-run pause beside the reward
+  pause, fixed and thresholded budgets, the plan's event definition) and
+  `experiments/linear_track_dose_response.py` the fixed-budget effect at 5 to 40 backups per
+  pause; both write `docs/data/m2a/rq1/`.
 * `experiments/odometry_characterisation.py` — the research profile's odometry noise characterised
   (`docs/odometry.md`; tables in `docs/data/m2a/odometry/`, the M1 record in `docs/data/m1/`).
 

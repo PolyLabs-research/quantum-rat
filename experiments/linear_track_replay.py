@@ -127,14 +127,15 @@ import numpy as np
 
 from analysis.stats import PseudoReplicationError, bootstrap_ci, cliffs_delta, paired_effect, pseudo_replication_guard, tidy_table, summarise
 from brain.systems.basal_ganglia import softmax_sample
-from brain.systems.replay_events import RULE_NONE, RULE_PRIORITISED_TD, RULE_REVERSE_TRAJECTORY, RULE_UNIFORM
-from brain.systems.replay_rules import ReplayOutcome, ReplayRule, StoredTransition, TransitionMemory, make_rule, replay
+from brain.systems.replay_events import RULE_NONE, RULE_PRIORITISED_TD, RULE_REVERSE_TRAJECTORY, RULE_UNIFORM, TRIGGER_PRE_RUN, TRIGGER_REWARD
+from brain.systems.replay_rules import ReplayOutcome, ReplayRule, StoredTransition, TransitionMemory, make_rule, replay, replay_thresholded
 from brain.systems.value_learners import TabularTD0
 from core.rng import RNG
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 CONDITIONS: Tuple[str, ...] = (RULE_NONE, RULE_UNIFORM, RULE_REVERSE_TRAJECTORY, RULE_PRIORITISED_TD)
 ACTIONS: Tuple[str, ...] = ("FORWARD", "TURN")
+BUDGET_MODES: Tuple[str, ...] = ("fixed", "thresholded")
 EAST, WEST = 1, -1  # goal ends and headings: +1 toward increasing cells, -1 toward decreasing
 TASK = "linear_track"
 DEFAULT_SEEDS: Tuple[int, ...] = tuple(range(1, 31))
@@ -164,12 +165,49 @@ class TrackConfig:
     backups_per_trigger: int = 20
     memory_capacity: int = 2000
     priority_epsilon: float = 1e-6
+    # --- M2a step 2 (docs/prereg/rq1_track_tabular.md); the defaults are the fixed evaluation's protocol ---
+    # Reward blocks: (laps, reward_east, reward_west) in order; empty means one block of ``laps`` laps at
+    # ``reward_east`` / ``reward_west``. When given, the lap counts must sum to ``laps``.
+    reward_blocks: Tuple[Tuple[int, float, float], ...] = ()
+    # A second replay pause at the start of every lap (after the turn-around, before the first step).
+    pre_run_pause: bool = False
+    # "fixed": exactly backups_per_trigger backups per pause; "thresholded": replay while the rule's
+    # priority exceeds ``threshold``, at most ``backup_cap`` per pause (brain.systems.replay_rules.replay_thresholded).
+    budget_mode: str = "fixed"
+    threshold: float = 0.02
+    backup_cap: int = 100
 
     def __post_init__(self) -> None:
         if self.n_bins < 2 or self.laps < 1 or self.lap_cap < 1 or self.backups_per_trigger < 1 or self.memory_capacity < 1:
             raise ValueError("n_bins >= 2, laps, lap_cap, backups_per_trigger and memory_capacity >= 1")
         if not (self.bin_size > 0 and self.temperature > 0 and self.value_gain >= 0 and self.priority_epsilon > 0):
             raise ValueError("bin_size, temperature and priority_epsilon must be positive, value_gain >= 0")
+        if self.budget_mode not in BUDGET_MODES:
+            raise ValueError(f"budget_mode must be one of {BUDGET_MODES}, got {self.budget_mode!r}")
+        if self.backup_cap < 1 or not (math.isfinite(self.threshold) and self.threshold >= 0.0):
+            raise ValueError("backup_cap >= 1 and a finite non-negative threshold")
+        if self.reward_blocks:
+            blocks = tuple(tuple(b) for b in self.reward_blocks)
+            object.__setattr__(self, "reward_blocks", blocks)  # lists from a manifest become tuples
+            if any(len(b) != 3 or int(b[0]) < 1 for b in blocks):
+                raise ValueError("each reward block is (laps >= 1, reward_east, reward_west)")
+            if sum(int(b[0]) for b in blocks) != self.laps:
+                raise ValueError(f"reward blocks cover {sum(int(b[0]) for b in blocks)} laps, laps is {self.laps}")
+
+    def blocks(self) -> Tuple[Tuple[int, float, float], ...]:
+        """The reward blocks in force: the declared ones, or one block over every lap."""
+        if self.reward_blocks:
+            return tuple((int(n), float(e), float(w)) for n, e, w in self.reward_blocks)
+        return ((self.laps, self.reward_east, self.reward_west),)
+
+    def block_of(self, lap: int) -> Tuple[int, float, float]:
+        """(block index, reward_east, reward_west) for a 0-based lap index."""
+        start = 0
+        for index, (n, east, west) in enumerate(self.blocks()):
+            if lap < start + n:
+                return index, east, west
+            start += n
+        raise ValueError(f"lap {lap} is beyond the {self.laps} laps")
 
     def untrained_turn_probability(self) -> float:
         return 1.0 / (1.0 + math.exp(self.forward_prior / self.temperature))
@@ -186,10 +224,18 @@ class State:
 
 
 class LinearTrack:
-    """The deterministic track: states, transitions, goal test and the learner's coordinates."""
+    """The deterministic track: states, transitions, goal test and the learner's coordinates.
+
+    ``reward_east`` and ``reward_west`` are the rewards in force (the current block's; ``set_rewards``)."""
 
     def __init__(self, cfg: TrackConfig) -> None:
         self.cfg = cfg
+        self.reward_east = cfg.reward_east
+        self.reward_west = cfg.reward_west
+
+    def set_rewards(self, east: float, west: float) -> None:
+        self.reward_east = float(east)
+        self.reward_west = float(west)
 
     def goal_cell(self, goal: int) -> int:
         return self.cfg.n_bins - 1 if goal == EAST else 0
@@ -213,7 +259,7 @@ class LinearTrack:
         return state.cell == self.goal_cell(state.goal)
 
     def reward(self, goal: int) -> float:
-        return self.cfg.reward_east if goal == EAST else self.cfg.reward_west
+        return self.reward_east if goal == EAST else self.reward_west
 
     def position(self, state: State) -> Tuple[float, float]:
         """The learner's (x, y) for a state: x the cell centre, y encodes heading and goal in four distinct cells."""
@@ -311,6 +357,14 @@ class LapRecord:
     value_rmse: float
     cumulative_steps: int
     value_rmse_visited: float = float("nan")  # visit-weighted (appended at step 1 of the M2a remainder)
+    # --- M2a step 2 (appended; the fixed evaluation's columns above are unchanged) ---
+    block: int = 0  # the reward block this lap ran in
+    reward_east: float = 1.0  # the block's rewards
+    reward_west: float = 1.0
+    pre_run_backups: int = 0  # backups made at the pre-run pause that started this lap
+    pre_run_event: bool = False
+    pre_run_direction: str = ""
+    pre_run_sequence_r: float = float("nan")
 
 
 @dataclass
@@ -341,6 +395,8 @@ class SeedRun:
             "replay_backups": float(replayed),
             "replay_events": float(len(events)),
             "replay_budget_fraction": (replayed / online) if online else 0.0,
+            "pre_run_backups": float(sum(r.pre_run_backups for r in laps)),
+            "pre_run_events": float(sum(r.pre_run_event for r in laps)),
             "final_value_rmse": laps[-1].value_rmse,
             "final_value_rmse_visited": laps[-1].value_rmse_visited,
             "turns_total": float(sum(r.turns for r in laps)),
@@ -380,10 +436,45 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
     first_lap_actions: List[str] = []
     goal = EAST
     cumulative = 0
+
+    def do_replay(trigger: str, episode: int, travel: int) -> Optional[ReplayOutcome]:
+        """One pause of the condition's rule under the configured budget mode; None when nothing was replayed."""
+        if rule is None or len(agent.memory) == 0:
+            return None
+        if trigger == TRIGGER_PRE_RUN and not agent.memory.episode(episode):
+            return None  # nothing completed yet to replay (the very first pause)
+        if cfg.budget_mode == "thresholded":
+            return replay_thresholded(rule, agent.memory, agent.learner, cfg.threshold, cfg.backup_cap, episode,
+                                      replay_stream, tick=cumulative, travel_sign=travel, trigger=trigger)
+        return replay(rule, agent.memory, agent.learner, cfg.backups_per_trigger, episode, replay_stream,
+                      tick=cumulative, travel_sign=travel, trigger=trigger)
+
+    def event_row(outcome: ReplayOutcome, lap: int, goal_name: str, agent_cell: int, block: int) -> Dict[str, Any]:
+        """One line of the events file: the ReplayEvent plus the lap, its goal, the reward block and the cell the
+        body waits in during the pause (what ``analysis.replay_metrics`` reads the remote flag against)."""
+        return {
+            **outcome.event.to_dict(),
+            "condition": condition, "seed": seed, "lap": lap + 1, "goal": goal_name, "block": block,
+            "agent_cell": agent_cell,
+            "sequence_r": outcome.sequence_r, "episodes": [t.episode + 1 for t in outcome.transitions],
+            "deltas": [round(d, 6) for d in outcome.deltas],
+        }
+
+    last_completed: Optional[int] = None  # the most recently completed lap (the reverse rule's content)
     for lap in range(cfg.laps):
+        block, reward_east, reward_west = cfg.block_of(lap)
+        track.set_rewards(reward_east, reward_west)
         agent.learner.reset_episode()
         state = track.start_state(goal)
         agent.visit(state)
+        goal_name = "east" if goal == EAST else "west"
+        pre_run: Optional[ReplayOutcome] = None
+        if cfg.pre_run_pause and last_completed is not None:
+            # The pre-run pause: the body is turned to face the new goal; the replayed transitions are read
+            # against the travel of the lap they belong to (the most recently completed one, for the reverse rule).
+            pre_run = do_replay(TRIGGER_PRE_RUN, last_completed, -goal)
+            if pre_run is not None:
+                events.append(event_row(pre_run, lap, goal_name, state.cell, block))  # the body waits at the start end
         goal_cell = track.goal_cell(goal)
         steps = turns = blocked = 0
         abs_deltas: List[float] = []
@@ -408,19 +499,20 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
         cumulative += steps
         online_updates = steps + (1 if rewarded else 0)
         record = LapRecord(
-            condition=condition, seed=seed, lap=lap + 1, goal="east" if goal == EAST else "west",
+            condition=condition, seed=seed, lap=lap + 1, goal=goal_name,
             steps=steps, turns=turns, blocked=blocked, rewarded=rewarded, reward=reward,
             online_updates=online_updates, replay_backups=0, replay_event=False, direction="",
             sequence_r=float("nan"), replay_from_this_lap=float("nan"), replay_mean_goal_distance=float("nan"),
             replay_remote_share=float("nan"), replay_mean_abs_delta=float("nan"),
             online_mean_abs_delta=math.fsum(abs_deltas) / len(abs_deltas), value_rmse=float("nan"),
-            cumulative_steps=cumulative,
+            cumulative_steps=cumulative, block=block, reward_east=reward_east, reward_west=reward_west,
+            pre_run_backups=pre_run.n_backups if pre_run is not None else 0,
+            pre_run_event=pre_run is not None,
+            pre_run_direction=pre_run.event.direction if pre_run is not None else "",
+            pre_run_sequence_r=pre_run.sequence_r if pre_run is not None else float("nan"),
         )
-        if rewarded and rule is not None:
-            outcome: ReplayOutcome = replay(
-                rule, agent.memory, agent.learner, cfg.backups_per_trigger, lap, replay_stream,
-                tick=cumulative, travel_sign=goal,
-            )
+        outcome: Optional[ReplayOutcome] = do_replay(TRIGGER_REWARD, lap, goal) if rewarded else None
+        if outcome is not None:
             cells = [t.cell[0] for t in outcome.transitions]
             distances = [abs(c - goal_cell) for c in cells]
             record.replay_backups = outcome.n_backups
@@ -431,16 +523,12 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
             record.replay_mean_goal_distance = math.fsum(distances) / len(distances)
             record.replay_remote_share = sum(d > REMOTE_CELLS for d in distances) / len(distances)
             record.replay_mean_abs_delta = math.fsum(abs(d) for d in outcome.deltas) / len(outcome.deltas)
-            events.append({
-                **outcome.event.to_dict(),
-                "condition": condition, "seed": seed, "lap": lap + 1, "goal": record.goal,
-                "sequence_r": outcome.sequence_r, "episodes": [t.episode + 1 for t in outcome.transitions],
-                "deltas": [round(d, 6) for d in outcome.deltas],
-            })
+            events.append(event_row(outcome, lap, goal_name, goal_cell, block))  # the body waits at the goal
         record.value_rmse = agent.value_rmse()
         record.value_rmse_visited = agent.value_rmse_visited()
         laps.append(record)
         if rewarded:
+            last_completed = lap
             goal = -goal  # the next lap runs back; a capped lap is tried again from its start end
     return SeedRun(condition=condition, seed=seed, laps=laps, events=events, first_lap_actions=tuple(first_lap_actions))
 

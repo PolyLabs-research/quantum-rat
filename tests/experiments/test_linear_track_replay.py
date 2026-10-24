@@ -303,3 +303,78 @@ def test_a_partial_run_refuses_the_committed_directory(tmp_path, monkeypatch) ->
     with pytest.raises(SystemExit):
         lt.main(["--conditions", "none,bogus", "--seeds", "1", "--out", str(tmp_path / "x")])
     assert not (tmp_path / "docs").exists()
+
+
+# --- M2a step 2: reward blocks, the pre-run pause, the thresholded budget (docs/prereg/rq1_track_tabular.md) ---
+
+
+def test_reward_blocks_are_validated_and_applied_lap_by_lap() -> None:
+    cfg = lt.TrackConfig(laps=8, reward_blocks=((2, 1.0, 1.0), (2, 4.0, 1.0), (2, 1.0, 1.0), (2, 0.25, 1.0)), lap_cap=400)
+    assert cfg.blocks() == ((2, 1.0, 1.0), (2, 4.0, 1.0), (2, 1.0, 1.0), (2, 0.25, 1.0))
+    assert [cfg.block_of(l) for l in range(8)] == [(0, 1.0, 1.0)] * 2 + [(1, 4.0, 1.0)] * 2 + [(2, 1.0, 1.0)] * 2 + [(3, 0.25, 1.0)] * 2
+    assert lt.TrackConfig().blocks() == ((40, 1.0, 1.0),) and lt.TrackConfig().block_of(39) == (0, 1.0, 1.0)
+    with pytest.raises(ValueError):
+        lt.TrackConfig(laps=5, reward_blocks=((2, 1.0, 1.0), (2, 1.0, 1.0)))
+    with pytest.raises(ValueError):
+        lt.TrackConfig(laps=4, reward_blocks=((0, 1.0, 1.0), (4, 1.0, 1.0)))
+    with pytest.raises(ValueError):
+        lt.TrackConfig(budget_mode="poisson")
+    with pytest.raises(ValueError):
+        lt.TrackConfig(backup_cap=0)
+    # Lists from a manifest become tuples, and the manifest round-trips.
+    assert lt.TrackConfig(laps=4, reward_blocks=[[2, 1.0, 1.0], [2, 4.0, 1.0]]).reward_blocks == ((2, 1.0, 1.0), (2, 4.0, 1.0))
+    run = lt.run_seed(RULE_NONE, 5, lt.TrackConfig(n_bins=6, laps=8, lap_cap=300, reward_blocks=((2, 1.0, 1.0), (2, 4.0, 1.0), (2, 1.0, 1.0), (2, 0.25, 1.0))))
+    assert [(lap.block, lap.reward_east, lap.reward_west) for lap in run.laps] == [(0, 1.0, 1.0)] * 2 + [(1, 4.0, 1.0)] * 2 + [(2, 1.0, 1.0)] * 2 + [(3, 0.25, 1.0)] * 2
+    # The reward actually paid follows the block and the end: east laps (odd) pay the east reward.
+    for lap in run.laps:
+        if lap.rewarded:
+            assert lap.reward == (lap.reward_east if lap.goal == "east" else lap.reward_west)
+    assert run.summary()["reward_total"] == pytest.approx(sum(lap.reward for lap in run.laps))
+
+
+def test_the_pre_run_pause_replays_before_the_first_step_and_the_first_one_makes_no_backup() -> None:
+    cfg = lt.TrackConfig(n_bins=8, laps=5, lap_cap=200, backups_per_trigger=6, memory_capacity=100, pre_run_pause=True)
+    for c in (RULE_UNIFORM, RULE_REVERSE_TRAJECTORY, RULE_PRIORITISED_TD):
+        run = lt.run_seed(c, 7, cfg)
+        assert run.laps[0].pre_run_backups == 0 and not run.laps[0].pre_run_event  # an empty memory: nothing to replay
+        for lap in run.laps[1:]:
+            assert lap.pre_run_backups == 6 and lap.pre_run_event  # the fixed budget at every later pre-run pause
+        assert [e["trigger"] for e in run.events].count("pre_run") == 4
+        pre = [e for e in run.events if e["trigger"] == "pre_run"]
+        # The pre-run record carries the agent's cell (the end the body waits at) and the upcoming lap's goal.
+        assert all(e["agent_cell"] in (0, 7) and e["goal"] in ("east", "west") for e in pre)
+        assert all((e["agent_cell"] == 0) == (e["goal"] == "east") for e in pre)
+        summary = run.summary()
+        assert summary["pre_run_backups"] == 24 and summary["pre_run_events"] == 4
+        assert summary["replay_backups"] == 6 * sum(lap.rewarded for lap in run.laps)  # reward pauses, counted apart
+    # Without the flag (the fixed evaluation's protocol) nothing changes.
+    plain = lt.run_seed(RULE_REVERSE_TRAJECTORY, 7, lt.TrackConfig(n_bins=8, laps=5, lap_cap=200, backups_per_trigger=6, memory_capacity=100))
+    assert all(lap.pre_run_backups == 0 for lap in plain.laps) and plain.summary()["pre_run_events"] == 0
+    # none makes no pause of either kind.
+    none = lt.run_seed(RULE_NONE, 7, cfg)
+    assert none.summary()["pre_run_backups"] == 0 and none.summary()["replay_backups"] == 0 and none.events == []
+
+
+def test_the_thresholded_budget_varies_per_pause_within_the_cap() -> None:
+    # The 40-cell track of the protocol: the pilot (docs/prereg/rq1_track_tabular.md) measured the reverse sweep
+    # at 3 to 9 backups over the first laps and 0 once V(goal) has converged, so the count varies and the cap is slack.
+    cfg = lt.TrackConfig(laps=14, pre_run_pause=True, budget_mode="thresholded", threshold=0.02, backup_cap=100)
+    for c in (RULE_REVERSE_TRAJECTORY, RULE_PRIORITISED_TD):
+        run = lt.run_seed(c, 11, cfg)
+        backups = [lap.replay_backups for lap in run.laps if lap.rewarded]
+        assert all(0 <= b <= 100 for b in backups), backups
+        if c == RULE_REVERSE_TRAJECTORY:
+            assert min(backups) < max(backups), backups  # a rate, not a fixed count: 3 to 9 early, 0 once converged
+        else:
+            # The prioritised rule's priority is the largest |TD error| anywhere in memory, which a wandering
+            # agent's 2,000 stored transitions keep above 0.02, so the cap binds at every pause (G28 reports it).
+            assert max(backups) == 100
+        assert all((lap.replay_backups > 0) == lap.replay_event for lap in run.laps)
+        assert all((lap.pre_run_backups > 0) == lap.pre_run_event for lap in run.laps)
+        assert all(e["n_backups"] == len(e["cells"]) for e in run.events)
+    # Lowering the threshold never shortens a pause's replay at the same seed (same draws, longer sweeps).
+    low = lt.run_seed(RULE_REVERSE_TRAJECTORY, 11, lt.TrackConfig(n_bins=10, laps=3, lap_cap=400, memory_capacity=300,
+                                                                budget_mode="thresholded", threshold=1e-6, backup_cap=15))
+    high = lt.run_seed(RULE_REVERSE_TRAJECTORY, 11, lt.TrackConfig(n_bins=10, laps=3, lap_cap=400, memory_capacity=300,
+                                                                 budget_mode="thresholded", threshold=0.5, backup_cap=15))
+    assert low.laps[0].steps == high.laps[0].steps and low.laps[0].replay_backups >= high.laps[0].replay_backups

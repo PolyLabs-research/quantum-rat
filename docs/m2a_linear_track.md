@@ -199,6 +199,95 @@ baseline most (8,340 to 23,148 steps) and at 0.3 the cap of 2,000 steps is hit o
 
 
 
+## Step 2 of the remainder: the RQ1 protocol on the floors, thresholded mode, and the dose-response
+
+Preregistered in `docs/prereg/rq1_track_tabular.md` before any run (its pilot clause moved θ once, from 0.02 to
+0.0035, recorded there); decisions entry G28. Runners: `experiments/linear_track_rq1.py` (both budget modes, 258 s on
+4 cores) and `experiments/linear_track_dose_response.py` (28 s); tables in `docs/data/m2a/rq1/`. The three rules here
+are the plan's floors; the prereg predicted which RQ1 bounds each would fail, and this section reports every verdict
+against those predictions. The guard found 30 distinct lap-length vectors in every condition and mode.
+
+**The protocol.** The fixed evaluation's track and agent, 80 laps in four blocks of 20 (east reward 1.0, 4.0, 1.0,
+0.25; west 1.0 throughout, the control end), a pre-run pause at the start of every lap beside the reward pause at its
+end, both running the condition's rule on the same memory; fixed mode makes 20 backups per pause, thresholded mode
+replays while the rule's priority exceeds θ = 0.0035 up to 100 backups per pause. Events are the plan's (step 1), their
+direction read against the lap the replayed states belong to.
+
+**Dose-response** (`dose_response_effects.csv`, `dose_response_slopes.csv`; the 40-lap stable-reward protocol at 5, 10,
+20 and 40 backups per reward pause, 30 seeds; 20 reproduces the fixed evaluation to the digit):
+
+| backups per pause | uniform − none | reverse − none | prioritised − none |
+|---|---|---|---|
+| 5 | −23 [−359, +209] | −1,511 [−2,044, −988] | −1,564 [−2,171, −938] |
+| 10 | −7 [−304, +274] | −2,232 [−2,798, −1,590] | −2,560 [−3,195, −1,799] |
+| 20 | −224 [−820, +112] | −2,825 [−3,497, −2,147] | −4,016 [−4,813, −3,310] |
+| 40 | −283 [−717, +57] | −2,815 [−3,495, −2,139] | −5,891 [−6,549, −5,344] |
+| slope per doubling | −100 [−219, −13] (negative on 18 of 30 seeds) | −450 [−604, −322] (28 of 30) | −1,444 [−1,628, −1,252] (30 of 30) |
+
+Prioritised replay does what the causal reading requires: its effect grows with every doubling, every seed. Reverse
+replay grows from 5 to 20 and then stops (40 equals 20): a sweep is one pass over the lap tail, and the backups beyond
+the first twenty or so carry no TD error (the chain of errors behind a consume decays by a factor of about 0.19 per
+transition), so more of them change nothing; its slope is negative because of the first half of the range. The
+preregistered prediction (effect growing with the dose) therefore holds for prioritised and holds for reverse up to
+saturation, which is itself the mechanism showing: the dose that matters is error-carrying backups, not backups.
+Uniform stays a null at every dose as predicted, with a small trend (more draws, more chances to hit a transition with
+error) whose interval just excludes zero against the prediction of none.
+
+**RQ1 verdicts** (`rq1_tests.csv`; n = 30 seeds unless marked; the prediction in brackets is the prereg's):
+
+| test | reverse_trajectory | uniform | prioritised_td |
+|---|---|---|---|
+| (a) reverse share of reward-pause events > 0.6 | 1.00 [1.00, 1.00], **passes** (predicted) | undefined, no events (predicted) | undefined, no events (predicted) |
+| (a) forward share of pre-run events > 0.6 | 0.00, **fails** (predicted: it replays the completed lap backward) | undefined | undefined |
+| (d) remote events ≥ 10% | 0.00, **fails** (predicted: every sweep starts at the goal) | undefined | undefined |
+| (b) east end, ×4 block − baseline, backups per stop | +10.3 [+10.2, +10.3] (8.6 → 18.9), **passes** (predicted) | +81 [+72, +87] (18 → 99, the cap), passes, degenerate | 0 (100 → 100, the cap), degenerate |
+| (b) east end, ×4 block − baseline, reverse events per stop | +0.30 (0.70 → 1.00 at every seed), **passes** | 0 events | 0 events |
+| (b) east end, ×0.25 block − washout, backups per stop | **+1.7** [+1.5, +1.7] (24.8 → 26.4), **fails "down"** (predicted: an unsigned rule rises) | 0 (cap) | 0 (cap) |
+| (b) east end, ×0.25 block − washout, reverse events per stop | −0.20 (1.00 → 0.80 at every seed), meets the criterion, see below | 0 events | 0 events |
+| (b) west control end, ×4 block − baseline | −8.7 [−8.8, −8.7] backups (8.7 → 0): **not equivalent** | +80 (16 → 96, the cap) | 0 (cap) |
+| (b) forward rate unchanged | degenerate: no forward events anywhere | degenerate | degenerate |
+| (c) rate falling across laps in block 1 | slope **+0.18** [+0.17, +0.18] backups per lap, **fails** (predicted: falls) | −0.53 [−1.50, +0.29], fails | 0 (cap), fails |
+
+What the thresholded mode did, rule by rule:
+
+- **reverse_trajectory.** Its priority is the TD error of the next transition of its sweep, read first at the consume.
+  While the goal's value is off by more than θ the sweep runs the whole lap (the chain of errors behind a changed
+  reward stays above 0.0035 for about thirty pauses at |Δr| = 3 and twenty-four at 0.75); once the goal's value is
+  within θ the sweep never starts, whatever error lies deeper in the lap. So its rate is a step function of the goal's
+  surprise. That gives: within block 1, backups per stop grew lap by lap (4, 6, 7, 9, …, 14 as the value front moved
+  back along the track) and collapsed to 0 at lap 19 when V(goal) passed 1 − θ, a rise and a cliff rather than the
+  decline (c) asked for, and the decline the pilot showed at θ = 0.02 (0 from lap 13) moved past the end of the block
+  at θ = 0.0035; at the west end, whose reward never changes, 0 backups and 0 events in blocks 2 to 4 (the "control
+  end unchanged" test fails because the end went quiet, 8.7 → 0, not because it moved with the east end); at the
+  east end whole-lap sweeps through blocks 2, 3 and 4 (18.9, 24.8, 26.4 backups per stop, the laps shortening), so
+  the rate rose at the ×4 increase and rose again at the ×0.25 decrease, the unsigned-rule prediction, and the
+  "down at the reduced end" bound fails on the rule's own rate. The reverse-event count did fall there (1.00 → 0.80,
+  identical at all 30 seeds, so the interval collapses): the surprise of a 0.75 change decays below θ two pauses
+  before the block ends (|Δr| · 0.8ⁱ with three backups of the consume per lap), so laps 77 and 79 made no replay at
+  any seed, where the washout block's surprise of 3.0 lasted the whole block. The criterion is met on events by the
+  same unsigned mechanism, a shorter-lived surprise, not by a signed response to a loss; the backups-per-stop row is
+  the honest reading of (b).
+- **uniform** and **prioritised_td.** Their priorities are the mean and the largest |TD error| over a memory of 2,000
+  transitions. The largest exceeds 0.0035 at every pause from the first lap on and the mean from the first reward
+  change on, so both rules replay to the cap of 100 at (almost) every pause: the deviation case the prereg named (a
+  cap that binds), so their thresholded rows are exploratory and degenerate. Neither made a single sequence event in
+  either mode, under a reward change included (G27 C's open question, answered: no); their backups are scattered.
+- **Fixed mode** behaved as in step 1 across the reward schedule: the reverse rule made an event at every reward pause
+  and at 98.7% of pre-run pauses (1,199 and 1,184 of 1,200), all reverse relative to the replayed lap; the sampling
+  rules none. In fixed mode (`rq1_adaptation.csv`) the reward changes left no visible transient in any condition
+  (the policy is the same whatever the reward's size; only V's scale moves, which sharpens or softens the softmax):
+  mean steps on the first lap of each block were 351 / 271 / 334 / 270 for `none`, 351 / 201 / 135 / 110 for reverse
+  and 351 / 195 / 134 / 95 for prioritised, the learning continuing through the schedule.
+
+What this step establishes: the protocol, both budget modes and the plan's metrics run end to end with manifests and
+intervals; the three floors behave as the prereg predicted on (a) and (d); the reverse rule's thresholded rate tracks
+the magnitude of the reward surprise and not its sign (the discriminating prediction for step 3's signed rule); and
+the familiarity test is sensitive to θ in a way the prereg did not anticipate (a step function cannot show a decline
+inside a block unless θ is set so that the goal's value crosses 1 − θ inside it). Nothing here is the RQ1 test, which
+is step 3's.
+
+## Reading
+
 - **The ranking.** Prioritised sweeping and reverse replay both propagate the reward's TD error back along the lap
   in one pause, which online TD(0) does one cell per lap; uniform replay spends its 20 backups almost entirely on
   transitions already at their fixed point. On a sparse-reward chain that is the expected order (Moore & Atkeson

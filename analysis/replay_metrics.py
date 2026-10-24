@@ -23,9 +23,12 @@ backups is a *segment*; a segment is an event when it covers at least
 :data:`MIN_SPAN_CELLS` (6 cells = 0.3 m at 0.05 m per cell, docs/units.md).
 Each event gets the direction and signed correlation of
 ``brain.systems.replay_rules.sequence_direction`` over its own cells against
-the lap's travel direction, its start cell, and a remote flag when that start
-is more than :data:`REMOTE_CELLS` (10 cells = 0.5 m) from the agent's cell at
-the pause (the goal cell just reached). A reverse-trajectory replay of a lap
+the travel direction of the lap its states belong to (their goal row: the
+state carries the goal end, so a replayed transition is direction-selective
+like a track place cell; a segment mixing rows takes the majority), its start
+cell, and a remote flag when that start is more than :data:`REMOTE_CELLS` (10
+cells = 0.5 m) from the agent's cell at the pause (the record's ``agent_cell``
+when present, else the goal cell just reached). A reverse-trajectory replay of a lap
 is one segment unless the sweep cycled (the wrap from the lap's first
 transition back to its newest is a jump); a lap whose last 20 steps wandered
 within fewer than 6 cells yields no event.
@@ -122,8 +125,30 @@ def travel_sign_for(record: Mapping[str, Any]) -> int:
 
 
 def agent_cell_for(record: Mapping[str, Any], n_bins: int) -> int:
-    """Where the agent is at the pause: the goal cell it has just reached."""
+    """Where the agent is at the pause: the record's ``agent_cell`` when it carries one (M2a step 2 writes it
+    for both pauses), else the goal cell of the lap just run."""
+    if "agent_cell" in record and record["agent_cell"] is not None:
+        return int(record["agent_cell"])
     return n_bins - 1 if travel_sign_for(record) == 1 else 0
+
+
+def goal_sign_of_row(row: int) -> int:
+    """The travel direction of the lap a replayed state belongs to, from its learner row (``experiments
+    .linear_track_replay.LinearTrack.position``): rows 0 and -1 are the goal-east laps (travel +1), rows 1 and 2
+    the goal-west laps (travel -1)."""
+    return 1 if int(row) in (0, -1) else -1
+
+
+def segment_travel_sign(rows: Sequence[int]) -> int:
+    """The majority travel direction of a segment's states (a tie goes to the first state): the direction a
+    replayed sequence is read against, so a replay is forward when it runs the way the body ran on the lap
+    those states belong to, whatever lap the agent is about to run (docs/prereg/rq1_track_tabular.md)."""
+    signs = [goal_sign_of_row(r) for r in rows]
+    east = sum(s == 1 for s in signs)
+    west = len(signs) - east
+    if east == west:
+        return signs[0]
+    return 1 if east > west else -1
 
 
 def extract_events(
@@ -137,13 +162,14 @@ def extract_events(
 ) -> List[SequenceEvent]:
     """The plan's events in one replay record (``ReplayEvent.to_dict`` plus the track's condition, seed, lap, goal)."""
     cells = [int(c[0]) for c in record["cells"]]
-    travel = travel_sign_for(record)
+    rows = [int(c[1]) for c in record["cells"]]
     agent = agent_cell_for(record, n_bins)
     events: List[SequenceEvent] = []
     for first, last in link_segments(cells, neighbour):
         segment = cells[first : last + 1]
         if not is_event(segment, min_distinct, min_span):
             continue
+        travel = segment_travel_sign(rows[first : last + 1])
         direction, r = sequence_direction([float(c) for c in segment], travel)
         distance = abs(segment[0] - agent)
         events.append(

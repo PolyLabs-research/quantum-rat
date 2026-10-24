@@ -21,11 +21,17 @@ ROOT = Path(__file__).resolve().parents[2]
 COMMITTED = ROOT / "docs" / "data" / "m2a" / "track" / "track_replay_events.jsonl.gz"
 
 
-def _record(cells, goal="east", condition="reverse_trajectory", seed=1, lap=3, rule=None):
-    return {
+def _record(cells, goal="east", condition="reverse_trajectory", seed=1, lap=3, rule=None, row=None, agent_cell=None):
+    """``row`` is the learner row of every cell (0 / -1: a goal-east lap, 1 / 2: a goal-west lap); default: the lap's."""
+    if row is None:
+        row = 0 if goal == "east" else 1
+    record = {
         "condition": condition, "seed": seed, "lap": lap, "goal": goal, "trigger": "reward",
-        "rule": rule or condition, "n_backups": len(cells), "cells": [[c, 0] for c in cells],
+        "rule": rule or condition, "n_backups": len(cells), "cells": [[c, row] for c in cells],
     }
+    if agent_cell is not None:
+        record["agent_cell"] = agent_cell
+    return record
 
 
 def test_consecutive_backups_link_when_their_cells_are_the_same_or_adjacent() -> None:
@@ -57,10 +63,22 @@ def test_a_reverse_sweep_of_an_eastward_lap_is_one_reverse_event_starting_at_the
     assert e.direction == "reverse" and e.sequence_r == pytest.approx(-1.0)
     assert e.start_cell == 39 == e.agent_cell and e.distance_from_agent == 0 and not e.remote
     assert e.travel_sign == 1 and e.trigger == "reward" and e.condition == "reverse_trajectory"
-    # The same cells on a westward lap (travel -1) read as a forward sequence.
+    # The same cells belonging to a westward lap (rows 1 / 2, travel -1) read as a forward sequence; the
+    # agent sits at the west end after that lap, so the start at cell 39 is remote.
     west = rm.extract_events(_record(cells, goal="west"), n_bins=40)
     assert len(west) == 1 and west[0].direction == "forward" and west[0].sequence_r == pytest.approx(1.0)
     assert west[0].agent_cell == 0 and west[0].distance_from_agent == 39 and west[0].remote
+    # Direction follows the replayed states' own lap, not the pause's: at a pre-run pause before a westward
+    # lap, the eastward lap's transitions (row 0) swept backward still read "reverse", and the agent cell
+    # the record carries (the east end, where the body waits) makes the start not remote.
+    pre_run = _record(cells, goal="west", row=0, agent_cell=39)
+    pre_run["trigger"] = "pre_run"
+    e, = rm.extract_events(pre_run, n_bins=40)
+    assert e.direction == "reverse" and e.travel_sign == 1 and e.agent_cell == 39 and not e.remote
+    # A segment mixing rows takes the majority row (a tie, the first state's).
+    assert rm.segment_travel_sign([0, 0, 1]) == 1 and rm.segment_travel_sign([1, 2, -1]) == -1
+    assert rm.segment_travel_sign([1, 0]) == -1 and rm.segment_travel_sign([0, 1]) == 1
+    assert rm.goal_sign_of_row(-1) == 1 and rm.goal_sign_of_row(2) == -1
 
 
 def test_a_cycling_sweep_breaks_at_the_wrap_and_a_short_tail_is_no_event() -> None:
@@ -80,9 +98,12 @@ def test_scattered_draws_give_no_event_and_adjacent_chains_inside_them_do() -> N
     scattered = [31, 36, 35, 4, 5, 35, 31, 3, 34, 2, 7, 7, 4, 7, 7, 35, 35, 33, 7, 36]  # a prioritised replay, seed 1 lap 12
     assert rm.extract_events(_record(scattered, condition="prioritised_td"), n_bins=40) == []
     chained = [31, 30, 29, 28, 27, 26, 25, 4, 5, 35, 20, 19, 18, 17, 16, 15, 14, 13, 2, 7]
-    events = rm.extract_events(_record(chained, goal="west", condition="prioritised_td"), n_bins=40)
+    events = rm.extract_events(_record(chained, goal="west", condition="prioritised_td"), n_bins=40)  # rows 1: westward states
     assert [(e.start_cell, e.end_cell, e.direction) for e in events] == [(31, 25, "forward"), (20, 13, "forward")]
     assert [e.remote for e in events] == [True, True]  # the agent is at cell 0 after a westward lap
+    # The same cells as eastward-lap states (row 0) run against that lap: reverse.
+    events = rm.extract_events(_record(chained, goal="west", condition="prioritised_td", row=0), n_bins=40)
+    assert [e.direction for e in events] == ["reverse", "reverse"]
     # Thresholds are parameters: with a span of 3 and two distinct cells, the whole list is "events".
     assert len(rm.extract_events(_record(scattered), n_bins=40, min_distinct=1, min_span=0)) == len(rm.link_segments(scattered))
 
