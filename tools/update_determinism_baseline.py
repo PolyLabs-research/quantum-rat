@@ -5,15 +5,22 @@ One set of baselines per config profile (docs/profiles.md, docs/determinism.md).
 the gate's seed and tick count, the three hash kinds of the same trace
 (``baseline_hashes_research.json``, the full file the gate uses;
 ``baseline_behaviour_research.json``; ``baseline_physics_research.json``), plus
-``baseline_meta_research.json`` and ``reference_trace_research.jsonl``, the
-JSONL trace the cross-platform tolerance gate compares against. Overwriting the
-committed set needs ``--i-know-what-im-doing``.
+``baseline_meta_research.json``, ``reference_trace_research.jsonl``, the
+JSONL trace the cross-platform tolerance gate compares against, and
+``reference_observations_research.jsonl``, that trace's observation sidecar
+(the numbers behind each tick's ``obs_checksum``, from the same run; the gate
+tolerates a differing checksum only when they agree, tools/compare_traces.py).
+Overwriting the committed set needs ``--i-know-what-im-doing``.
 
 The legacy set (``baseline_hashes.json``, ``baseline_behaviour_legacy.json``,
 ``baseline_physics_legacy.json``, ``baseline_meta.json``,
-``reference_trace_legacy.jsonl``) is never re-recorded: the legacy profile is
-bit-identical by rule (docs/decisions.md G22), so ``--profile legacy`` is
-refused unless ``--out-dir`` points somewhere else.
+``reference_trace_legacy.jsonl``, ``reference_observations_legacy.jsonl``) is
+never re-recorded: the legacy profile is bit-identical by rule
+(docs/decisions.md G22), so ``--profile legacy`` is refused unless
+``--out-dir`` points somewhere else. (The legacy sidecar was written once,
+from the function form, when the gate learned to read it, M2a; its
+``baseline_meta.json`` predates it and does not list it.)
+
 
 ``--out-dir DIR`` writes a profile's files into another directory, with no flag
 needed, so a regeneration can be diffed against the committed files without
@@ -43,8 +50,11 @@ from core.determinism import (
     baseline_meta_path,
     baseline_path,
     generate_profile_trace,
+    generate_profile_trace_with_observations,
     hash_trace,
+    reference_observations_path,
     reference_trace_path,
+    write_observation_trace,
     write_reference_trace,
 )
 from metrics.schema import SCHEMA_VERSION
@@ -85,7 +95,7 @@ def write_profile_baselines(
 
     Returns the written paths keyed by hash kind, ``meta`` and ``reference_trace``.
     """
-    trace = generate_profile_trace(profile, seed=seed, ticks=ticks)
+    trace, observations = generate_profile_trace_with_observations(profile, seed=seed, ticks=ticks)
     written: Dict[str, Path] = {}
     for kind in HASH_KINDS:
         path = baseline_path(profile, kind, directory)
@@ -95,6 +105,11 @@ def write_profile_baselines(
     reference = reference_trace_path(profile, directory)
     write_reference_trace(trace, reference)
     written["reference_trace"] = reference
+    # The observation sidecar: the numbers behind each tick's obs_checksum, from the
+    # same run, for the cross-platform tolerance gate (tools/compare_traces.py).
+    sidecar = reference_observations_path(profile, directory)
+    write_observation_trace(observations, sidecar)
+    written["reference_observations"] = sidecar
     meta_path = baseline_meta_path(profile, directory)
     meta = {
         "seed": seed,

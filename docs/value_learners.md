@@ -9,8 +9,11 @@ rewrites with `QUANTUM_RAT_WRITE_VALUE_TABLE=1` and otherwise checks against the
 
 `ValueFunction` (a `Protocol`): `value(x, y) -> float`; `update(x, y, reward, x_next, y_next, terminal) -> float`
 (one TD backup for the transition, reward received on arrival, returns the TD error; `terminal`: the arrival place
-bootstraps as 0 and the episode ends); `reset_episode()`; `parameters() -> dict` for the manifest, with
-`learning_rate` and `discount`. `ValueMemory` (tabular TD(0) over 0.5-unit bins with the legacy kernel, dwell
+bootstraps as 0 and the episode ends); `td_error(...)` with the same arguments, the error under the current
+parameters without the backup (added at M2a for the |TD error|-prioritised replay rule, `brain/systems/replay_rules.py`;
+`update` is `td_error` followed by the write, so the two agree to the bit); `reset_episode()`; `parameters() -> dict`
+for the manifest, with `learning_rate` and `discount`. M2a's linear track (docs/m2a_linear_track.md) is the first
+protocol to drive `TabularTD0` online and through replay and to let its values choose the actions. `ValueMemory` (tabular TD(0) over 0.5-unit bins with the legacy kernel, dwell
 extinction and the replay log) is not an instance yet: M2b adapts it, and until then the engine keeps calling it.
 
 - `TabularTD0(bin_size=0.5, learning_rate, discount)`: `V(s) <- V(s) + lr * (r + γ V(s') - V(s))` over

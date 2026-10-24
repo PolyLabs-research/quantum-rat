@@ -4,11 +4,12 @@ The engine does not use numpy yet (the first BLAS product that feeds behaviour
 is M2b); these tests pin the entry points: importing the engine never imports
 numpy, importing ``core`` pins the thread counts before numpy can load (which
 ``tests/conftest.py`` does for the suite, so the pin is in force inside every
-test run: numpy was not loaded first, the variables read 1, and the loaded
-OpenBLAS reports one thread through ``threadpoolctl``), a late pin is recorded
-and warned about rather than claimed, numpy streams are seeded from the
-``core.rng`` seed tree, and ``blas_info`` reports the build and the runtime
-without raising.
+test run: numpy was not loaded first, the variables read 1, and, where numpy
+is linked against OpenBLAS, the loaded library reports one thread through
+``threadpoolctl``; where it is not, ``blas_info`` says ``none_detected`` and
+claims no verified pin), a late pin is recorded and warned about rather than
+claimed, numpy streams are seeded from the ``core.rng`` seed tree, and
+``blas_info`` reports the build and the runtime without raising.
 """
 
 from __future__ import annotations
@@ -79,28 +80,46 @@ def _openblas_threads_expected(preset: Dict[str, str]) -> int:
     return 1
 
 
-def test_the_thread_counts_are_pinned_inside_this_test_run(
+def test_the_thread_variables_are_pinned_inside_this_test_run(
     thread_vars_preset_by_environment, numpy_loaded_before_pin
 ) -> None:
     """``tests/conftest.py`` imports ``core`` before any test module, so the pin is in
-    force for the whole suite; numpy is loaded by now (this module imports it). Three
-    things make that a checked statement rather than a hope: numpy was not in
-    ``sys.modules`` when the conftest imported ``core`` (recorded by the conftest and by
-    ``core`` itself), the variables read 1 (a value the environment set before the run
-    is left alone), and the OpenBLAS that is actually loaded reports that thread count
-    through ``threadpoolctl``."""
+    force for the whole suite; numpy is loaded by now (this module imports it). Two
+    things make that a checked statement rather than a hope, on every platform: numpy
+    was not in ``sys.modules`` when the conftest imported ``core`` (recorded by the
+    conftest and by ``core`` itself), and the variables read 1 (a value the environment
+    set before the run is left alone). Whether the loaded library confirms the count is
+    the next test's, OpenBLAS-specific, statement."""
     assert "core" in sys.modules and "numpy" in sys.modules
     assert numpy_loaded_before_pin is False
     assert core.determinism.NUMPY_LOADED_BEFORE_PIN is False
     for var in BLAS_THREAD_VARS:
         assert os.environ.get(var) == thread_vars_preset_by_environment.get(var, "1"), var
+
+
+def test_the_loaded_openblas_reports_the_pinned_thread_count(thread_vars_preset_by_environment) -> None:
+    """The library's own word: the OpenBLAS actually loaded reports the pinned count through
+    ``threadpoolctl``, and ``blas_info`` says the pin is verified. Where numpy is not linked
+    against OpenBLAS (Apple's Accelerate on the macOS runner, which ``threadpoolctl`` does
+    not detect) there is no library to ask: the test skips, and ``blas_info`` reports the
+    status ``none_detected`` with ``blas_threads_verified`` False rather than a pin it
+    cannot confirm (the last assertions, which run on every platform)."""
     runtime = blas_runtime()
-    assert runtime is not None
+    info = blas_info()
+    assert info["blas_runtime_status"] in core.determinism.BLAS_RUNTIME_STATUSES
+    assert info["blas_runtime_status"] == core.determinism.blas_runtime_status(runtime)
+    if info["blas_runtime_status"] != "detected":
+        assert info["blas_threads_verified"] is False
+    assert runtime is not None  # threadpoolctl is a dependency, so the report is at worst empty
     openblas = [entry for entry in runtime if entry.get("internal_api") == "openblas"]
     if not openblas:
+        assert info["blas_runtime_status"] == "none_detected" or all(e.get("user_api") != "blas" for e in runtime) is False
         pytest.skip("numpy is not linked against OpenBLAS here; the live-count check is OpenBLAS-specific")
     expected = _openblas_threads_expected(thread_vars_preset_by_environment)
     assert all(entry["num_threads"] == expected for entry in openblas), runtime
+    assert info["blas_runtime_status"] == "detected"
+    assert info["blas_threads_verified"] is (expected == 1 or all(e["num_threads"] == expected for e in openblas))
+
 
 
 def test_a_late_pin_is_recorded_and_warned_about() -> None:
@@ -131,11 +150,14 @@ def test_a_late_pin_is_recorded_and_warned_about() -> None:
     assert core.determinism.NUMPY_LOADED_BEFORE_PIN is False
 
 
-def test_a_test_run_started_without_the_variables_sees_openblas_pinned_to_one_thread() -> None:
+def test_a_test_run_started_without_the_variables_sees_them_pinned_to_one() -> None:
     """The subprocess form of the statement above: a pytest run whose environment has none
     of the four variables set sees ``OPENBLAS_NUM_THREADS == "1"`` (and the other three)
-    inside its tests, from the conftest alone."""
-    target = f"{Path(__file__).relative_to(ROOT)}::test_the_thread_counts_are_pinned_inside_this_test_run"
+    inside its tests, from the conftest alone. The target is the variables test, which
+    runs (and must pass, not skip) on every platform; the OpenBLAS live-count test is
+    left out of the target because it legitimately skips where numpy is not linked
+    against OpenBLAS, and "1 skipped" is not the statement this test makes."""
+    target = f"{Path(__file__).relative_to(ROOT)}::test_the_thread_variables_are_pinned_inside_this_test_run"
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", target],
         cwd=str(ROOT),
@@ -144,7 +166,29 @@ def test_a_test_run_started_without_the_variables_sees_openblas_pinned_to_one_th
         env=_env_without_thread_vars(),
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "1 passed" in result.stdout
+    assert "1 passed" in result.stdout and "skipped" not in result.stdout, result.stdout
+
+
+def test_blas_runtime_status_and_verified_say_only_what_a_detected_library_supports(monkeypatch) -> None:
+    status = core.determinism.blas_runtime_status
+    verified = core.determinism.blas_threads_verified
+    openblas = [{"user_api": "blas", "internal_api": "openblas", "num_threads": 1}]
+    omp_only = [{"user_api": "openmp", "internal_api": "openmp", "num_threads": 4}]
+    assert status(None) == "unavailable" and status([]) == "none_detected" and status(omp_only) == "none_detected"
+    assert status(openblas) == "detected"
+    assert verified(openblas) is True
+    assert verified(openblas + [{"user_api": "blas", "internal_api": "mkl", "num_threads": 4}]) is False
+    assert verified([{"user_api": "blas", "internal_api": "openblas", "num_threads": 3}], expected=3) is True
+    # Nothing detected: never "verified", whatever the environment variables say.
+    assert verified([]) is False and verified(None) is False and verified(omp_only) is False
+    # blas_info carries the pair, computed from the same runtime report it records.
+    for runtime, expected_status in ((None, "unavailable"), ([], "none_detected"), (omp_only, "none_detected"), (openblas, "detected")):
+        monkeypatch.setattr(core.determinism, "blas_runtime", lambda runtime=runtime: runtime)
+        info = blas_info()
+        assert info["blas_runtime"] == runtime
+        assert info["blas_runtime_status"] == expected_status
+        assert info["blas_threads_verified"] is (expected_status == "detected")
+
 
 
 def test_numpy_generator_is_reproducible_across_processes_and_distinct_per_name() -> None:
@@ -188,7 +232,12 @@ def test_pin_blas_threads_sets_unset_variables_and_keeps_preset_ones(monkeypatch
 
 def test_blas_info_returns_the_keys_and_is_json_serialisable() -> None:
     info = blas_info()
-    assert list(info) == ["numpy_version", *BLAS_THREAD_VARS, "blas", "lapack", "blas_runtime", "numpy_loaded_before_pin"]
+    assert list(info) == [
+        "numpy_version", *BLAS_THREAD_VARS, "blas", "lapack", "blas_runtime", "blas_runtime_status",
+        "blas_threads_verified", "numpy_loaded_before_pin",
+    ]
+    assert info["blas_runtime_status"] in core.determinism.BLAS_RUNTIME_STATUSES
+    assert isinstance(info["blas_threads_verified"], bool)
     assert info["numpy_version"] == np.__version__
     assert all(isinstance(info[key], str) for key in ("numpy_version", "blas", "lapack"))
     assert all(info[var] is None or isinstance(info[var], str) for var in BLAS_THREAD_VARS)

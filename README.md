@@ -137,9 +137,27 @@ characterised in M1 and kept, `docs/odometry.md`; the temperature not yet, G25 D
 seeds are samples, and declared physical units (0.2 s per tick, 0.1 m per unit, identical in both
 profiles: `docs/units.md`). Since M1 its odometry noise is characterised (`docs/odometry.md`) and
 every microsleep replay is an event object (the offline consolidation sweep,
-`ValueMemory.consolidate`, is not yet; G25 D), but it has no place population yet and, with
-microsleep off, produces no replay events until M2a adds a rule and its triggers
-(`docs/profiles.md`). See `docs/profiles.md` and `docs/research_plan.md` (§6).
+`ValueMemory.consolidate`, is not yet; G25 D). Since M2a (G26) its Observation's forward range is
+2.0 instead of 1.0, so the odometry speed error is zero-mean (under the legacy range a full-speed
+step's estimate averaged 0.980), and the checksum "novelty" bit no longer enters its action
+selection (still logged); the research baselines were regenerated once for both. It has no place
+population yet and, with microsleep off, its engine produces no replay events; M2a's first replay
+rules run outside the engine on a tabular linear track (below). See `docs/profiles.md` and
+`docs/research_plan.md` (§6).
+
+### The first replay result (M2a, first pass)
+
+`experiments/linear_track_replay.py` (docs/m2a_linear_track.md; data in `docs/data/m2a/track/`):
+a tabular TD(0) agent (`TabularTD0`) runs 40 laps of a 40-cell linear track between two rewarded
+ends, its actions a softmax over the value one step ahead, and after every rewarded lap makes
+exactly 20 replay backups under one of three rules (uniform over the stored transitions, the lap
+just run in reverse, or in proportion to the current |TD error|) or none. Over 30 paired seeds,
+reverse replay cuts the steps needed for the 40 laps by 2,825 [BCa 95%: 2,147 to 3,497] from
+14,490, prioritised replay by 4,016 [3,310 to 4,813] (faster on every seed) and uniform replay by
+−224 [−820 to +112], a null. The state is the true cell (an oracle), the budget fixed, four rules
+of the plan's nine: the textbook ordering on a sparse-reward chain, measured with intervals, and
+the instrument for the embodied comparison (M3) rather than a result about rodents. Reproduce with
+`python3 -m experiments.linear_track_replay --workers 4` (7 s).
 
 ---
 
@@ -257,6 +275,11 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   (`brain/systems/replay_events.py`: the ticks it ran over, its trigger and rule, the cells it
   backed up in order), and `summary.json` carries `n_replay_events`; the research profile never
   sleeps, so it writes neither the file nor any event.
+* `experiments/linear_track_replay.py` — the M2a linear-track replay comparison (above): four
+  conditions × 30 seeds, one tidy per-seed table, learning curves, paired effects with BCa
+  intervals, every replay event, and a manifest; `--quick` for a smoke run (needs `--out`).
+* `experiments/odometry_characterisation.py` — the research profile's odometry noise characterised
+  (`docs/odometry.md`; tables in `docs/data/m2a/odometry/`, the M1 record in `docs/data/m1/`).
 
 ### Tournaments
 * **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.
@@ -271,6 +294,9 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 * `analysis/stats.py`: BCa bootstrap intervals, paired per-seed effects, Cliff's δ, TOST
   equivalence and the pseudo-replication guard every multi-seed claim goes through
   (`docs/stats.md`).
+* `tools/compare_traces.py`: the cross-platform tolerance gate, floats within 1e-9 and everything
+  else exact; with the reference traces' observation sidecars it tolerates a differing
+  `obs_checksum` only when the observation it hashes agrees within tolerance (`docs/determinism.md`).
 
 ### Lab console (`python -m ui`)
 * **Live**: six scenarios run on the real engine with live brain panels and live parameters.

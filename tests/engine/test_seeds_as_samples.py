@@ -132,16 +132,25 @@ def test_odometry_noise_moves_the_estimate_not_the_body_until_the_actions_diverg
     first_move = next(t for t in range(1, TICKS) if exact[t].obs_forward_delta != 0.0)
     assert first_move <= diverge
     assert _estimates(exact[first_move : diverge + 1]) != _estimates(noisy[first_move : diverge + 1])
-    # The clamp to [-1, 1] is kept as it is: below it (a TURN moves 0.3) every noisy
-    # forward delta differs from the exact one; at full thrust (1.0, the top of the
-    # range) positive speed errors are clamped away, so only slowing ones show.
+    # Every noisy forward delta differs from the exact one, on TURN steps (0.3) and on
+    # full-thrust steps (1.0) alike: the research contract's range is +-2.0
+    # (sensors.forward_delta_limit, M2a), so a positive speed error on a full-thrust
+    # tick is kept, not clamped away, and both signs occur
+    # (tests/engine/test_research_confounds.py measures the mean).
     moving = [(a, b) for a, b in zip(exact, noisy) if a.obs_forward_delta != 0.0]
     below = [(a, b) for a, b in moving if abs(a.obs_forward_delta) < 1.0]
     full = [(a, b) for a, b in moving if a.obs_forward_delta == 1.0]
     assert below and full
     assert all(a.obs_forward_delta != b.obs_forward_delta for a, b in below)
-    assert all(b.obs_forward_delta <= 1.0 for _, b in full)
-    assert any(b.obs_forward_delta < 1.0 for _, b in full)
+    assert all(a.obs_forward_delta != b.obs_forward_delta for a, b in full)
+    assert all(abs(b.obs_forward_delta) <= 2.0 for _, b in full)
+    assert any(b.obs_forward_delta < 1.0 for _, b in full) and any(b.obs_forward_delta > 1.0 for _, b in full)
+    # Under the legacy range (1.0) the same draws are clamped at the top: only slowing errors show.
+    legacy_range = _research(speed=0.1, turn=0.05)
+    legacy_range.sensors.forward_delta_limit = 1.0
+    clamped = Engine(seed=1, config=legacy_range).run(TICKS)
+    full_clamped = [b for a, b in zip(exact, clamped) if a.obs_forward_delta == 1.0]
+    assert all(b.obs_forward_delta <= 1.0 for b in full_clamped) and any(b.obs_forward_delta < 1.0 for b in full_clamped)
     # Stream isolation: with sensor noise on as well, the rangefinder and pain streams
     # are consumed identically whether or not odometry noise is on.
     with_sensor = _research()

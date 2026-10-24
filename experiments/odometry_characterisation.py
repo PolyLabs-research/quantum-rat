@@ -5,8 +5,10 @@
     python3 -m experiments.odometry_characterisation --conditions grid --out /tmp/odo
 
 A partial run (fewer seeds, a shorter distance, a subset of the conditions, a
-small bootstrap) refuses the committed output directory (docs/data/m1): give it
-``--out``.
+small bootstrap) refuses the committed output directory (docs/data/m2a/odometry):
+give it ``--out``. The M1 tables under docs/data/m1 are the record of the
+research profile *before* M2a widened the Observation's forward range and
+decoupled the novelty bit (docs/odometry.md); they are not regenerated.
 
 What is measured
 ----------------
@@ -14,49 +16,53 @@ The research profile (``EngineConfig.research()``) estimates its own motion
 with seeded odometry noise (M0b item 8, ``core.sensors._compute_egomotion``):
 the raw forward displacement d becomes d (1 + sigma_speed xi) and the raw
 heading change gets + N(0, sigma_turn), both before the Observation's clamps
-(forward in [-1, 1] units, turn in [-pi, pi]). The spatial system
-(``brain.systems.spatial``) dead-reckons from those two numbers. Nothing resets
-the estimate until M2b's wall-contact reset, so the error against the body is
-pure accumulated odometry error. This script runs the engine in a barren world
-large enough that the body never meets a wall (a 5,000-unit box; the run stops
-after 2,000 units = 200 m of travel, docs/units.md), 30 seeds per condition,
-and records at every 25 units of travel the position-estimate error (the
-distance between the estimate and the body), the signed heading-estimate
-error and the accumulated signed along-track error (the sum over ticks of the
-estimated minus the true forward displacement). Per condition it fits the
-log-log slope of the mean error against distance over [50, 2000] units, with a
-seed-bootstrap BCa interval (analysis.stats).
+(forward in [-limit, limit] units with ``sensors.forward_delta_limit`` the
+limit, 2.0 under the research profile since M2a and 1.0 under legacy; turn in
+[-pi, pi]). The spatial system (``brain.systems.spatial``) dead-reckons from
+those two numbers. Nothing resets the estimate until M2b's wall-contact reset,
+so the error against the body is pure accumulated odometry error. This script
+runs the engine in a barren world large enough that the body never meets a
+wall (a 5,000-unit box; the run stops after 2,000 units = 200 m of travel,
+docs/units.md), 30 seeds per condition, and records at every 25 units of
+travel the position-estimate error (the distance between the estimate and the
+body), the signed heading-estimate error and the accumulated signed
+along-track error (the sum over ticks of the estimated minus the true forward
+displacement). Per condition it fits the log-log slope of the mean error
+against distance over [50, 2000] units, with a seed-bootstrap BCa interval
+(analysis.stats).
 
 Conditions: ``speed_only`` (0.05), ``turn_only`` (0.01 rad), ``both`` (the
-research placeholders), and a grid turn in {0.0025, 0.005, 0.01, 0.02} rad x
-speed in {0, 0.05, 0.1}, the softmax temperature at the research 0.1
-throughout. The walk is what the body does under that profile, and in an open
-barren world that walk is a straight line: with nothing in view the channel
-scores are constant (FORWARD 1.0, each TURN 0.3, REST 0.0 with the novelty bit
-at 1), so at temperature 0.1 a TURN is about a 1-in-500 draw (each of the two
-TURN channels about 1 in 1,100) and a 2,000-unit run is about 2,000 FORWARD
-ticks with a handful of turns (measured: 99.8% FORWARD). Because the growth
+research values), and a grid turn in {0.0025, 0.005, 0.01, 0.02} rad x speed
+in {0, 0.05, 0.1}, the softmax temperature at the research 0.1 throughout. The
+walk is what the body does under that profile, and in an open barren world
+that walk is a straight line: with nothing in view the channel scores are
+constant (FORWARD 0.8, each TURN 0.0, REST 0.0 since M2a decoupled the
+novelty bit; 1.0 / 0.3 / 0.0 before it), so at temperature 0.1 a TURN is
+about a 1-in-1,000 draw (exp(-8) per non-FORWARD channel) and a 2,000-unit
+run is about 2,000 FORWARD ticks with a handful of turns. Because the growth
 laws below depend on whether the walk turns, the three named conditions are
 also run on a ``turning`` walk: ``basal_ganglia.forward_bias`` 0.15 instead of
-0.8, which brings FORWARD (0.35) within the temperature of the TURNs (0.3), so
-the body walks FORWARD on about 46% of ticks and TURNs 0.3 rad left or right
-on about 51% (a persistent random walk; REST 2%). Odometry and everything
+0.8, which brings FORWARD (0.15) within the temperature of the TURNs and REST
+(0.0), so the body walks FORWARD on about 60% of ticks, TURNs 0.3 rad left or
+right on about 27% and RESTs on about 13% (a persistent random walk; before
+M2a, with the 0.3 turn term, it was 46% / 51% / 2%). Odometry and everything
 else stay the research defaults; the control changes only the walk.
 
 Expectations, written before the runs
 -------------------------------------
-- Speed noise alone, if the per-tick error were zero-mean: the along-track
-  error is a sum of independent terms, so the error grows as sqrt(distance),
-  log-log slope 0.5. But the noise is applied before the clamp, and a FORWARD
-  step of 1.0 sits at the top of the forward range, so on a full-thrust tick
-  only a slowing error survives: the estimated step is min(1 + 0.05 xi, 1),
-  whose mean is 1 - 0.05 E[xi+] = 1 - 0.05 / sqrt(2 pi) = 1 - 0.01995. On a
-  straight walk that bias accumulates linearly, so the expected slope is 1.0
-  (the random part, sd 0.029 sqrt(N), stays under 2 units at N = 2,000 and
-  is swamped). On a turning walk the per-tick bias vectors point along
-  changing headings and partly cancel: the biased part follows the body's
-  net displacement, which grows as sqrt(distance), so the slope returns
-  towards 0.5. The 0.3-unit TURN steps are unclamped and unbiased.
+- Speed noise alone: the per-tick error is zero-mean under the research
+  contract (the forward range of 2.0 never clips a 5% error), so the
+  along-track error is a sum of independent terms and grows as
+  sqrt(distance), log-log slope 0.5, with a wide per-seed scatter at short
+  distances (one seed's error is one realisation of a random walk, which can
+  cross zero). Under the legacy range of 1.0 the same noise is clipped at the
+  top on every full-thrust tick, min(1 + 0.05 xi, 1), mean 1 - 0.05 /
+  sqrt(2 pi) = 1 - 0.01995: that shortfall accumulates linearly on a straight
+  walk (slope 1.0; measured 0.987 [0.970, 1.003] in M1, docs/odometry.md) and
+  is what M2a removed. The ``bias_per_unit`` column, the signed along-track
+  error per unit travelled, should now read 0 within sampling error on both
+  walks (it read -0.0198 and -0.0147 in M1). The 0.3-unit TURN steps are
+  unclipped under either range.
 - Heading noise alone: the heading error is a random walk, sd sigma sqrt(t)
   over t ticks (every tick draws, moving or not). On a straight walk the
   lateral position error is the running sum of that random walk, which grows
@@ -64,7 +70,9 @@ Expectations, written before the runs
   grows as t^2, so the measured slope over a long straight run is expected
   at or somewhat above 1.5. On a turning walk the lateral error vectors
   decorrelate with the heading, and the error grows about linearly
-  (slope about 1.0).
+  (slope about 1.0); with the M2a control walk (60% FORWARD, long runs
+  between turns) the decorrelation is weaker than with M1's 46%, so the
+  control's slope may sit between 1.0 and 1.5.
 - Both: the sum; the heading term dominates the position error by an order
   of magnitude at 2,000 units, so ``both`` should read like ``turn_only``.
 - The plan's acceptance band, 0.5 to 1.5, brackets both single-noise laws
@@ -101,12 +109,12 @@ draw at all (the estimate is not fed back to the body in a barren box): the
 is the same in every run with inexact heading odometry, so the seeds vary
 only the odometry realisation against one ATP series.
 
-Outputs (``--out``, default docs/data/m1): odometry_curves.csv (the mean
-curves per condition), odometry_seeds.csv (one row per run),
-odometry_slopes.csv (one row per condition: the fit, its interval, the clamp
-bias, the walk statistics), odometry_atp.csv (one row per ATP run, the
-zero-noise control last) and odometry_meta.json. Floats are written with six
-significant digits.
+Outputs (``--out``, default docs/data/m2a/odometry): odometry_curves.csv (the
+mean curves per condition), odometry_seeds.csv (one row per run),
+odometry_slopes.csv (one row per condition: the fit, its interval, the
+along-track bias, the walk statistics), odometry_atp.csv (one row per ATP run,
+the zero-noise control last) and odometry_meta.json. Floats are written with
+six significant digits.
 
 Determinism: every random number comes from the engine's own named streams
 (``sensors_odometry``, ``action_softmax``); the bootstrap draws from
@@ -144,11 +152,11 @@ TICK_CAP = 20_000  # a run that has not travelled the target distance by then is
 SEEDS: Tuple[int, ...] = tuple(range(1, 31))
 RESEARCH_SPEED = 0.05
 RESEARCH_TURN = 0.01
-TURNING_FORWARD_BIAS = 0.15  # the turning-walk control: FORWARD 0.35 against TURN 0.3 at temperature 0.1
+TURNING_FORWARD_BIAS = 0.15  # the turning-walk control: FORWARD 0.15 against TURN 0.0 at temperature 0.1 (M2a)
 ATP_TICKS = 3000
 ATP_SEEDS: Tuple[int, ...] = (1, 2, 3, 4)
 ATP_TRANSIENT = 200  # ticks dropped from the "after transient" error correlation
-DEFAULT_OUT = Path("docs/data/m1")
+DEFAULT_OUT = Path("docs/data/m2a/odometry")
 DEFAULT_N_BOOT = 10_000
 WALKS = ("straight", "turning")
 
@@ -221,7 +229,8 @@ class SeedRun:
 
     @property
     def bias_per_unit(self) -> float:
-        """The clamp bias: the signed along-track error per unit travelled."""
+        """The signed along-track error per unit travelled (the clamp bias under the legacy
+        forward range; zero-mean under the research range since M2a)."""
         return self.along_err / self.distance if self.distance > 0 else float("nan")
 
 

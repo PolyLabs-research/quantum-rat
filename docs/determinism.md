@@ -60,23 +60,58 @@ within one process, so they run on every platform).
 strings, booleans and nulls exactly, floats within an absolute tolerance (default 1e-9;
 `--field-atol NAME=TOL` per field or path such as `pos[0]`), a type change is a mismatch.
 It reports the worst float deviation with its tick and field and exits 0 or 1; the
-function form is `compare_traces(reference, candidate, atol=..., field_atol=...)`.
+function form is `compare_traces(reference, candidate, atol=..., field_atol=...,
+reference_observations=..., candidate_observations=...)`.
 
-To check another machine's trace, write it there and compare it here:
+**The observation sidecar.** One field of a tick is a hash of floats: `obs_checksum` is
+the SHA-256 of the `repr` of the whole Observation (`core.sensors.observation_checksum`),
+so a last-bit difference in a ray distance that the float tolerance accepts still changes
+the string, and comparing it exactly defeats the tolerance. The first macOS CI run
+(2026-10-03, commit `ab262e0`) showed exactly that: 29 of 200 legacy checksums and 15 of
+200 research checksums differed from the Linux references while the worst float
+deviation in the traces was 9e-16 (`grid_y`) and 1e-16 (`kappa`), and no other field
+differed, `wm_novelty` included. Since M2a each reference trace therefore has a sidecar,
+`reference_observations_<profile>.jsonl` (about 60 KB), one `core.determinism
+.observation_record` per tick from the same engine run: the tick index, `forward_delta`,
+`turn_delta`, `pain_signal`, the two whisker bits and every ray's `dist`, `obj_type` and
+`angle`. Given both sidecars (`--observations REF_OBS CAND_OBS`), the tool compares the
+two records of every tick the same way as the trace (floats within the tolerance, labels,
+bits and the index exactly; a disagreement is a mismatch reported under `observation.`),
+and a differing `obs_checksum` on a tick whose records agree is a *tolerated hash
+difference*, counted and reported with the worst float gap behind it, not a mismatch.
+Without the sidecars a differing checksum is a mismatch, as before: the tool never
+ignores a hash difference it cannot account for. `wm_novelty` (1.0 when the checksum
+changed since the previous tick) stays an exact comparison: two platforms disagreeing
+about whether the observation changed is a real difference. The sidecars are written by
+`tools/update_determinism_baseline.py` beside the trace (the research one regenerates
+with the research set); the legacy sidecar was written once, from the function form
+(`write_observation_trace(generate_profile_trace_with_observations('legacy')[1], ...)`),
+when the gate learned to read it, and is covered by the legacy rule from then on
+(`baseline_meta.json` predates it and does not list it).
 
-    python3 -c "from core.determinism import generate_profile_trace, write_reference_trace; \
-      write_reference_trace(generate_profile_trace('legacy'), 'legacy_there.jsonl')"
-    python3 tools/compare_traces.py tests/determinism/reference_trace_legacy.jsonl legacy_there.jsonl
+To check another machine's trace, write it and its sidecar there and compare them here:
+
+    python3 -c "from core.determinism import *; t, o = generate_profile_trace_with_observations('legacy'); \
+      write_reference_trace(t, 'legacy_there.jsonl'); write_observation_trace(o, 'legacy_there_observations.jsonl')"
+    python3 tools/compare_traces.py tests/determinism/reference_trace_legacy.jsonl legacy_there.jsonl \
+      --observations tests/determinism/reference_observations_legacy.jsonl legacy_there_observations.jsonl
 
 `tests/determinism/test_cross_platform_tolerance.py` runs this for both profiles against
-the current code and checks the tool flags a 1e-6 perturbation. CI's claim
-(`.github/workflows/ci.yml`): same-platform bit identity, the exact-hash gates on Ubuntu;
-cross-platform agreement within tolerance, this gate on macOS with the exact-hash gates
-deselected (every test marked `exact_hash`, `pytest.ini`; `test_exact_hash_marker.py`
-requires the marker on every test that reads a committed hash file, so a new gate cannot
-be missed). On the machine that wrote the references the agreement is exact. The macOS
-job has not run yet (nothing on this branch has been pushed), so the 1e-9 agreement is
-measured on Linux only until the first macOS CI run reports (G24 D).
+the current code and checks the tool itself: a 1e-6 perturbation is flagged with its tick
+and field, a checksum difference is a mismatch without sidecars and with disagreeing ones
+and is tolerated only with agreeing ones, and the committed sidecar is the committed
+trace's observation tick for tick (a statement about two committed files, so it holds on
+every platform; the bit-identity of the current observations with the sidecar is a
+separate `exact_hash` test). CI's claim (`.github/workflows/ci.yml`): same-platform bit
+identity, the exact-hash gates on Ubuntu; cross-platform agreement within tolerance, this
+gate on macOS with the exact-hash gates deselected (every test marked `exact_hash`,
+`pytest.ini`; `test_exact_hash_marker.py` requires the marker on every test that reads a
+committed hash file, so a new gate cannot be missed; the tolerance-gate step applies the
+same filter, since this file also holds the same-platform bit-identity test of the
+sidecar). On the machine that wrote the references the agreement is exact and nothing is
+tolerated. On the macOS runner (arm64, 2026-10-24, docs/decisions.md G26 D) both
+profiles' tolerance comparisons pass with the sidecars, where the first macOS run had
+failed on 29 and 15 checksums; the thread-pin status there reads `none_detected`.
 
 ## The numpy rules (`core/determinism.py`)
 
@@ -106,9 +141,18 @@ measured on Linux only until the first macOS CI run reports (G24 D).
    BLAS string (`platform.blas`, the kernel the build targets) and what the loaded
    library reports through `threadpoolctl` (`platform.blas_runtime`: the kernel it chose
    for this CPU, its version and the thread count in force), plus
-   `numpy_loaded_before_pin`. The manifest is strict JSON: the research profile's
-   `trn.narrow_above_kappa = inf` is written as the string `"inf"` (`EngineConfig.to_dict`)
-   and read back as a float by `from_dict`.
+   `numpy_loaded_before_pin`. What that report means is stated explicitly
+   (`platform.blas_runtime_status`): `detected` (a BLAS library reported itself),
+   `none_detected` (`threadpoolctl` knows no BLAS in the process: numpy against Apple's
+   Accelerate on the macOS runner gives an empty list) or `unavailable`; and
+   `platform.blas_threads_verified` is True only when a BLAS library was detected and
+   reported the pinned count, so a manifest from a platform where no library could be
+   asked says the variables are set and the pin unverified, never that it was confirmed.
+   The suite's thread-pin test is split the same way: the variables and the import order
+   are asserted on every platform, the live OpenBLAS count only where OpenBLAS is loaded
+   (`tests/determinism/test_numpy_rules.py`). The manifest is strict JSON: the research
+   profile's `trn.narrow_above_kappa = inf` is written as the string `"inf"`
+   (`EngineConfig.to_dict`) and read back as a float by `from_dict`.
 
 ## Measured facts (plan §5 item 9; numpy 2.4.6, OpenBLAS 0.3.31, this machine)
 

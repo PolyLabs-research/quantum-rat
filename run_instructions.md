@@ -62,6 +62,17 @@ offline.
    `python -m experiments.runner --list` prints every protocol name.
    Press **Refresh** in the Replay tab to see new runs.
 
+   The M2a replay comparison is its own command (docs/m2a_linear_track.md):
+   ```bash
+   # the fixed evaluation: 4 conditions x seeds 1-30, 40 laps each, 7 s on 4 cores
+   python -m experiments.linear_track_replay --workers 4
+   # a smoke run elsewhere (the committed tables in docs/data/m2a/track are refused for partial runs)
+   python -m experiments.linear_track_replay --seeds 3 --quick --out /tmp/track
+   ```
+   It writes `track_laps.csv`, `track_per_seed.csv`, `track_summary.csv`, `track_learning_curve.csv`,
+   `track_effects.csv`, `track_replay_events.jsonl.gz` and `track_manifest.json`; the tables are
+   byte-identical at any worker count.
+
 Stop the server with `Ctrl+C`.
 
 The console binds to `127.0.0.1` only and has no login. `--host 0.0.0.0` makes it reachable from

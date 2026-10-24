@@ -35,17 +35,21 @@ def _compute_egomotion(
 
     The raw displacement is projected on the heading (sign = forward/backward)
     and the raw heading change is taken as is; both are then clamped to the
-    Observation's ranges ([-1, 1] units and [-pi, pi] radians). Odometry noise
-    (``SensorConfig.odometry_speed_noise`` / ``odometry_turn_noise``) perturbs
-    the raw values before the clamp: the forward displacement d becomes
-    d * (1 + sigma_speed * xi) and the heading change gets + N(0, sigma_turn),
-    with xi a standard normal deviate. The forward draw is made first, then
-    the turn draw, each only when its sigma is > 0 (so at 0 nothing is drawn
-    and the trace is bit-identical to exact odometry), and each on every tick
-    its sigma is on, whether or not the body moved. The body's true motion is
-    never touched: this is the estimate the spatial system integrates. The
-    clamp is unchanged, and a FORWARD step (1.0) sits at the top of its range,
-    so on full-thrust ticks only a slowing speed error survives it.
+    Observation's ranges: [-limit, limit] units with ``limit =
+    config.forward_delta_limit`` (1.0 without a config, the legacy contract)
+    and [-pi, pi] radians. Odometry noise (``SensorConfig.odometry_speed_noise``
+    / ``odometry_turn_noise``) perturbs the raw values before the clamp: the
+    forward displacement d becomes d * (1 + sigma_speed * xi) and the heading
+    change gets + N(0, sigma_turn), with xi a standard normal deviate. The
+    forward draw is made first, then the turn draw, each only when its sigma
+    is > 0 (so at 0 nothing is drawn and the trace is bit-identical to exact
+    odometry), and each on every tick its sigma is on, whether or not the body
+    moved. The body's true motion is never touched: this is the estimate the
+    spatial system integrates. Under the legacy limit of 1.0 a FORWARD step
+    (1.0) sits at the top of the range, so on full-thrust ticks only a slowing
+    speed error survives the clamp and the estimate falls short by
+    sigma / sqrt(2 pi) per unit (docs/odometry.md); the research profile's
+    limit of 2.0 keeps the error signed and zero-mean.
     """
     dx = agent.pos[0] - agent.last_pos[0]
     dy = agent.pos[1] - agent.last_pos[1]
@@ -53,13 +57,17 @@ def _compute_egomotion(
     heading = agent.heading
     distance = dx * math.cos(heading) + dy * math.sin(heading)
     turn_delta = agent.heading - agent.last_heading
-    if config is not None and odometry_stream is not None:
-        if config.odometry_speed_noise > 0.0:
-            distance *= 1.0 + config.odometry_speed_noise * odometry_stream.gauss(0.0, 1.0)
-        if config.odometry_turn_noise > 0.0:
-            turn_delta += odometry_stream.gauss(0.0, config.odometry_turn_noise)
-    # Clamp egomotion to normalized ranges to satisfy validation.
-    return _normalize(distance, -1.0, 1.0), _normalize(turn_delta, -math.pi, math.pi)
+    limit = 1.0
+    if config is not None:
+        limit = config.forward_delta_limit
+        if odometry_stream is not None:
+            if config.odometry_speed_noise > 0.0:
+                distance *= 1.0 + config.odometry_speed_noise * odometry_stream.gauss(0.0, 1.0)
+            if config.odometry_turn_noise > 0.0:
+                turn_delta += odometry_stream.gauss(0.0, config.odometry_turn_noise)
+    # Clamp egomotion to the contract's ranges to satisfy validation.
+    return _normalize(distance, -limit, limit), _normalize(turn_delta, -math.pi, math.pi)
+
 
 
 def _ray_wall_distance(px: float, py: float, dx: float, dy: float, bounds: Tuple[float, float]) -> float:
@@ -177,8 +185,9 @@ def gather_observation(
         forward_delta=forward_delta,
         turn_delta=turn_delta,
     )
-    obs.validate()
+    obs.validate(forward_limit=config.forward_delta_limit)
     return obs
+
 
 
 def observation_checksum(obs: Observation) -> str:
