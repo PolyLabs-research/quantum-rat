@@ -245,6 +245,10 @@ class TrackAgent:
         self.track = track
         self.learner = TabularTD0(bin_size=cfg.bin_size, learning_rate=cfg.learning_rate, discount=cfg.discount)
         self.memory = TransitionMemory(cfg.memory_capacity)
+        self.visits: Dict[State, int] = {}  # how often each state was occupied (the lap starts and every step's arrival)
+
+    def visit(self, state: State) -> None:
+        self.visits[state] = self.visits.get(state, 0) + 1
 
     def value(self, state: State) -> float:
         return self.learner.value(*self.track.position(state))
@@ -269,8 +273,18 @@ class TrackAgent:
         return delta
 
     def value_rmse(self) -> float:
+        """RMS error of V against the exact V* over all states, each state weighted equally."""
         errors = [self.value(s) - self.track.optimal_value(s) for s in self.track.states()]
         return math.sqrt(math.fsum(e * e for e in errors) / len(errors))
+
+    def value_rmse_visited(self) -> float:
+        """RMS error of V against V* weighted by how often each state was occupied so far (G26 D: the
+        unweighted error is dominated by the states the policy never reaches)."""
+        total = sum(self.visits.values())
+        if total == 0:
+            return math.nan
+        weighted = math.fsum(n * (self.value(s) - self.track.optimal_value(s)) ** 2 for s, n in self.visits.items())
+        return math.sqrt(weighted / total)
 
 
 @dataclass
@@ -296,6 +310,7 @@ class LapRecord:
     online_mean_abs_delta: float
     value_rmse: float
     cumulative_steps: int
+    value_rmse_visited: float = float("nan")  # visit-weighted (appended at step 1 of the M2a remainder)
 
 
 @dataclass
@@ -327,6 +342,7 @@ class SeedRun:
             "replay_events": float(len(events)),
             "replay_budget_fraction": (replayed / online) if online else 0.0,
             "final_value_rmse": laps[-1].value_rmse,
+            "final_value_rmse_visited": laps[-1].value_rmse_visited,
             "turns_total": float(sum(r.turns for r in laps)),
             "blocked_total": float(sum(r.blocked for r in laps)),
         }
@@ -367,6 +383,7 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
     for lap in range(cfg.laps):
         agent.learner.reset_episode()
         state = track.start_state(goal)
+        agent.visit(state)
         goal_cell = track.goal_cell(goal)
         steps = turns = blocked = 0
         abs_deltas: List[float] = []
@@ -382,6 +399,7 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
             blocked += was_blocked
             abs_deltas.append(abs(agent.store_and_learn(state, 0.0, nxt, False, lap, steps - 1)))
             state = nxt
+            agent.visit(state)
             if track.at_goal(state):
                 reward = track.reward(goal)
                 abs_deltas.append(abs(agent.store_and_learn(state, reward, state, True, lap, steps)))
@@ -420,6 +438,7 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
                 "deltas": [round(d, 6) for d in outcome.deltas],
             })
         record.value_rmse = agent.value_rmse()
+        record.value_rmse_visited = agent.value_rmse_visited()
         laps.append(record)
         if rewarded:
             goal = -goal  # the next lap runs back; a capped lap is tried again from its start end
@@ -453,7 +472,7 @@ def _paired_rows(by_condition: Mapping[str, Dict[int, Dict[str, float]]], metric
     }
 
 
-EFFECT_METRICS = ("total_steps", "steps_last_quarter", "final_value_rmse", "laps_capped")
+EFFECT_METRICS = ("total_steps", "steps_last_quarter", "final_value_rmse", "final_value_rmse_visited", "laps_capped")
 COMPARISONS = (
     (RULE_NONE, RULE_UNIFORM), (RULE_NONE, RULE_REVERSE_TRAJECTORY), (RULE_NONE, RULE_PRIORITISED_TD),
     (RULE_UNIFORM, RULE_REVERSE_TRAJECTORY), (RULE_UNIFORM, RULE_PRIORITISED_TD), (RULE_REVERSE_TRAJECTORY, RULE_PRIORITISED_TD),
@@ -600,7 +619,8 @@ def print_summary(result: Mapping[str, Any]) -> None:
     summary = result["summary"]
     print("per-condition means over seeds (BCa 95% interval):")
     for metric in ("total_steps", "steps_first_quarter", "steps_last_quarter", "laps_capped", "final_value_rmse",
-                   "replay_backups", "replay_budget_fraction", "replay_reverse_share", "replay_mean_sequence_r",
+                   "final_value_rmse_visited", "replay_backups", "replay_budget_fraction", "replay_reverse_share",
+                   "replay_mean_sequence_r",
                    "replay_from_this_lap", "replay_remote_share"):
         rows = summary[summary["metric"] == metric]
         if rows.empty:

@@ -278,6 +278,9 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 * `experiments/linear_track_replay.py` — the M2a linear-track replay comparison (above): four
   conditions × 30 seeds, one tidy per-seed table, learning curves, paired effects with BCa
   intervals, every replay event, and a manifest; `--quick` for a smoke run (needs `--out`).
+  `analysis/replay_metrics.py` reads replay events by the plan's definition (at least 4
+  distinct cells spanning 0.3 m) off its event file; `experiments/linear_track_sensitivity.py`
+  re-runs the comparison with one parameter changed at a time (11 variants).
 * `experiments/odometry_characterisation.py` — the research profile's odometry noise characterised
   (`docs/odometry.md`; tables in `docs/data/m2a/odometry/`, the M1 record in `docs/data/m1/`).
 

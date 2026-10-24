@@ -5,10 +5,13 @@ mode only, tabular oracle state, no reward-change schedule, no console panel. De
 **Reproduce:** `python3 -m experiments.linear_track_replay --workers 4` (7 s on the 4-core development box; the
 same tables byte for byte at any worker count). Outputs in `docs/data/m2a/track/`: `track_laps.csv` (one row per
 condition × seed × lap, 4,800 rows), `track_per_seed.csv` (the tidy per-seed table), `track_summary.csv`,
-`track_learning_curve.csv`, `track_effects.csv`, `track_replay_events.jsonl.gz` (3,599 events) and
+`track_learning_curve.csv`, `track_effects.csv`, `track_replay_events.jsonl.gz` (3,599 replays) and
 `track_manifest.json` (code revision, platform, numerical environment, every parameter, the seed list, dependency
-versions, the guard's verdicts). Tests: `tests/brain/test_replay_rules.py` (7) and
-`tests/experiments/test_linear_track_replay.py` (11).
+versions, the guard's verdicts); since step 1 of the remainder also `track_sequence_*.csv` (events by the plan's
+definition, `python3 -m analysis.replay_metrics docs/data/m2a/track/track_replay_events.jsonl.gz`) and
+`sensitivity_*.csv` (`python3 -m experiments.linear_track_sensitivity --workers 4`). Tests:
+`tests/brain/test_replay_rules.py` (7), `tests/experiments/test_linear_track_replay.py` (11),
+`tests/analysis/test_replay_metrics.py` (7), `tests/experiments/test_linear_track_sensitivity.py` (2).
 
 ## In one paragraph
 
@@ -124,7 +127,77 @@ note the tables carry): the RMSE against V* is dominated by the 120 states the p
 stay near 0 whatever the condition, so it moves little and almost identically across seeds; it separates the
 conditions in the expected order (0.437 > 0.434 > 0.397 > 0.373) but is not a sensitive measure here.
 
-## Reading
+## Step 1 of the remainder: events by the plan's definition, a visit-weighted value error, and a sensitivity sweep
+
+Added after the fixed evaluation (decisions G27), without re-running it: the three additions below read the
+committed data or run the same protocol at other parameter values, and every number of the fixed evaluation above
+is unchanged (`track_laps.csv` gained one column, the per-seed, summary and effects tables gained rows for the new
+metric, and every pre-existing row is byte-identical).
+
+**Replay events by the plan's definition** (`analysis/replay_metrics.py`; `python3 -m analysis.replay_metrics
+docs/data/m2a/track/track_replay_events.jsonl.gz`; tables `track_sequence_events.csv`, `track_sequence_metrics.csv`,
+`track_sequence_rate_by_lap.csv`). The plan's event is a sampled sequence of at least 4 distinct states spanning at
+least 0.3 m. Read off a replay's backup list: consecutive backups are linked when their start cells are the same or
+adjacent (a TURN keeps the cell), a maximal linked run is a segment, and a segment with at least 4 distinct cells
+spanning at least 6 cells (0.3 m at 5 cm per cell) is an event, with the direction and signed correlation of its own
+cells against the lap's travel, and a remote flag when it starts more than 10 cells (0.5 m) from the agent, which
+sits at the goal cell during the pause.
+
+| condition | events per stop | stops with an event | direction of events | mean span (cells) | remote events | mean \|r\| |
+|---|---|---|---|---|---|---|
+| reverse_trajectory | 0.999 [0.997, 1.000] (1,199 of 1,200 stops) | 0.999 [0.995, 1.000] | 1.00 reverse | 16.9 [16.8, 17.0] | 0 (every event starts at the goal) | 0.977 |
+| uniform | 0 | 0 | undefined (no event) | | | |
+| prioritised_td | 0 | 0 | undefined (no event) | | | |
+
+Under the plan's definition the two sampling rules produce no sequence events at all in this protocol: their
+backups jump between transitions near the two ends of the track (both carry TD error) and never chain through four
+adjacent cells. The slope-sign coin of G26 is thereby replaced by the honest statement: on the 1,200 pauses of each
+rule, uniform and prioritised replay made no sequence by the plan's criterion, so their direction is not a
+quantity. Reverse replay made one event at every pause but one (a lap whose last 20 steps wandered within five
+cells), reverse by construction, spanning 17 of the 20 backed-up cells on average. How much this depends on the
+extraction rule, from the same events: linking cells two apart adds four events in total (uniform 0.0025 per stop,
+prioritised 0.0008); two apart with a span of four cells gives uniform 0.005 and prioritised 0.029 per stop; three
+apart with three distinct cells over four gives uniform 0.13 and prioritised 0.30 per stop (reverse 0.46, remote
+0.55), so even the loosest reading leaves the sampling rules an order of magnitude below the sequence rule. The
+plan's reward-window and pre-run-window rates need the pre-run pause of step 2; here every pause is a reward pause.
+
+**A visit-weighted value error.** The RMSE against V* over all 160 states (above) is dominated by the states the
+policy rarely occupies and its paired intervals collapsed. `value_rmse_visited` weights each state by how often the
+agent occupied it over the run; the final values are `none` 0.289 [0.286, 0.293], `uniform` 0.287 [0.284, 0.290],
+`reverse_trajectory` 0.249 [0.246, 0.251], `prioritised_td` 0.226 [0.224, 0.229]; paired against `none`: uniform
+−0.0027 [−0.0039, −0.0014] (lower on 28 of 30 seeds: uniform replay does move the visited states' values a little,
+too little to move the walk), reverse −0.040 [−0.045, −0.037], prioritised −0.063 [−0.066, −0.059], and prioritised
+against reverse −0.022 [−0.025, −0.020], every seed. The ordering is the one the steps give.
+
+**Sensitivity of the ranking** (`experiments/linear_track_sensitivity.py`; `sensitivity_effects.csv`,
+`sensitivity_summary.csv`; 11 variants × 4 conditions × 30 seeds, 79 s on 4 cores). Each variant changes one
+parameter from the fixed set and re-runs all four conditions at the same seeds; the fixed evaluation's numbers stay
+the result, this is what happens around them. Paired differences in total steps over 40 laps, mean [BCa 95%]:
+
+| variant | none | reverse − none | prioritised − none | uniform − none | prioritised − reverse | capped laps |
+|---|---|---|---|---|---|---|
+| base (the fixed evaluation) | 14,488 | −2,825 [−3,497, −2,147] | −4,016 [−4,813, −3,310] | −224 [−820, +112] | −1,191 [−1,626, −802] | 2 |
+| learning rate 0.1 | 15,985 | −2,076 [−2,689, −1,589] | −3,597 [−4,193, −3,010] | +100 [−95, +453] | −1,520 [−2,116, −1,019] | 4 |
+| learning rate 0.5 | 12,598 | −5,824 [−6,281, −5,314] | −5,595 [−6,119, −5,067] | −233 [−398, −73] | **+229 [+9, +496]** | 2 |
+| discount 0.9 | 14,696 | −2,926 [−3,483, −2,291] | −4,037 [−4,745, −3,348] | −160 [−490, +156] | −1,111 [−1,461, −803] | 2 |
+| discount 0.98 | 14,412 | −2,940 [−3,502, −2,343] | −4,142 [−4,930, −3,537] | −296 [−864, +50] | −1,202 [−1,666, −818] | 2 |
+| temperature 0.05 (= gain 20) | 14,228 | −2,930 [−3,398, −2,339] | −3,942 [−4,550, −3,378] | −204 [−621, +24] | −1,012 [−1,380, −653] | 2 |
+| temperature 0.2 (= gain 5) | 14,787 | −2,900 [−3,438, −2,334] | −4,023 [−4,728, −3,368] | −77 [−257, +150] | −1,123 [−1,503, −815] | 2 |
+| untrained turn probability 0.1 | 8,340 | −1,337 [−1,684, −1,010] | −1,881 [−2,264, −1,502] | −133 [−259, −58] | −544 [−801, −282] | 0 |
+| untrained turn probability 0.3 | 23,148 | −4,545 [−5,498, −3,664] | −6,502 [−7,448, −5,512] | −90 [−578, +251] | −1,957 [−2,723, −1,349] | 63 |
+
+Both sequence rules beat no replay with intervals excluding zero in all 11 variants. Prioritised beats reverse in 10
+of 11; at learning rate 0.5 the order flips (reverse 6,774 against prioritised 7,003 steps), where a single reverse
+sweep at a large step already carries the reward's error the length of the lap tail and the prioritised rule's
+scattered backups buy nothing more. Uniform is a null in 9 of 11 and a small real gain in two (learning rate 0.5 and
+turn probability 0.1, both regimes in which the no-replay walk is short enough for a few effective uniform backups
+to show). Two pairs of variants are the same experiment: the softmax reads the scores divided by the temperature,
+and with the prior rescaled to hold the untrained turn probability, temperature 0.05 at gain 10 is gain 20 at
+temperature 0.1 and temperature 0.2 is gain 5, so the table above has nine distinct variants (the two gain rows are
+omitted; `sensitivity_summary.csv` carries all 11, identical to the digit). The turn-probability axis moves the
+baseline most (8,340 to 23,148 steps) and at 0.3 the cap of 2,000 steps is hit on 63 of 4,800 laps.
+
+
 
 - **The ranking.** Prioritised sweeping and reverse replay both propagate the reward's TD error back along the lap
   in one pause, which online TD(0) does one cell per lap; uniform replay spends its 20 backups almost entirely on

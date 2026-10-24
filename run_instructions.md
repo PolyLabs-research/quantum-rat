@@ -71,7 +71,13 @@ offline.
    ```
    It writes `track_laps.csv`, `track_per_seed.csv`, `track_summary.csv`, `track_learning_curve.csv`,
    `track_effects.csv`, `track_replay_events.jsonl.gz` and `track_manifest.json`; the tables are
-   byte-identical at any worker count.
+   byte-identical at any worker count. Two companions read or re-run it:
+   ```bash
+   # replay events by the plan's definition, from the committed event file (0.3 s)
+   python -m analysis.replay_metrics docs/data/m2a/track/track_replay_events.jsonl.gz
+   # the ranking with one parameter changed at a time, 11 variants x 4 conditions x 30 seeds (about 90 s)
+   python -m experiments.linear_track_sensitivity --workers 4
+   ```
 
 Stop the server with `Ctrl+C`.
 

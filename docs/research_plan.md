@@ -1,6 +1,6 @@
 # From toy to instrument: a conversion plan for hippocampal replay and spatial-memory research
 
-**Status:** revision 2. M0a, M0b and M1 implemented on this branch (entries G22–G25); M2a started: its first subset (four replay rules on the tabular track, fixed budget, 30 paired seeds; docs/m2a_linear_track.md, entry G26) is done, the rest of the M2a row is not.
+**Status:** revision 2. M0a, M0b and M1 implemented on this branch (entries G22–G25); M2a started: its first subset (four replay rules on the tabular track, fixed budget, 30 paired seeds; docs/m2a_linear_track.md, entry G26) is done, and of the remainder step 1 (the §2 event definition as a metrics module, a visit-weighted value error, a one-at-a-time sensitivity sweep; entry G27) is done; steps 2 (thresholded mode, the Ambrose reward schedule, a pre-run pause) and 3 (gain × need and its ablations) are not.
 **Date:** 2026-10-03
 **Basis:** a 14-agent research-readiness audit of the repository at commit `eea946f` (8 subsystem audits against the literature, 3 competing research programs, 2 judges, 1 completeness critic), the owner's three choices (**spatial memory & replay** as the research line, a **rate-based core with spiking only where a question demands it**, **publishable results** as the goal), three independent reviews of revision 1 (a neuroscientist, an engineer, an owner's advocate), and the audit's probes re-run against this commit (`tools/probes/`, outputs recorded).
 

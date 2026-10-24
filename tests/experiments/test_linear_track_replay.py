@@ -199,6 +199,9 @@ def test_direction_and_content_measures_follow_the_rules(runs) -> None:
     for c in lt.CONDITIONS:
         rmse = [lap.value_rmse for lap in runs[c].laps]
         assert all(math.isfinite(v) for v in rmse) and rmse[-1] < 1.0
+        visited = [lap.value_rmse_visited for lap in runs[c].laps]
+        assert all(math.isfinite(v) for v in visited) and visited[-1] < 1.0
+        assert visited[-1] != rmse[-1]  # weighted by occupancy, so the unvisited states no longer dominate
     for c in (RULE_REVERSE_TRAJECTORY, RULE_PRIORITISED_TD):
         assert runs[c].laps[0].value_rmse != none_rmse[0]
     assert runs[RULE_UNIFORM].laps[-1].value_rmse != none_rmse[-1]
