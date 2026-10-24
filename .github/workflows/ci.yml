@@ -8,12 +8,14 @@ on:
 # 13): the committed trace hashes are reproduced bit for bit on the same
 # platform, which the exact-hash gates in the Ubuntu job check. Across
 # platforms only agreement within a stated tolerance is claimed (1e-9 absolute
-# on floats, exact otherwise); the macOS job deselects the exact-hash gates
-# (every test marked ``exact_hash``, pytest.ini; the marker is required on every
-# test that reads a committed hash file, which
+# on floats, exact otherwise, a differing obs_checksum tolerated only where the
+# observation sidecar shows the hashed numbers agreeing); the macOS job
+# deselects the exact-hash gates (every test marked ``exact_hash``, pytest.ini;
+# the marker is required on every test that reads a committed hash file, which
 # tests/determinism/test_exact_hash_marker.py checks) and runs the tolerance
 # gate, tests/determinism/test_cross_platform_tolerance.py, against the
-# committed reference traces.
+# committed reference traces and sidecars. First green macOS run of the
+# repaired gate: 2026-10-24 (docs/decisions.md G26).
 jobs:
   tests:
     name: tests (${{ matrix.os }})
@@ -45,5 +47,9 @@ jobs:
       - name: Cross-platform tolerance gate (macOS)
         if: runner.os == 'macOS'
         # The cross-platform claim: each profile's 200-tick trace agrees with
-        # the committed reference trace within tolerance (docs/determinism.md).
-        run: python -m pytest -q tests/determinism/test_cross_platform_tolerance.py
+        # the committed reference trace within tolerance, a differing
+        # obs_checksum tolerated only where the observation sidecar shows the
+        # hashed numbers agreeing (docs/determinism.md). The same marker filter
+        # as the step above: the file also holds the same-platform bit-identity
+        # test of the sidecar, which is the Ubuntu job's claim, not this one's.
+        run: python -m pytest -q -m "not exact_hash" tests/determinism/test_cross_platform_tolerance.py

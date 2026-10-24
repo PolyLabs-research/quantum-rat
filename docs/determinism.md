@@ -106,9 +106,12 @@ separate `exact_hash` test). CI's claim (`.github/workflows/ci.yml`): same-platf
 identity, the exact-hash gates on Ubuntu; cross-platform agreement within tolerance, this
 gate on macOS with the exact-hash gates deselected (every test marked `exact_hash`,
 `pytest.ini`; `test_exact_hash_marker.py` requires the marker on every test that reads a
-committed hash file, so a new gate cannot be missed). On the machine that wrote the
-references the agreement is exact and nothing is tolerated. What the macOS job reports
-for the M2a branch is recorded in docs/decisions.md G26 once it has run.
+committed hash file, so a new gate cannot be missed; the tolerance-gate step applies the
+same filter, since this file also holds the same-platform bit-identity test of the
+sidecar). On the machine that wrote the references the agreement is exact and nothing is
+tolerated. On the macOS runner (arm64, 2026-10-24, docs/decisions.md G26 D) both
+profiles' tolerance comparisons pass with the sidecars, where the first macOS run had
+failed on 29 and 15 checksums; the thread-pin status there reads `none_detected`.
 
 ## The numpy rules (`core/determinism.py`)
 
