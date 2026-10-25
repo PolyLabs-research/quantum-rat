@@ -107,6 +107,9 @@ offline.
    # M2b step 2 (docs/prereg/m2b_place_population.md): a 400-cell place population over the estimate,
    # rate maps, the decoder and a throughput benchmark (writes docs/data/m2b/place)
    python -m experiments.place_population --workers 4
+   # M2b step 3 (docs/prereg/m2b_sr_fields.md): successor features over the place code on a track and in
+   # the open field (writes docs/data/m2b/sr)
+   python -m experiments.sr_fields --workers 4
    ```
 
 Stop the server with `Ctrl+C`.
