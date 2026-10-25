@@ -158,3 +158,44 @@ def test_the_forward_extension_makes_forward_sequences_when_gains_are_flat() -> 
     outcome1 = replay(one, agent.memory, agent.learner, 10, 0, RNG(seed=5).stream("replay"), tick=0, travel_sign=1)
     assert [c[0] for c in outcome1.event.cells] != cells  # without the extension the start state is replayed over and over
     assert math.isfinite(outcome1.sequence_r) or outcome1.event.direction == "neither"
+
+
+def test_the_seeded_priority_reads_the_would_be_chain_and_leaves_choose_alone() -> None:
+    """M2a step 6 (G31 C3): under ``priority_mode="seeded"`` the priority before a pause's first backup also reads the
+    extensions of a chain seeded with the acting state's most recent outgoing transition; ``choose`` is unchanged."""
+    from brain.systems.replay_mattar_daw import PRIORITY_MODES
+
+    cfg, track, agent, model = _setup()
+    assert PRIORITY_MODES == ("one_step", "seeded")
+    with pytest.raises(ValueError):
+        MattarDawReplay(model, priority_mode="chain")
+    plain = MattarDawReplay(model)
+    seeded = MattarDawReplay(model, priority_mode="seeded")
+    named = MattarDawReplay(model, priority_mode="seeded", name="mattar_daw_pos")
+    assert plain.priority_mode == "one_step" and seeded.priority_mode == "seeded" and named.name == "mattar_daw_pos" and seeded.name == MATTAR_DAW
+    memory, learner = agent.memory, agent.learner
+    plain.begin(memory, 0)
+    seeded.begin(memory, 0)
+    # The acting state is the west-bound start (no stored transition from it): no seed, the two priorities agree.
+    assert seeded._seed(seeded._distinct(memory)) is None
+    assert seeded.priority(memory, learner, 0) == plain.priority(memory, learner, 0)
+    # Acting from the east-bound start, whose transition is stored: the seed is that transition and the seeded priority
+    # is at least the one-step one (it is a max over a superset).
+    model.set_acting(track.start_state(EAST))
+    seed = seeded._seed(seeded._distinct(memory))
+    assert seed is memory.episode(0)[0]
+    one_step = plain.priority(memory, learner, 0)
+    with_seed = seeded.priority(memory, learner, 0)
+    assert with_seed >= one_step
+    ext_evbs = [evb for evb, _ in seeded._extensions(seeded._distinct(memory), learner, [seed])]
+    assert len(ext_evbs) == 1 and with_seed == max(one_step, ext_evbs[0])
+    # choose is the same object under both modes, and once a chain exists the seed is not read.
+    stream = RNG(seed=2).stream("replay")
+    a = plain.choose(memory, learner, stream, 0)
+    b = seeded.choose(memory, learner, stream, 0)
+    assert a is b and seeded.chain == [b]
+    assert seeded.priority(memory, learner, 1) == plain.priority(memory, learner, 1)
+    # Without the extension the setting is inert.
+    one = MattarDawReplay(model, extension=False, priority_mode="seeded")
+    one.begin(memory, 0)
+    assert one.priority(memory, learner, 0) == MattarDawReplay(model, extension=False).priority(memory, learner, 0)

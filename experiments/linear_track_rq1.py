@@ -59,10 +59,12 @@ from brain.systems.replay_rules import make_rule
 from experiments.linear_track_replay import (
     ALL_CONDITIONS,
     BUDGET_MODES,
+    EVALUATION_MODES,
     CONDITIONS,
     DEFAULT_N_BOOT,
     DEFAULT_SEEDS,
     GAIN_NEED_CONDITIONS,
+    POSITIONAL_NEED_CONDITIONS,
     SeedRun,
     TrackConfig,
     _dependency_versions,
@@ -75,16 +77,21 @@ from metrics.manifest import build_manifest, finish_manifest, write_manifest
 # Step 5 (G31; docs/prereg/rq1_track_mattar_daw.md), the default: step 4's protocol on the Q learner, with the floors
 # rerun under it and the Mattar & Daw rule with and without its forward n-step extension; the (b) rate tests add the
 # east change minus the west change (G30 C2); docs/data/m2a/rq1_step5.
-VERSIONS = ("step2", "step3", "step4", "step5")
-DEFAULT_VERSION = "step5"
+# Step 6 (G32; docs/prereg/rq1_track_step6.md), the default: step 5 plus the two Mattar & Daw rules with need read over
+# positions (heading and goal marginalised, G31 C2) and the extension rule's priority seeded before a pause's first
+# backup (G31 C3); docs/data/m2a/rq1_step6.
+VERSIONS = ("step2", "step3", "step4", "step5", "step6")
+DEFAULT_VERSION = "step6"
 DEFAULT_OUTS = {"step2": Path("docs/data/m2a/rq1"), "step3": Path("docs/data/m2a/rq1_step3"), "step4": Path("docs/data/m2a/rq1_step4"),
-                "step5": Path("docs/data/m2a/rq1_step5")}
+                "step5": Path("docs/data/m2a/rq1_step5"), "step6": Path("docs/data/m2a/rq1_step6")}
 DEFAULT_OUT = DEFAULT_OUTS[DEFAULT_VERSION]
 PREREGS = {"step2": "docs/prereg/rq1_track_tabular.md", "step3": "docs/prereg/rq1_track_gain_need.md", "step4": "docs/prereg/rq1_track_step4.md",
-           "step5": "docs/prereg/rq1_track_mattar_daw.md"}
-LEARNERS_BY_VERSION = {"step2": "v", "step3": "v", "step4": "v", "step5": "q"}
+           "step5": "docs/prereg/rq1_track_mattar_daw.md", "step6": "docs/prereg/rq1_track_step6.md"}
+LEARNERS_BY_VERSION = {"step2": "v", "step3": "v", "step4": "v", "step5": "q", "step6": "q"}
+MATTAR_DAW_PRIORITY_BY_VERSION = {"step2": "one_step", "step3": "one_step", "step4": "one_step", "step5": "one_step", "step6": "seeded"}
 STEP3_CONDITIONS: Tuple[str, ...] = CONDITIONS + GAIN_NEED_CONDITIONS  # the seven of steps 3 and 4 (the v learner)
 STEP5_CONDITIONS: Tuple[str, ...] = CONDITIONS + MATTAR_DAW_CONDITIONS  # the floors on the q learner and the two Mattar & Daw rules
+STEP6_CONDITIONS: Tuple[str, ...] = STEP5_CONDITIONS + POSITIONAL_NEED_CONDITIONS  # plus the two with need over positions
 # Steps 2 and 3: four blocks in one session.
 BLOCKS: Tuple[Tuple[int, float, float], ...] = ((20, 1.0, 1.0), (20, 4.0, 1.0), (20, 1.0, 1.0), (20, 0.25, 1.0))
 BLOCK_NAMES = ("baseline", "increase_x4", "washout", "decrease_x0.25")
@@ -101,6 +108,7 @@ SESSIONS: Dict[str, Dict[str, Tuple[Tuple[int, float, float], ...]]] = {
     "step3": {FOUR_BLOCK: BLOCKS},
     "step4": TWO_SESSIONS,
     "step5": TWO_SESSIONS,
+    "step6": TWO_SESSIONS,
 }
 SESSION_BLOCK_NAMES: Dict[str, Tuple[str, ...]] = {
     FOUR_BLOCK: BLOCK_NAMES, "increase": ("baseline", "increase_x4"), "decrease": ("baseline", "decrease_x0.25"),
@@ -127,8 +135,19 @@ THRESHOLDS_STEP4: Dict[str, Optional[float]] = {
 THRESHOLDS_STEP5: Dict[str, Optional[float]] = {
     "uniform": 0.124286, "reverse_trajectory": 2.25714, "prioritised_td": 0.940048, "mattar_daw": 3.90938e-05, "mattar_daw_1step": 1.04689e-06,
 }
-THRESHOLD_SCALES = {"step2": "none", "step3": "none", "step4": "mean_abs_value", "step5": "mean_abs_value"}
-THETA_TABLES: Dict[str, Dict[str, Optional[float]]] = {"step3": THRESHOLDS_STEP3, "step4": THRESHOLDS_STEP4, "step5": THRESHOLDS_STEP5}
+# Step 6's theta per rule (``--pilot``; docs/data/m2a/rq1_step6/rq1_pilot.csv). The floors: the fixed-mode pilot as in
+# steps 3-5. The four Mattar & Daw conditions: the same statistic read in "observe" mode, on the no-replay agent the
+# thresholded run starts from (docs/prereg/rq1_track_step6.md, pre-run amendment: a fixed-mode pilot reads the
+# extension rule on an agent its own replay has shaped, and the extension rule then never starts, step 5). ``None``
+# until the pilot has run.
+OBSERVE_PILOT: Dict[str, Tuple[str, ...]] = {"step6": MATTAR_DAW_CONDITIONS + POSITIONAL_NEED_CONDITIONS}
+THRESHOLDS_STEP6: Dict[str, Optional[float]] = {
+    "uniform": 0.124286, "reverse_trajectory": 2.25714, "prioritised_td": 0.940048,
+    "mattar_daw": 5.23727e-06, "mattar_daw_1step": 5.23727e-06, "mattar_daw_pos": 0.0592202, "mattar_daw_1step_pos": 0.0592202,
+}
+THRESHOLD_SCALES = {"step2": "none", "step3": "none", "step4": "mean_abs_value", "step5": "mean_abs_value", "step6": "mean_abs_value"}
+THETA_TABLES: Dict[str, Dict[str, Optional[float]]] = {"step3": THRESHOLDS_STEP3, "step4": THRESHOLDS_STEP4, "step5": THRESHOLDS_STEP5,
+                                                       "step6": THRESHOLDS_STEP6}
 PILOT_SEEDS: Tuple[int, ...] = (1, 2, 3)
 BACKUP_CAP = 100
 ENDS = ("east", "west")
@@ -146,6 +165,8 @@ def version_conditions(version: str) -> Tuple[str, ...]:
         return CONDITIONS
     if version == "step5":
         return STEP5_CONDITIONS
+    if version == "step6":
+        return STEP6_CONDITIONS
     return STEP3_CONDITIONS
 
 
@@ -155,7 +176,7 @@ def condition_is_value_scaled(condition: str) -> bool:
         return False
     if condition in GAIN_NEED_CONDITIONS:
         return GainNeedReplay.VALUE_SCALED[condition]
-    if condition in MATTAR_DAW_CONDITIONS:
+    if condition in MATTAR_DAW_CONDITIONS or condition in POSITIONAL_NEED_CONDITIONS:
         return bool(MattarDawReplay.value_scaled)
     return bool(make_rule(condition).value_scaled)
 
@@ -207,6 +228,7 @@ def protocol_config(mode: str, quick: bool = False, *, version: str = DEFAULT_VE
         trajectory_priority="next" if version == "step2" else "remaining_max",
         threshold_scale=THRESHOLD_SCALES[version],
         learner=LEARNERS_BY_VERSION[version],
+        mattar_daw_priority=MATTAR_DAW_PRIORITY_BY_VERSION[version],
     )
 
 
@@ -534,8 +556,8 @@ def rq1_tests(seed_blocks: Sequence[Mapping[str, Any]], pauses: Sequence[Mapping
     for condition in conditions:
         if condition == RULE_NONE:
             continue
-        if version in ("step4", "step5"):
-            rows.extend(_tests_step4(seed_blocks, pauses, condition, modes, n_boot, versus_control=(version == "step5")))
+        if version in ("step4", "step5", "step6"):
+            rows.extend(_tests_step4(seed_blocks, pauses, condition, modes, n_boot, versus_control=(version != "step4")))
         else:
             rows.extend(_tests_four_block(seed_blocks, pauses, condition, modes, n_boot))
     return rows
@@ -621,15 +643,17 @@ def pilot_rows(version: str, seeds: Sequence[int] = PILOT_SEEDS, workers: Option
     out: List[Dict[str, Any]] = []
     for c in conditions or [c for c in version_conditions(version) if c != RULE_NONE]:
         scaled = cfg.threshold_scale == "mean_abs_value" and condition_is_value_scaled(c)
+        observe = c in OBSERVE_PILOT.get(version, ())
         values: List[float] = []
-        for run in run_all((c,), seeds, cfg, workers):
+        for run in run_all((c,), seeds, replace(cfg, budget_mode="observe") if observe else cfg, workers):
             for lap in run.laps:
                 if lap.lap >= first_lap and lap.rewarded and not math.isnan(lap.reward_priority_before):
                     v = lap.reward_priority_before
                     if scaled:
                         v = v / max(lap.reward_value_scale, cfg.threshold_scale_floor)
                     values.append(v)
-        out.append({"version": version, "condition": c, "statistic": "priority / value_scale" if scaled else "priority",
+        out.append({"version": version, "condition": c,
+                    "statistic": ("priority / value_scale" if scaled else "priority") + (" (observe)" if observe else ""),
                     "n_pauses": len(values), "theta": float(np.median(values)) if values else math.nan,
                     "min": min(values) if values else math.nan, "max": max(values) if values else math.nan,
                     "laps": f"{first_lap}-{cfg.laps}", "seeds": ",".join(str(s) for s in seeds)})
@@ -681,8 +705,9 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     parser.add_argument("--version", choices=VERSIONS, default=DEFAULT_VERSION,
                         help="step2: the four floors, one theta, the 'next' trajectory priority (G28); step3: seven conditions, "
                              "theta per rule, 'remaining_max' (G29); step4: two sessions per seed, theta scaled by the value scale (G30); "
-                             "step5: step 4's protocol on the Q learner with the floors and the Mattar & Daw rules (default)")
-    parser.add_argument("--modes", default=",".join(BUDGET_MODES))
+                             "step5: step 4's protocol on the Q learner with the floors and the Mattar & Daw rules (G31); "
+                             "step6: step 5 plus the Mattar & Daw rules with need over positions, the extension rule's priority seeded (default)")
+    parser.add_argument("--modes", default=",".join(EVALUATION_MODES))
     parser.add_argument("--conditions", default=None, help="comma-separated; default: the version's set")
     parser.add_argument("--sessions", default=None, help="comma-separated; default: the version's set")
     parser.add_argument("--theta", action="append", default=[], metavar="CONDITION=VALUE", help="override a rule's thresholded theta")
@@ -703,7 +728,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     sessions_of_version = tuple(SESSIONS[version])
     sessions = sessions_of_version if args.sessions is None else tuple(s.strip() for s in args.sessions.split(",") if s.strip())
     for m in modes:
-        if m not in BUDGET_MODES:
+        if m not in EVALUATION_MODES:
             parser.error(f"unknown mode {m!r}")
     for c in conditions:
         if c not in ALL_CONDITIONS:
@@ -734,7 +759,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
         return {"pilot": rows}
     seeds = list(range(args.seed_start, args.seed_start + args.seeds))
     n_boot = min(args.n_boot, 200) if args.quick else args.n_boot
-    full = (modes == BUDGET_MODES and conditions == conditions_of_version and sessions == sessions_of_version
+    full = (modes == EVALUATION_MODES and conditions == conditions_of_version and sessions == sessions_of_version
             and tuple(seeds) == DEFAULT_SEEDS and not args.quick and n_boot >= 1000 and not overrides)
     if args.out.resolve() in {p.resolve() for p in DEFAULT_OUTS.values()} and not (full and args.out.resolve() == default_out.resolve()):
         parser.error(f"a partial run (or another version's) must not overwrite the committed tables in {args.out}: give --out")
@@ -784,7 +809,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
                "block_names": list(SESSION_BLOCK_NAMES[sessions[0]]),
                "session_block_names": {s: list(SESSION_BLOCK_NAMES[s]) for s in sessions},
                "threshold": THRESHOLD if version == "step2" else None, "thetas": thetas, "backup_cap": BACKUP_CAP,
-               "threshold_scale": base_cfg.threshold_scale, "learner": base_cfg.learner,
+               "threshold_scale": base_cfg.threshold_scale, "learner": base_cfg.learner, "mattar_daw_priority": base_cfg.mattar_daw_priority,
                "trajectory_priority": base_cfg.trajectory_priority,
                "n_boot": n_boot, "full_evaluation": full, "quick": args.quick,
                "prereg": PREREGS[version],
