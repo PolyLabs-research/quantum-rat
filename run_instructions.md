@@ -110,6 +110,9 @@ offline.
    # M2b step 3 (docs/prereg/m2b_sr_fields.md): successor features over the place code on a track and in
    # the open field (writes docs/data/m2b/sr)
    python -m experiments.sr_fields --workers 4
+   # M2b step 4 (docs/prereg/m2b_gate.md): the RQ4(a) gate relative to the visible-goal ceiling, three value
+   # sources x hidden and visible sessions x 30 seeds (writes docs/data/m2b/gate)
+   python -m experiments.rq4a_gate --workers 4
    ```
 
 Stop the server with `Ctrl+C`.

@@ -209,6 +209,21 @@ class Engine:
 
             self.place = PlacePopulation(c.place.extent or tuple(self.world.bounds), spacing=c.place.spacing,
                                          width=c.place.width, max_rate=c.place.max_rate)
+        # The SR value source (M2b step 4): successor features over the population and reward weights R, learned online
+        # from the agent's own transitions and the map reward; the steering reads V(p) = phi(p) . (M^T R).
+        self.sr = None
+        self.sr_weights = None
+        self._sr_prev = None
+        self._sr_u = None
+        if c.value_memory.source == "sr":
+            if self.place is None:
+                raise ValueError("value_memory.source 'sr' needs place.enabled = True")
+            import numpy as np
+
+            from brain.systems.successor_features import SuccessorFeatures
+
+            self.sr = SuccessorFeatures(self.place.size, c.place.sr_learning_rate, c.place.sr_discount)
+            self.sr_weights = np.zeros(self.place.size, dtype=np.float64)
         self.working_memory = WorkingMemory(capacity=c.working_memory.capacity)
         self.last_action: Action = Action(name="REST", thrust=0.0, turn=0.0)
         self.pipeline = Pipeline(
@@ -475,6 +490,40 @@ class Engine:
     # Largest sampled advantage below which the map counts as locally flat.
     VALUE_FLAT = 1e-3
 
+    def _sr_learn(self, reward: float) -> None:
+        """One online step of the SR value source (M2b step 4): the TD backup of the transition from the previous tick's
+        features to this tick's, then the reward weights by normalised LMS on the reward received on arrival here."""
+        from brain.systems.successor_features import normalised
+
+        phi = normalised(self.place_rates)
+        if self._sr_prev is not None:
+            self.sr.update(self._sr_prev, phi)
+        norm = float((phi * phi).sum())
+        if norm > 0.0:
+            err = reward - float((phi * self.sr_weights).sum())
+            self.sr_weights += (self.config.place.reward_learning_rate * err / norm) * phi
+        self._sr_prev = phi
+        self._sr_u = None  # M^T R changed
+
+    def sr_value(self, x: float, y: float) -> float:
+        """The SR value source's V at a position of the estimate frame: phi(p) . (M^T R)."""
+        from brain.systems.successor_features import normalised
+
+        if self._sr_u is None:
+            self._sr_u = (self.sr.M * self.sr_weights[:, None]).sum(axis=0)  # element-wise, no BLAS (numpy rule 6 kept)
+        return float((normalised(self.place.rates(x, y)) * self._sr_u).sum())
+
+    def reset_value_episode(self) -> None:
+        """An episode boundary for every value learner (a protocol's trial start, a teleport): nothing links across it."""
+        self.value_memory.reset_episode()
+        self._sr_prev = None
+
+    def _value_at(self, x: float, y: float) -> float:
+        """The value the steering reads at a position of the estimate frame, from ``value_memory.source``."""
+        if self.sr is not None:
+            return self.sr_value(x, y)
+        return self.value_memory.value_of(self.spatial.bins_at(x, y))
+
     def _value_signals(self, ctx: EngineContext) -> Tuple[float, float, float]:
         """Steer toward higher-value directions (memory-guided navigation).
 
@@ -492,13 +541,16 @@ class Engine:
         ``goal_vector_flat`` hands over to ``goal_vector_signals``: turn toward
         the remembered goal's place.
         """
+        if self.config.value_memory.source == "none":
+            ctx.goal_vector_active = False
+            return 0.0, 0.0, 0.0  # no value steering (M2b step 4's control)
         look = self.config.value_memory.lookahead
-        here = self.value_memory.value_of(self.spatial.bins_at(ctx.grid_x, ctx.grid_y))
+        here = self._value_at(ctx.grid_x, ctx.grid_y)
 
         def advantage(theta: float) -> float:
             gx = ctx.grid_x + look * math.cos(theta)
             gy = ctx.grid_y + look * math.sin(theta)
-            return self.value_memory.value_of(self.spatial.bins_at(gx, gy)) - here
+            return self._value_at(gx, gy) - here
 
         hd = ctx.hd_angle
         ahead = advantage(hd)
@@ -596,6 +648,8 @@ class Engine:
             ctx.map_reward,
             dwell_extinction=self.config.value_memory.dwell_extinction,
         )
+        if self.sr is not None:
+            self._sr_learn(ctx.map_reward)
         if self.config.value_memory.oracle_homing:
             self._update_goal_memory(ctx)
 
@@ -731,6 +785,7 @@ class Engine:
         self._replay_step = 0
         self._close_replay_event()
         self.value_memory.reset_episode()
+        self._sr_prev = None  # the SR value source's episode boundary too (M2b step 4)
 
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:
         """Execute the pipeline for N ticks and return TickData stream."""
