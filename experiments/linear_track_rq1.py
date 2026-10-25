@@ -16,7 +16,9 @@ Tables (``--out``, default docs/data/m2a/rq1): rq1_pauses.csv.gz (one row per pa
 events, their directions, remote count), rq1_seed_blocks.csv (per condition, mode, seed, block,
 end and pause kind: backups and events per stop and the shares), rq1_tests.csv (the
 preregistered tests (a)-(d) with estimate, interval, bound and verdict), rq1_adaptation.csv
-(steps per lap by block and condition) and rq1_manifest.json; ``--write-events`` adds
+(steps per lap by block and condition), rq1_learning.csv (total steps over the protocol per
+condition with paired differences against none and prioritised_td) and rq1_manifest.json;
+``--write-events`` adds
 rq1_events.jsonl.gz, every replay with its cells (6 MB for the full run, not committed). A
 partial run refuses the committed directory: give ``--out``.
 """
@@ -122,7 +124,7 @@ def protocol_config(mode: str, quick: bool = False, *, version: str = DEFAULT_VE
 
 PAUSE_COLUMNS = ("condition", "mode", "seed", "lap", "block", "block_name", "end", "trigger", "lap_rewarded",
                  "n_backups", "n_events", "n_reverse", "n_forward", "n_neither", "n_remote", "backups_in_events",
-                 "priority_before")
+                 "priority_before", "from_this_lap")
 
 
 def pause_rows(run: SeedRun, mode: str, cfg: TrackConfig) -> List[Dict[str, Any]]:
@@ -133,9 +135,9 @@ def pause_rows(run: SeedRun, mode: str, cfg: TrackConfig) -> List[Dict[str, Any]
     rows: List[Dict[str, Any]] = []
     for lap in run.laps:
         start_end = "west" if lap.goal == "east" else "east"  # the lap starts at the far end from its goal
-        for trigger, end, backups, before in (
-            (TRIGGER_PRE_RUN, start_end, lap.pre_run_backups, lap.pre_run_priority_before),
-            (TRIGGER_REWARD, lap.goal, lap.replay_backups, lap.reward_priority_before),
+        for trigger, end, backups, before, from_this in (
+            (TRIGGER_PRE_RUN, start_end, lap.pre_run_backups, lap.pre_run_priority_before, math.nan),
+            (TRIGGER_REWARD, lap.goal, lap.replay_backups, lap.reward_priority_before, lap.replay_from_this_lap),
         ):
             if trigger == TRIGGER_REWARD and not lap.rewarded:
                 continue  # a capped lap has no reward pause
@@ -149,13 +151,14 @@ def pause_rows(run: SeedRun, mode: str, cfg: TrackConfig) -> List[Dict[str, Any]
                 "n_neither": sum(e.direction == "neither" for e in events),
                 "n_remote": sum(e.remote for e in events), "backups_in_events": sum(e.n_backups for e in events),
                 "priority_before": before,
+                "from_this_lap": from_this,  # share of the reward pause's backups from the lap just run (NaN at pre-run pauses)
             })
     return rows
 
 
 SEED_BLOCK_COLUMNS = ("condition", "mode", "seed", "block", "block_name", "end", "trigger", "stops", "backups_per_stop",
                       "events_per_stop", "reverse_per_stop", "forward_per_stop", "remote_per_stop", "reverse_share",
-                      "forward_share", "remote_share")
+                      "forward_share", "remote_share", "from_this_lap_share")
 
 
 def seed_block_rows(pauses: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]]:
@@ -177,6 +180,12 @@ def seed_block_rows(pauses: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]]
             "reverse_share": rev / events if events else math.nan,
             "forward_share": fwd / events if events else math.nan,
             "remote_share": rem / events if events else math.nan,
+            # backup-weighted share of the reward pauses' backups that came from the lap just run (NaN at pre-run pauses)
+            "from_this_lap_share": (
+                math.fsum(float(r["from_this_lap"]) * r["n_backups"] for r in rows if not math.isnan(float(r["from_this_lap"])) and r["n_backups"])
+                / sum(r["n_backups"] for r in rows if not math.isnan(float(r["from_this_lap"])) and r["n_backups"])
+                if any(not math.isnan(float(r["from_this_lap"])) and r["n_backups"] for r in rows) else math.nan
+            ),
         })
     return out
 
@@ -322,6 +331,12 @@ def rq1_tests(seed_blocks: Sequence[Mapping[str, Any]], pauses: Sequence[Mapping
                                                 f"up: delta >= {DELTA_BOUND}, interval > 0", "up"))
                         rows.append(_paired_row("b_rate_decrease", condition, "thresholded", f"{metric}_east_block4_minus_block3", wash, dec, n_boot,
                                                 f"down: delta <= -{DELTA_BOUND}, interval < 0", "down"))
+                        # Exploratory, not preregistered (G29): the decrease against the baseline block, because the
+                        # washout block carries its own surprise (|dr| 3.0 against the decrease's 0.75), so a rule whose
+                        # rate follows the size of the surprise can pass "down" against it for a magnitude reason.
+                        rows.append(_paired_row("b_rate_decrease_vs_baseline_exploratory", condition, "thresholded",
+                                                f"{metric}_east_block4_minus_block1", pre, dec, n_boot,
+                                                f"exploratory: down: delta <= -{DELTA_BOUND}, interval < 0", "down"))
                     else:
                         rows.append(_paired_row("b_control_end", condition, "thresholded", f"{metric}_west_block2_minus_block1", pre, inc, n_boot,
                                                 f"unchanged: TOST +-{TOST_RELATIVE:.0%}", "unchanged"))
@@ -337,6 +352,42 @@ def rq1_tests(seed_blocks: Sequence[Mapping[str, Any]], pauses: Sequence[Mapping
                 rows.append(_slope_rows(pauses, condition, "thresholded", "n_events", n_boot, block))
                 rows.append(_first_zero_rows(pauses, condition, "thresholded", n_boot, block))
     return rows
+
+
+LEARNING_COLUMNS = ("mode", "condition", "n", "mean_total_steps", "low", "high", "laps_capped_total", "vs", "mean_diff",
+                    "diff_low", "diff_high", "fraction_faster", "cliffs_delta", "cliffs_low", "cliffs_high", "cliffs_magnitude", "note")
+
+
+def learning_rows(runs_by_mode: Mapping[str, Sequence[SeedRun]], n_boot: int) -> List[Dict[str, Any]]:
+    """Learning speed over the whole protocol: per mode and condition the mean total steps over the 80 laps with its
+    interval, and the paired difference against ``none`` and against ``prioritised_td`` (the prereg's last prediction)."""
+    out: List[Dict[str, Any]] = []
+    for mode, runs in runs_by_mode.items():
+        totals: Dict[str, Dict[int, float]] = {}
+        capped: Dict[str, int] = {}
+        for run in runs:
+            totals.setdefault(run.condition, {})[run.seed] = float(sum(lap.steps for lap in run.laps))
+            capped[run.condition] = capped.get(run.condition, 0) + sum(not lap.rewarded for lap in run.laps)
+        for condition in [c for c in ALL_CONDITIONS if c in totals]:
+            seeds = sorted(totals[condition])
+            arr = np.array([totals[condition][s] for s in seeds], dtype=np.float64)
+            ci = bootstrap_ci(arr, np.mean, n_boot=n_boot, seed=_stat_seed("learning", mode, condition))
+            base = {"mode": mode, "condition": condition, "n": int(arr.size), "mean_total_steps": ci.estimate, "low": ci.low,
+                    "high": ci.high, "laps_capped_total": capped[condition]}
+            for reference in (RULE_NONE, "prioritised_td"):
+                if reference == condition or reference not in totals:
+                    continue
+                ref = np.array([totals[reference][s] for s in seeds], dtype=np.float64)
+                eff = paired_effect(ref, arr, n_boot=n_boot, seed=_stat_seed("learning", mode, condition, reference))
+                delta = cliffs_delta(ref, arr, n_boot=n_boot, seed=_stat_seed("learning_cliff", mode, condition, reference))
+                out.append({**base, "vs": reference, "mean_diff": eff["mean_diff"], "diff_low": eff["low"], "diff_high": eff["high"],
+                            "fraction_faster": float(np.mean(arr < ref)), "cliffs_delta": delta["delta"], "cliffs_low": delta["low"],
+                            "cliffs_high": delta["high"], "cliffs_magnitude": delta["magnitude"],
+                            "note": "; ".join(n for n in (eff["note"], delta["note"]) if n)})
+            if condition == RULE_NONE:
+                out.append({**base, "vs": "", "mean_diff": math.nan, "diff_low": math.nan, "diff_high": math.nan, "fraction_faster": math.nan,
+                            "cliffs_delta": math.nan, "cliffs_low": math.nan, "cliffs_high": math.nan, "cliffs_magnitude": "", "note": ""})
+    return out
 
 
 ADAPTATION_COLUMNS = ("condition", "mode", "block", "block_name", "lap_in_block", "n", "mean_steps", "low", "high", "median_steps", "fraction_capped")
@@ -364,7 +415,7 @@ def adaptation_rows(runs: Sequence[SeedRun], mode: str, n_boot: int) -> List[Dic
 # --- the run --------------------------------------------------------------------------------------------
 
 
-OUTPUT_FILES = ("rq1_pauses.csv.gz", "rq1_seed_blocks.csv", "rq1_tests.csv", "rq1_adaptation.csv", "rq1_manifest.json")
+OUTPUT_FILES = ("rq1_pauses.csv.gz", "rq1_seed_blocks.csv", "rq1_tests.csv", "rq1_adaptation.csv", "rq1_learning.csv", "rq1_manifest.json")
 EVENTS_FILE = "rq1_events.jsonl.gz"  # written with --write-events only (6 MB for the full run; the pause table carries the counts)
 
 
@@ -496,19 +547,26 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     write_csv(out / OUTPUT_FILES[1], SEED_BLOCK_COLUMNS, seed_blocks)
     write_csv(out / OUTPUT_FILES[2], TEST_COLUMNS, tests)
     write_csv(out / OUTPUT_FILES[3], ADAPTATION_COLUMNS, adaptation)
+    learning = learning_rows(runs_by_mode, n_boot)
+    write_csv(out / OUTPUT_FILES[4], LEARNING_COLUMNS, learning)
     written = [out / name for name in OUTPUT_FILES]
     if args.write_events:
         write_events(out / EVENTS_FILE, events)
         written.append(out / EVENTS_FILE)
-    write_manifest(out / OUTPUT_FILES[4], manifest)
+    write_manifest(out / OUTPUT_FILES[5], manifest)
     print("preregistered tests (docs/prereg/rq1_track_tabular.md):")
     for t in tests:
         est = "nan" if math.isnan(t["estimate"]) else f"{t['estimate']:.4g} [{t['low']:.4g}, {t['high']:.4g}]"
         print(f"  {t['test']:18s} {t['condition']:20s} {t['mode']:11s} {t['statistic']:46s} n {t['n']:>2} {est:34s} {t['verdict']}")
+    print("learning speed (total steps over the protocol, paired against none):")
+    for row in learning:
+        if row["vs"] == RULE_NONE:
+            print(f"  {row['mode']:11s} {row['condition']:20s} {row['mean_total_steps']:8.0f} steps; vs none {row['mean_diff']:+8.0f} "
+                  f"[{row['diff_low']:+8.0f}, {row['diff_high']:+8.0f}], faster on {row['fraction_faster']:.2f} of seeds")
     print(f"guard: {guard}")
     print(f"wrote {', '.join(p.name for p in written)} to {out} in {manifest['timing']['wall_seconds']:.1f} s")
-    return {"pauses": pauses, "seed_blocks": seed_blocks, "tests": tests, "adaptation": adaptation, "guard": guard,
-            "runs_by_mode": runs_by_mode, "events": events}
+    return {"pauses": pauses, "seed_blocks": seed_blocks, "tests": tests, "adaptation": adaptation, "learning": learning,
+            "guard": guard, "runs_by_mode": runs_by_mode, "events": events}
 
 
 if __name__ == "__main__":

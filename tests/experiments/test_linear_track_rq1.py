@@ -107,7 +107,8 @@ def test_quick_run_writes_the_preregistered_test_table(quick_run) -> None:
     tests = _read(out / "rq1_tests.csv")
     assert list(tests[0]) == list(rq.TEST_COLUMNS)
     names = {t["test"] for t in tests}
-    assert names == {"a_direction", "d_remote", "b_rate_increase", "b_rate_decrease", "b_control_end", "b_forward_unchanged", "c_familiarity"}
+    assert names == {"a_direction", "d_remote", "b_rate_increase", "b_rate_decrease", "b_rate_decrease_vs_baseline_exploratory",
+                     "b_control_end", "b_forward_unchanged", "c_familiarity"}
     assert {t["condition"] for t in tests} == set(lt.ALL_CONDITIONS) - {RULE_NONE}
     assert all(t["mode"] in ("fixed", "thresholded") for t in tests)
     import re
@@ -122,7 +123,13 @@ def test_quick_run_writes_the_preregistered_test_table(quick_run) -> None:
     # The same rows for every replay condition, so the table reads across.
     per_condition = {c: sorted((t["test"], t["mode"], t["statistic"]) for t in tests if t["condition"] == c) for c in set(t["condition"] for t in tests)}
     assert len({tuple(v) for v in per_condition.values()}) == 1
-    assert len(tests) == 6 * (2 + 2 + 3 * 4 + 1 + 2 * 3)  # (a) 2, (d) 2, (b) 3 metrics x 4 comparisons, forward 1, (c) 2 blocks x 3
+    assert len(tests) == 6 * (2 + 2 + 3 * 5 + 1 + 2 * 3)  # (a) 2, (d) 2, (b) 3 metrics x (4 + 1 exploratory), forward 1, (c) 2 blocks x 3
+    learning = _read(out / "rq1_learning.csv")
+    assert list(learning[0]) == list(rq.LEARNING_COLUMNS)
+    assert {r["condition"] for r in learning} == set(lt.ALL_CONDITIONS) and {r["mode"] for r in learning} == {"fixed", "thresholded"}
+    assert all(r["vs"] in ("none", "prioritised_td", "") for r in learning)
+    assert all(r["vs"] == "" for r in learning if r["condition"] == RULE_NONE)
+    assert len([r for r in learning if r["condition"] == "gain_need" and r["mode"] == "fixed"]) == 2  # vs none and vs prioritised_td
     adaptation = _read(out / "rq1_adaptation.csv")
     assert list(adaptation[0]) == list(rq.ADAPTATION_COLUMNS)
     assert {(r["block"], r["lap_in_block"]) for r in adaptation} == {(str(b), str(k)) for b in range(4) for k in (1, 2)}
