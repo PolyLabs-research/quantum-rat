@@ -503,6 +503,113 @@ against the west end); need_only's "up" at the increase (predicted to fail; pass
 west end). The step's question has an answer: of the two step-3 failures, the decrease was the confound (and the
 clean reading is still a fail, for the structural reason), the familiarity decline was not.
 
+## Step 5 of the remainder: the Mattar & Daw rule on a Q learner
+
+Preregistered in `docs/prereg/rq1_track_mattar_daw.md` before any run, with the θ values of its pilot recorded there;
+decisions entry G31. Runner: `experiments/linear_track_rq1.py` (the default, step-5 version; `--version step4`,
+`step3`, `step2` reproduce the earlier protocols), 11 min on 4 cores; tables in `docs/data/m2a/rq1_step5/`. Step 4's
+protocol (two sessions per seed, θ scaled by the value scale, the lap-of-origin share) with four changes: every
+condition acts on a **tabular Q learner** (`brain/systems/value_learners.TabularQ`: Q-learning over the same cells,
+the same α, γ, prior, gain and temperature, the policy a softmax over Q(s, ·) in place of the afterstates' V; the
+action backed up is read off each stored transition's geometry); the plan's reference rule **as published**
+(`brain/systems/replay_mattar_daw.py`: EVB = need × max(gain, 10⁻¹⁰), gain read at the acted-from state over its
+actions, and **the forward n-step extension**, which lets a backup of the chain's first transition be extended
+through the transitions that continue it forward, the record showing the state the sequence advanced to); its
+one-step ablation `mattar_daw_1step`; the three floors rerun on the Q learner; and, preregistered for the first
+time, the (b) rate tests as **the east change minus the west change** (G30 C2) beside the single-end rows. Six
+conditions: none, uniform, reverse_trajectory, prioritised_td, mattar_daw, mattar_daw_1step. The guard found 30
+distinct lap-length vectors in every condition, mode and session; the first lap is identical across the six
+conditions at every seed and the baseline blocks identical across the sessions (both pinned by tests).
+
+**Fixed-mode content** (20 backups per pause; the baseline block, then the two changed blocks pooled; shares among
+the events; `from_this_lap` the share of the reward pauses' backups from the lap just run):
+
+| condition | events / reward pause, baseline → after | events / pre-run pause | reverse / forward share | remote share (reward / pre-run) | from_this_lap |
+|---|---|---|---|---|---|
+| **mattar_daw** | 0.56 → 0.44 | 0.43 → 0.34 | **0.00 / 1.00** at both pauses | 0.45 → 0.38 / 0.51 → 0.32 | 0.05 → 0.00 |
+| mattar_daw_1step | 0.26 → 0.29 | 0.33 → 0.48 | 1.00 / 0.00 at both pauses | 1.00 / 1.00 | 0.05 → 0.00 |
+| reverse_trajectory | 1.00 | 0.95 → 1.00 | 1.00 / 0.00 | 0 / 0 | 1.00 |
+| uniform, prioritised_td | 0 | 0 | undefined | undefined | 0.27 → 0.17; 0.20 → 0.09 |
+
+**The primary test.** At the pre-run pauses of the baseline block the full rule's events are forward on every seed
+(forward share 1.00 [1.00, 1.00], **passes** the 0.6 bound, as predicted) and the ablation's are reverse on every
+seed (forward share 0.00, **fails**, as predicted): the forward n-step extension is the mechanism, and nothing else
+in the pair differs. The chains are what the prereg described: with every gain near its floor, EVB is ordered by need,
+the acting state's own transition has the largest need, and its extension, the next transition along the lap ahead,
+wins the tie and keeps winning, so the chain runs forward from the start state along the lap about to be run
+(remote 0.51: half the events start more than ten cells from the agent, having begun at the agent and carried on).
+About 27% of the fixed budget's backups fall inside such events at the pre-run pause and 31% at the reward pause;
+the rest are the one-step backups the chains restart from.
+
+**The reward pause is forward too.** The full rule's reward-pause events are forward on every seed in the baseline
+block and after both changes (reverse share 0.00, **fails** the plan's bound, and `a_direction_after_change` 0.00),
+where the prereg predicted forward at baseline and reverse after a change with less confidence. The reason is the
+one G29 found for the afterstate rule, now on the other side: at the reward pause the agent acts next from the next
+lap's start, so need is largest for the lap *ahead*, and the just-run lap's states carry a need of about γ^lap; a
+gain at the changed consume of order a few per cent of a value unit, at a near-deterministic softmax, cannot close
+that gap, and the need-ordered forward chain of the lap ahead wins again (`from_this_lap` 0.00). The ablation, with
+no extension to carry a chain forward, chains backward through gain at predecessors, and its reverse sequences are
+sweeps of the lap ahead backward from its far goal (remote 1.00, `from_this_lap` 0.00), as gain × need's were in
+steps 3 and 4. Neither rule replays the lap just run at the reward pause.
+
+**The preregistered verdicts** (`rq1_tests.csv`; the prereg's prediction in brackets; the (b) rows are the east end's
+reward pauses, block 2 − block 1 of the named session, and beside them the east change minus the west change):
+
+| test | mattar_daw | mattar_daw_1step | reverse_trajectory | prioritised_td / uniform |
+|---|---|---|---|---|
+| (a) forward share, pre-run pauses, baseline > 0.6 | **1.00, passes** [pass] | 0.00, fails [fail] | 0.00 fails [fail] | undefined, no events |
+| (a) reverse share, reward pauses, baseline > 0.6 | 0.00, fails [fail] | 1.00, passes [pass, less confident] | 1.00 passes | undefined |
+| after a change: reverse at reward / forward at pre-run | 0.00 / 1.00 [reverse, less confident / —] | 1.00 / 0.00 | 1.00 / 0.00 | undefined |
+| (d) remote ≥ 10%, reward / pre-run | 0.40 / 0.39 passes [pass] | 1.00 / 1.00 passes [pass] | 0 fails | undefined |
+| (b) increase, east: backups per stop | thresholded condition made no backup (deviation, below) | **+51.7** [+42.4, +59.9] (18.0 → 69.6), passes | −0.58 [−1.75, −0.01] fails | prioritised +37.1 [+30.8, +43.6] passes; uniform −14.9 fails |
+| (b) increase, east − west: backups | — | −3.2 [−14.6, +8.4], fails | **+5.0** [+3.7, +6.6], passes | prioritised +3.4 [+0.7, +6.1], δ 0.08, fails |
+| (b) increase: reverse events, east / east − west | — | +1.64 passes / −0.35 [−0.83, +0.12] fails | +0.090 passes / **+0.397** [+0.363, +0.420] passes | 0 |
+| (b) decrease, east: backups, "down" | — | **+76.4** [+70.5, +81.0] (18.0 → 94.3), fails [fail] | −4.24 [−5.31, −3.63] passes | prioritised +54.1 fails; uniform −46.5 passes |
+| (b) decrease, east − west: backups, "down" | — | +5.7 [−3.4, +14.6], fails | **+1.31** [+0.06, +2.95], fails (up) | prioritised +0.2 [−2.7, +3.4] fails |
+| (b) decrease: reverse events, east / east − west | — | +2.56 fails / −0.01 [−0.27, +0.27] fails | −0.327 passes / −0.02 [−0.05, +0.003] fails | 0 |
+| (c) baseline: slope of backups per stop vs lap | — | +1.54 [+0.91, +2.12] fails [fail] | −0.42 [−0.61, −0.29] passes, 0 from lap 17 | prioritised −6.06 passes, 0 from lap 7.2; uniform passes |
+
+**Deviation: the full rule's thresholded condition never started.** Its θ (3.9 × 10⁻⁵ in scaled units) is the
+median of its priority before the reward pause in a fixed-budget pilot, as the prereg specifies, and that priority
+is read before the pause's first backup, when the chain is empty and only one-step candidates exist; in the pilot
+those one-step EVBs were large because twenty extension backups per pause had shaped Q along the lap ahead, and in
+the thresholded run, which starts from no replay, they never exceeded θ × scale at any pause of any seed (0 backups
+per stop in every cell; its learning row is identical to none's). The prereg's "what would change this document"
+clause covers the case: the rule could not run as specified, the deviation is recorded here and in G31, and its
+thresholded rows are undefined. **Exploratory, not preregistered** (`docs/data/m2a/rq1_step5/exploratory_theta_1step/`):
+the same thresholded condition at the ablation's θ (1.05 × 10⁻⁶), the only other preregistered value on this
+learner: the rule then runs at the cap at nearly every pause (95 and 90 backups per stop at the baseline block's reward and pre-run pauses, 88 to 97 after the changes), its events forward at every pause (share 0.99 to 1.00, 1.2 to 1.5 per stop), its (c) slope +1.4 backups per lap in the baseline block (the cap bound from the second pause), its learning 5,132 and 5,095 steps per session, faster than its own fixed-mode 5,875. Two values of θ forty-fold apart give no replay and the cap: the one-step priority read before a pause and the extension's EVB once a chain exists differ by orders of magnitude, so no single θ on the first-backup priority reads this rule's rate (G31 C3). The run is reported for completeness and is not a preregistered result.
+
+**The time control, preregistered.** The east-minus-west rows separate the change from the trend as G30 asked.
+reverse_trajectory rises relative to its own unchanged end after both changes (+5.0 and +1.3 backups per stop,
++0.40 reverse events at the increase): |Δr| tracking, the single-end "down" pass at the decrease being the time
+trend again. prioritised_td and the one-step Mattar & Daw rule move at both ends alike (east − west within a few
+backups of zero, intervals spanning it): the first because its priority is the largest |TD error| anywhere in
+memory, the second because its sweeps at a west pause cover the changed east-bound lap, which the prereg said would
+make the west end no control for a need-weighted rule. No rule shows a signed response to the reward change on the
+difference; none was predicted to.
+
+**Learning speed per session** (`rq1_learning.csv`; total steps over 40 laps, fixed mode, the Q learner; not
+comparable with the V learner's totals): none 15,567; uniform 15,213 (−354 [−610, −182], faster on 15 of 30, δ
+−0.12); reverse_trajectory 10,133; prioritised_td 9,076 (increase) / 8,849 (decrease); **mattar_daw 5,875 / 5,863**,
+faster than prioritised_td by 3,201 [2,773, 3,595] and 2,986 [2,563, 3,392] steps on every seed (δ −0.98), the
+fastest learner of the whole M2a series; mattar_daw_1step 9,599, *slower* than prioritised_td (+523 [+105, +965],
+faster on 10 of 30) where the prereg had it close to the full rule. The extension is what learns: an n-step return
+carries the goal's value to the start of the chain in one backup, where a one-step backup moves it one cell. The
+learning curve says the same: mean steps per lap at laps 3, 5 and 10 are 264, 171 and 111 for mattar_daw against
+407, 348 and 327 for prioritised_td and 391, 373 and 214 for the ablation. Thresholded: prioritised_td 6,949 /
+6,330 fastest, mattar_daw_1step 10,832 / 10,603, reverse 12,709, uniform 13,818 / 14,058; mattar_daw equal to none
+(the deviation). On the Q learner the no-replay baseline is slower than on V (15,567 against 14,488 over the same 40
+laps) and uniform replay is no longer a null on the mean, with a small effect on half the seeds.
+
+**Predictions against outcomes.** Held: the primary pair (forward pre-run replay with the extension, none without);
+the full rule's forward reward-pause replay at baseline, its (d), its learning speed against prioritised_td; the
+ablation's (a), (d), (b) (unsigned, both ends), (c) and its mirror of gain × need; the floors' content and (c); the
+identical first laps and baselines; the east − west reading of reverse_trajectory's decrease. Failed: reverse replay
+at the reward pause after a change for the full rule (predicted with less confidence; forward instead, for the need
+reason above); the ablation's learning speed (predicted close to the full rule; slower than prioritised_td); the
+full rule's thresholded condition (could not run as specified).
+
 ## Reading
 
 - **The ranking.** Prioritised sweeping and reverse replay both propagate the reward's TD error back along the lap
@@ -531,15 +638,21 @@ clean reading is still a fail, for the structural reason), the familiarity decli
 
 - Oracle, tabular state over the true cell; no odometry noise, no place population. The embodied arm (M3) is the
   comparison this pass exists to be compared with.
-- Seven rules of nine after steps 3 and 4 (the goal-uncertainty need variant and Diekmann–Cheng remain); both budget
+- Seven rules of nine after steps 3 to 5 (the goal-uncertainty need variant and Diekmann–Cheng remain); both budget
   modes, the reward schedule, the pre-run window, the plan's event definition and remote flag are in place since
-  steps 1 and 2, and RQ1 (a)–(d) have been run (steps 3 and 4: the acceptance is not met, for the structural reasons
-  given there). Under step 4's scaled θ the thresholded cap binds only for gain × need after the decrease (97.7 of
+  steps 1 and 2, and RQ1 (a)–(d) have been run (steps 3 to 5: no single rule meets every bound; the Mattar & Daw
+  rule meets the pre-run forward, remote and learning bounds, the reverse-at-reward bound is met only by sweeps of
+  the lap ahead, and the signed and familiarity bounds by none, for the structural reasons given there). Under step 4's scaled θ the thresholded cap binds only for gain × need after the decrease (97.7 of
   100 backups per stop); under step 3's raw θ it bound for gain × need, prioritised and uniform through most of the
   protocol.
+- The V-learner rules (steps 3 and 4) and the Q-learner rules (step 5) are not paired comparisons: each has its own
+  floors, and their learning totals are not compared across learners. The full Mattar & Daw rule's thresholded
+  condition made no backup under its preregistered θ (step 5); its thresholded rows are undefined, and the run
+  at the ablation's θ is exploratory.
 - Step 4's two sessions read each change against the baseline that precedes it, but block 2 is always the later
   block and four rules' rates fall over laps, so a "down" verdict can be the trend; the unchanged west end is the
-  within-session control, and the east change minus the west change is reported as exploratory, not preregistered.
+  within-session control, and the east change minus the west change is reported as exploratory in step 4 and as a
+  preregistered row since step 5.
   The two sessions are not independent samples of the baseline (same seed, same 20 laps), so the baseline block is
   counted once in every pooled statistic.
 - The replay rules run outside the engine, on the track's own loop, with the engine's learner, sampler, RNG and
