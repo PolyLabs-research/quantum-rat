@@ -1412,3 +1412,37 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 - `python3 -m experiments.sr_fields --workers 4` writes `docs/data/m2b/sr/` (manifest clean at `ab5c594`, 38 s).
 
 **Impact:** this entry; docs/prereg/m2b_sr_fields.md (new); docs/m2b_place_code.md (step 3); docs/research_plan.md (row 2b status); README, run_instructions.md; `brain/systems/successor_features.py`, `experiments/sr_fields.py` (new); tests in `tests/brain/`, `tests/experiments/`; `docs/data/m2b/sr/` (new). No profile, behaviour or baseline changes.
+
+## G36 — M2b step 4: the RQ4(a) gate, relative to the visible-goal ceiling
+
+**Date:** 2026-10-25  
+**Why:** RQ4(a) gates M2b: if the embodied agent cannot reach a learned goal, no later replay result is interpretable. A probe (docs/m2b_place_code.md) found the research agent reaching even a visible off-centre goal on 13 of 20 trials, so the plan's absolute 80% measures the motor policy. **The owner's decision (2026-10-25): gate on hidden-goal success after 20 trials as a share of the same agent's visible-goal success from the same starts, ≥ 0.8, both absolute rates reported, the arrival-error bound unchanged** (docs/research_plan.md's RQ4(a) amended). Preregistered (`docs/prereg/m2b_gate.md`); after its failure, a confirmatory run preregistered on fresh seeds (`docs/prereg/m2b_gate_confirmatory.md`). On the branch `m2b-gate`, stacked on step 3's `m2b-sr`.
+
+### A. What landed
+1. **`ValueMemoryConfig.source`** ("tabular", the default and unchanged path; "sr"; "none") and **`PlaceConfig.sr_learning_rate`, `sr_discount`, `reward_learning_rate`, `reward_rule`** ("nlms", the preregistered rule and default; "per_feature"). With "sr" the engine learns online successor features over the normalised place rates and reward weights R, and the steering reads V(p) = φ(p)·(Mᵀ R) where it read the map (`Engine._value_at`); `Engine.reset_value_episode()` cuts every learner at a protocol's trial start. Element-wise numpy, imported lazily; no hash moves.
+2. **`experiments/rq4a_gate.py`**: four wall-midpoint starts shuffled per block from a protocol stream, a 0.1 m goal at (0.5 m, 0.5 m), 40 trials of 60 s, hidden sessions with visible guidance after a miss and visible sessions, three value sources; the ratio bootstrapped by resampling seeds; `--prereg` ties a run to the preregistration whose seeds and rule it uses, and marks any other run exploratory.
+3. Tests: 600 passed (+8). Commits: code `717792a`, data `5edb6b1` (the preregistered run); the per-feature rule `7023bc2`; the confirmatory preregistration `71ae396`; data `2b9ab26` (the exploratory and confirmatory runs, manifests clean at `7023bc2` and `71ae396`).
+
+### B. Measured (docs/m2b_place_code.md, step 4; 30 seeds per run; trials 21–40)
+- **The preregistered gate fails for the SR source**: hidden 13%, visible 46%, ratio **0.29 [0.23, 0.35]**; arrival error 0.25 units (passes). The tabular ablation: hidden 84%, visible 82%, ratio 1.03; no value steering: 5.5%, 62.5%, 0.09.
+- **Cause** (seed 1): the NLMS reward rule rings the goal with negative weights (R 2.2 at the goal, −1.0 beside it), so V has a trough around the goal (−0.37) and a flat far field (3 × 10⁻⁵); the SR source's hidden success fell from 0.53 in the first block to about 0.12 as the ring formed, and its visible success from 0.75 to 0.45.
+- **Exploratory** (seeds 1–30, not preregistered): the per-feature rule R += 0.5 φ (r − R) gives hidden 99.5%, visible 100%.
+- **Confirmatory** (seeds 31–60, preregistered): the SR source with the per-feature rule: hidden **98.7%**, visible 100%, ratio **0.987 [0.973, 0.993]: passes**; arrival error **0.20 [0.19, 0.21] units: passes**; median latency 14 ticks; ≥ 80% at all 30 seeds. Tabular: 85.5%, 78.7%, ratio 1.09, median latency 81 ticks, ≥ 80% at 25 of 30 seeds. None: 5.0%, 65.2%.
+- **Predictions**: the first run's g1 fail and g2 pass held (g1 for a different reason than predicted), its "SR beats tabular" and "visible ceiling about two thirds" failed; every confirmatory prediction held.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **RQ4(a) passes, and with it the plan's row 2b acceptance** (docs/m2b_place_code.md, "Where M2b stands"), the gate in the owner's amended form; the SR source with the per-feature rule also clears the original absolute 80%. **Carry the per-feature reward rule forward as the SR's rule** and keep NLMS only to reproduce the first run.
+2. **M2b's exit, for the owner.** (a) **Merge the four stacked branches in order** (`m2b-estimate`, `m2b-place`, `m2b-sr`, `m2b-gate`) and **tag `v1.4-place-code`**. (b) Whether the research profile adopts the M2b configuration (heading oracle σ 0.05, wall-contact sensing and reset, the place population, the SR value source with the per-feature rule) as its defaults: **recommended yes, at the merge**, regenerating the research baselines once as the plan allows per milestone (the legacy set untouched), so M3 starts from the instrument the gate passed; the alternative keeps every M3 experiment configuring it explicitly. (c) The console panels stay deferred.
+3. **A reward model over overlapping features is a design choice with behavioural consequences.** The negative ring is general to regressing point rewards on overlapping bases. **Any later learner that fits rewards on place features states its rule and checks the sign structure of its weights** before a behavioural run.
+4. **The tabular map is a legitimate ablation that also navigates.** It passes the gate more slowly (median 81 ticks against 14). **Keep it as M3's ablation baseline**, as the plan says.
+
+### D. Residuals carried forward
+- One goal location, known start poses with a re-anchored estimate, no replay; the motor policy unchanged.
+- The reward rule was changed after a failure; confirmed on fresh seeds, but one change chosen after seeing the problem.
+- Linux locally with CI on macOS.
+
+### E. Acceptance, measured at this commit
+- `python3 -m pytest -q`: 600 passed; the determinism baselines unchanged.
+- `python3 -m experiments.rq4a_gate --workers 4` writes `docs/data/m2b/gate/` (the preregistered run); the confirmatory command in `docs/prereg/m2b_gate_confirmatory.md` writes `docs/data/m2b/gate_confirmatory/`.
+
+**Impact:** this entry; docs/prereg/m2b_gate.md and m2b_gate_confirmatory.md (new); docs/m2b_place_code.md (step 4, where M2b stands); docs/research_plan.md (RQ4(a) amended, row 2b status); README, run_instructions.md; `core/config.py`, `core/engine.py`; `experiments/rq4a_gate.py` (new); tests in `tests/engine/`, `tests/experiments/`; `docs/data/m2b/gate/`, `docs/data/m2b/gate_confirmatory/` (new). No profile default or baseline changes.

@@ -113,6 +113,9 @@ offline.
    # M2b step 4 (docs/prereg/m2b_gate.md): the RQ4(a) gate relative to the visible-goal ceiling, three value
    # sources x hidden and visible sessions x 30 seeds (writes docs/data/m2b/gate)
    python -m experiments.rq4a_gate --workers 4
+   # the confirmatory gate (docs/prereg/m2b_gate_confirmatory.md): the per-feature reward rule, fresh seeds 31-60
+   python -m experiments.rq4a_gate --workers 4 --seed-start 31 --reward-rule per_feature \
+       --prereg docs/prereg/m2b_gate_confirmatory.md --out docs/data/m2b/gate_confirmatory
    ```
 
 Stop the server with `Ctrl+C`.

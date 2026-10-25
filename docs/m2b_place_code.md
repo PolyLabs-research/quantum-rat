@@ -262,3 +262,103 @@ Three ways to run the gate, for the owner (G35 C3 assumed the plan's gate as wri
 
 The SR value source needed by every option is the next piece of code. It is not built yet, so no engine behaviour
 has changed.
+
+## Step 4: the RQ4(a) gate, relative to the visible-goal ceiling
+
+The owner chose the relative gate (option 2 above) on 2026-10-25. Three runs followed:
+
+- **The preregistered gate**: `docs/prereg/m2b_gate.md`, seeds 1–30, failed for the SR source.
+- **An exploratory diagnosis**: same seeds, not preregistered.
+- **A confirmatory gate**: `docs/prereg/m2b_gate_confirmatory.md`, fresh seeds 31–60, passed.
+
+Decisions entry G36. Runner: `experiments/rq4a_gate.py` (134 s, 14 s and 46 s on 4 cores). Tables are in
+`docs/data/m2b/gate/` (with the exploratory run in its subdirectory) and `docs/data/m2b/gate_confirmatory/`.
+
+**What it adds.** A value source the steering reads, `value_memory.source`:
+
+- `"tabular"` is the value map over the estimate's bins, as before and still the default.
+- `"sr"` learns online successor features over the place code and reward weights R, and reads V(p) = φ(p)·(Mᵀ R)
+  at the same lookahead points.
+- `"none"` gives no value steering.
+
+An episode boundary cuts every learner at each trial's start. The tabular path is unchanged, so no hash moves.
+
+**Protocol.** The M2b estimate, the 400-cell population, and a goal of radius 0.1 m at (0.5 m, 0.5 m). Four starts sit
+0.1 m from each wall's midpoint, facing the centre, shuffled per block of four. The body is placed and the estimate
+re-anchored at each start: the agent knows where it is put down, which is declared. There are 40 trials of 60 s each.
+
+- **Hidden session.** The goal is hidden; after a 60 s miss it becomes visible for up to 60 s more, as guidance.
+- **Visible session.** The goal is visible throughout.
+
+The gate is the hidden success rate over trials 21–40 divided by the visible success rate of the same agent from the
+same starts, at least 0.8. The arrival error must also be below 0.2 m.
+
+**Results over trials 21–40** (means over 30 seeds):
+
+| run | value source | hidden | visible | hidden ÷ visible | arrival error |
+|---|---|---|---|---|---|
+| preregistered (seeds 1–30) | SR, NLMS reward | 13% | 46% | **0.29 [0.23, 0.35]: fails** | 0.25 units |
+| | tabular map | 84% | 82% | 1.03 | 0.39 |
+| | none | 5.5% | 62.5% | 0.09 | — |
+| exploratory (seeds 1–30, SR only) | SR, per-feature reward | 99.5% | 100% | 0.995 | 0.21 |
+| confirmatory (seeds 31–60) | SR, per-feature reward | **98.7%** | 100% | **0.987 [0.973, 0.993]: passes** | **0.20 [0.19, 0.21]: passes** |
+| | tabular map | 85.5% | 78.7% | 1.09 | — |
+| | none | 5.0% | 65.2% | 0.08 | — |
+
+**Why the preregistered SR source failed.** It learned R by normalised least mean squares, a regression of the point
+reward on overlapping place fields. The many unrewarded ticks near the goal are fitted with negative weights, so R
+rings the goal; at seed 1 it was 2.2 at the goal and −1.0 beside it. The value then has a trough around the goal,
+−0.37 at its lowest, and near the goal its gradient points away from it. Far from the goal it is flat, 3 × 10⁻⁵ at the
+west start.
+
+The learning curve shows the ring forming. Hidden success started at 0.53 in the first block of four trials, far
+above no steering's 0.06, then fell to about 0.12. Visible success fell with it, from 0.75 to 0.45, below no value
+steering at all.
+
+A per-feature rule, R += 0.5 φ (r − R), moves each weight toward the reward seen while its cell is active. It cannot
+go negative when rewards do not. With it the SR source reaches the hidden goal on every trial from the second block on.
+That was found on the gate's own seeds, so it was preregistered and confirmed on fresh ones.
+
+**What the confirmatory run shows.**
+
+- **The SR source navigates almost perfectly.** It reaches the hidden goal on 98.7% of test trials, in a median 14
+  ticks (2.8 s): close to a straight line from the start. It does so at every one of the 30 seeds.
+- **It clears the plan's original bound too.** It also passes the absolute 80% bound that the owner's amendment
+  relaxed.
+- **The tabular map passes the relative gate as well.** Its ratio is 1.09, but its median latency is 81 ticks and it
+  learns slowly: hidden success climbs from 0.07 to 0.87 over the 40 trials. The SR's value spreads by prediction
+  across the arena; the map's spreads only by backups along the bins the agent visited.
+- **No value steering finds the hidden goal 5% of the time.** That is the chance level the learned values beat.
+- **Arrival errors are small.** They are 0.20 to 0.39 units (2 to 4 cm), against the 0.2 m bound.
+
+**Predictions against outcomes.** For the preregistered run:
+
+- **Held:** g2 passes; the SR beats no steering (by 0.08, small); no steering's hidden success stays under 20%.
+- **Held, though not for the reason I expected:** g1 fails. I predicted a ratio of 0.3 to 0.7 from paths the SR had
+  not learned; the actual 0.29 came from a value trough the reward rule had built.
+- **Failed:** the SR beats the tabular map (the map won by 71 points); the visible ceiling is about two thirds (the SR
+  source's own visible rate was 46%, because its value misled even with the goal in view).
+
+For the confirmatory run, every prediction held.
+
+**Limitations of step 4.**
+
+- **One goal and one start set.** The goal is in one place and the starts are known poses with a re-anchored estimate.
+- **One reward rule was replaced after a failure.** The replacement is confirmed on fresh seeds, but it is one
+  change, chosen after seeing the problem.
+- **The gate's value is learned within one session.** There is no replay yet; that is M3.
+- **The body is unchanged.** The motor policy is as before; only what the steering reads changed.
+
+## Where M2b stands
+
+Every item of the plan's row 2b acceptance is met, the gate in its amended form:
+
+- **The corrected estimate** is at 7 cm in the open field (step 1).
+- **The place population** runs at 16,200 ticks/s, against a bound of 1,000; with the SR source on, the engine runs at
+  about 2,200 ticks/s (steps 2 and 4).
+- **Decoding error drops at wall contact** (step 2).
+- **SR fields skew backward** on one-way laps and **elongate along walls** (step 3).
+- **RQ4(a) passes** on fresh seeds (step 4).
+
+The console panels remain deferred. All of it is opt-in configuration: the profiles and the determinism baselines
+are unchanged.
