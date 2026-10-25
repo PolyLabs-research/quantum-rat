@@ -130,7 +130,7 @@ from brain.systems.basal_ganglia import softmax_sample
 from brain.systems.replay_events import RULE_NONE, RULE_PRIORITISED_TD, RULE_REVERSE_TRAJECTORY, RULE_UNIFORM, TRIGGER_PRE_RUN, TRIGGER_REWARD
 from brain.systems.replay_gain_need import MODES as GAIN_NEED_MODES
 from brain.systems.replay_gain_need import GainNeedReplay
-from brain.systems.replay_mattar_daw import MATTAR_DAW, MATTAR_DAW_CONDITIONS, MattarDawReplay
+from brain.systems.replay_mattar_daw import MATTAR_DAW, MATTAR_DAW_CONDITIONS, PRIORITY_MODES, MattarDawReplay
 from brain.systems.replay_rules import ReplayOutcome, ReplayRule, StoredTransition, TransitionMemory, make_rule, replay, replay_thresholded
 from brain.systems.successor import TabularSR
 from brain.systems.value_learners import TabularQ, TabularTD0
@@ -139,11 +139,17 @@ from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 CONDITIONS: Tuple[str, ...] = (RULE_NONE, RULE_UNIFORM, RULE_REVERSE_TRAJECTORY, RULE_PRIORITISED_TD)
 GAIN_NEED_CONDITIONS: Tuple[str, ...] = tuple(GAIN_NEED_MODES)  # gain_need, gain_only, need_only (M2a step 3; the V learner)
-# mattar_daw, mattar_daw_1step (M2a step 5; the Q learner). ALL_CONDITIONS is the order every table sorts by.
-ALL_CONDITIONS: Tuple[str, ...] = CONDITIONS + GAIN_NEED_CONDITIONS + MATTAR_DAW_CONDITIONS
+# mattar_daw, mattar_daw_1step (M2a step 5; the Q learner); the same two with need read over positions, heading and
+# goal marginalised (step 6, G31 C2). ALL_CONDITIONS is the order every table sorts by.
+POSITIONAL_NEED_CONDITIONS: Tuple[str, ...] = ("mattar_daw_pos", "mattar_daw_1step_pos")
+ALL_CONDITIONS: Tuple[str, ...] = CONDITIONS + GAIN_NEED_CONDITIONS + MATTAR_DAW_CONDITIONS + POSITIONAL_NEED_CONDITIONS
 LEARNERS: Tuple[str, ...] = ("v", "q")  # TabularTD0 over afterstates; TabularQ over (state, action) (step 5)
+NEED_OVER: Tuple[str, ...] = ("states", "positions")  # what the Mattar & Daw rules' need is read over (step 6)
 ACTIONS: Tuple[str, ...] = ("FORWARD", "TURN")
-BUDGET_MODES: Tuple[str, ...] = ("fixed", "thresholded")
+# "fixed" and "thresholded" are the evaluation's budgets; "observe" (M2a step 6) makes no backup and only records
+# the rule's priority and the value scale at every pause: the agent the thresholded run starts from, for a theta pilot.
+BUDGET_MODES: Tuple[str, ...] = ("fixed", "thresholded", "observe")
+EVALUATION_MODES: Tuple[str, ...] = ("fixed", "thresholded")
 THRESHOLD_SCALES: Tuple[str, ...] = ("none", "mean_abs_value")  # M2a step 4: how the thresholded theta is scaled
 EAST, WEST = 1, -1  # goal ends and headings: +1 toward increasing cells, -1 toward decreasing
 TASK = "linear_track"
@@ -202,6 +208,9 @@ class TrackConfig:
     # action read off each transition's geometry), the policy the same softmax over Q(s, .); the gain x need rules
     # need "v", the Mattar & Daw rules "q", the floors run on either.
     learner: str = "v"
+    # --- M2a step 6 (docs/prereg/rq1_track_step6.md; G31 C3): what the Mattar & Daw rules' priority reads before a
+    # pause's first backup, "one_step" (step 5) or "seeded" (brain.systems.replay_mattar_daw.PRIORITY_MODES) ---
+    mattar_daw_priority: str = "one_step"
 
     def __post_init__(self) -> None:
         if self.n_bins < 2 or self.laps < 1 or self.lap_cap < 1 or self.backups_per_trigger < 1 or self.memory_capacity < 1:
@@ -222,6 +231,8 @@ class TrackConfig:
             raise ValueError("threshold_scale_floor must be a positive finite number")
         if self.learner not in LEARNERS:
             raise ValueError(f"learner must be one of {LEARNERS}, got {self.learner!r}")
+        if self.mattar_daw_priority not in PRIORITY_MODES:
+            raise ValueError(f"mattar_daw_priority must be one of {PRIORITY_MODES}, got {self.mattar_daw_priority!r}")
         if self.reward_blocks:
             blocks = tuple(tuple(b) for b in self.reward_blocks)
             object.__setattr__(self, "reward_blocks", blocks)  # lists from a manifest become tuples
@@ -503,12 +514,20 @@ class QTrackModel:
     transition took (the Q learner's reading of its geometry), the agent's action scores on given Q values and
     their softmax, the learning rate and discount, the successor representation's need, and the acting state."""
 
-    def __init__(self, cfg: TrackConfig, track: LinearTrack, agent: "TrackAgent") -> None:
+    def __init__(self, cfg: TrackConfig, track: LinearTrack, agent: "TrackAgent", need_over: str = "states") -> None:
         if cfg.learner != "q":
             raise ValueError("QTrackModel needs the q learner")
+        if need_over not in NEED_OVER:
+            raise ValueError(f"need_over must be one of {NEED_OVER}, got {need_over!r}")
         self.cfg = cfg
         self.track = track
         self.agent = agent
+        self.need_over = need_over
+        # The four states (heading x goal) that share each cell: what a positional need sums over (step 6, G31 C2;
+        # Mattar & Daw's track states are positions, so the lap just run and the lap ahead share them).
+        self._same_cell: Dict[int, Tuple[int, ...]] = {}
+        for state in track.states():
+            self._same_cell[track.index(state)] = tuple(track.index(State(state.cell, h, g)) for g in (EAST, WEST) for h in (EAST, WEST))
         self._acting: int = track.index(track.start_state(EAST))
 
     def state_index(self, x: float, y: float) -> int:
@@ -533,6 +552,11 @@ class QTrackModel:
         return self.cfg.discount
 
     def need(self, from_state: int, to_state: int) -> float:
+        """The successor representation's need of ``to_state`` from ``from_state``; over positions, the summed need
+        of the four states that share ``to_state``'s cell (the expected discounted occupancy of the cell)."""
+        if self.need_over == "positions":
+            row = self.agent.sr.row(from_state)
+            return float(math.fsum(row[s] for s in self._same_cell[to_state]))
         return self.agent.sr.need(from_state, to_state)
 
     def acting_state(self) -> int:
@@ -638,10 +662,14 @@ def _rule_for(condition: str, cfg: TrackConfig, model: Optional[Any] = None) -> 
         if cfg.learner != "v" or not isinstance(model, TrackModel):
             raise ValueError(f"{condition} needs the v learner and its track model")
         return GainNeedReplay(model, condition)
-    if condition in MATTAR_DAW_CONDITIONS:
+    if condition in MATTAR_DAW_CONDITIONS or condition in POSITIONAL_NEED_CONDITIONS:
         if cfg.learner != "q" or not isinstance(model, QTrackModel):
             raise ValueError(f"{condition} needs the q learner and its track model")
-        return MattarDawReplay(model, extension=(condition == MATTAR_DAW))
+        positional = condition in POSITIONAL_NEED_CONDITIONS
+        if positional != (model.need_over == "positions"):
+            raise ValueError(f"{condition} needs a track model with need over {'positions' if positional else 'states'}")
+        extension = condition in (MATTAR_DAW, "mattar_daw_pos")
+        return MattarDawReplay(model, extension=extension, priority_mode=cfg.mattar_daw_priority, name=condition)
     if condition not in CONDITIONS:
         raise ValueError(f"unknown condition {condition!r}; one of {ALL_CONDITIONS}")
     return make_rule(condition, cfg.priority_epsilon, cfg.trajectory_priority)
@@ -651,7 +679,10 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
     """One seed of one condition: ``cfg.laps`` laps, replay at every rewarded lap end."""
     track = LinearTrack(cfg)
     agent = TrackAgent(cfg, track)
-    model = QTrackModel(cfg, track, agent) if cfg.learner == "q" else TrackModel(cfg, track, agent)
+    if cfg.learner == "q":
+        model: Any = QTrackModel(cfg, track, agent, need_over="positions" if condition in POSITIONAL_NEED_CONDITIONS else "states")
+    else:
+        model = TrackModel(cfg, track, agent)
     rule = _rule_for(condition, cfg, model)
     rng = RNG(seed=seed)
     action_stream = rng.stream(ACTION_STREAM)
@@ -674,6 +705,8 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
         rule.begin(agent.memory, episode)
         before = rule.priority(agent.memory, agent.learner, 0)
         scale = agent.value_scale()
+        if cfg.budget_mode == "observe":
+            return None, before, scale  # the pilot's reading on a no-replay agent (step 6): nothing is backed up
         if cfg.budget_mode == "thresholded":
             threshold = cfg.threshold
             if cfg.threshold_scale == "mean_abs_value" and rule.value_scaled:

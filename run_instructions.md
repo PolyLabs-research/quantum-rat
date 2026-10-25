@@ -94,6 +94,11 @@ offline.
    # step 5 (docs/prereg/rq1_track_mattar_daw.md): step 4's protocol on a tabular Q learner, the floors rerun on it
    # and the Mattar & Daw rule with and without its forward n-step extension; the pilot (6 s) and the evaluation
    # (about 15 min on 4 cores, writes docs/data/m2a/rq1_step5)
+   python -m experiments.linear_track_rq1 --pilot --version step5 --workers 4
+   python -m experiments.linear_track_rq1 --version step5 --workers 4
+   # step 6 (docs/prereg/rq1_track_step6.md): step 5 plus the Mattar & Daw rules with need over positions and the
+   # extension rule's priority seeded; the pilot (observe mode for the Q-based rules, 6 s) and the evaluation
+   # (about 20 min on 4 cores, writes docs/data/m2a/rq1_step6)
    python -m experiments.linear_track_rq1 --pilot --workers 4
    python -m experiments.linear_track_rq1 --workers 4
    ```

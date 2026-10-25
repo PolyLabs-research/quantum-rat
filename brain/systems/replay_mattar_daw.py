@@ -37,7 +37,7 @@ rate and discount, the need, and the state the agent acts from next.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Mapping, Protocol, Sequence, Tuple, Union
+from typing import Dict, List, Mapping, Optional, Protocol, Sequence, Tuple, Union
 
 from brain.systems.replay_rules import Learner, RNGStream, StoredTransition, TransitionMemory
 
@@ -45,6 +45,13 @@ MATTAR_DAW = "mattar_daw"
 MATTAR_DAW_1STEP = "mattar_daw_1step"
 MATTAR_DAW_CONDITIONS: Tuple[str, ...] = (MATTAR_DAW, MATTAR_DAW_1STEP)
 DEFAULT_GAIN_FLOOR = 1e-10
+# What ``priority`` reads before a pause's first backup, when the chain is empty (M2a step 6, G31 C3). "one_step": the
+# largest one-step EVB alone (step 5), which for the extension rule is orders of magnitude below the EVBs it reaches
+# once a chain exists, so a theta set on it either never starts the rule or binds its cap. "seeded": also the EVB of
+# extending a would-be chain seeded with the acting state's most recent outgoing transition (the chain the rule's
+# first forward step would build), so that the first-backup priority is on the scale of the later ones. ``choose`` is
+# the same under both: the seed is not backed up, only read.
+PRIORITY_MODES: Tuple[str, ...] = ("one_step", "seeded")
 
 
 class QReplayModel(Protocol):
@@ -117,13 +124,17 @@ class MattarDawReplay:
 
     value_scaled = True  # a gain is in value units
 
-    def __init__(self, model: QReplayModel, extension: bool = True, gain_floor: float = DEFAULT_GAIN_FLOOR) -> None:
+    def __init__(self, model: QReplayModel, extension: bool = True, gain_floor: float = DEFAULT_GAIN_FLOOR,
+                 priority_mode: str = "one_step", name: Optional[str] = None) -> None:
         if not (math.isfinite(gain_floor) and gain_floor >= 0.0):
             raise ValueError("gain_floor must be a finite non-negative number")
+        if priority_mode not in PRIORITY_MODES:
+            raise ValueError(f"priority_mode must be one of {PRIORITY_MODES}, got {priority_mode!r}")
         self.model = model
         self.extension = bool(extension)
         self.gain_floor = float(gain_floor)
-        self.name = MATTAR_DAW if extension else MATTAR_DAW_1STEP
+        self.priority_mode = priority_mode
+        self.name = name or (MATTAR_DAW if extension else MATTAR_DAW_1STEP)
         self.chain: List[StoredTransition] = []
         self.last_choice: str = ""  # "one_step" or "extension": diagnostics
 
@@ -148,10 +159,13 @@ class MattarDawReplay:
         action = self.model.action_of(t.x, t.y, t.x_next, t.y_next)
         return self._evb(self.model.state_index(t.x, t.y), learner.q(t.x, t.y), action, t.td_error(learner))
 
-    def _extensions(self, distinct: Sequence[StoredTransition], learner: QLearner) -> List[Tuple[float, ExtendedBackup]]:
-        if not self.extension or not self.chain or self.chain[-1].terminal:
+    def _extensions(self, distinct: Sequence[StoredTransition], learner: QLearner,
+                    chain: Optional[Sequence[StoredTransition]] = None) -> List[Tuple[float, ExtendedBackup]]:
+        """The extension candidates of ``chain`` (the rule's own when None): one per stored transition that continues it."""
+        chain = self.chain if chain is None else chain
+        if not self.extension or not chain or chain[-1].terminal:
             return []
-        first, last = self.chain[0], self.chain[-1]
+        first, last = chain[0], chain[-1]
         action = self.model.action_of(first.x, first.y, first.x_next, first.y_next)
         q_first = learner.q(first.x, first.y)
         gamma = self.model.discount()
@@ -160,15 +174,21 @@ class MattarDawReplay:
             if (t.x, t.y) != (last.x_next, last.y_next):
                 continue
             target, disc = 0.0, 1.0
-            for e in (*self.chain, t):
+            for e in (*chain, t):
                 target += disc * e.reward
                 disc *= gamma
             if not t.terminal:
                 target += disc * learner.value(t.x_next, t.y_next)
             delta = target - q_first[action]
             evb = self._evb(self.model.state_index(first.x, first.y), q_first, action, delta)
-            out.append((evb, ExtendedBackup(first, t, action, target, len(self.chain) + 1)))
+            out.append((evb, ExtendedBackup(first, t, action, target, len(chain) + 1)))
         return out
+
+    def _seed(self, distinct: Sequence[StoredTransition]) -> Optional[StoredTransition]:
+        """The acting state's most recent outgoing stored transition: the chain the rule's first forward step would build."""
+        acting = self.model.acting_state()
+        own = [t for t in distinct if self.model.state_index(t.x, t.y) == acting]
+        return own[-1] if own else None  # distinct is oldest first by latest occurrence
 
     def _ranked(self, memory: TransitionMemory, learner: QLearner) -> List[Tuple[float, int, int, Candidate]]:
         """(EVB, is_extension, recency, candidate), the best last: EVB, then extensions over one-step backups, then recency."""
@@ -192,9 +212,17 @@ class MattarDawReplay:
         return len(self._distinct(memory))
 
     def priority(self, memory: TransitionMemory, learner: Learner, k: int) -> float:
-        """The largest EVB among the candidates (what the thresholded mode compares with theta x scale)."""
-        return self._ranked(memory, learner)[-1][0]  # type: ignore[arg-type]
+        """The largest EVB among the candidates (what the thresholded mode compares with theta x scale); under
+        ``priority_mode="seeded"`` with an empty chain, also among the extensions of the seeded chain (module notes)."""
+        best = self._ranked(memory, learner)[-1][0]  # type: ignore[arg-type]
+        if self.priority_mode == "seeded" and self.extension and not self.chain:
+            distinct = self._distinct(memory)
+            seed = self._seed(distinct)
+            if seed is not None:
+                for evb, _ in self._extensions(distinct, learner, [seed]):  # type: ignore[arg-type]
+                    best = max(best, evb)
+        return best
 
 
-__all__ = ["DEFAULT_GAIN_FLOOR", "ExtendedBackup", "MATTAR_DAW", "MATTAR_DAW_1STEP", "MATTAR_DAW_CONDITIONS",
+__all__ = ["DEFAULT_GAIN_FLOOR", "ExtendedBackup", "MATTAR_DAW", "MATTAR_DAW_1STEP", "MATTAR_DAW_CONDITIONS", "PRIORITY_MODES",
            "MattarDawReplay", "QLearner", "QReplayModel", "gain_q"]

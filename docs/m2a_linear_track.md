@@ -610,6 +610,106 @@ at the reward pause after a change for the full rule (predicted with less confid
 reason above); the ablation's learning speed (predicted close to the full rule; slower than prioritised_td); the
 full rule's thresholded condition (could not run as specified).
 
+## Step 6 of the remainder: need over positions, a seeded priority, a θ pilot on the no-replay agent
+
+Preregistered in `docs/prereg/rq1_track_step6.md` before the pilot and the run, with a disclosed six-lap smoke, a
+pre-run amendment and its diagnostic, and the pilot's θ values recorded there; decisions entry G32. Runner:
+`experiments/linear_track_rq1.py` (the default, step-6 version; `--version step5` and earlier reproduce the earlier
+protocols), 12 min on 4 cores; tables in `docs/data/m2a/rq1_step6/`. Step 5's protocol and conditions plus the two items
+G31 named: **need over positions** (`mattar_daw_pos`, `mattar_daw_1step_pos`: the need of a state is the summed need
+of the four heading × goal states that share its cell, so the lap just run and the lap ahead share their need, as
+Mattar & Daw's positional states do); and, for the extension rule's thresholded mode, a **seeded first-backup
+priority** and a **θ pilot read on the no-replay agent** ("observe" mode, the amendment: the fixed-mode pilot read the
+rule on an agent its own replay had shaped, and under that θ a 40-lap diagnostic never started it; the seeded priority
+alone turned out inert at those pauses). Eight conditions on the Q learner. The floors' rows and the step-5 rules'
+fixed-mode rows are identical to step 5's (checked on every seed-block row), so step 5's readings stand unchanged and
+this section reports what is new. The guard found 30 distinct lap-length vectors everywhere.
+
+**Fixed-mode content** (20 backups per pause; baseline block → the two changed blocks pooled):
+
+| condition | events / reward pause | events / pre-run pause | reverse / forward share | remote (reward / pre-run) | from_this_lap |
+|---|---|---|---|---|---|
+| mattar_daw (step 5) | 0.56 → 0.44 | 0.43 → 0.34 | 0.00 / 1.00 | 0.45 → 0.38 / 0.51 → 0.32 | 0.05 → 0.00 |
+| mattar_daw_1step (step 5) | 0.26 → 0.29 | 0.33 → 0.48 | 1.00 / 0.00 | 1.00 / 1.00 | 0.05 → 0.00 |
+| **mattar_daw_pos** | 0.25 → 0.43 | 0.20 → 0.30 | 0.01 / 0.99 | 0.76 → 0.31 / 0.83 → 0.28 | **0.61 → 0.04** |
+| **mattar_daw_1step_pos** | 0.30 → 0.56 | 0.37 → 0.78 | **1.00 / 0.00** | 0.00 → 0.14 / 0.00 → 0.17 | **0.68 → 0.58** |
+
+**The reverse-at-reward bound is met, by the one-step rule with positional need, with the lap just run.** Its
+reward-pause events are reverse on every seed (share 1.00 [1.00, 1.00], **passes**), and 68% of its reward-pause
+backups in the baseline block, 58% after a change, come from the lap just run, where every state-based rule of steps 3
+to 5 sat at 0.00 to 0.05. The prediction held in both parts (reverse, and `from_this_lap_share` above 0.5): with the
+cells just run carrying the largest positional need from the goal end and a residual error from the consume, the
+argmax starts near the goal and chains backward along the lap just run through gain at predecessors. Its sweeps start
+at the agent, so remote events are rare: 0.00 in the baseline block, 0.14 after a change, 0.12 [0.09, 0.15] pooled,
+which passes the 10% bound by its changed blocks where the prereg predicted a fail. Pre-run pauses: reverse, as for
+every one-step rule (forward share 0.00, fails).
+
+**The extension rule with positional need stays forward at both pauses.** `mattar_daw_pos`'s events are forward on
+every seed at the pre-run pause (passes) and at the reward pause too (reverse share 0.006 at baseline, 0.004 after a
+change: **fails**, where the prereg predicted mixed at baseline and reverse after a change). The two mechanisms the
+prereg said would compete at the same cells did: in the baseline block 61% of its reward-pause *backups* are of the
+lap just run (one-step picks of the high-need, high-error states near the goal), but they do not chain into
+sequences of four cells; the *sequences* (0.25 per pause) are the extension's forward chains along the lap ahead,
+and after a reward change the extension takes the backups as well (`from_this_lap` 0.04). The forward n-step
+extension wins the sequence whenever it is available: an n-step target reaching down the lap ahead carries more error,
+and so more gain at the chain's start, than any one-step backup of a just-run transition. In Mattar & Daw's model the
+two directions arise in one rule; on this track, with these parameters, they arise in two.
+
+**The extension rule's thresholded mode now runs, and reads as the other need-weighted rules do.** Under the θ of the
+observe pilot (5.2 × 10⁻⁶) `mattar_daw` makes 10.4 backups per stop at the baseline block's east reward pauses
+(neither 0 nor the cap, as predicted), 47.7 after the ×4 increase (+37.3 [+25.6, +49.1], δ 0.47, passes "up") and
+76.1 after the ×0.25 decrease (+65.7 [+57.0, +73.2], δ 0.96, **fails "down"**: unsigned, as predicted); events 0.17 →
+0.77 → 1.21. The west end rises with it (+32.8, +50.3), and the east − west rows read +4.5 [−12.8, +22.0] and +15.4
+[+2.9, +28.8] (δ 0.28, below the bound): both ends alike, the need-weighted pattern. (c) baseline: +1.97 [+1.23,
++2.68] backups per lap, fails, as predicted and as for every need-weighted rule since step 4. The same θ makes the
+one-step rule nearly silent (0.3 backups per stop at baseline, 1.4 after the increase, 21.7 after the decrease; its
+thresholded learning 15,212, within 355 of none), where step 5's fixed-mode θ gave it 18.0: the pilot's agent, not the
+rule, decides the thresholded reading. The positional rules replay for three laps and then stop (3.7 and 4.9 backups
+per stop at baseline, 0 from lap 3.1 and 3.7, 0.0 through both changes): the errors the observe pilot's θ was set on
+are the no-replay agent's, and three laps of replay remove them for good. The thresholded mode has now been
+degenerate in one direction or another for every need-weighted rule under every pilot tried (G32 C3).
+
+**The preregistered verdicts for the new conditions** (`rq1_tests.csv`; the prereg's prediction in brackets):
+
+| test | mattar_daw_pos | mattar_daw_1step_pos |
+|---|---|---|
+| (a) reverse share, reward pauses, baseline > 0.6 | 0.006 [0.000, 0.029], fails [mixed] | **1.00, passes** [pass, with from_this_lap > 0.5: 0.68] |
+| (a) forward share, pre-run pauses > 0.6 | 1.00, passes [pass] | 0.00, fails [fail] |
+| after a change: reverse at reward / forward at pre-run | 0.004 / 1.00 [reverse predicted] | 1.00 / 0.00 |
+| (d) remote ≥ 10%, reward / pre-run | 0.41 / 0.43 passes [uncertain / pass] | 0.12 [0.09, 0.15] / 0.14 passes [fail] |
+| (b) increase, east: backups per stop | −3.64 [−4.22, −3.18] (3.7 → 0.0), fails | −4.86 [−6.02, −3.88] (4.9 → 0.0), fails |
+| (b) decrease, east: backups, "down" | −3.64, passes; east − west −1.64 [−2.40, −0.88], passes | −4.86, passes; east − west −1.80 [−3.30, −0.34], passes |
+| (c) baseline: slope of backups per stop | −0.77 passes, 0 from lap 3.1 | −1.06 passes, 0 from lap 3.7 |
+
+The positional rules' "down" passes, on the single-end row and on the east − west row alike, are the same fall at the
+increase (−3.64 and −4.86 there too, east − west −1.64 and −1.80): a rule that stops replaying after lap 3 falls at
+every later change whatever its sign. They are not signed responses, and the prereg did not predict them as such.
+
+**Learning speed per session** (fixed mode, the Q learner): mattar_daw_pos 6,062 / 6,061 steps, faster than
+prioritised_td by 3,013 [2,609, 3,418] and 2,788 [2,430, 3,179] on every seed, within 190 of mattar_daw's 5,875
+(positional need displaces few of the n-step forward backups that carry the speed); mattar_daw_1step_pos 10,152,
+slower than prioritised_td (+1,076 [+687, +1,496]) and than mattar_daw_1step's 9,599. Thresholded: mattar_daw 11,176
+/ 10,435 (10 backups per stop at baseline against prioritised's 34); the positional rules 12,098 and 13,329; the
+one-step rule 15,212 / 14,480.
+
+**Predictions against outcomes.** Held: the primary (reverse replay of the lap just run at the reward pause by the
+one-step positional rule, 1.00 and 0.68); its pre-run fail; the extension rule's forward pre-run replay under
+positional need; the extension rule's thresholded condition running at neither 0 nor the cap, up at the increase,
+unsigned at the decrease, no familiarity decline; the learning ordering; the identical step-5 rows. Failed: reverse
+replay at the reward pause after a change for `mattar_daw_pos` (forward on every seed; the extension wins the
+sequence); the one-step positional rule's remote share (passes narrowly, on the changed blocks). Not predicted and
+recorded: the positional rules' thresholded silence after lap 3, and the one-step state-based rule's near-silence under
+the observe pilot's θ.
+
+**Where the row stands after six steps.** Of RQ1's bounds in this tabular variant: (a) reverse at the reward window is
+met by the one-step Mattar & Daw rule with positional need (sweeps of the lap just run) and, with sweeps of the lap
+ahead only, by gain × need and the state-based one-step rule; (a) forward in the pre-run window is met by the
+Mattar & Daw rule with its n-step extension and by nothing without it; (d) remote by every need-weighted rule; the
+learning bound by the extension rule, the fastest learner of the series; (b) a signed response to a reward change by
+no rule on either statistic; (c) a decline with familiarity by the |TD error| rules and gain alone, never by a
+need-weighted rule. No single rule meets every bound, and the two directional bounds are met by two rules that differ
+in one mechanism. The acceptance as written is not met; the reasons are recorded in G29 to G32 and are structural.
+
 ## Reading
 
 - **The ranking.** Prioritised sweeping and reverse replay both propagate the reward's TD error back along the lap
@@ -638,11 +738,13 @@ full rule's thresholded condition (could not run as specified).
 
 - Oracle, tabular state over the true cell; no odometry noise, no place population. The embodied arm (M3) is the
   comparison this pass exists to be compared with.
-- Seven rules of nine after steps 3 to 5 (the goal-uncertainty need variant and Diekmann–Cheng remain); both budget
-  modes, the reward schedule, the pre-run window, the plan's event definition and remote flag are in place since
-  steps 1 and 2, and RQ1 (a)–(d) have been run (steps 3 to 5: no single rule meets every bound; the Mattar & Daw
-  rule meets the pre-run forward, remote and learning bounds, the reverse-at-reward bound is met only by sweeps of
-  the lap ahead, and the signed and familiarity bounds by none, for the structural reasons given there). Under step 4's scaled θ the thresholded cap binds only for gain × need after the decrease (97.7 of
+- The seven rules of the amended row have run (the goal-uncertainty need variant and Diekmann–Cheng are RQ2's by the
+  owner's decision); both budget modes, the reward schedule, the pre-run window, the plan's event definition and
+  remote flag are in place since steps 1 and 2, and RQ1 (a)–(d) have been run (steps 3 to 6: every bound is met by
+  some rule except a signed response to a reward change and a decline with familiarity for need-weighted rules;
+  no single rule meets every bound; the standing of the row is given at the end of the step 6 section).
+- The thresholded mode's readings for the need-weighted rules are degenerate at every θ tried (no replay, the cap,
+  or silence after a few laps; G32 C3); the fixed-mode content and the learning tables carry the series' results. Under step 4's scaled θ the thresholded cap binds only for gain × need after the decrease (97.7 of
   100 backups per stop); under step 3's raw θ it bound for gain × need, prioritised and uniform through most of the
   protocol.
 - The V-learner rules (steps 3 and 4) and the Q-learner rules (step 5) are not paired comparisons: each has its own

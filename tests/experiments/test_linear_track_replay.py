@@ -450,3 +450,49 @@ def test_the_agent_can_act_on_a_q_learner() -> None:
     run = run_seed("prioritised_td", 1, cfg)
     assert len(run.laps) == 3 and all(lap.replay_backups == 20 for lap in run.laps if lap.rewarded)
     assert all(lap.reward_value_scale > 0 for lap in run.laps if lap.rewarded) and not math.isnan(run.laps[-1].value_rmse)
+
+
+def test_need_over_positions_sums_the_four_states_of_a_cell_and_observe_mode_backs_nothing_up() -> None:
+    """M2a step 6: ``QTrackModel(need_over="positions")`` reads the need of a cell (heading and goal marginalised); the
+    two positional conditions run on it; ``budget_mode="observe"`` records the priority and scale without a backup."""
+    from experiments.linear_track_replay import (
+        BUDGET_MODES, EVALUATION_MODES, NEED_OVER, POSITIONAL_NEED_CONDITIONS, EAST, WEST, LinearTrack, QTrackModel,
+        State, TrackAgent, TrackConfig, _rule_for, run_seed,
+    )
+
+    assert NEED_OVER == ("states", "positions") and POSITIONAL_NEED_CONDITIONS == ("mattar_daw_pos", "mattar_daw_1step_pos")
+    assert BUDGET_MODES == ("fixed", "thresholded", "observe") and EVALUATION_MODES == ("fixed", "thresholded")
+    with pytest.raises(ValueError):
+        TrackConfig(mattar_daw_priority="chain")
+    cfg = TrackConfig(laps=3, learner="q")
+    track = LinearTrack(cfg)
+    agent = TrackAgent(cfg, track)
+    with pytest.raises(ValueError):
+        QTrackModel(cfg, track, agent, need_over="cells")
+    states = QTrackModel(cfg, track, agent)
+    positions = QTrackModel(cfg, track, agent, need_over="positions")
+    frm = track.index(track.start_state(EAST))
+    for cell in (0, 7, 39):
+        same = [track.index(State(cell, h, g)) for g in (EAST, WEST) for h in (EAST, WEST)]
+        total = sum(states.need(frm, s) for s in same)
+        for s in same:
+            assert positions.need(frm, s) == pytest.approx(total)  # every state of the cell reads the cell's need
+            assert states.need(frm, s) <= positions.need(frm, s) + 1e-12
+    # The positional conditions need the positional model and the state-based ones the state model.
+    with pytest.raises(ValueError):
+        _rule_for("mattar_daw_pos", cfg, states)
+    with pytest.raises(ValueError):
+        _rule_for("mattar_daw", cfg, positions)
+    rule = _rule_for("mattar_daw_1step_pos", TrackConfig(laps=3, learner="q", mattar_daw_priority="seeded"), positions)
+    assert rule.name == "mattar_daw_1step_pos" and not rule.extension and rule.priority_mode == "seeded"
+    for c in POSITIONAL_NEED_CONDITIONS:
+        run = run_seed(c, 1, TrackConfig(laps=4, learner="q", pre_run_pause=True))
+        assert all(lap.replay_backups == 20 for lap in run.laps if lap.rewarded) and all(e["rule"] == c for e in run.events)
+    with pytest.raises(ValueError):
+        run_seed("mattar_daw_pos", 1, TrackConfig(laps=2))  # the v learner
+    # Observe mode: the lap record carries the priority and the scale, and no backup is made.
+    obs = run_seed("mattar_daw", 1, TrackConfig(laps=4, learner="q", pre_run_pause=True, budget_mode="observe"))
+    none = run_seed("none", 1, TrackConfig(laps=4, learner="q", pre_run_pause=True))
+    assert sum(lap.replay_backups + lap.pre_run_backups for lap in obs.laps) == 0 and obs.events == []
+    assert [lap.steps for lap in obs.laps] == [lap.steps for lap in none.laps]  # the no-replay agent
+    assert all(not math.isnan(lap.reward_priority_before) and lap.reward_value_scale > 0 for lap in obs.laps[1:] if lap.rewarded)
