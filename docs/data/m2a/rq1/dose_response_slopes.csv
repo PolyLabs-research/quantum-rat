@@ -1,0 +1,4 @@
+condition,n,doses,mean_slope_per_log2_dose,low,high,seeds_with_negative_slope,mean_total_steps_by_dose,effect_grows_with_dose,ci_method,note
+uniform,30,"[5, 10, 20, 40]",-99.8967,-218.513,-12.5847,0.6,"[14464.5, 14481.0, 14263.0, 14204.2]",False,bca,
+reverse_trajectory,30,"[5, 10, 20, 40]",-450.54,-603.75,-322.325,0.933333,"[12976.9, 12255.3, 11662.3, 11672.7]",False,bca,
+prioritised_td,30,"[5, 10, 20, 40]",-1443.47,-1627.78,-1251.73,1,"[12923.2, 11927.1, 10471.5, 8596.8]",True,bca,

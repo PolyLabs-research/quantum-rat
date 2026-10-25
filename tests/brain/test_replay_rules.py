@@ -30,6 +30,7 @@ from brain.systems.replay_rules import (
     UniformReplay,
     make_rule,
     replay,
+    replay_thresholded,
     sequence_direction,
 )
 from brain.systems.value_learners import LinearTDLambda, TabularTD0, chain_features
@@ -203,3 +204,60 @@ def test_sequence_direction_is_the_slope_sign_against_the_travel_direction() -> 
     outcome = replay(make_rule(RULE_REVERSE_TRAJECTORY), memory, learner, 5, 0, RNG(1).stream("replay"), tick=0, travel_sign=1)
     assert outcome.event.direction == DIRECTION_REVERSE and -1.0 < outcome.sequence_r < 0.0
     assert math.isfinite(outcome.sequence_r)
+
+
+# --- the thresholded budget (M2a step 2; docs/prereg/rq1_track_tabular.md) --------------------------------------
+
+
+def test_each_rule_reports_the_priority_the_thresholded_mode_compares() -> None:
+    memory = TransitionMemory(100)
+    learner = _learner()
+    _episode(memory, learner, 0, [0, 1, 2, 3])  # three zero-error moves and a consume with error 1
+    stream = RNG(1).stream("replay")
+    uniform, reverse, prio = make_rule(RULE_UNIFORM), make_rule(RULE_REVERSE_TRAJECTORY), make_rule(RULE_PRIORITISED_TD)
+    for rule in (uniform, reverse, prio):
+        rule.begin(memory, 0)
+    assert uniform.priority(memory, learner, 0) == pytest.approx(1.0 / 4)  # the mean |TD error| over memory
+    assert prio.priority(memory, learner, 0) == pytest.approx(1.0)  # the largest
+    assert reverse.priority(memory, learner, 0) == pytest.approx(1.0)  # the next of its sweep: the consume
+    assert reverse.priority(memory, learner, 1) == pytest.approx(0.0)  # then the move into the goal, still 0 before any backup
+    assert reverse.priority(memory, learner, 4) == 0.0  # beyond one pass: nothing
+    reverse.choose(memory, learner, stream, 0).backup(learner)  # V(3) = 0.2
+    assert reverse.priority(memory, learner, 1) == pytest.approx(GAMMA * LR)
+    assert prio.priority(memory, learner, 0) == pytest.approx(1.0 - LR)
+    assert uniform.priority(TransitionMemory(5), learner, 0) == 0.0 and prio.priority(TransitionMemory(5), learner, 0) == 0.0
+
+
+def test_thresholded_replay_runs_while_the_priority_exceeds_the_threshold_up_to_the_cap() -> None:
+    memory = TransitionMemory(100)
+    learner = _learner()
+    _episode(memory, learner, 0, [0, 1, 2, 3, 4, 5, 6, 7])  # errors along the sweep: 1, 0.18, 0.032, 0.0058, ...
+    stream = RNG(1).stream("replay")
+    outcome = replay_thresholded(make_rule(RULE_REVERSE_TRAJECTORY), memory, learner, 0.02, 100, 0, stream, tick=5, travel_sign=1)
+    assert outcome is not None and outcome.n_backups == 3  # 1 > 0.02, 0.18 > 0.02, 0.032 > 0.02, 0.0058 stops it
+    assert [t.cell[0] for t in outcome.transitions] == [7, 6, 5]
+    assert outcome.event.trigger == TRIGGER_REWARD and outcome.event.direction == DIRECTION_REVERSE
+    # A lower threshold runs further (the chain of errors is 1, 0.18, 0.032, 0.0058, 0.00105, 0.00019, 0.000034:
+    # six exceed 1e-4); the cap binds first when it is small; one pass at most for the sweep.
+    assert replay_thresholded(make_rule(RULE_REVERSE_TRAJECTORY), memory, _learner(), 1e-4, 100, 0, stream, tick=0).n_backups == 6
+    assert replay_thresholded(make_rule(RULE_REVERSE_TRAJECTORY), memory, _learner(), 1e-4, 2, 0, stream, tick=0).n_backups == 2
+    assert replay_thresholded(make_rule(RULE_REVERSE_TRAJECTORY), memory, _learner(), 0.0, 100, 0, stream, tick=0).n_backups == 8
+    # Nothing above the threshold: no backup, no event, None.
+    learned = _learner()
+    replay_thresholded(make_rule(RULE_REVERSE_TRAJECTORY), memory, learned, 0.0, 100, 0, stream, tick=0)
+    for _ in range(50):  # drive the table to its fixed point on this episode
+        replay(make_rule(RULE_REVERSE_TRAJECTORY), memory, learned, 8, 0, stream, tick=0)
+    assert replay_thresholded(make_rule(RULE_REVERSE_TRAJECTORY), memory, learned, 0.02, 100, 0, stream, tick=0) is None
+    # The prioritised rule follows the error wherever it moves; the uniform rule's mean sits below a modest threshold.
+    prio = replay_thresholded(make_rule(RULE_PRIORITISED_TD), memory, _learner(), 0.02, 100, 0, RNG(2).stream("replay"), tick=0)
+    assert prio is not None and 1 <= prio.n_backups <= 100 and prio.transitions[0].terminal
+    assert replay_thresholded(make_rule(RULE_UNIFORM), memory, _learner(), 0.2, 100, 0, RNG(2).stream("replay"), tick=0) is None
+    uni = replay_thresholded(make_rule(RULE_UNIFORM), memory, _learner(), 0.1, 100, 0, RNG(2).stream("replay"), tick=0)
+    assert uni is not None and uni.n_backups >= 1  # the mean |error| 1/8 exceeds 0.1 until the consume is backed up
+    with pytest.raises(ValueError):
+        replay_thresholded(make_rule(RULE_UNIFORM), memory, _learner(), 0.1, 0, 0, stream, tick=0)
+    with pytest.raises(ValueError):
+        replay_thresholded(make_rule(RULE_UNIFORM), memory, _learner(), -0.1, 10, 0, stream, tick=0)
+    # The pre-run trigger is a name the event carries.
+    out = replay_thresholded(make_rule(RULE_REVERSE_TRAJECTORY), memory, _learner(), 0.02, 100, 0, stream, tick=0, trigger="pre_run")
+    assert out is not None and out.event.trigger == "pre_run"

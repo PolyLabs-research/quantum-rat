@@ -1,6 +1,7 @@
 condition,metric,n,mean,low,high,iqm,ci_method
 none,blocked_total,30,1318.57,1233.1,1401.76,1298.12,bca
 none,final_value_rmse,30,0.436724,0.43669,0.436882,0.43669,bca
+none,final_value_rmse_visited,30,0.289265,0.286077,0.292853,0.288257,bca
 none,laps_capped,30,0.0333333,0,0.166667,0,bca
 none,laps_rewarded,30,39.9667,39.8333,40,40,bca
 none,online_updates,30,14527.5,14005.1,15199.5,14285.6,bca
@@ -15,6 +16,7 @@ none,total_steps,30,14487.5,13979.9,15164.8,14245.6,bca
 none,turns_total,30,2850.77,2753.3,2987.16,2804.19,bca
 prioritised_td,blocked_total,30,1095.5,1023.88,1175.03,1095.88,bca
 prioritised_td,final_value_rmse,30,0.372465,0.371728,0.373071,0.372833,bca
+prioritised_td,final_value_rmse_visited,30,0.226428,0.223577,0.229271,0.225808,bca
 prioritised_td,laps_capped,30,0,0,0,0,none
 prioritised_td,laps_rewarded,30,40,40,40,40,none
 prioritised_td,online_updates,30,10511.5,10090.6,10898.6,10587.6,bca
@@ -38,6 +40,7 @@ prioritised_td,total_steps,30,10471.5,10041.1,10844.1,10547.6,bca
 prioritised_td,turns_total,30,2000.2,1913.15,2078.13,2005.12,bca
 reverse_trajectory,blocked_total,30,1183.5,1118.6,1280.26,1150.31,bca
 reverse_trajectory,final_value_rmse,30,0.396523,0.396507,0.396531,0.39653,bca
+reverse_trajectory,final_value_rmse_visited,30,0.248778,0.245621,0.251346,0.249438,bca
 reverse_trajectory,laps_capped,30,0,0,0,0,none
 reverse_trajectory,laps_rewarded,30,40,40,40,40,none
 reverse_trajectory,online_updates,30,11702.3,11291.8,12128.4,11691.4,bca
@@ -61,6 +64,7 @@ reverse_trajectory,total_steps,30,11662.3,11264.2,12086.7,11651.4,bca
 reverse_trajectory,turns_total,30,2256.87,2171.84,2338.8,2258.5,bca
 uniform,blocked_total,30,1315.23,1244.77,1386.72,1309.31,bca
 uniform,final_value_rmse,30,0.434216,0.433967,0.434415,0.434329,bca
+uniform,final_value_rmse_visited,30,0.286554,0.283648,0.289672,0.286373,bca
 uniform,laps_capped,30,0.0333333,0,0.166667,0,bca
 uniform,laps_rewarded,30,39.9667,39.8333,40,40,bca
 uniform,online_updates,30,14303,13758.2,14956.9,14235.1,bca

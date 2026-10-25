@@ -1,0 +1,12 @@
+variant,parameter,value,laps,lap_cap,mean_total_steps_none,mean_total_steps_uniform,mean_total_steps_reverse_trajectory,mean_total_steps_prioritised_td,capped_laps_total,ordering_by_mean_total_steps,sequence_rules_beat_none,prioritised_beats_reverse,uniform_null
+base,base,nan,40,2000,14487.5,14263,11662.3,10471.5,2,prioritised_td < reverse_trajectory < uniform < none,True,True,True
+lr_0.1,learning_rate,0.1,40,2000,15984.8,16084.5,13908.3,12387.8,4,prioritised_td < reverse_trajectory < none < uniform,True,True,True
+lr_0.5,learning_rate,0.5,40,2000,12598.3,12365.6,6773.97,7003.33,2,reverse_trajectory < prioritised_td < uniform < none,True,False,False
+gamma_0.9,discount,0.9,40,2000,14696.3,14536.5,11769.8,10659.3,2,prioritised_td < reverse_trajectory < uniform < none,True,True,True
+gamma_0.98,discount,0.98,40,2000,14412.3,14116.5,11472.5,10270.1,2,prioritised_td < reverse_trajectory < uniform < none,True,True,True
+tau_0.05,temperature,0.05,40,2000,14228.5,14025,11298.8,10286.4,2,prioritised_td < reverse_trajectory < uniform < none,True,True,True
+tau_0.2,temperature,0.2,40,2000,14786.8,14709.4,11886.8,10763.4,2,prioritised_td < reverse_trajectory < uniform < none,True,True,True
+turn_0.1,untrained_turn_probability,0.1,40,2000,8339.77,8206.77,7002.97,6458.63,0,prioritised_td < reverse_trajectory < uniform < none,True,True,False
+turn_0.3,untrained_turn_probability,0.3,40,2000,23148.5,23058.6,18603.6,16646.2,63,prioritised_td < reverse_trajectory < uniform < none,True,True,True
+gain_5,value_gain,5,40,2000,14786.8,14709.4,11886.8,10763.4,2,prioritised_td < reverse_trajectory < uniform < none,True,True,True
+gain_20,value_gain,20,40,2000,14228.5,14025,11298.8,10286.4,2,prioritised_td < reverse_trajectory < uniform < none,True,True,True

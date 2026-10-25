@@ -5,10 +5,13 @@ mode only, tabular oracle state, no reward-change schedule, no console panel. De
 **Reproduce:** `python3 -m experiments.linear_track_replay --workers 4` (7 s on the 4-core development box; the
 same tables byte for byte at any worker count). Outputs in `docs/data/m2a/track/`: `track_laps.csv` (one row per
 condition × seed × lap, 4,800 rows), `track_per_seed.csv` (the tidy per-seed table), `track_summary.csv`,
-`track_learning_curve.csv`, `track_effects.csv`, `track_replay_events.jsonl.gz` (3,599 events) and
+`track_learning_curve.csv`, `track_effects.csv`, `track_replay_events.jsonl.gz` (3,599 replays) and
 `track_manifest.json` (code revision, platform, numerical environment, every parameter, the seed list, dependency
-versions, the guard's verdicts). Tests: `tests/brain/test_replay_rules.py` (7) and
-`tests/experiments/test_linear_track_replay.py` (11).
+versions, the guard's verdicts); since step 1 of the remainder also `track_sequence_*.csv` (events by the plan's
+definition, `python3 -m analysis.replay_metrics docs/data/m2a/track/track_replay_events.jsonl.gz`) and
+`sensitivity_*.csv` (`python3 -m experiments.linear_track_sensitivity --workers 4`). Tests:
+`tests/brain/test_replay_rules.py` (7), `tests/experiments/test_linear_track_replay.py` (11),
+`tests/analysis/test_replay_metrics.py` (7), `tests/experiments/test_linear_track_sensitivity.py` (2).
 
 ## In one paragraph
 
@@ -123,6 +126,165 @@ interval on the final RMSE collapsed to the estimate in every paired comparison 
 note the tables carry): the RMSE against V* is dominated by the 120 states the policy rarely visits, whose values
 stay near 0 whatever the condition, so it moves little and almost identically across seeds; it separates the
 conditions in the expected order (0.437 > 0.434 > 0.397 > 0.373) but is not a sensitive measure here.
+
+## Step 1 of the remainder: events by the plan's definition, a visit-weighted value error, and a sensitivity sweep
+
+Added after the fixed evaluation (decisions G27), without re-running it: the three additions below read the
+committed data or run the same protocol at other parameter values, and every number of the fixed evaluation above
+is unchanged (`track_laps.csv` gained one column, the per-seed, summary and effects tables gained rows for the new
+metric, and every pre-existing row is byte-identical).
+
+**Replay events by the plan's definition** (`analysis/replay_metrics.py`; `python3 -m analysis.replay_metrics
+docs/data/m2a/track/track_replay_events.jsonl.gz`; tables `track_sequence_events.csv`, `track_sequence_metrics.csv`,
+`track_sequence_rate_by_lap.csv`). The plan's event is a sampled sequence of at least 4 distinct states spanning at
+least 0.3 m. Read off a replay's backup list: consecutive backups are linked when their start cells are the same or
+adjacent (a TURN keeps the cell), a maximal linked run is a segment, and a segment with at least 4 distinct cells
+spanning at least 6 cells (0.3 m at 5 cm per cell) is an event, with the direction and signed correlation of its own
+cells against the lap's travel, and a remote flag when it starts more than 10 cells (0.5 m) from the agent, which
+sits at the goal cell during the pause.
+
+| condition | events per stop | stops with an event | direction of events | mean span (cells) | remote events | mean \|r\| |
+|---|---|---|---|---|---|---|
+| reverse_trajectory | 0.999 [0.997, 1.000] (1,199 of 1,200 stops) | 0.999 [0.995, 1.000] | 1.00 reverse | 16.9 [16.8, 17.0] | 0 (every event starts at the goal) | 0.977 |
+| uniform | 0 | 0 | undefined (no event) | | | |
+| prioritised_td | 0 | 0 | undefined (no event) | | | |
+
+Under the plan's definition the two sampling rules produce no sequence events at all in this protocol: their
+backups jump between transitions near the two ends of the track (both carry TD error) and never chain through four
+adjacent cells. The slope-sign coin of G26 is thereby replaced by the honest statement: on the 1,200 pauses of each
+rule, uniform and prioritised replay made no sequence by the plan's criterion, so their direction is not a
+quantity. Reverse replay made one event at every pause but one (a lap whose last 20 steps wandered within five
+cells), reverse by construction, spanning 17 of the 20 backed-up cells on average. How much this depends on the
+extraction rule, from the same events: linking cells two apart adds four events in total (uniform 0.0025 per stop,
+prioritised 0.0008); two apart with a span of four cells gives uniform 0.005 and prioritised 0.029 per stop; three
+apart with three distinct cells over four gives uniform 0.13 and prioritised 0.30 per stop (reverse 0.46, remote
+0.55), so even the loosest reading leaves the sampling rules an order of magnitude below the sequence rule. The
+plan's reward-window and pre-run-window rates need the pre-run pause of step 2; here every pause is a reward pause.
+
+**A visit-weighted value error.** The RMSE against V* over all 160 states (above) is dominated by the states the
+policy rarely occupies and its paired intervals collapsed. `value_rmse_visited` weights each state by how often the
+agent occupied it over the run; the final values are `none` 0.289 [0.286, 0.293], `uniform` 0.287 [0.284, 0.290],
+`reverse_trajectory` 0.249 [0.246, 0.251], `prioritised_td` 0.226 [0.224, 0.229]; paired against `none`: uniform
+−0.0027 [−0.0039, −0.0014] (lower on 28 of 30 seeds: uniform replay does move the visited states' values a little,
+too little to move the walk), reverse −0.040 [−0.045, −0.037], prioritised −0.063 [−0.066, −0.059], and prioritised
+against reverse −0.022 [−0.025, −0.020], every seed. The ordering is the one the steps give.
+
+**Sensitivity of the ranking** (`experiments/linear_track_sensitivity.py`; `sensitivity_effects.csv`,
+`sensitivity_summary.csv`; 11 variants × 4 conditions × 30 seeds, 79 s on 4 cores). Each variant changes one
+parameter from the fixed set and re-runs all four conditions at the same seeds; the fixed evaluation's numbers stay
+the result, this is what happens around them. Paired differences in total steps over 40 laps, mean [BCa 95%]:
+
+| variant | none | reverse − none | prioritised − none | uniform − none | prioritised − reverse | capped laps |
+|---|---|---|---|---|---|---|
+| base (the fixed evaluation) | 14,488 | −2,825 [−3,497, −2,147] | −4,016 [−4,813, −3,310] | −224 [−820, +112] | −1,191 [−1,626, −802] | 2 |
+| learning rate 0.1 | 15,985 | −2,076 [−2,689, −1,589] | −3,597 [−4,193, −3,010] | +100 [−95, +453] | −1,520 [−2,116, −1,019] | 4 |
+| learning rate 0.5 | 12,598 | −5,824 [−6,281, −5,314] | −5,595 [−6,119, −5,067] | −233 [−398, −73] | **+229 [+9, +496]** | 2 |
+| discount 0.9 | 14,696 | −2,926 [−3,483, −2,291] | −4,037 [−4,745, −3,348] | −160 [−490, +156] | −1,111 [−1,461, −803] | 2 |
+| discount 0.98 | 14,412 | −2,940 [−3,502, −2,343] | −4,142 [−4,930, −3,537] | −296 [−864, +50] | −1,202 [−1,666, −818] | 2 |
+| temperature 0.05 (= gain 20) | 14,228 | −2,930 [−3,398, −2,339] | −3,942 [−4,550, −3,378] | −204 [−621, +24] | −1,012 [−1,380, −653] | 2 |
+| temperature 0.2 (= gain 5) | 14,787 | −2,900 [−3,438, −2,334] | −4,023 [−4,728, −3,368] | −77 [−257, +150] | −1,123 [−1,503, −815] | 2 |
+| untrained turn probability 0.1 | 8,340 | −1,337 [−1,684, −1,010] | −1,881 [−2,264, −1,502] | −133 [−259, −58] | −544 [−801, −282] | 0 |
+| untrained turn probability 0.3 | 23,148 | −4,545 [−5,498, −3,664] | −6,502 [−7,448, −5,512] | −90 [−578, +251] | −1,957 [−2,723, −1,349] | 63 |
+
+Both sequence rules beat no replay with intervals excluding zero in all 11 variants. Prioritised beats reverse in 10
+of 11; at learning rate 0.5 the order flips (reverse 6,774 against prioritised 7,003 steps), where a single reverse
+sweep at a large step already carries the reward's error the length of the lap tail and the prioritised rule's
+scattered backups buy nothing more. Uniform is a null in 9 of 11 and a small real gain in two (learning rate 0.5 and
+turn probability 0.1, both regimes in which the no-replay walk is short enough for a few effective uniform backups
+to show). Two pairs of variants are the same experiment: the softmax reads the scores divided by the temperature,
+and with the prior rescaled to hold the untrained turn probability, temperature 0.05 at gain 10 is gain 20 at
+temperature 0.1 and temperature 0.2 is gain 5, so the table above has nine distinct variants (the two gain rows are
+omitted; `sensitivity_summary.csv` carries all 11, identical to the digit). The turn-probability axis moves the
+baseline most (8,340 to 23,148 steps) and at 0.3 the cap of 2,000 steps is hit on 63 of 4,800 laps.
+
+
+
+## Step 2 of the remainder: the RQ1 protocol on the floors, thresholded mode, and the dose-response
+
+Preregistered in `docs/prereg/rq1_track_tabular.md` before any run (its pilot clause moved θ once, from 0.02 to
+0.0035, recorded there); decisions entry G28. Runners: `experiments/linear_track_rq1.py` (both budget modes, 258 s on
+4 cores) and `experiments/linear_track_dose_response.py` (28 s); tables in `docs/data/m2a/rq1/`. The three rules here
+are the plan's floors; the prereg predicted which RQ1 bounds each would fail, and this section reports every verdict
+against those predictions. The guard found 30 distinct lap-length vectors in every condition and mode.
+
+**The protocol.** The fixed evaluation's track and agent, 80 laps in four blocks of 20 (east reward 1.0, 4.0, 1.0,
+0.25; west 1.0 throughout, the control end), a pre-run pause at the start of every lap beside the reward pause at its
+end, both running the condition's rule on the same memory; fixed mode makes 20 backups per pause, thresholded mode
+replays while the rule's priority exceeds θ = 0.0035 up to 100 backups per pause. Events are the plan's (step 1), their
+direction read against the lap the replayed states belong to.
+
+**Dose-response** (`dose_response_effects.csv`, `dose_response_slopes.csv`; the 40-lap stable-reward protocol at 5, 10,
+20 and 40 backups per reward pause, 30 seeds; 20 reproduces the fixed evaluation to the digit):
+
+| backups per pause | uniform − none | reverse − none | prioritised − none |
+|---|---|---|---|
+| 5 | −23 [−359, +209] | −1,511 [−2,044, −988] | −1,564 [−2,171, −938] |
+| 10 | −7 [−304, +274] | −2,232 [−2,798, −1,590] | −2,560 [−3,195, −1,799] |
+| 20 | −224 [−820, +112] | −2,825 [−3,497, −2,147] | −4,016 [−4,813, −3,310] |
+| 40 | −283 [−717, +57] | −2,815 [−3,495, −2,139] | −5,891 [−6,549, −5,344] |
+| slope per doubling | −100 [−219, −13] (negative on 18 of 30 seeds) | −450 [−604, −322] (28 of 30) | −1,444 [−1,628, −1,252] (30 of 30) |
+
+Prioritised replay does what the causal reading requires: its effect grows with every doubling, every seed. Reverse
+replay grows from 5 to 20 and then stops (40 equals 20): a sweep is one pass over the lap tail, and the backups beyond
+the first twenty or so carry no TD error (the chain of errors behind a consume decays by a factor of about 0.19 per
+transition), so more of them change nothing; its slope is negative because of the first half of the range. The
+preregistered prediction (effect growing with the dose) therefore holds for prioritised and holds for reverse up to
+saturation, which is itself the mechanism showing: the dose that matters is error-carrying backups, not backups.
+Uniform stays a null at every dose as predicted, with a small trend (more draws, more chances to hit a transition with
+error) whose interval just excludes zero against the prediction of none.
+
+**RQ1 verdicts** (`rq1_tests.csv`; n = 30 seeds unless marked; the prediction in brackets is the prereg's):
+
+| test | reverse_trajectory | uniform | prioritised_td |
+|---|---|---|---|
+| (a) reverse share of reward-pause events > 0.6 | 1.00 [1.00, 1.00], **passes** (predicted) | undefined, no events (predicted) | undefined, no events (predicted) |
+| (a) forward share of pre-run events > 0.6 | 0.00, **fails** (predicted: it replays the completed lap backward) | undefined | undefined |
+| (d) remote events ≥ 10% | 0.00, **fails** (predicted: every sweep starts at the goal) | undefined | undefined |
+| (b) east end, ×4 block − baseline, backups per stop | +10.3 [+10.2, +10.3] (8.6 → 18.9), **passes** (predicted) | +81 [+72, +87] (18 → 99, the cap), passes, degenerate | 0 (100 → 100, the cap), degenerate |
+| (b) east end, ×4 block − baseline, reverse events per stop | +0.30 (0.70 → 1.00 at every seed), **passes** | 0 events | 0 events |
+| (b) east end, ×0.25 block − washout, backups per stop | **+1.7** [+1.5, +1.7] (24.8 → 26.4), **fails "down"** (predicted: an unsigned rule rises) | 0 (cap) | 0 (cap) |
+| (b) east end, ×0.25 block − washout, reverse events per stop | −0.20 (1.00 → 0.80 at every seed), meets the criterion, see below | 0 events | 0 events |
+| (b) west control end, ×4 block − baseline | −8.7 [−8.8, −8.7] backups (8.7 → 0): **not equivalent** | +80 (16 → 96, the cap) | 0 (cap) |
+| (b) forward rate unchanged | degenerate: no forward events anywhere | degenerate | degenerate |
+| (c) rate falling across laps in block 1 | slope **+0.18** [+0.17, +0.18] backups per lap, **fails** (predicted: falls) | −0.53 [−1.50, +0.29], fails | 0 (cap), fails |
+
+What the thresholded mode did, rule by rule:
+
+- **reverse_trajectory.** Its priority is the TD error of the next transition of its sweep, read first at the consume.
+  While the goal's value is off by more than θ the sweep runs the whole lap (the chain of errors behind a changed
+  reward stays above 0.0035 for about thirty pauses at |Δr| = 3 and twenty-four at 0.75); once the goal's value is
+  within θ the sweep never starts, whatever error lies deeper in the lap. So its rate is a step function of the goal's
+  surprise. That gives: within block 1, backups per stop grew lap by lap (4, 6, 7, 9, …, 14 as the value front moved
+  back along the track) and collapsed to 0 at lap 19 when V(goal) passed 1 − θ, a rise and a cliff rather than the
+  decline (c) asked for, and the decline the pilot showed at θ = 0.02 (0 from lap 13) moved past the end of the block
+  at θ = 0.0035; at the west end, whose reward never changes, 0 backups and 0 events in blocks 2 to 4 (the "control
+  end unchanged" test fails because the end went quiet, 8.7 → 0, not because it moved with the east end); at the
+  east end whole-lap sweeps through blocks 2, 3 and 4 (18.9, 24.8, 26.4 backups per stop, the laps shortening), so
+  the rate rose at the ×4 increase and rose again at the ×0.25 decrease, the unsigned-rule prediction, and the
+  "down at the reduced end" bound fails on the rule's own rate. The reverse-event count did fall there (1.00 → 0.80,
+  identical at all 30 seeds, so the interval collapses): the surprise of a 0.75 change decays below θ two pauses
+  before the block ends (|Δr| · 0.8ⁱ with three backups of the consume per lap), so laps 77 and 79 made no replay at
+  any seed, where the washout block's surprise of 3.0 lasted the whole block. The criterion is met on events by the
+  same unsigned mechanism, a shorter-lived surprise, not by a signed response to a loss; the backups-per-stop row is
+  the honest reading of (b).
+- **uniform** and **prioritised_td.** Their priorities are the mean and the largest |TD error| over a memory of 2,000
+  transitions. The largest exceeds 0.0035 at every pause from the first lap on and the mean from the first reward
+  change on, so both rules replay to the cap of 100 at (almost) every pause: the deviation case the prereg named (a
+  cap that binds), so their thresholded rows are exploratory and degenerate. Neither made a single sequence event in
+  either mode, under a reward change included (G27 C's open question, answered: no); their backups are scattered.
+- **Fixed mode** behaved as in step 1 across the reward schedule: the reverse rule made an event at every reward pause
+  and at 98.7% of pre-run pauses (1,199 and 1,184 of 1,200), all reverse relative to the replayed lap; the sampling
+  rules none. In fixed mode (`rq1_adaptation.csv`) the reward changes left no visible transient in any condition
+  (the policy is the same whatever the reward's size; only V's scale moves, which sharpens or softens the softmax):
+  mean steps on the first lap of each block were 351 / 271 / 334 / 270 for `none`, 351 / 201 / 135 / 110 for reverse
+  and 351 / 195 / 134 / 95 for prioritised, the learning continuing through the schedule.
+
+What this step establishes: the protocol, both budget modes and the plan's metrics run end to end with manifests and
+intervals; the three floors behave as the prereg predicted on (a) and (d); the reverse rule's thresholded rate tracks
+the magnitude of the reward surprise and not its sign (the discriminating prediction for step 3's signed rule); and
+the familiarity test is sensitive to θ in a way the prereg did not anticipate (a step function cannot show a decline
+inside a block unless θ is set so that the goal's value crosses 1 − θ inside it). Nothing here is the RQ1 test, which
+is step 3's.
 
 ## Reading
 

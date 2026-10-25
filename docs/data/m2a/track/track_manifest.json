@@ -1,5 +1,5 @@
 {
-  "command": "python3 -m experiments.linear_track_replay --workers 4",
+  "command": "python3 -m experiments.linear_track_replay --workers 2",
   "conditions": [
     "none",
     "uniform",
@@ -23,7 +23,7 @@
     "temperature": 0.1,
     "value_gain": 10.0
   },
-  "created_at": "2026-10-24T20:48:26+00:00",
+  "created_at": "2026-10-24T21:53:31+00:00",
   "dependencies": {
     "numpy": "2.4.6",
     "pandas": "3.0.6",
@@ -36,9 +36,9 @@
   "first_lap_identical_across_conditions": true,
   "full_evaluation": true,
   "git": {
-    "branch": "m2a-replay-linear-track",
+    "branch": "m2a-replay-metrics",
     "dirty": false,
-    "sha": "03aa56addf1c6279f7653a0e534c3f550972b8e9"
+    "sha": "7670368efa0fd86fcf845ee4ae619deff373b782"
   },
   "guard": {
     "none": {
@@ -159,8 +159,8 @@
   "ticks_requested": 320000,
   "ticks_run": 1526530,
   "timing": {
-    "ticks_per_second": 226926.17167442455,
-    "wall_seconds": 6.7269896140060155
+    "ticks_per_second": 117467.85156599763,
+    "wall_seconds": 12.995300242997473
   },
-  "workers": 4
+  "workers": 2
 }

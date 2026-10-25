@@ -23,7 +23,9 @@ docs/m2a_linear_track.md):
 
 What they share: :func:`replay` runs exactly ``n_backups`` backups at a trigger
 whatever the rule (the plan's fixed budget, so the rules differ in content and
-not in the number of learning updates), each backup is one stored transition
+not in the number of learning updates), while :func:`replay_thresholded` (the
+plan's thresholded budget, M2a step 2) runs while the rule's ``priority``
+exceeds a threshold up to a cap, so rules may differ in rate too; each backup is one stored transition
 backed up as it was stored (its own ``terminal`` flag, its own successor), so
 no backup ever links two episodes, and every draw comes from the one
 ``RNGStream`` handed in (the experiment's ``replay`` stream), never from the
@@ -142,7 +144,9 @@ class ReplayRule(Protocol):
     just ended; ``choose`` once per backup, with the learner as it stands
     after the previous backups, the stream to draw from and the backup's index
     ``k``; ``span`` is the size of the content the rule walks (for the event
-    record).
+    record); ``priority`` is what the plan's thresholded mode compares with
+    its threshold before the ``k``-th backup (:func:`replay_thresholded`): the
+    rule keeps replaying while it exceeds the threshold.
     """
 
     name: str
@@ -152,6 +156,8 @@ class ReplayRule(Protocol):
     def choose(self, memory: TransitionMemory, learner: Learner, stream: RNGStream, k: int) -> StoredTransition: ...
 
     def span(self, memory: TransitionMemory) -> int: ...
+
+    def priority(self, memory: TransitionMemory, learner: Learner, k: int) -> float: ...
 
 
 def _draw_index(stream: RNGStream, n: int) -> int:
@@ -175,6 +181,13 @@ class UniformReplay:
     def span(self, memory: TransitionMemory) -> int:
         return len(memory)
 
+    def priority(self, memory: TransitionMemory, learner: Learner, k: int) -> float:
+        """The mean |TD error| over the memory: what a uniform draw is worth on average."""
+        items = memory.all()
+        if not items:
+            return 0.0
+        return math.fsum(abs(t.td_error(learner)) for t in items) / len(items)
+
 
 class ReverseTrajectoryReplay:
     """The episode that just ended, newest transition first, cycling if the budget outlasts it. No draw."""
@@ -194,6 +207,13 @@ class ReverseTrajectoryReplay:
 
     def span(self, memory: TransitionMemory) -> int:
         return len(self._sequence)
+
+    def priority(self, memory: TransitionMemory, learner: Learner, k: int) -> float:
+        """The |TD error| of the next transition of the sweep; 0 once the sweep has covered the episode once
+        (so a thresholded replay is at most one pass, no cycling)."""
+        if k >= len(self._sequence):
+            return 0.0
+        return abs(self._sequence[k].td_error(learner))
 
 
 class PrioritisedTDReplay:
@@ -232,6 +252,13 @@ class PrioritisedTDReplay:
 
     def span(self, memory: TransitionMemory) -> int:
         return len(memory)
+
+    def priority(self, memory: TransitionMemory, learner: Learner, k: int) -> float:
+        """The largest |TD error| in memory: what the next draw is most likely to find."""
+        items = memory.all()
+        if not items:
+            return 0.0
+        return max(abs(t.td_error(learner)) for t in items)
 
 
 RULES = {
@@ -326,6 +353,58 @@ def replay(
         transition = rule.choose(memory, learner, stream, k)
         deltas.append(transition.backup(learner))
         chosen.append(transition)
+    return _outcome(rule, memory, chosen, deltas, tick, travel_sign, trigger)
+
+
+def replay_thresholded(
+    rule: ReplayRule,
+    memory: TransitionMemory,
+    learner: Learner,
+    threshold: float,
+    cap: int,
+    episode: int,
+    stream: RNGStream,
+    *,
+    tick: int,
+    travel_sign: int = 1,
+    trigger: str = TRIGGER_REWARD,
+) -> Optional[ReplayOutcome]:
+    """The plan's thresholded budget: back up while ``rule.priority`` exceeds ``threshold``, at most ``cap`` times.
+
+    The priority is read before every backup under the learner as it then
+    stands, so a rule stops as soon as what it would replay next carries no
+    more than ``threshold`` of TD error. Returns ``None`` when the first
+    priority is already at or below the threshold (no backup, no event);
+    otherwise the same :class:`ReplayOutcome` as :func:`replay`, with between
+    1 and ``cap`` backups.
+    """
+    if cap < 1:
+        raise ValueError(f"a thresholded replay needs cap >= 1, got {cap}")
+    if not math.isfinite(threshold) or threshold < 0.0:
+        raise ValueError(f"threshold must be a finite non-negative number, got {threshold}")
+    rule.begin(memory, episode)
+    chosen: List[StoredTransition] = []
+    deltas: List[float] = []
+    for k in range(cap):
+        if not rule.priority(memory, learner, k) > threshold:
+            break
+        transition = rule.choose(memory, learner, stream, k)
+        deltas.append(transition.backup(learner))
+        chosen.append(transition)
+    if not chosen:
+        return None
+    return _outcome(rule, memory, chosen, deltas, tick, travel_sign, trigger)
+
+
+def _outcome(
+    rule: ReplayRule,
+    memory: TransitionMemory,
+    chosen: Sequence[StoredTransition],
+    deltas: Sequence[float],
+    tick: int,
+    travel_sign: int,
+    trigger: str,
+) -> ReplayOutcome:
     direction, r = sequence_direction([t.x for t in chosen], travel_sign)
     cells = tuple(t.cell for t in chosen)
     event = ReplayEvent(
@@ -355,5 +434,6 @@ __all__ = [
     "UniformReplay",
     "make_rule",
     "replay",
+    "replay_thresholded",
     "sequence_direction",
 ]

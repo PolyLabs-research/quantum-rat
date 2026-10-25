@@ -17,6 +17,12 @@ final_value_rmse,none,prioritised_td,30,0.436724,0.372465,-0.0642591,-0.0649851,
 final_value_rmse,uniform,reverse_trajectory,30,0.434216,0.396523,-0.0376926,-0.0378896,-0.0374493,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
 final_value_rmse,uniform,prioritised_td,30,0.434216,0.372465,-0.061751,-0.0625024,-0.0610738,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
 final_value_rmse,reverse_trajectory,prioritised_td,30,0.396523,0.372465,-0.0240584,-0.0247986,-0.0234523,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse_visited,none,uniform,30,0.289265,0.286554,-0.00271048,-0.00389392,-0.0014147,0.933333,0.0666667,0,-0.155556,-0.426667,0.146667,small,bca,
+final_value_rmse_visited,none,reverse_trajectory,30,0.289265,0.248778,-0.0404868,-0.0445196,-0.0367391,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse_visited,none,prioritised_td,30,0.289265,0.226428,-0.0628368,-0.0664808,-0.0592393,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse_visited,uniform,reverse_trajectory,30,0.286554,0.248778,-0.0377763,-0.041585,-0.0343289,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse_visited,uniform,prioritised_td,30,0.286554,0.226428,-0.0601263,-0.0635112,-0.0565301,1,0,0,-1,-1,-1,large,bca,all bootstrap replicates equal; interval collapsed to the estimate
+final_value_rmse_visited,reverse_trajectory,prioritised_td,30,0.248778,0.226428,-0.02235,-0.0245065,-0.0201094,1,0,0,-0.933333,-0.984444,-0.780873,large,bca,
 laps_capped,none,uniform,30,0.0333333,0.0333333,0,0,0,0,0,1,0,-0.1,0.1,negligible,none,"degenerate: all values equal, nothing resampled"
 laps_capped,none,reverse_trajectory,30,0.0333333,0,-0.0333333,-0.166667,0,0.0333333,0,0.966667,-0.0333333,-0.166667,0,negligible,bca,
 laps_capped,none,prioritised_td,30,0.0333333,0,-0.0333333,-0.166667,0,0.0333333,0,0.966667,-0.0333333,-0.166667,0,negligible,bca,
