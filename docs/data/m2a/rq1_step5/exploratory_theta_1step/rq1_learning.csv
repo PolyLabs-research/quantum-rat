@@ -1,0 +1,5 @@
+mode,session,condition,n,mean_total_steps,low,high,laps_capped_total,vs,mean_diff,diff_low,diff_high,fraction_faster,cliffs_delta,cliffs_low,cliffs_high,cliffs_magnitude,note
+thresholded,increase,none,30,15566.6,14968.3,16146.1,1,,nan,nan,nan,nan,nan,nan,nan,,
+thresholded,increase,mattar_daw,30,5131.53,4839.52,5593.55,0,none,-10435.1,-11100.5,-9688.93,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,none,30,15566.6,14937.9,16165.3,1,,nan,nan,nan,nan,nan,nan,nan,,
+thresholded,decrease,mattar_daw,30,5095.13,4797.53,5571.89,0,none,-10471.5,-11131,-9737.83,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
