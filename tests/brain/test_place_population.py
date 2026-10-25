@@ -23,10 +23,17 @@ def test_the_population_is_a_grid_of_gaussians_and_the_decoder_inverts_it() -> N
     j = pop.centres().index((0.5, -0.5))
     assert r[j] == pytest.approx(2.0) and r.dtype == np.float64 and float(np.max(r)) == pytest.approx(2.0)
     assert r[pop.centres().index((1.5, -0.5))] == pytest.approx(2.0 * math.exp(-0.5))
-    for x, y in [(0.0, 0.0), (9.99, -9.99), (-10.0, 4.2), (3.3, 7.7), (12.0, -11.0), (-15.0, 0.25)]:
+    # Exact inside the arena and far outside it, beyond an edge as well as a corner: the first version took the nine
+    # most active cells, which beyond an edge are one collinear column, and returned NaN at (21, 0.3) and (25, -3).
+    for x, y in [(0.0, 0.0), (9.99, -9.99), (-10.0, 4.2), (3.3, 7.7), (12.0, -11.0), (-15.0, 0.25), (21.0, 0.3), (25.0, -3.0),
+                 (30.0, 30.0), (0.0, -35.0)]:
         dx, dy = pop.decode(pop.rates(x, y))
-        assert math.hypot(dx - x, dy - y) < 1e-9, (x, y)  # exact, inside the arena and outside it
-    assert DECODE_CELLS == 9
+        assert math.hypot(dx - x, dy - y) < 1e-9, (x, y)
+    rng = np.random.default_rng(0)  # a local generator, not a behavioural stream
+    for x, y in rng.uniform(-30.0, 30.0, size=(2000, 2)):
+        dx, dy = pop.decode(pop.rates(float(x), float(y)))
+        assert math.hypot(dx - x, dy - y) < 1e-6
+    assert DECODE_CELLS == 9 and list(pop.neighbourhood(0)) == [0, 1, 20, 21] and len(pop.neighbourhood(21)) == 9
     silent = np.zeros(pop.size)
     assert all(math.isnan(v) for v in pop.decode(silent))
     two = np.zeros(pop.size)

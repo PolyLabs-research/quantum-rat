@@ -80,6 +80,9 @@ def run_seed(seed: int, ticks: int = TICKS) -> Dict[str, Any]:
     acc = {name: RateMapAccumulator(pop.size, bounds) for name in POPULATIONS}
     decode_err = {name: [] for name in ESTIMATES}
     decode_vs_est = {name: 0.0 for name in ESTIMATES}
+    # Ticks at which the decoder returned no position: counted, never skipped (the first evaluation run's max() skipped
+    # NaN and so read a failing decoder as exact; docs/prereg/m2b_place_population.md, post-run correction).
+    undefined = {name: 0 for name in ESTIMATES}
     contacts: List[int] = []
     digests = {name: hashlib.sha256() for name in ESTIMATES}
     prev_wall = False
@@ -90,8 +93,11 @@ def run_seed(seed: int, ticks: int = TICKS) -> Dict[str, Any]:
             digests[name].update(f"{x:.12f},{y:.12f},{eng.agent.heading:.12f};".encode())
             st = eng.spatial.state
             dx, dy = pop.decode(eng.place_rates)
-            decode_vs_est[name] = max(decode_vs_est[name], math.hypot(dx - st.grid_x, dy - st.grid_y))
-            decode_err[name].append(math.hypot(dx - x, dy - y))
+            if math.isnan(dx) or math.isnan(dy):
+                undefined[name] += 1
+            else:
+                decode_vs_est[name] = max(decode_vs_est[name], math.hypot(dx - st.grid_x, dy - st.grid_y))
+            decode_err[name].append(math.hypot(dx - x, dy - y))  # NaN when undefined
             acc[name].add(x, y, eng.place_rates)
         x, y = first.agent.pos
         acc["reference"].add(x, y, pop.rates(x, y))
@@ -106,7 +112,8 @@ def run_seed(seed: int, ticks: int = TICKS) -> Dict[str, Any]:
     cells = {}
     for name in POPULATIONS:
         cells[name] = compare_maps(acc[name].maps(), ref_maps, counts, pop.cx, pop.cy, bins_x, bins_y)
-    return {"seed": seed, "ticks": ticks, "decode_err": decode_err, "decode_vs_est": decode_vs_est, "contacts": contacts,
+    return {"seed": seed, "ticks": ticks, "decode_err": decode_err, "decode_vs_est": decode_vs_est, "undefined": undefined,
+            "contacts": contacts,
             "walks": walks, "cells": cells, "wall_distance": wall_distance(pop.cx, pop.cy, bounds),
             "bins_visited": int(np.sum(counts >= 5))}
 
@@ -120,7 +127,7 @@ def run_all(seeds: Sequence[int], ticks: int, workers: Optional[int]) -> List[Di
 
 PER_SEED_COLUMNS = ("population", "seed", "ticks", "cells_compared", "correlation_mean", "correlation_wall", "correlation_interior",
                     "centroid_shift_mean", "centroid_shift_wall", "centroid_shift_interior", "info_ratio_mean",
-                    "decode_vs_estimate_max", "decode_error_median_late", "decode_drop_at_contact", "contact_onsets",
+                    "decode_vs_estimate_max", "decode_undefined_ticks", "decode_error_median_late", "decode_drop_at_contact", "contact_onsets",
                     "bins_visited", "walk_digest")
 
 
@@ -142,13 +149,17 @@ def per_seed_rows(res: Mapping[str, Any], late_from: int) -> List[Dict[str, Any]
                "centroid_shift_mean": _nanmean(shift), "centroid_shift_wall": _nanmean(shift[wall]),
                "centroid_shift_interior": _nanmean(shift[~wall]), "info_ratio_mean": _nanmean(ratio),
                "contact_onsets": len(res["contacts"]), "bins_visited": res["bins_visited"],
-               "decode_vs_estimate_max": math.nan, "decode_error_median_late": math.nan, "decode_drop_at_contact": math.nan,
+               "decode_vs_estimate_max": math.nan, "decode_undefined_ticks": "", "decode_error_median_late": math.nan,
+               "decode_drop_at_contact": math.nan,
                "walk_digest": res["walks"].get(name, res["walks"]["m2b"])}
         if name in ESTIMATES:
             err = res["decode_err"][name]
             row["decode_vs_estimate_max"] = res["decode_vs_est"][name]
-            row["decode_error_median_late"] = float(np.median(err[late_from - 1:]))
-            drops = [err[t] - err[t - 1] for t in res["contacts"]]
+            row["decode_undefined_ticks"] = res["undefined"][name]
+            late = np.array(err[late_from - 1:], dtype=np.float64)
+            # The median over the ticks the decoder defined; with an undefined tick the column says how many.
+            row["decode_error_median_late"] = float(np.median(late[~np.isnan(late)])) if np.any(~np.isnan(late)) else math.nan
+            drops = [err[t] - err[t - 1] for t in res["contacts"] if not (math.isnan(err[t]) or math.isnan(err[t - 1]))]
             row["decode_drop_at_contact"] = float(np.mean(drops)) if drops else math.nan
         out.append(row)
     return out
@@ -197,8 +208,12 @@ def effect_rows(rows: Sequence[Mapping[str, Any]], throughput: Mapping[str, Any]
                 "estimate": on, "low": min(throughput["on"]), "high": max(throughput["on"]), "bound": f">= {THROUGHPUT_BOUND:g}",
                 "verdict": "passes" if on >= THROUGHPUT_BOUND else "fails", "note": f"off: {throughput['ticks_per_s_off']:.0f}"})
     worst = max(float(r["decode_vs_estimate_max"]) for r in rows if r["population"] in ESTIMATES)
+    undefined = {name: sum(int(by[name][s]["decode_undefined_ticks"]) for s in by[name]) for name in ESTIMATES}
+    ok = worst < DECODE_TOLERANCE and not any(undefined.values())
     out.append({**base, "test": "t2_decoder", "statistic": "decode_vs_estimate_max", "b": "integrated, m2b", "n": len(by["m2b"]),
-                "estimate": worst, "bound": f"< {DECODE_TOLERANCE:g} units", "verdict": "passes" if worst < DECODE_TOLERANCE else "fails"})
+                "estimate": worst, "bound": f"< {DECODE_TOLERANCE:g} units at every tick (an undefined decode fails)",
+                "verdict": "passes" if ok else "fails",
+                "note": "undefined decodes: " + ", ".join(f"{k} {v}" for k, v in undefined.items())})
     m = by["m2b"]
     out.append(ci_row("t3_decoding_drop_at_contact", "decode_drop_at_contact", "m2b", [m[s]["decode_drop_at_contact"] for s in sorted(m)],
                       "< 0, interval below", lambda ci: "passes" if ci.high < 0.0 else "fails"))

@@ -45,7 +45,9 @@ def test_quick_run_writes_its_tables(quick) -> None:
     ref = [r for r in rows if r["population"] == "reference"]
     assert all(float(r["correlation_mean"]) == pytest.approx(1.0) and float(r["centroid_shift_mean"]) == pytest.approx(0.0, abs=1e-12) for r in ref)
     assert all(r["decode_vs_estimate_max"] == "nan" for r in ref)
-    assert all(float(r["decode_vs_estimate_max"]) < 1e-6 for r in rows if r["population"] != "reference")
+    assert all(float(r["decode_vs_estimate_max"]) < 1e-6 and r["decode_undefined_ticks"] == "0" for r in rows if r["population"] != "reference")
+    t2 = [e for e in _read(out / "place_effects.csv") if e["test"] == "t2_decoder"][0]
+    assert t2["note"] == "undefined decodes: integrated 0, m2b 0"
     effects = _read(out / "place_effects.csv")
     assert list(effects[0]) == list(pp.EFFECT_COLUMNS)
     assert [e["test"] for e in effects[:4]] == ["t1_throughput", "t2_decoder", "t3_decoding_drop_at_contact", "t4_map_fidelity"]

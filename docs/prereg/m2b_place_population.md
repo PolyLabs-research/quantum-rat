@@ -69,3 +69,20 @@ population off.
 ## What would change this document
 
 Nothing after the run. A deviation is recorded in G34.
+
+## Post-run correction (2026-10-25, after the first evaluation run, before any result was reported)
+
+The first evaluation run (at commit `a37aef9`) reported every test passing, but one reported statistic contradicted
+step 1: the research estimate's late median decoding error read 4.2 units where step 1 measured that estimate at 10.2
+on the same walks (the walks and the M2b numbers matched step 1 exactly). The cause was the decoder, not the code: it
+solved over the nine most active cells, and when the research estimate drifted more than about ten units beyond an
+arena edge those nine are one column of the grid, collinear, so the solve was singular and returned NaN (117 and 295
+ticks at seeds 1 and 2). The population was not silent; any three non-collinear cells invert it. Two defects followed:
+the experiment's `max()` skipped NaN, so test 2 read a failing decoder as exact, and the per-seed medians and means
+dropped the seeds with undefined decodes, so the reported level was a selection of the least-drifting seeds.
+
+**Corrections, made before any result was reported, with the tests and bounds unchanged.** The decoder solves over the
+most active cell's 3 × 3 grid neighbourhood, clipped at the grid's edge, which is never collinear (exact to 10⁻¹⁴ at
+20,000 random positions over [−30, 30]², a region nine times the arena's area; the unit test now includes the failing
+positions). The experiment counts undefined decodes per run, and test 2 fails on any. The first run's tables are not
+committed; this section and G34 record them. The evaluation is re-run on a clean tree.
