@@ -231,3 +231,34 @@ Failed, twice:
 **Limitations of step 3.** The track's running is imposed, so the agent's own kinematics on a track remain untested,
 as the plan's caveat feared. The SR is learned outside the engine from the engine's own trajectories. One learning
 rate and one discount are used. Nothing yet tests whether the SR supports behaviour; that is step 4's gate.
+
+## Before step 4: the gate is bounded by the motor policy (a probe; the owner decides the protocol)
+
+RQ4(a) asks that from four start poses in the 2 m field, with the embodied estimate, the agent reach a *learned* goal
+within 60 s on at least 80% of trials after 20 trials. Before writing its protocol, a probe asked how often the
+research agent reaches the goal when it can *see* it, the best a learned value could do with this motor policy. The
+setup was the M2b estimate, starts at the four wall midpoints facing the centre, 300 ticks, and 5 seeds × 4 starts:
+
+| visible goal | reached within 60 s | median latency |
+|---|---|---|
+| centre (0, 0), radius 0.1 m | 20 of 20 | 8 ticks |
+| (0.5 m, 0.5 m), radius 0.1 m | 13 of 20 | 110 ticks |
+| (0.5 m, 0.5 m), radius 0.15 m | 15 of 20 | 151 ticks |
+
+A goal straight ahead of every start is trivial. A goal off the start's line is missed on a third of trials even in
+plain view: the agent sees through a 1.2 rad fan to 1.2 m, and it spends 41% of its time sliding along walls. A hidden
+goal can do no better than a visible one with the same body, so on this agent the 80% bound measures the motor policy
+first and the place code second.
+
+Three ways to run the gate, for the owner (G35 C3 assumed the plan's gate as written):
+
+1. **As written.** Add the SR's value read-out (V = M·R) as a steering source, run a water-maze-style protocol with the
+   goal made visible after a 60 s miss as guidance, and report the result. It is likely to fail, for the reason above.
+2. **Relative to the visible-goal ceiling** (recommended). Report both absolute rates, and gate on the hidden-goal
+   success rate as a share of the same agent's visible-goal rate from the same starts. This isolates what M2b built
+   (the estimate, the code and its value). It changes the plan's gate, which is the owner's decision.
+3. **Improve the motor policy first, then gate as written.** This changes the research profile's behaviour, which
+   moves the baselines and every engine-based M2b table, and it risks tuning the agent to the gate.
+
+The SR value source needed by every option is the next piece of code. It is not built yet, so no engine behaviour
+has changed.
