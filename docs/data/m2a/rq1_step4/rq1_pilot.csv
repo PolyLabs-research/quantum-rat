@@ -1,0 +1,7 @@
+version,condition,statistic,n_pauses,theta,min,max,laps,seeds
+step4,uniform,priority / value_scale,30,0.130951,0.0681702,0.176601,11-20,"1,2,3"
+step4,reverse_trajectory,priority / value_scale,30,2.25778,1.42878,4.06069,11-20,"1,2,3"
+step4,prioritised_td,priority / value_scale,30,1.59017,0.706087,4.72653,11-20,"1,2,3"
+step4,gain_need,priority / value_scale,30,6.13424e-06,2.27939e-06,1.44517e-05,11-20,"1,2,3"
+step4,gain_only,priority / value_scale,30,0.0102264,0.00587922,0.0204289,11-20,"1,2,3"
+step4,need_only,priority,30,2.71085,1.96813,4.02824,11-20,"1,2,3"

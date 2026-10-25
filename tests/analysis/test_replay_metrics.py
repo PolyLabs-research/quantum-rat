@@ -165,3 +165,25 @@ def test_the_command_line_reads_the_committed_events_and_writes_its_tables_byte_
     uni = [seeds[("uniform", s)]["events_per_stop"] for s in range(1, 31)]
     assert min(rev) > max(uni)
     assert all(seeds[("reverse_trajectory", s)]["reverse_share"] > 0.9 for s in range(1, 31))
+
+
+def test_the_lap_of_origin_share_is_a_stop_and_seed_metric() -> None:
+    """G29 C5: a "reverse" label at the reward window is met by a sweep of the lap just run and by a sweep of the lap
+    ahead alike; the share of a reward pause's backups from the lap just run tells them apart."""
+    import math
+
+    from analysis.replay_metrics import SEED_METRICS, STOP_COLUMNS, from_this_lap_share, per_seed_rows, per_stop_rows
+
+    base = {"condition": "x", "seed": 1, "rule": "x", "goal": "east", "n_backups": 4, "cells": [[5, 0], [4, 0], [3, 0], [2, 0]], "agent_cell": 39}
+    reward = {**base, "lap": 3, "trigger": "reward", "episodes": [3, 3, 2, 3]}
+    assert from_this_lap_share(reward) == pytest.approx(0.75)
+    assert math.isnan(from_this_lap_share({**reward, "trigger": "pre_run"}))
+    without = {**reward}
+    del without["episodes"]
+    assert math.isnan(from_this_lap_share(without))
+    stops = per_stop_rows([reward, {**reward, "lap": 4, "episodes": [4, 4, 4, 4]}, {**reward, "trigger": "pre_run"}], n_bins=40)
+    assert STOP_COLUMNS[-1] == "from_this_lap" and [s["from_this_lap"] for s in stops][:2] == [pytest.approx(0.75), 1.0]
+    assert math.isnan(stops[2]["from_this_lap"])
+    seeds = per_seed_rows(stops)
+    assert "from_this_lap_share" in SEED_METRICS and seeds[0]["from_this_lap_share"] == pytest.approx((0.75 * 4 + 1.0 * 4) / 8)
+    assert math.isnan(per_seed_rows([stops[2]])[0]["from_this_lap_share"])

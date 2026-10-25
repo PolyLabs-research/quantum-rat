@@ -378,3 +378,48 @@ def test_the_thresholded_budget_varies_per_pause_within_the_cap() -> None:
     high = lt.run_seed(RULE_REVERSE_TRAJECTORY, 11, lt.TrackConfig(n_bins=10, laps=3, lap_cap=400, memory_capacity=300,
                                                                  budget_mode="thresholded", threshold=0.5, backup_cap=15))
     assert low.laps[0].steps == high.laps[0].steps and low.laps[0].replay_backups >= high.laps[0].replay_backups
+
+
+def test_the_thresholded_theta_can_be_scaled_by_the_value_scale() -> None:
+    """M2a step 4 (docs/prereg/rq1_track_step4.md change 2): under ``threshold_scale="mean_abs_value"`` a rule whose
+    priority is in value units is compared with theta x the mean |V| over the occupied states, read before the
+    pause's first backup; a scale-free rule (need_only) is compared with theta itself; the scale is recorded."""
+    import math
+
+    from experiments.linear_track_replay import THRESHOLD_SCALES, LinearTrack, TrackAgent, TrackConfig, run_seed
+
+    assert THRESHOLD_SCALES == ("none", "mean_abs_value") and TrackConfig().threshold_scale == "none"
+    with pytest.raises(ValueError):
+        TrackConfig(threshold_scale="median")
+    with pytest.raises(ValueError):
+        TrackConfig(threshold_scale_floor=0.0)
+    cfg = TrackConfig(laps=6, budget_mode="thresholded", threshold=1.0, threshold_scale="mean_abs_value")
+    agent = TrackAgent(cfg, LinearTrack(cfg))
+    assert agent.value_scale() == 0.0  # nothing occupied yet
+    # The scale is read before every pause and recorded on the lap: positive once any occupied state has value.
+    run = run_seed("prioritised_td", 1, cfg)
+    scales = [lap.reward_value_scale for lap in run.laps if lap.rewarded]
+    assert all(s > 0.0 for s in scales) and all(not math.isnan(lap.reward_priority_before) for lap in run.laps if lap.rewarded)
+    # theta 1.0 x a scale of order 0.01 is far below the first |TD error|s: the rule replays; theta 1e9 x scale stops it.
+    assert sum(lap.replay_backups for lap in run.laps) > 0
+    stopped = run_seed("prioritised_td", 1, TrackConfig(laps=6, budget_mode="thresholded", threshold=1e9, threshold_scale="mean_abs_value"))
+    assert sum(lap.replay_backups for lap in stopped.laps) == 0
+    # The same theta unscaled (steps 2-3) is a different budget: 1.0 in value units is above every late |TD error|.
+    raw = run_seed("prioritised_td", 1, TrackConfig(laps=6, budget_mode="thresholded", threshold=1.0, threshold_scale="none"))
+    assert [lap.replay_backups for lap in raw.laps] != [lap.replay_backups for lap in run.laps]
+    # A scale-free priority is untouched by the setting: need_only runs identically either way.
+    a = run_seed("need_only", 1, TrackConfig(laps=6, budget_mode="thresholded", threshold=2.7, threshold_scale="none"))
+    b = run_seed("need_only", 1, TrackConfig(laps=6, budget_mode="thresholded", threshold=2.7, threshold_scale="mean_abs_value"))
+    assert [(lap.steps, lap.replay_backups) for lap in a.laps] == [(lap.steps, lap.replay_backups) for lap in b.laps]
+    # Fixed mode ignores the scale but still records it.
+    fixed = run_seed("uniform", 1, TrackConfig(laps=4, threshold_scale="mean_abs_value"))
+    assert all(lap.replay_backups == 20 for lap in fixed.laps if lap.rewarded) and all(lap.reward_value_scale > 0 for lap in fixed.laps if lap.rewarded)
+    # The scale after a run is the mean |V| over the distinct occupied states.
+    cfg2 = TrackConfig(laps=2)
+    track = LinearTrack(cfg2)
+    agent = TrackAgent(cfg2, track)
+    run_seed("none", 1, cfg2)  # a run of its own; here the agent is driven by hand instead
+    s0 = track.start_state(1)
+    agent.visit(s0)
+    agent.learner.update(*track.position(s0), 1.0, *track.position(s0), True)
+    assert agent.value_scale() == pytest.approx(abs(agent.value(s0)))
