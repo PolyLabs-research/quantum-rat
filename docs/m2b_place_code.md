@@ -158,3 +158,76 @@ estimate's information ratio below 0.6 (it is 0.84, for the reason above).
 **Limitations of step 2.** Rates are noiseless, so decoding is a consistency check rather than a measurement. Ten
 minutes samples only part of the field interior. The grid of centres is regular, not RatInABox's random placement.
 Nothing reads the population yet; step 3's SR is its first reader.
+
+## Step 3: successor features over the place code
+
+Preregistered in `docs/prereg/m2b_sr_fields.md` before the run, with a sanity check of the learner and a smoke
+disclosed there; decisions entry G35. Runner: `experiments/sr_fields.py`, 38 s on 4 cores; tables in `docs/data/m2b/sr/`.
+
+**What it adds.** `brain/systems/successor_features.py`: successor features ψ(s) = M φ(s) over step 2's population,
+with rates normalised to sum 1, and M learned from the identity by TD(0) from the agent's own transitions (α 0.1,
+γ 0.95). No bootstrap is made across an episode boundary. The learner uses element-wise numpy only, so its tables
+reproduce exactly across platforms. A feature's SR field is ψ_j as a function of position: how much of that cell's
+firing the agent expects ahead of it from there. Nothing reads the SR yet.
+
+**Protocol.** Both parts use step 1's M2b estimate and step 2's population, over 30 seeds.
+
+- **The track.** A 2 m × 0.1 m corridor with 20 cells and 50 laps. The agent's own turning circle (0.1 m in radius)
+  does not fit the corridor's 0.05 m half-width, which is the kinematic problem the plan's caveat names. So a
+  protocol imposes the running: the body is driven along the track at a seeded random speed of 0.5 to 1.0 units per
+  tick. In `one_way` laps the body runs east and is carried back to the start, an episode boundary with the estimate
+  re-anchored there. In `two_way` laps it turns round in place at each wall and runs back.
+- **The open field.** The 2 m box and the agent's own walk for 12,000 ticks (40 minutes). Each field is measured above
+  half its maximum and compared with the raw place field, whose region the wall already truncates.
+
+**The preregistered tests** (`sr_effects.csv`):
+
+| test | result | bound | verdict |
+|---|---|---|---|
+| backward skew, one-way, mean centre-of-mass shift of 14 interior cells | −2.13 [−2.134, −2.130] units (0.21 m) | < 0, interval below | **passes** |
+| direction-specific, one-way minus two-way, paired | −2.17 units, δ −1.00, every seed | δ ≤ −0.3, interval below 0 | **passes** |
+| elongation along walls, open field, 72 wall cells | +0.54 [+0.54, +0.55] in log(along/across), beyond the raw field's | > 0, interval above | **passes** |
+
+**The track.** One-way SR fields extend backward against the running, as Stachenfeld et al. predict from Mehta et
+al.'s data:
+
+- **The shift grows along the track.** It is near zero at the start, where there is no past to predict from, and
+  plateaus at −2.4 units from mid-track on.
+- **The fields are skewed and their peaks move.** Skewness is −0.57, a tail to the west. The peak moves back 0.77
+  units, where I predicted it would stay at the cell's centre.
+- **Two-way fields stay centred**, at +0.04 units in the interior. Only the end cells move, and inward, pushed by the
+  walls.
+
+With features of position alone, a policy that runs both ways predicts its own past in both directions, and the
+backward tail cancels. The plan's bound is therefore a property of directional running. On a real track it would
+need either one-way laps or direction-specific cells.
+
+The intervals are narrow because the protocol fixes the path and the seeds vary only the speeds and the sensor
+noise. They measure the learner's consistency, not variation between animals.
+
+**The open field.** Near a wall, the SR stretches a cell's field along the wall:
+
+- **The along/across variance ratio rises.** It goes from the raw field's log-ratio of 0.80, which is the wall's
+  truncation alone, to 1.34.
+- **Most wall cells elongate.** 64 of 72 do, and every seed's mean lies between 0.50 and 0.57.
+- **Interior fields stay isotropic but grow.** Their log(var_x / var_y) is −0.003. Their area grows by 24%, and wall
+  fields' by 59%.
+
+The agent slides along walls on 41% of its ticks, so its transitions near a wall run along it, and the SR follows its
+transitions.
+
+**Predictions against outcomes.** Held: all three tests; the shift's size (predicted −1.5 to −2.5 units); negative
+skewness; two-way shift within ±0.3 units; isotropic interior fields with an area above the raw fields'; the open-field
+estimate at step 1's level (0.67 units).
+
+Failed, twice:
+
+- **"The peak stays at the cell's centre."** It moves back 0.77 units.
+- **"The track estimate's error stays under 0.5 units."** One-way laps hold 0.17, but two-way laps read 0.83. Without
+  the re-anchoring, the across-track coordinate drifts with the oracle's heading error, because the body never touches
+  the corridor's side walls. That drift does not reach the features: the cells form one row, so a sideways offset
+  scales every rate alike and normalisation removes it.
+
+**Limitations of step 3.** The track's running is imposed, so the agent's own kinematics on a track remain untested,
+as the plan's caveat feared. The SR is learned outside the engine from the engine's own trajectories. One learning
+rate and one discount are used. Nothing yet tests whether the SR supports behaviour; that is step 4's gate.

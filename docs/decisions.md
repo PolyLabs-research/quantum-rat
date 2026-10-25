@@ -1382,3 +1382,33 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 - `python3 -m experiments.place_population --workers 4` writes `docs/data/m2b/place/` (manifest clean at `cab16db`, 7 s).
 
 **Impact:** this entry; docs/prereg/m2b_place_population.md (new, with the post-run correction); docs/m2b_place_code.md (step 2); docs/research_plan.md (row 2b status); README, run_instructions.md; `core/config.py`, `core/engine.py`; `brain/systems/place_population.py`, `analysis/place_metrics.py`, `experiments/place_population.py` (new); tests in `tests/brain/`, `tests/experiments/`; `docs/data/m2b/place/` (new). No profile default, behaviour or baseline changes.
+
+## G35 — M2b step 3: successor features over the place code
+
+**Date:** 2026-10-25  
+**Why:** The plan's row 2b asks for an SR learned by TD from the agent's own trajectories over the place code, with two signatures: "after 50 laps on the track, SR fields skew backward against the running direction (Stachenfeld 2017)" and "near walls, fields elongate along the wall", and warns that the skew may fail for kinematic reasons on a short track. This step builds the learner and measures both, preregistered first (`docs/prereg/m2b_sr_fields.md`). On the branch `m2b-sr`, stacked on step 2's `m2b-place`.
+
+### A. What landed
+1. **`brain/systems/successor_features.py`**: ψ(s) = M φ(s) over the normalised population rates, M from the identity by TD(0), no bootstrap across an episode boundary; element-wise numpy only (no BLAS product), so its tables reproduce across platforms. A test pins its convergence to the closed-form SR of a three-state loop.
+2. **`experiments/sr_fields.py`**: a 2 m × 0.1 m track with 50 laps imposed by a protocol (`one_way` with a carry back and an episode boundary, `two_way` with a turn in place), and the agent's own 12,000-tick walk in the 2 m box. Tests: 592 (+5; the code commit's message says 594 and +7, a miscount). Code commit `ab5c594`, data `42df820` (manifest clean at `ab5c594`, 38 s on 4 cores).
+
+### B. Measured (docs/m2b_place_code.md, step 3; `docs/data/m2b/sr/`; 30 seeds)
+- **All three preregistered tests pass.** One-way centre-of-mass shift −2.13 [−2.134, −2.130] units (0.21 m backward); one-way minus two-way −2.17, δ −1.00; wall elongation +0.54 [+0.54, +0.55] in log(along/across) beyond the raw field's 0.80.
+- **Track**: the shift grows from about 0 at the start to −2.4 units from mid-track; skewness −0.57; the peak moves back 0.77 units (predicted not to move: failed); two-way fields centred (+0.04 in the interior; the end cells pushed inward). The seeds vary only speed and sensor noise, so the intervals are narrow by construction.
+- **Open field**: 64 of 72 wall cells elongate; interior fields isotropic (log ratio −0.003) and 24% larger than the raw fields; wall fields 59% larger.
+- **Estimate**: one-way 0.17 units, open field 0.67; two-way 0.83, against a prediction of under 0.5 (failed): without re-anchoring, the across-track coordinate drifts with the oracle's heading error since the side walls are never touched. The one-row population is blind to it.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **The backward skew is a property of directional running.** With position-only features, two-way running cancels it. **State the plan's bound as "on one-way laps" (or with direction-specific cells) wherever it is used**, and do not expect it on a two-way track.
+2. **The kinematic caveat is sidestepped, not answered.** The agent's own policy cannot run laps in a 0.1 m corridor. **If the skew is needed under the agent's own policy, widen the track** (to at least its 0.2 m turning diameter) rather than change the turning kinematics, and record that it is a different track from the plan's.
+3. **The SR is ready to be read.** **Step 4 builds V = M·R, lets it steer the agent, and runs the RQ4(a) gate**, with the tabular value memory over the same estimate as the plan's ablation.
+
+### D. Residuals carried forward
+- Imposed running on the track; one learning rate and discount; the SR learned outside the engine.
+- Linux locally with CI on macOS.
+
+### E. Acceptance, measured at this commit
+- `python3 -m pytest -q`: 592 passed; the determinism baselines unchanged.
+- `python3 -m experiments.sr_fields --workers 4` writes `docs/data/m2b/sr/` (manifest clean at `ab5c594`, 38 s).
+
+**Impact:** this entry; docs/prereg/m2b_sr_fields.md (new); docs/m2b_place_code.md (step 3); docs/research_plan.md (row 2b status); README, run_instructions.md; `brain/systems/successor_features.py`, `experiments/sr_fields.py` (new); tests in `tests/brain/`, `tests/experiments/`; `docs/data/m2b/sr/` (new). No profile, behaviour or baseline changes.
