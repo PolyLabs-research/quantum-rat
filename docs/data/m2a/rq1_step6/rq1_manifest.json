@@ -1,0 +1,1629 @@
+{
+  "backup_cap": 100,
+  "block_names": [
+    "baseline",
+    "increase_x4"
+  ],
+  "blocks": [
+    [
+      20,
+      1.0,
+      1.0
+    ],
+    [
+      20,
+      4.0,
+      1.0
+    ]
+  ],
+  "command": "python3 -m experiments.linear_track_rq1 --workers 4",
+  "conditions": [
+    "none",
+    "uniform",
+    "reverse_trajectory",
+    "prioritised_td",
+    "mattar_daw",
+    "mattar_daw_1step",
+    "mattar_daw_pos",
+    "mattar_daw_1step_pos"
+  ],
+  "config": {
+    "backup_cap": 100,
+    "backups_per_trigger": 20,
+    "bin_size": 0.5,
+    "budget_mode": "fixed",
+    "discount": 0.95,
+    "forward_prior": 0.1386294361119891,
+    "lap_cap": 2000,
+    "laps": 40,
+    "learner": "q",
+    "learning_rate": 0.2,
+    "mattar_daw_priority": "seeded",
+    "memory_capacity": 2000,
+    "n_bins": 40,
+    "pre_run_pause": true,
+    "priority_epsilon": 1e-06,
+    "profile": "m2a_tabular_track",
+    "reward_blocks": [
+      [
+        20,
+        1.0,
+        1.0
+      ],
+      [
+        20,
+        4.0,
+        1.0
+      ]
+    ],
+    "reward_east": 1.0,
+    "reward_west": 1.0,
+    "sr_learning_rate": 0.2,
+    "temperature": 0.1,
+    "threshold": 0.0035,
+    "threshold_scale": "mean_abs_value",
+    "threshold_scale_floor": 1e-09,
+    "trajectory_priority": "remaining_max",
+    "value_gain": 10.0
+  },
+  "configs": {
+    "fixed/decrease/mattar_daw": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/decrease/mattar_daw_1step": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/decrease/mattar_daw_1step_pos": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/decrease/mattar_daw_pos": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/decrease/none": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/decrease/prioritised_td": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/decrease/reverse_trajectory": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/decrease/uniform": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/increase/mattar_daw": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/increase/mattar_daw_1step": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/increase/mattar_daw_1step_pos": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/increase/mattar_daw_pos": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/increase/none": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/increase/prioritised_td": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/increase/reverse_trajectory": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "fixed/increase/uniform": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "fixed",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/decrease/mattar_daw": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 5.23727e-06,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/decrease/mattar_daw_1step": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 5.23727e-06,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/decrease/mattar_daw_1step_pos": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0592202,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/decrease/mattar_daw_pos": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0592202,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/decrease/none": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/decrease/prioritised_td": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.940048,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/decrease/reverse_trajectory": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 2.25714,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/decrease/uniform": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          0.25,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.124286,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/increase/mattar_daw": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 5.23727e-06,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/increase/mattar_daw_1step": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 5.23727e-06,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/increase/mattar_daw_1step_pos": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0592202,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/increase/mattar_daw_pos": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0592202,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/increase/none": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.0035,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/increase/prioritised_td": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.940048,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/increase/reverse_trajectory": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 2.25714,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    },
+    "thresholded/increase/uniform": {
+      "backup_cap": 100,
+      "backups_per_trigger": 20,
+      "bin_size": 0.5,
+      "budget_mode": "thresholded",
+      "discount": 0.95,
+      "forward_prior": 0.1386294361119891,
+      "lap_cap": 2000,
+      "laps": 40,
+      "learner": "q",
+      "learning_rate": 0.2,
+      "mattar_daw_priority": "seeded",
+      "memory_capacity": 2000,
+      "n_bins": 40,
+      "pre_run_pause": true,
+      "priority_epsilon": 1e-06,
+      "profile": "m2a_tabular_track",
+      "reward_blocks": [
+        [
+          20,
+          1.0,
+          1.0
+        ],
+        [
+          20,
+          4.0,
+          1.0
+        ]
+      ],
+      "reward_east": 1.0,
+      "reward_west": 1.0,
+      "sr_learning_rate": 0.2,
+      "temperature": 0.1,
+      "threshold": 0.124286,
+      "threshold_scale": "mean_abs_value",
+      "threshold_scale_floor": 1e-09,
+      "trajectory_priority": "remaining_max",
+      "value_gain": 10.0
+    }
+  },
+  "created_at": "2026-10-25T16:45:16+00:00",
+  "dependencies": {
+    "numpy": "2.4.6",
+    "pandas": "3.0.6",
+    "pyarrow": "25.0.1",
+    "python": "3.11.15",
+    "scipy": "1.17.1",
+    "threadpoolctl": "3.7.0"
+  },
+  "dt_s": null,
+  "full_evaluation": true,
+  "git": {
+    "branch": "m2a-step6",
+    "dirty": false,
+    "sha": "8fd3e8af56d2d1289c046084a18615f90fac445a"
+  },
+  "guard": {
+    "fixed/decrease/mattar_daw": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/decrease/mattar_daw_1step": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/decrease/mattar_daw_1step_pos": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/decrease/mattar_daw_pos": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/decrease/none": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/decrease/prioritised_td": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/decrease/reverse_trajectory": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/decrease/uniform": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/increase/mattar_daw": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/increase/mattar_daw_1step": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/increase/mattar_daw_1step_pos": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/increase/mattar_daw_pos": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/increase/none": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/increase/prioritised_td": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/increase/reverse_trajectory": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "fixed/increase/uniform": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/decrease/mattar_daw": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/decrease/mattar_daw_1step": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/decrease/mattar_daw_1step_pos": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/decrease/mattar_daw_pos": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/decrease/none": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/decrease/prioritised_td": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/decrease/reverse_trajectory": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/decrease/uniform": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/increase/mattar_daw": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/increase/mattar_daw_1step": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/increase/mattar_daw_1step_pos": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/increase/mattar_daw_pos": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/increase/none": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/increase/prioritised_td": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/increase/reverse_trajectory": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    },
+    "thresholded/increase/uniform": {
+      "distinct": 30,
+      "message": "",
+      "n": 30
+    }
+  },
+  "learner": "q",
+  "manifest_version": 1,
+  "mattar_daw_priority": "seeded",
+  "modes": [
+    "fixed",
+    "thresholded"
+  ],
+  "n_boot": 10000,
+  "platform": {
+    "blas": "scipy-openblas 0.3.31.188.0 (OpenBLAS 0.3.31.188.0 USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64)",
+    "blas_runtime": [
+      {
+        "architecture": "SkylakeX",
+        "internal_api": "openblas",
+        "num_threads": 1,
+        "threading_layer": "pthreads",
+        "user_api": "blas",
+        "version": "0.3.31.188.0"
+      }
+    ],
+    "blas_runtime_status": "detected",
+    "blas_threads": {
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "blas_threads_verified": true,
+    "machine": "x86_64",
+    "numpy": "2.4.6",
+    "numpy_loaded_before_pin": false,
+    "python": "3.11.15",
+    "release": "7.0.0-38-generic",
+    "system": "Linux"
+  },
+  "prereg": "docs/prereg/rq1_track_step6.md",
+  "profile": "m2a_tabular_track",
+  "protocol": "linear_track_rq1",
+  "quick": false,
+  "schema_version": "2.1.6",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+  ],
+  "session_block_names": {
+    "decrease": [
+      "baseline",
+      "decrease_x0.25"
+    ],
+    "increase": [
+      "baseline",
+      "increase_x4"
+    ]
+  },
+  "session_blocks": {
+    "decrease": [
+      [
+        20,
+        1.0,
+        1.0
+      ],
+      [
+        20,
+        0.25,
+        1.0
+      ]
+    ],
+    "increase": [
+      [
+        20,
+        1.0,
+        1.0
+      ],
+      [
+        20,
+        4.0,
+        1.0
+      ]
+    ]
+  },
+  "sessions": [
+    "increase",
+    "decrease"
+  ],
+  "thetas": {
+    "mattar_daw": 5.23727e-06,
+    "mattar_daw_1step": 5.23727e-06,
+    "mattar_daw_1step_pos": 0.0592202,
+    "mattar_daw_pos": 0.0592202,
+    "prioritised_td": 0.940048,
+    "reverse_trajectory": 2.25714,
+    "uniform": 0.124286
+  },
+  "threshold": null,
+  "threshold_scale": "mean_abs_value",
+  "ticks_requested": 2560000,
+  "ticks_run": 10889141,
+  "timing": {
+    "ticks_per_second": 15112.313785159196,
+    "wall_seconds": 720.5475716560031
+  },
+  "trajectory_priority": "remaining_max",
+  "version": "step6",
+  "workers": 4
+}
