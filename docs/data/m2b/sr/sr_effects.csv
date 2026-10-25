@@ -1,0 +1,18 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+t1_backward_shift,shift_mean,,one_way,30,,-2.13255,-2.13255,-2.13445,-2.13042,,,,"< 0, interval below",passes,
+t2_direction_specific,shift_mean,two_way,one_way,30,0.0377924,-2.13255,-2.17035,-2.17228,-2.16828,-1,-1,-1,"b < a: delta <= -0.3, interval below 0",passes,all bootstrap replicates equal; interval collapsed to the estimate
+t3_wall_elongation,elongation_wall,,open_field,30,,0.544052,0.544052,0.536119,0.55065,,,,"> 0, interval above",passes,
+reported,shift_mean,,one_way,30,,-2.13255,-2.13255,-2.13441,-2.13038,,,,reported,reported,
+reported,skew_mean,,one_way,30,,-0.571705,-0.571705,-0.572729,-0.570736,,,,reported,reported,
+reported,peak_shift_mean,,one_way,30,,-0.772619,-0.772619,-0.780357,-0.766071,,,,reported,reported,
+reported,estimate_error_mean,,one_way,30,,0.166885,0.166885,0.163822,0.170154,,,,reported,reported,
+reported,shift_mean,,two_way,30,,0.0377924,0.0377924,0.0375415,0.038017,,,,reported,reported,
+reported,skew_mean,,two_way,30,,0.0207949,0.0207949,0.0194126,0.0218044,,,,reported,reported,
+reported,peak_shift_mean,,two_way,30,,0,0,0,0,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+reported,estimate_error_mean,,two_way,30,,0.828711,0.828711,0.690007,1.01356,,,,reported,reported,
+reported,log_ratio_sr_wall,,open_field,30,,1.34276,1.34276,1.33523,1.34966,,,,reported,reported,
+reported,log_ratio_raw_wall,,open_field,30,,0.798712,0.798712,0.798712,0.798712,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+reported,log_ratio_sr_interior,,open_field,30,,-0.00266024,-0.00266024,-0.00662451,0.00100844,,,,reported,reported,
+reported,area_ratio_wall,,open_field,30,,1.58932,1.58932,1.58391,1.59389,,,,reported,reported,
+reported,area_ratio_interior,,open_field,30,,1.23596,1.23596,1.23149,1.2402,,,,reported,reported,
+reported,estimate_error_median,,open_field,30,,0.672474,0.672474,0.64999,0.694153,,,,reported,reported,
