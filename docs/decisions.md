@@ -1315,3 +1315,36 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 - Tag `v1.3-track-replay` on the merge into the dev branch (C1), version 1.2.0 unchanged in `pyproject.toml` until the owner bumps it.
 
 **Impact:** this entry; docs/prereg/rq1_track_step6.md (new); docs/m2a_linear_track.md (a step 6 section, limitations, the row's standing); docs/research_plan.md (status, §4 M2a row); README, run_instructions.md; `brain/systems/replay_mattar_daw.py`, `experiments/linear_track_replay.py`, `experiments/linear_track_rq1.py`; tests in `tests/brain/`, `tests/experiments/`; `docs/data/m2a/rq1_step6/` (new). No engine, console or baseline change; the legacy and research determinism baselines are untouched.
+
+## G33 — M2b step 1: the corrected position estimate
+
+**Date:** 2026-10-25  
+**Why:** The plan's row 2b puts a place population over "the corrected estimate", and docs/odometry.md recorded that nothing corrects the estimate until M2b's wall-contact reset; plan §2 item 1 declares a heading oracle so that multi-start tasks can localise. This step builds both, off by default, and characterises them in the 2 m open field before anything sits on them, preregistered first (`docs/prereg/m2b_estimate.md`, with a five-seed probe and a smoke disclosed). On the branch `m2b-estimate` from the `v1.3-track-replay` merge `04f80b6`.
+
+### A. What landed
+1. **Two optional Observation fields** (`brain/contracts.py`): `heading` (the declared oracle) and `wall_contacts` (the egocentric normals of the walls touched), None unless turned on, validated when present; `observation_fields()` leaves them out while None, and both the checksum and the determinism record go through it, so the legacy and research baselines and the observation sidecar are byte-identical.
+2. **The sensors** (`core/sensors.py`, `SensorConfig.heading_oracle`, `heading_oracle_noise`, `wall_contact_sensing`): the oracle reads the body's heading plus N(0, σ) from a new named stream, `sensors_heading` (no draw at 0); the touch reads the walls whose line the body sits on.
+3. **The estimate** (`brain/systems/spatial.py`, `SpatialConfig.heading_source`, `wall_reset`, `reset_bounds`): the oracle heading in place of the summed turn; the reset snaps the allocentric contact normal to the nearest axis and writes that wall's coordinate; `SpatialState.resets` records the walls written. The engine refuses either option without its channel and gives the reset the world's bounds as the agent's declared map.
+4. **The experiment** (`experiments/estimate_correction.py`): 8 cells × 30 seeds × 3,000 ticks, the same body walk in every cell of a seed. Tests: 580 (+16). Code commit `0f563b7`, data `8443f55` (manifest clean at `0f563b7`, 14 s on 4 cores).
+
+### B. Measured (docs/m2b_place_code.md, step 1; `docs/data/m2b/estimate/`; 30 seeds)
+- **All four preregistered tests pass.** The M2b estimate's per-seed late median error 0.70 [0.65, 0.76] units (7 cm, bound 2); against the research estimate −9.2 [−10.8, −7.7] units, δ −1.00, every seed; the drop at contact −0.56 [−0.60, −0.52] units, the normal error 0 at all 1,044 onsets; no wrong-wall write.
+- **Levels**: late mean error 10.1 units (integrated), 8.3 (oracle, no reset), 3.6 (integrated, reset; wrong-wall writes 2.5% at 9 of 30 seeds), 0.92 (the M2b estimate, flat from the first contacts; 90% of late ticks within 0.2 m). The body is at a wall on 41% of ticks, 35 contacts per run.
+- **Mechanisms**: the reset removes 7.4 units under the oracle and 6.6 under integration; the oracle alone removes 1.85 [0.73, 3.16] (δ −0.23); with the reset on it removes a further 2.6 (δ −1.00) and every wrong-wall write.
+- **The residual is the wall-slide under-read**: the egomotion reports a slide's projection on the heading (cos² φ of the thrust instead of cos φ), so the estimate under-reads every slide along a wall; it dominates the error without a reset and sets the floor with one (0.65 units at oracle error 0).
+- **Sensitivity**: late median 0.65, 0.66, 0.70, 0.81, 1.11 units at σ 0, 0.02, 0.05, 0.1, 0.2 rad; wrong-wall writes only at 0.2 rad (0.01%, 5 of 30 seeds), predicted none: one failed prediction, of the size a 3.9-sd heading error gives.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **The corrected estimate for M2b is the oracle heading at σ 0.05 with the reset.** It meets the 0.2 m level with an order of magnitude to spare in the open field. **Use it as the estimate the place population sits on (step 2)**, configured explicitly by each M2b experiment, not yet the research profile's default: changing the profile moves the research baselines, which happens once per milestone, at M2b's exit.
+2. **The wall-slide under-read stays, recorded.** Reading lateral motion would change the egomotion contract the whole engine uses. **Keep the contract; report the under-read's share wherever estimate error matters**, and revisit only if step 4's arrival error approaches the bound.
+3. **The heading oracle is necessary but not sufficient.** Without the reset it buys 1.85 units; with it, it is what makes the reset safe. **Keep both declared as limitations** in every write-up (plan §2 item 1).
+
+### D. Residuals carried forward
+- A convex box with known walls; an exact touch; a known start pose. Localisation from an unknown start, non-box arenas and a noisy boundary sensor are untested.
+- Linux locally with CI on macOS; no second machine.
+
+### E. Acceptance, measured at this commit
+- `python3 -m pytest -q`: 580 passed; the legacy and research determinism baselines unchanged.
+- `python3 -m experiments.estimate_correction --workers 4` writes `docs/data/m2b/estimate/` (manifest clean at `0f563b7`, 14 s).
+
+**Impact:** this entry; docs/prereg/m2b_estimate.md (new); docs/m2b_place_code.md (new); docs/spec.md (the Observation contract); docs/research_plan.md (§4 row 2b status); docs/odometry.md (a pointer); README, run_instructions.md; `brain/contracts.py`, `brain/systems/spatial.py`, `core/config.py`, `core/sensors.py`, `core/determinism.py`, `core/engine.py`; `experiments/estimate_correction.py` (new); tests in `tests/sensors/`, `tests/brain/`, `tests/experiments/`; `docs/data/m2b/estimate/` (new). No profile default, engine behaviour or baseline changes.
