@@ -423,3 +423,30 @@ def test_the_thresholded_theta_can_be_scaled_by_the_value_scale() -> None:
     agent.visit(s0)
     agent.learner.update(*track.position(s0), 1.0, *track.position(s0), True)
     assert agent.value_scale() == pytest.approx(abs(agent.value(s0)))
+
+
+def test_the_agent_can_act_on_a_q_learner() -> None:
+    """M2a step 5: ``TrackConfig.learner = "q"`` puts a Q learner under the same softmax (prior + gain x Q(s, a))."""
+    from brain.systems.value_learners import TabularQ, TabularTD0
+    from experiments.linear_track_replay import LEARNERS, EAST, LinearTrack, QTrackModel, TrackAgent, TrackConfig, run_seed
+
+    assert LEARNERS == ("v", "q") and TrackConfig().learner == "v"
+    with pytest.raises(ValueError):
+        TrackConfig(learner="sarsa")
+    cfg = TrackConfig(laps=3, learner="q")
+    track = LinearTrack(cfg)
+    agent = TrackAgent(cfg, track)
+    assert isinstance(agent.learner, TabularQ) and isinstance(TrackAgent(TrackConfig(laps=3), track).learner, TabularTD0)
+    s = track.start_state(EAST)
+    assert agent.scores(s) == {"FORWARD": cfg.forward_prior, "TURN": 0.0}
+    agent.learner.update_target(*track.position(s), "TURN", 1.0)
+    assert agent.scores(s)["TURN"] == pytest.approx(cfg.value_gain * 0.2) and agent.value(s) == pytest.approx(0.2)
+    model = QTrackModel(cfg, track, agent)
+    assert model.action_of(*track.position(s), *track.position(track.step(s, "TURN")[0])) == "TURN"
+    assert model.action_of(*track.position(s), *track.position(track.step(s, "FORWARD")[0])) == "FORWARD"
+    assert model.policy(model.action_scores({"FORWARD": 0.0, "TURN": 0.0}))["TURN"] == pytest.approx(cfg.untrained_turn_probability())
+    assert model.learning_rate() == cfg.learning_rate and model.discount() == cfg.discount
+    # The floors learn on Q and the run records the same per-lap fields; the value scale reads max_a Q.
+    run = run_seed("prioritised_td", 1, cfg)
+    assert len(run.laps) == 3 and all(lap.replay_backups == 20 for lap in run.laps if lap.rewarded)
+    assert all(lap.reward_value_scale > 0 for lap in run.laps if lap.rewarded) and not math.isnan(run.laps[-1].value_rmse)

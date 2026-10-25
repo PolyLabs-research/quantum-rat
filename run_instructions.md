@@ -89,6 +89,11 @@ offline.
    # step 4 (docs/prereg/rq1_track_step4.md): the seven conditions in two sessions per seed (baseline then x4;
    # baseline then x0.25), theta scaled by the learner's value scale; the pilot that set theta (6 s) and the
    # evaluation (about 17 min on 4 cores, writes docs/data/m2a/rq1_step4)
+   python -m experiments.linear_track_rq1 --pilot --version step4 --workers 4
+   python -m experiments.linear_track_rq1 --version step4 --workers 4
+   # step 5 (docs/prereg/rq1_track_mattar_daw.md): step 4's protocol on a tabular Q learner, the floors rerun on it
+   # and the Mattar & Daw rule with and without its forward n-step extension; the pilot (6 s) and the evaluation
+   # (about 15 min on 4 cores, writes docs/data/m2a/rq1_step5)
    python -m experiments.linear_track_rq1 --pilot --workers 4
    python -m experiments.linear_track_rq1 --workers 4
    ```

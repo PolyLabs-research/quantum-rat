@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Protocol, Sequence, Tuple, runtime_checkable
+from typing import Callable, Dict, List, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
 import core  # noqa: F401  # pins the BLAS thread counts before numpy loads (docs/determinism.md rule 2)
 import numpy as np
@@ -125,6 +125,90 @@ class TabularTD0:
             "bin_size": self.bin_size,
             "learning_rate": self.lr,
             "discount": self.gamma,
+        }
+
+
+Action = str
+
+
+def action_from_rows(bin_size: float, x: float, y: float, x_next: float, y_next: float) -> Action:
+    """The default ``TabularQ.action_of`` for the tabular track: a change of the y row (the heading) is a
+    TURN, anything else (a move along x, or staying put at a wall or at the consume) a FORWARD."""
+    return "TURN" if math.floor(y / bin_size) != math.floor(y_next / bin_size) else "FORWARD"
+
+
+class TabularQ:
+    """Tabular Q-learning over floor-binned cells, in the ``ValueFunction`` form (M2a step 5).
+
+    The stored transitions carry positions, not actions, so the action backed up is read off the
+    transition by ``action_of(x, y, x_next, y_next)`` (the track's geometry decides it; the default
+    :func:`action_from_rows`). The backup is Q-learning's: ``target = reward + discount * max_a Q(s', a)``
+    (``reward`` alone into a terminal), ``Q(s, a) <- Q(s, a) + lr * (target - Q(s, a))``; ``value(x, y)``
+    is ``max_a Q(s, a)`` (0 for an unvisited cell), so the visit-weighted value error and the value scale
+    read the greedy value. ``update_target`` applies a backup toward a caller's target (an n-step return,
+    ``brain.systems.replay_mattar_daw``). Mattar & Daw (2018) learn Q this way; their gain is read at the
+    acted-from state over its actions (``q``).
+    """
+
+    def __init__(self, bin_size: float = 0.5, learning_rate: float = 0.2, discount: float = 0.9,
+                 actions: Sequence[Action] = ("FORWARD", "TURN"), action_of: Optional[Callable[[float, float, float, float], Action]] = None) -> None:
+        _check_finite_positive("bin_size", bin_size)
+        _check_rates(learning_rate, discount)
+        if len(actions) < 1 or len(set(actions)) != len(actions):
+            raise ValueError("actions must be a non-empty sequence of distinct names")
+        self.bin_size = float(bin_size)
+        self.lr = float(learning_rate)
+        self.gamma = float(discount)
+        self.actions: Tuple[Action, ...] = tuple(actions)
+        self.action_of = action_of or (lambda x, y, x2, y2: action_from_rows(self.bin_size, x, y, x2, y2))
+        self.table: Dict[Cell, Dict[Action, float]] = {}
+
+    def cell(self, x: float, y: float) -> Cell:
+        return math.floor(x / self.bin_size), math.floor(y / self.bin_size)
+
+    def q(self, x: float, y: float) -> Dict[Action, float]:
+        """``Q(s, .)`` at a position as a fresh dict in ``actions`` order (0 where unvisited)."""
+        row = self.table.get(self.cell(x, y), {})
+        return {a: row.get(a, 0.0) for a in self.actions}
+
+    def value(self, x: float, y: float) -> float:
+        return max(self.q(x, y).values())
+
+    def target(self, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
+        return reward if terminal else reward + self.gamma * self.value(x_next, y_next)
+
+    def td_error(self, x: float, y: float, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
+        """``target - Q(s, a)`` for the action ``action_of`` reads off the transition; no write."""
+        action = self.action_of(x, y, x_next, y_next)
+        if action not in self.actions:
+            raise ValueError(f"action_of returned {action!r}, not one of {self.actions}")
+        return self.target(reward, x_next, y_next, terminal) - self.q(x, y)[action]
+
+    def update(self, x: float, y: float, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
+        action = self.action_of(x, y, x_next, y_next)
+        return self.update_target(x, y, action, self.target(reward, x_next, y_next, terminal))
+
+    def update_target(self, x: float, y: float, action: Action, target: float) -> float:
+        """One backup of ``Q(s, action)`` toward ``target``; returns the error ``target - Q(s, action)`` before it."""
+        if action not in self.actions:
+            raise ValueError(f"unknown action {action!r}; one of {self.actions}")
+        cell = self.cell(x, y)
+        row = self.table.setdefault(cell, {})
+        q = row.get(action, 0.0)
+        delta = target - q
+        row[action] = q + self.lr * delta
+        return delta
+
+    def reset_episode(self) -> None:
+        """Nothing is carried between transitions, so a boundary needs no action."""
+
+    def parameters(self) -> Dict[str, object]:
+        return {
+            "learner": "tabular_q",
+            "bin_size": self.bin_size,
+            "learning_rate": self.lr,
+            "discount": self.gamma,
+            "actions": list(self.actions),
         }
 
 
@@ -429,8 +513,10 @@ __all__ = [
     "ChainResult",
     "GaussianPlaceFeatures",
     "LinearTDLambda",
+    "TabularQ",
     "TabularTD0",
     "ValueFunction",
+    "action_from_rows",
     "chain_features",
     "chain_positions",
     "chain_targets",

@@ -288,9 +288,13 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   rule gain × need and its gain-only and need-only ablations (`--version step3`,
   `docs/prereg/rq1_track_gain_need.md`, a tabular successor representation for need,
   `brain/systems/successor.py` and `brain/systems/replay_gain_need.py`; `docs/data/m2a/rq1_step3/`)
-  and step 4, the default, with each reward change in its own session against a baseline block
-  and the thresholded θ scaled by the learner's value scale (`docs/prereg/rq1_track_step4.md`,
-  `--pilot` for the θ pilot; `docs/data/m2a/rq1_step4/`);
+  step 4 with each reward change in its own session against a baseline block and the
+  thresholded θ scaled by the learner's value scale (`--version step4`,
+  `docs/prereg/rq1_track_step4.md`, `--pilot` for the θ pilot; `docs/data/m2a/rq1_step4/`), and
+  step 5, the default, the same protocol on a tabular Q learner (`brain/systems/value_learners.TabularQ`)
+  with the floors rerun on it and the Mattar & Daw rule with and without its forward n-step
+  extension (`brain/systems/replay_mattar_daw.py`, `docs/prereg/rq1_track_mattar_daw.md`;
+  `docs/data/m2a/rq1_step5/`);
   `experiments/linear_track_dose_response.py` runs the fixed-budget effect at 5 to 40 backups
   per pause (`docs/data/m2a/rq1/`).
 * `experiments/odometry_characterisation.py` — the research profile's odometry noise characterised
