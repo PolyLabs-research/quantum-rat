@@ -28,21 +28,31 @@ def _read(path: Path):
         return list(csv.DictReader(fh))
 
 
-def test_the_protocol_is_the_preregistered_one() -> None:
-    cfg = rq.protocol_config("thresholded")
+def test_the_protocol_is_the_preregistered_one_in_both_versions() -> None:
+    # Step 2 (G28): one theta, the trajectory rule's "next" priority.
+    cfg = rq.protocol_config("thresholded", version="step2")
     assert cfg.laps == 80 and cfg.blocks() == ((20, 1.0, 1.0), (20, 4.0, 1.0), (20, 1.0, 1.0), (20, 0.25, 1.0))
     assert cfg.pre_run_pause and cfg.budget_mode == "thresholded" and cfg.threshold == rq.THRESHOLD == 0.0035 and cfg.backup_cap == 100
-    fixed = rq.protocol_config("fixed")
+    assert cfg.trajectory_priority == "next"
+    fixed = rq.protocol_config("fixed", version="step2")
     assert fixed.budget_mode == "fixed" and fixed.backups_per_trigger == 20 and fixed.lap_cap == 2000
-    # Everything else is the fixed evaluation's.
     base = lt.TrackConfig().to_dict()
     changed = {k for k, v in fixed.to_dict().items() if v != base[k]}
     assert changed == {"laps", "reward_blocks", "pre_run_pause", "threshold"}  # theta is set for both modes; fixed mode ignores it
+    # Step 3 (the default; docs/prereg/rq1_track_gain_need.md): theta per rule from the pilot, "remaining_max".
+    step3 = rq.protocol_config("thresholded", theta=rq.theta_for("gain_need", "step3"))
+    assert step3.trajectory_priority == "remaining_max" and step3.threshold == pytest.approx(1.59024e-07)
+    assert rq.theta_for("reverse_trajectory", "step3") == pytest.approx(0.137277)
+    assert rq.theta_for("uniform", "step2") == 0.0035 and rq.theta_for("uniform", "step3", {"uniform": 0.5}) == 0.5
+    assert set(rq.THRESHOLDS_STEP3) == set(lt.ALL_CONDITIONS) - {RULE_NONE} and all(v is not None for v in rq.THRESHOLDS_STEP3.values())
     quick = rq.protocol_config("fixed", quick=True)
     assert quick.laps == 8 and quick.blocks() == ((2, 1.0, 1.0), (2, 4.0, 1.0), (2, 1.0, 1.0), (2, 0.25, 1.0)) and quick.lap_cap == 2000
     with pytest.raises(ValueError):
         rq.protocol_config("poisson")
+    with pytest.raises(ValueError):
+        rq.protocol_config("fixed", version="step9")
     assert rq.BLOCK_NAMES == ("baseline", "increase_x4", "washout", "decrease_x0.25")
+    assert rq.DEFAULT_OUTS["step2"] == Path("docs/data/m2a/rq1") and rq.DEFAULT_OUTS["step3"] == Path("docs/data/m2a/rq1_step3")
 
 
 @pytest.fixture(scope="module")
@@ -57,9 +67,11 @@ def test_quick_run_writes_the_pause_table_with_two_pauses_per_lap(quick_run) -> 
     assert {p.name for p in out.iterdir()} == set(rq.OUTPUT_FILES) | {rq.EVENTS_FILE}
     pauses = rq.read_csv_gz(out / "rq1_pauses.csv.gz")
     assert list(pauses[0]) == list(rq.PAUSE_COLUMNS)
-    # Every lap has a pre-run pause row and, when rewarded, a reward pause row, in both modes for all four conditions.
+    # Every lap has a pre-run pause row and, when rewarded, a reward pause row, in both modes for all seven conditions.
+    assert {p["condition"] for p in pauses} == set(lt.ALL_CONDITIONS)
+    assert all(p["priority_before"] == "nan" for p in pauses if p["condition"] == RULE_NONE)
     for mode in ("fixed", "thresholded"):
-        for c in lt.CONDITIONS:
+        for c in lt.ALL_CONDITIONS:
             rows = [p for p in pauses if p["mode"] == mode and p["condition"] == c]
             laps = {int(p["lap"]) for p in rows}
             assert laps == set(range(1, 9))
@@ -96,24 +108,32 @@ def test_quick_run_writes_the_preregistered_test_table(quick_run) -> None:
     assert list(tests[0]) == list(rq.TEST_COLUMNS)
     names = {t["test"] for t in tests}
     assert names == {"a_direction", "d_remote", "b_rate_increase", "b_rate_decrease", "b_control_end", "b_forward_unchanged", "c_familiarity"}
-    assert {t["condition"] for t in tests} == set(lt.CONDITIONS) - {RULE_NONE}
+    assert {t["condition"] for t in tests} == set(lt.ALL_CONDITIONS) - {RULE_NONE}
     assert all(t["mode"] in ("fixed", "thresholded") for t in tests)
+    import re
+
     verdicts = {t["verdict"] for t in tests}
     allowed = {"passes", "fails", "undefined (no events)", "undefined", "equivalent (TOST)", "not shown equivalent (TOST)",
-               "degenerate (every value identical)", "estimate above, interval not"}
-    assert verdicts <= allowed, verdicts - allowed
+               "degenerate (every value identical)", "degenerate (baseline rate 0: relative TOST undefined)",
+               "estimate above, interval not"}
+    reaches = re.compile(r"^reaches 0 at \d+ of \d+ seeds$")  # the (c) first-lap-at-zero rows (change 3)
+    assert all(v in allowed or reaches.match(v) for v in verdicts), {v for v in verdicts if v not in allowed and not reaches.match(v)}
+    assert all(reaches.match(t["verdict"]) for t in tests if t["statistic"].startswith("first_lap_with_zero_backups"))
     # The same rows for every replay condition, so the table reads across.
     per_condition = {c: sorted((t["test"], t["mode"], t["statistic"]) for t in tests if t["condition"] == c) for c in set(t["condition"] for t in tests)}
     assert len({tuple(v) for v in per_condition.values()}) == 1
-    assert len(tests) == 3 * (2 + 2 + 3 * 4 + 1 + 2)  # (a) 2, (d) 2, (b) 3 metrics x 4 comparisons, forward 1, (c) 2
+    assert len(tests) == 6 * (2 + 2 + 3 * 4 + 1 + 2 * 3)  # (a) 2, (d) 2, (b) 3 metrics x 4 comparisons, forward 1, (c) 2 blocks x 3
     adaptation = _read(out / "rq1_adaptation.csv")
     assert list(adaptation[0]) == list(rq.ADAPTATION_COLUMNS)
     assert {(r["block"], r["lap_in_block"]) for r in adaptation} == {(str(b), str(k)) for b in range(4) for k in (1, 2)}
     m = json.loads((out / "rq1_manifest.json").read_text())
-    assert m["protocol"] == "linear_track_rq1" and m["prereg"] == "docs/prereg/rq1_track_tabular.md"
-    assert m["modes"] == ["fixed", "thresholded"] and m["threshold"] == 0.0035 and m["backup_cap"] == 100
+    assert m["protocol"] == "linear_track_rq1" and m["prereg"] == "docs/prereg/rq1_track_gain_need.md" and m["version"] == "step3"
+    assert m["modes"] == ["fixed", "thresholded"] and m["threshold"] is None and m["backup_cap"] == 100
+    assert m["thetas"] == {c: rq.THRESHOLDS_STEP3[c] for c in lt.ALL_CONDITIONS if c != RULE_NONE}
+    assert m["trajectory_priority"] == "remaining_max" and m["conditions"] == list(lt.ALL_CONDITIONS)
     assert m["blocks"] == [[2, 1.0, 1.0], [2, 4.0, 1.0], [2, 1.0, 1.0], [2, 0.25, 1.0]] and m["quick"] is True
-    assert m["configs"]["thresholded"]["budget_mode"] == "thresholded" and m["full_evaluation"] is False
+    assert m["configs"]["thresholded/gain_need"]["budget_mode"] == "thresholded" and m["full_evaluation"] is False
+    assert m["configs"]["thresholded/gain_need"]["threshold"] == pytest.approx(1.59024e-07)
 
 
 def test_quick_run_is_byte_identical_and_refuses_the_committed_directory(quick_run, tmp_path, monkeypatch) -> None:
@@ -128,11 +148,25 @@ def test_quick_run_is_byte_identical_and_refuses_the_committed_directory(quick_r
     plain = tmp_path / "plain"
     rq.main(["--quick", "--seeds", "1", "--workers", "1", "--out", str(plain)])
     assert {p.name for p in plain.iterdir()} == set(rq.OUTPUT_FILES)
+    # The step-2 version reproduces step 2's protocol shape: four conditions, one theta, the tabular prereg.
+    step2 = tmp_path / "step2"
+    rq.main(["--version", "step2", "--quick", "--seeds", "1", "--workers", "1", "--out", str(step2)])
+    m2 = json.loads((step2 / "rq1_manifest.json").read_text())
+    assert m2["version"] == "step2" and m2["conditions"] == list(lt.CONDITIONS) and m2["threshold"] == 0.0035
+    assert m2["prereg"] == "docs/prereg/rq1_track_tabular.md" and m2["trajectory_priority"] == "next"
+    # A theta override is recorded and makes the run partial.
+    over = tmp_path / "over"
+    rq.main(["--quick", "--seeds", "1", "--workers", "1", "--conditions", "none,uniform", "--theta", "uniform=0.5", "--out", str(over)])
+    assert json.loads((over / "rq1_manifest.json").read_text())["thetas"] == {"uniform": 0.5}
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit):
         rq.main(["--quick", "--seeds", "2"])
     with pytest.raises(SystemExit):
+        rq.main(["--version", "step2", "--quick", "--seeds", "2"])  # the other version's committed directory too
+    with pytest.raises(SystemExit):
         rq.main(["--modes", "poisson", "--seeds", "1", "--out", str(tmp_path / "x")])
+    with pytest.raises(SystemExit):
+        rq.main(["--theta", "bogus=1", "--seeds", "1", "--out", str(tmp_path / "y")])
     assert not (tmp_path / "docs").exists()
 
 

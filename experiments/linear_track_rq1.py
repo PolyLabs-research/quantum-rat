@@ -41,6 +41,7 @@ from analysis.replay_metrics import extract_events
 from analysis.stats import bootstrap_ci, cliffs_delta, paired_effect, pseudo_replication_guard, tost
 from brain.systems.replay_events import RULE_NONE, TRIGGER_PRE_RUN, TRIGGER_REWARD
 from experiments.linear_track_replay import (
+    ALL_CONDITIONS,
     BUDGET_MODES,
     CONDITIONS,
     DEFAULT_N_BOOT,
@@ -54,12 +55,27 @@ from experiments.linear_track_replay import (
 )
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
-DEFAULT_OUT = Path("docs/data/m2a/rq1")
+# Two protocol versions share this runner. Step 2 (G28; docs/prereg/rq1_track_tabular.md): the four floors, one
+# theta, the trajectory rule's "next" priority; its tables are docs/data/m2a/rq1 and are reproduced by
+# ``--version step2``. Step 3 (G29; docs/prereg/rq1_track_gain_need.md): seven conditions, theta per rule from
+# its pilot, the trajectory rule's "remaining_max" priority; the default, writing docs/data/m2a/rq1_step3.
+VERSIONS = ("step2", "step3")
+DEFAULT_VERSION = "step3"
+DEFAULT_OUTS = {"step2": Path("docs/data/m2a/rq1"), "step3": Path("docs/data/m2a/rq1_step3")}
+DEFAULT_OUT = DEFAULT_OUTS[DEFAULT_VERSION]
 BLOCKS: Tuple[Tuple[int, float, float], ...] = ((20, 1.0, 1.0), (20, 4.0, 1.0), (20, 1.0, 1.0), (20, 0.25, 1.0))
 BLOCK_NAMES = ("baseline", "increase_x4", "washout", "decrease_x0.25")
-# theta: 0.02 was the preregistered value; the preregistered pilot rule moved it once, to the median online |TD
-# error| of laps 11-20 of the no-replay pilot (0.0035; docs/prereg/rq1_track_tabular.md, "Pilot outcome"; G28).
+# Step 2's theta: 0.02 was the preregistered value; the preregistered pilot rule moved it once, to the median online
+# |TD error| of laps 11-20 of the no-replay pilot (0.0035; docs/prereg/rq1_track_tabular.md, "Pilot outcome"; G28).
 THRESHOLD = 0.0035
+# Step 3's theta per rule (docs/prereg/rq1_track_gain_need.md change 2): the median of the rule's own priority read
+# before the reward pause over laps 11-20 of block 1 at seeds 1-3 in a fixed-budget pilot. ``None`` until the pilot
+# has run; a thresholded run refuses a rule without a theta. Filled in by the pilot, recorded in the prereg's "Pilot
+# outcome" and in G29.
+THRESHOLDS_STEP3: Dict[str, Optional[float]] = {
+    "uniform": 0.0027462, "reverse_trajectory": 0.137277, "prioritised_td": 0.155972,
+    "gain_need": 1.59024e-07, "gain_only": 0.000269043, "need_only": 2.71085,
+}
 BACKUP_CAP = 100
 ENDS = ("east", "west")
 TRIGGERS = (TRIGGER_REWARD, TRIGGER_PRE_RUN)
@@ -69,14 +85,35 @@ DELTA_BOUND = 0.3
 TOST_RELATIVE = 0.2
 
 
-def protocol_config(mode: str, quick: bool = False) -> TrackConfig:
-    """The preregistered protocol in ``mode``; ``quick`` shrinks every block to 2 laps and the cap to 300 steps."""
+def theta_for(condition: str, version: str, overrides: Optional[Mapping[str, float]] = None) -> float:
+    """The thresholded theta of ``condition`` under ``version`` (``overrides`` win; step 2 has one theta for all)."""
+    if overrides and condition in overrides:
+        return float(overrides[condition])
+    if version == "step2":
+        return THRESHOLD
+    theta = THRESHOLDS_STEP3.get(condition)
+    if theta is None:
+        if condition == RULE_NONE:
+            return THRESHOLD  # never used: none makes no pause
+        raise ValueError(f"no theta for {condition!r} in step 3: run the pilot (docs/prereg/rq1_track_gain_need.md) or pass --theta {condition}=VALUE")
+    return float(theta)
+
+
+def protocol_config(mode: str, quick: bool = False, *, version: str = DEFAULT_VERSION, theta: Optional[float] = None) -> TrackConfig:
+    """The preregistered protocol in ``mode``; ``quick`` shrinks every block to 2 laps.
+
+    ``version`` selects the trajectory rule's thresholded priority ("next" for step 2, "remaining_max" for step 3);
+    ``theta`` is the thresholded threshold (step 2's single value when None).
+    """
     if mode not in BUDGET_MODES:
         raise ValueError(f"mode must be one of {BUDGET_MODES}, got {mode!r}")
+    if version not in VERSIONS:
+        raise ValueError(f"version must be one of {VERSIONS}, got {version!r}")
     blocks = tuple((2, e, w) for _, e, w in BLOCKS) if quick else BLOCKS
     return TrackConfig(
         laps=sum(b[0] for b in blocks), reward_blocks=blocks, pre_run_pause=True, budget_mode=mode,
-        threshold=THRESHOLD, backup_cap=BACKUP_CAP,
+        threshold=THRESHOLD if theta is None else float(theta), backup_cap=BACKUP_CAP,
+        trajectory_priority="next" if version == "step2" else "remaining_max",
     )
 
 
@@ -84,7 +121,8 @@ def protocol_config(mode: str, quick: bool = False) -> TrackConfig:
 
 
 PAUSE_COLUMNS = ("condition", "mode", "seed", "lap", "block", "block_name", "end", "trigger", "lap_rewarded",
-                 "n_backups", "n_events", "n_reverse", "n_forward", "n_neither", "n_remote", "backups_in_events")
+                 "n_backups", "n_events", "n_reverse", "n_forward", "n_neither", "n_remote", "backups_in_events",
+                 "priority_before")
 
 
 def pause_rows(run: SeedRun, mode: str, cfg: TrackConfig) -> List[Dict[str, Any]]:
@@ -95,7 +133,10 @@ def pause_rows(run: SeedRun, mode: str, cfg: TrackConfig) -> List[Dict[str, Any]
     rows: List[Dict[str, Any]] = []
     for lap in run.laps:
         start_end = "west" if lap.goal == "east" else "east"  # the lap starts at the far end from its goal
-        for trigger, end, backups in ((TRIGGER_PRE_RUN, start_end, lap.pre_run_backups), (TRIGGER_REWARD, lap.goal, lap.replay_backups)):
+        for trigger, end, backups, before in (
+            (TRIGGER_PRE_RUN, start_end, lap.pre_run_backups, lap.pre_run_priority_before),
+            (TRIGGER_REWARD, lap.goal, lap.replay_backups, lap.reward_priority_before),
+        ):
             if trigger == TRIGGER_REWARD and not lap.rewarded:
                 continue  # a capped lap has no reward pause
             events = [e for record in by_key.get((trigger, lap.lap), []) for e in extract_events(record, cfg.n_bins)]
@@ -107,6 +148,7 @@ def pause_rows(run: SeedRun, mode: str, cfg: TrackConfig) -> List[Dict[str, Any]
                 "n_forward": sum(e.direction == "forward" for e in events),
                 "n_neither": sum(e.direction == "neither" for e in events),
                 "n_remote": sum(e.remote for e in events), "backups_in_events": sum(e.n_backups for e in events),
+                "priority_before": before,
             })
     return rows
 
@@ -121,7 +163,7 @@ def seed_block_rows(pauses: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]]
     for p in pauses:
         by.setdefault((p["condition"], p["mode"], int(p["seed"]), int(p["block"]), p["end"], p["trigger"]), []).append(p)
     out: List[Dict[str, Any]] = []
-    for key, rows in sorted(by.items(), key=lambda kv: (CONDITIONS.index(kv[0][0]), kv[0][1:])):
+    for key, rows in sorted(by.items(), key=lambda kv: (ALL_CONDITIONS.index(kv[0][0]), kv[0][1:])):
         condition, mode, seed, block, end, trigger = key
         stops = len(rows)
         events = sum(r["n_events"] for r in rows)
@@ -166,11 +208,11 @@ def _per_seed(rows: Sequence[Mapping[str, Any]], condition: str, mode: str, metr
 
 
 def _ci_row(test: str, condition: str, mode: str, statistic: str, values: Mapping[int, float], n_boot: int,
-            bound: str, verdict_fn, extra: str = "") -> Dict[str, Any]:
+            bound: str, verdict_fn, extra: str = "", undefined: str = "undefined (no events)") -> Dict[str, Any]:
     arr = np.array([v for v in values.values() if not (isinstance(v, float) and math.isnan(v))], dtype=np.float64)
     if arr.size == 0:
         return {"test": test, "condition": condition, "mode": mode, "statistic": statistic, "n": 0, "estimate": math.nan,
-                "low": math.nan, "high": math.nan, "extra": extra, "bound": bound, "verdict": "undefined (no events)", "note": ""}
+                "low": math.nan, "high": math.nan, "extra": extra, "bound": bound, "verdict": undefined, "note": ""}
     ci = bootstrap_ci(arr, np.mean, n_boot=n_boot, seed=_stat_seed(test, condition, mode, statistic))
     return {"test": test, "condition": condition, "mode": mode, "statistic": statistic, "n": int(arr.size),
             "estimate": ci.estimate, "low": ci.low, "high": ci.high, "extra": extra, "bound": bound,
@@ -197,6 +239,9 @@ def _paired_row(test: str, condition: str, mode: str, statistic: str, a: Mapping
     else:
         if np.all(va == va[0]) and np.all(vb == vb[0]) and va[0] == vb[0]:
             verdict, extra = "degenerate (every value identical)", extra + "; rates constant"
+        elif abs(float(va.mean())) < 1e-12:
+            # A baseline rate of 0 has no relative equivalence bound; the paired difference above is the reading.
+            verdict, extra = "degenerate (baseline rate 0: relative TOST undefined)", extra + "; mean_a 0"
         else:
             eq = tost(va, vb, -TOST_RELATIVE, TOST_RELATIVE, relative=True, paired=True, n_boot=n_boot,
                       seed=_stat_seed(test, condition, mode, statistic, "tost"))
@@ -210,13 +255,14 @@ def _paired_row(test: str, condition: str, mode: str, statistic: str, a: Mapping
             "verdict": verdict, "note": "; ".join(notes)}
 
 
-def _slope_rows(pauses: Sequence[Mapping[str, Any]], condition: str, mode: str, metric: str, n_boot: int) -> Dict[str, Any]:
-    """(c) per-seed slope of ``metric`` per stop against lap within block 1 (reward pauses, both ends)."""
+def _slope_rows(pauses: Sequence[Mapping[str, Any]], condition: str, mode: str, metric: str, n_boot: int,
+                block: int = 0) -> Dict[str, Any]:
+    """(c) per-seed slope of ``metric`` per stop against lap within ``block`` (reward pauses, both ends)."""
     slopes: Dict[int, float] = {}
     seeds = sorted({int(p["seed"]) for p in pauses if p["condition"] == condition and p["mode"] == mode})
     for seed in seeds:
         sel = [p for p in pauses if p["condition"] == condition and p["mode"] == mode and int(p["seed"]) == seed
-               and int(p["block"]) == 0 and p["trigger"] == TRIGGER_REWARD]
+               and int(p["block"]) == block and p["trigger"] == TRIGGER_REWARD]
         xs = [float(p["lap"]) for p in sel]
         ys = [float(p[metric]) for p in sel]
         if len(xs) < 2:
@@ -224,8 +270,23 @@ def _slope_rows(pauses: Sequence[Mapping[str, Any]], condition: str, mode: str, 
         mx, my = math.fsum(xs) / len(xs), math.fsum(ys) / len(ys)
         sxx = math.fsum((x - mx) ** 2 for x in xs)
         slopes[seed] = math.fsum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx if sxx else math.nan
-    return _ci_row("c_familiarity", condition, mode, f"slope_of_{metric}_vs_lap_block1", slopes, n_boot,
+    return _ci_row("c_familiarity", condition, mode, f"slope_of_{metric}_vs_lap_block{block + 1}", slopes, n_boot,
                    "slope < 0, interval excluding 0", lambda ci: "passes" if ci.high < 0.0 else "fails")
+
+
+def _first_zero_rows(pauses: Sequence[Mapping[str, Any]], condition: str, mode: str, n_boot: int, block: int) -> Dict[str, Any]:
+    """(c), change 3: per seed, the first lap of ``block`` at which the reward pause made no backup (NaN if never)."""
+    firsts: Dict[int, float] = {}
+    seeds = sorted({int(p["seed"]) for p in pauses if p["condition"] == condition and p["mode"] == mode})
+    for seed in seeds:
+        sel = sorted((int(p["lap"]), int(p["n_backups"])) for p in pauses if p["condition"] == condition and p["mode"] == mode
+                     and int(p["seed"]) == seed and int(p["block"]) == block and p["trigger"] == TRIGGER_REWARD)
+        zero = [lap for lap, n in sel if n == 0]
+        firsts[seed] = float(zero[0]) if zero else math.nan
+    n_reached = sum(1 for v in firsts.values() if not math.isnan(v))
+    verdict = f"reaches 0 at {n_reached} of {len(firsts)} seeds"
+    return _ci_row("c_familiarity", condition, mode, f"first_lap_with_zero_backups_block{block + 1}", firsts, n_boot,
+                   "reported", lambda ci: verdict, extra=f"seeds reaching 0: {n_reached}", undefined=verdict)
 
 
 def rq1_tests(seed_blocks: Sequence[Mapping[str, Any]], pauses: Sequence[Mapping[str, Any]], conditions: Sequence[str],
@@ -270,9 +331,11 @@ def rq1_tests(seed_blocks: Sequence[Mapping[str, Any]], pauses: Sequence[Mapping
             finc = _per_seed(seed_blocks, condition, "thresholded", "forward_per_stop", blocks=(1,), ends=("east",), trigger=TRIGGER_REWARD)
             rows.append(_paired_row("b_forward_unchanged", condition, "thresholded", "forward_per_stop_east_block2_minus_block1", fpre, finc, n_boot,
                                     f"unchanged: TOST +-{TOST_RELATIVE:.0%}", "unchanged"))
-            # (c) familiarity within block 1.
-            rows.append(_slope_rows(pauses, condition, "thresholded", "n_backups", n_boot))
-            rows.append(_slope_rows(pauses, condition, "thresholded", "n_events", n_boot))
+            # (c) familiarity within block 1 and, since step 3 (change 3), within block 3 too, with the first lap at 0.
+            for block in (0, 2):
+                rows.append(_slope_rows(pauses, condition, "thresholded", "n_backups", n_boot, block))
+                rows.append(_slope_rows(pauses, condition, "thresholded", "n_events", n_boot, block))
+                rows.append(_first_zero_rows(pauses, condition, "thresholded", n_boot, block))
     return rows
 
 
@@ -288,7 +351,7 @@ def adaptation_rows(runs: Sequence[SeedRun], mode: str, n_boot: int) -> List[Dic
             starts.setdefault(lap.block, lap.lap)
             by.setdefault((run.condition, mode, lap.block, lap.lap - starts[lap.block] + 1), []).append((float(lap.steps), lap.rewarded))
     out: List[Dict[str, Any]] = []
-    for (condition, mode, block, k), values in sorted(by.items(), key=lambda kv: (CONDITIONS.index(kv[0][0]), kv[0][1:])):
+    for (condition, mode, block, k), values in sorted(by.items(), key=lambda kv: (ALL_CONDITIONS.index(kv[0][0]), kv[0][1:])):
         arr = np.array([v for v, _ in values], dtype=np.float64)
         ci = bootstrap_ci(arr, np.mean, n_boot=n_boot, seed=_stat_seed("adapt", condition, mode, block, k))
         out.append({"condition": condition, "mode": mode, "block": block,
@@ -339,41 +402,65 @@ def write_events(path: Path, events: Iterable[Mapping[str, Any]]) -> int:
 
 def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--version", choices=VERSIONS, default=DEFAULT_VERSION,
+                        help="step2: the four floors, one theta, the 'next' trajectory priority (G28); step3: seven conditions, theta per rule, 'remaining_max' (default)")
     parser.add_argument("--modes", default=",".join(BUDGET_MODES))
-    parser.add_argument("--conditions", default=",".join(CONDITIONS))
+    parser.add_argument("--conditions", default=None, help="comma-separated; default: the version's set")
+    parser.add_argument("--theta", action="append", default=[], metavar="CONDITION=VALUE", help="override a rule's thresholded theta")
     parser.add_argument("--seeds", type=int, default=len(DEFAULT_SEEDS))
     parser.add_argument("--seed-start", type=int, default=DEFAULT_SEEDS[0])
     parser.add_argument("--workers", type=int, default=None)
     parser.add_argument("--n-boot", type=int, default=DEFAULT_N_BOOT)
     parser.add_argument("--quick", action="store_true", help="blocks of 2 laps, 200 replicates; needs --out")
     parser.add_argument("--write-events", action="store_true", help=f"also write every replay with its cells to {EVENTS_FILE} (about 6 MB for the full run)")
-    parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument("--out", type=Path, default=None, help="output directory (default: the version's committed directory)")
     args = parser.parse_args(argv)
+    version = args.version
+    version_conditions = CONDITIONS if version == "step2" else ALL_CONDITIONS
     modes = tuple(m.strip() for m in args.modes.split(",") if m.strip())
-    conditions = tuple(c.strip() for c in args.conditions.split(",") if c.strip())
+    conditions = version_conditions if args.conditions is None else tuple(c.strip() for c in args.conditions.split(",") if c.strip())
     for m in modes:
         if m not in BUDGET_MODES:
             parser.error(f"unknown mode {m!r}")
     for c in conditions:
-        if c not in CONDITIONS:
+        if c not in ALL_CONDITIONS:
             parser.error(f"unknown condition {c!r}")
+    overrides: Dict[str, float] = {}
+    for item in args.theta:
+        name, sep, value = item.partition("=")
+        if not sep or name not in ALL_CONDITIONS:
+            parser.error(f"--theta expects CONDITION=VALUE with a known condition, got {item!r}")
+        overrides[name] = float(value)
     seeds = list(range(args.seed_start, args.seed_start + args.seeds))
     n_boot = min(args.n_boot, 200) if args.quick else args.n_boot
-    full = (modes == BUDGET_MODES and conditions == CONDITIONS and tuple(seeds) == DEFAULT_SEEDS and not args.quick and n_boot >= 1000)
-    if args.out.resolve() == DEFAULT_OUT.resolve() and not full:
-        parser.error(f"a partial run must not overwrite the committed tables in {DEFAULT_OUT}: give --out")
+    default_out = DEFAULT_OUTS[version]
+    if args.out is None:
+        args.out = default_out
+    full = (modes == BUDGET_MODES and conditions == version_conditions and tuple(seeds) == DEFAULT_SEEDS and not args.quick
+            and n_boot >= 1000 and not overrides)
+    if args.out.resolve() in {p.resolve() for p in DEFAULT_OUTS.values()} and not (full and args.out.resolve() == default_out.resolve()):
+        parser.error(f"a partial run (or another version's) must not overwrite the committed tables in {args.out}: give --out")
     started = time.perf_counter()
     runs_by_mode: Dict[str, List[SeedRun]] = {}
     pauses: List[Dict[str, Any]] = []
     events: List[Mapping[str, Any]] = []
-    configs = {mode: protocol_config(mode, args.quick) for mode in modes}
+    # One config per (mode, condition): the thresholded theta is the rule's own in step 3.
+    configs: Dict[Tuple[str, str], TrackConfig] = {}
+    thetas: Dict[str, float] = {}
+    for mode in modes:
+        for c in conditions:
+            theta = theta_for(c, version, overrides) if (mode == "thresholded" and c != RULE_NONE) else None
+            if theta is not None:
+                thetas[c] = theta
+            configs[(mode, c)] = protocol_config(mode, args.quick, version=version, theta=theta)
     guard: Dict[str, Any] = {}
     for mode in modes:
-        cfg = configs[mode]
-        mode_runs = run_all(conditions, seeds, cfg, args.workers)
+        mode_runs: List[SeedRun] = []
+        for c in conditions:
+            mode_runs.extend(run_all((c,), seeds, configs[(mode, c)], args.workers))
         runs_by_mode[mode] = mode_runs
         for run in mode_runs:
-            pauses.extend(pause_rows(run, mode, cfg))
+            pauses.extend(pause_rows(run, mode, configs[(mode, run.condition)]))
             events.extend({**e, "mode": mode} for e in run.events)
         for c in conditions:
             vectors = [{"seed": r.seed, "steps": [lap.steps for lap in r.laps]} for r in mode_runs if r.condition == c]
@@ -386,13 +473,18 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     adaptation: List[Dict[str, Any]] = []
     for mode in modes:
         adaptation.extend(adaptation_rows(runs_by_mode[mode], mode, n_boot))
+    base_cfg = configs[(modes[0], conditions[0])]
     manifest = build_manifest(
-        configs[modes[0]], protocol="linear_track_rq1", seeds=seeds,
-        ticks_requested=sum(configs[m].laps * configs[m].lap_cap * len(conditions) for m in modes),
-        extra={"modes": list(modes), "configs": {m: configs[m].to_dict() for m in modes}, "conditions": list(conditions),
-               "blocks": [list(b) for b in configs[modes[0]].blocks()], "block_names": list(BLOCK_NAMES),
-               "threshold": THRESHOLD, "backup_cap": BACKUP_CAP, "n_boot": n_boot, "full_evaluation": full, "quick": args.quick,
-               "prereg": "docs/prereg/rq1_track_tabular.md", "dependencies": _dependency_versions(),
+        base_cfg, protocol="linear_track_rq1", seeds=seeds,
+        ticks_requested=sum(configs[(m, c)].laps * configs[(m, c)].lap_cap for m in modes for c in conditions),
+        extra={"version": version, "modes": list(modes), "conditions": list(conditions),
+               "configs": {f"{m}/{c}": configs[(m, c)].to_dict() for m in modes for c in conditions},
+               "blocks": [list(b) for b in base_cfg.blocks()], "block_names": list(BLOCK_NAMES),
+               "threshold": THRESHOLD if version == "step2" else None, "thetas": thetas, "backup_cap": BACKUP_CAP,
+               "trajectory_priority": base_cfg.trajectory_priority,
+               "n_boot": n_boot, "full_evaluation": full, "quick": args.quick,
+               "prereg": "docs/prereg/rq1_track_tabular.md" if version == "step2" else "docs/prereg/rq1_track_gain_need.md",
+               "dependencies": _dependency_versions(),
                "command": "python3 -m experiments.linear_track_rq1 " + " ".join(list(argv) if argv is not None else sys.argv[1:])},
     )
     manifest["guard"] = guard

@@ -128,12 +128,17 @@ import numpy as np
 from analysis.stats import PseudoReplicationError, bootstrap_ci, cliffs_delta, paired_effect, pseudo_replication_guard, tidy_table, summarise
 from brain.systems.basal_ganglia import softmax_sample
 from brain.systems.replay_events import RULE_NONE, RULE_PRIORITISED_TD, RULE_REVERSE_TRAJECTORY, RULE_UNIFORM, TRIGGER_PRE_RUN, TRIGGER_REWARD
+from brain.systems.replay_gain_need import MODES as GAIN_NEED_MODES
+from brain.systems.replay_gain_need import GainNeedReplay
 from brain.systems.replay_rules import ReplayOutcome, ReplayRule, StoredTransition, TransitionMemory, make_rule, replay, replay_thresholded
+from brain.systems.successor import TabularSR
 from brain.systems.value_learners import TabularTD0
 from core.rng import RNG
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 CONDITIONS: Tuple[str, ...] = (RULE_NONE, RULE_UNIFORM, RULE_REVERSE_TRAJECTORY, RULE_PRIORITISED_TD)
+GAIN_NEED_CONDITIONS: Tuple[str, ...] = tuple(GAIN_NEED_MODES)  # gain_need, gain_only, need_only (M2a step 3)
+ALL_CONDITIONS: Tuple[str, ...] = CONDITIONS + GAIN_NEED_CONDITIONS
 ACTIONS: Tuple[str, ...] = ("FORWARD", "TURN")
 BUDGET_MODES: Tuple[str, ...] = ("fixed", "thresholded")
 EAST, WEST = 1, -1  # goal ends and headings: +1 toward increasing cells, -1 toward decreasing
@@ -176,6 +181,10 @@ class TrackConfig:
     budget_mode: str = "fixed"
     threshold: float = 0.02
     backup_cap: int = 100
+    # --- M2a step 3 (docs/prereg/rq1_track_gain_need.md change 1): the trajectory rule's thresholded priority ---
+    trajectory_priority: str = "next"  # "next" (step 2) or "remaining_max" (step 3)
+    # The successor representation's learning rate (its discount is ``discount``); learned in every condition.
+    sr_learning_rate: float = 0.2
 
     def __post_init__(self) -> None:
         if self.n_bins < 2 or self.laps < 1 or self.lap_cap < 1 or self.backups_per_trigger < 1 or self.memory_capacity < 1:
@@ -186,6 +195,10 @@ class TrackConfig:
             raise ValueError(f"budget_mode must be one of {BUDGET_MODES}, got {self.budget_mode!r}")
         if self.backup_cap < 1 or not (math.isfinite(self.threshold) and self.threshold >= 0.0):
             raise ValueError("backup_cap >= 1 and a finite non-negative threshold")
+        if self.trajectory_priority not in ("next", "remaining_max"):
+            raise ValueError("trajectory_priority must be 'next' or 'remaining_max'")
+        if not (0.0 < self.sr_learning_rate <= 1.0):
+            raise ValueError("sr_learning_rate in (0, 1]")
         if self.reward_blocks:
             blocks = tuple(tuple(b) for b in self.reward_blocks)
             object.__setattr__(self, "reward_blocks", blocks)  # lists from a manifest become tuples
@@ -272,6 +285,47 @@ class LinearTrack:
     def states(self) -> List[State]:
         return [State(i, h, g) for g in (EAST, WEST) for h in (EAST, WEST) for i in range(self.cfg.n_bins)]
 
+    def cyclic_transitions(self) -> Dict[int, Dict[int, float]]:
+        """The lap structure as a transition structure over state indices under a uniform-random policy: FORWARD
+        and TURN with probability one half each from every non-goal state, and from a goal state the turn-around
+        to the next lap's start with probability one (the consume and the placement, as the agent lives them).
+        What the successor representation is initialised from (docs/prereg/rq1_track_gain_need.md, pre-run
+        amendment); ``TabularSR.update`` then learns on experience."""
+        out: Dict[int, Dict[int, float]] = {}
+        for state in self.states():
+            s = self.index(state)
+            if self.at_goal(state) and state.heading == state.goal:
+                out[s] = {self.index(self.start_state(-state.goal)): 1.0}
+                continue
+            succ: Dict[int, float] = {}
+            for action in ACTIONS:
+                nxt = self.index(self.step(state, action)[0])
+                succ[nxt] = succ.get(nxt, 0.0) + 0.5
+            out[s] = succ
+        return out
+
+    # --- integer state indices (the successor representation and the gain x need rule; M2a step 3) ---
+
+    @property
+    def n_states(self) -> int:
+        return 4 * self.cfg.n_bins
+
+    def index(self, state: State) -> int:
+        """cell + n_bins * [0 east-facing, 1 west-facing] + 2 n_bins * [0 goal east, 1 goal west]: the order of ``states()``."""
+        return state.cell + self.cfg.n_bins * ((0 if state.heading == EAST else 1) + 2 * (0 if state.goal == EAST else 1))
+
+    def state_of(self, index: int) -> State:
+        n = self.cfg.n_bins
+        cell, rest = index % n, index // n
+        return State(cell, EAST if rest % 2 == 0 else WEST, EAST if rest // 2 == 0 else WEST)
+
+    def index_of_position(self, x: float, y: float) -> int:
+        """The state index of a learner position (the inverse of ``position``)."""
+        cell = int(math.floor(x / self.cfg.bin_size))
+        row = int(math.floor(y / self.cfg.bin_size))
+        heading, goal = {0: (EAST, EAST), -1: (WEST, EAST), 2: (EAST, WEST), 1: (WEST, WEST)}[row]
+        return self.index(State(cell, heading, goal))
+
     def steps_to_goal(self, state: State) -> int:
         """Actions to the goal state under the optimal policy (FORWARD toward it, one TURN if facing away)."""
         distance = abs(state.cell - self.goal_cell(state.goal))
@@ -292,6 +346,12 @@ class TrackAgent:
         self.learner = TabularTD0(bin_size=cfg.bin_size, learning_rate=cfg.learning_rate, discount=cfg.discount)
         self.memory = TransitionMemory(cfg.memory_capacity)
         self.visits: Dict[State, int] = {}  # how often each state was occupied (the lap starts and every step's arrival)
+        # The tabular successor representation (need): initialised from the track's known cyclic structure under a
+        # uniform-random policy (Mattar & Daw give their agent the transition structure), then learned online from
+        # the same transitions in every condition; nothing reads it back into V or the policy, only the gain x need
+        # rules read it (docs/prereg/rq1_track_gain_need.md, pre-run amendment).
+        self.sr = TabularSR(track.n_states, learning_rate=cfg.sr_learning_rate, discount=cfg.discount)
+        self.sr.initialise_from(track.cyclic_transitions())
 
     def visit(self, state: State) -> None:
         self.visits[state] = self.visits.get(state, 0) + 1
@@ -316,7 +376,17 @@ class TrackAgent:
         transition = StoredTransition(x, y, reward, x2, y2, terminal, lap, index, self.learner.cell(x, y))
         delta = transition.backup(self.learner)
         self.memory.append(transition)
+        if not terminal:
+            # The consume is terminal for V but not for occupancy: the goal state's successor in the SR is the
+            # next lap's start, which ``place`` records (docs/prereg/rq1_track_gain_need.md, pre-run amendment).
+            self.sr.update(self.track.index(state), self.track.index(nxt), False)
         return delta
+
+    def place(self, from_state: Optional[State], to_state: State) -> None:
+        """The protocol moved the agent (the turn-around after a reward, the return after a capped lap): one
+        occupancy transition for the SR, so need spans the lap structure the agent actually lives in."""
+        if from_state is not None:
+            self.sr.update(self.track.index(from_state), self.track.index(to_state), False)
 
     def value_rmse(self) -> float:
         """RMS error of V against the exact V* over all states, each state weighted equally."""
@@ -331,6 +401,63 @@ class TrackAgent:
             return math.nan
         weighted = math.fsum(n * (self.value(s) - self.track.optimal_value(s)) ** 2 for s, n in self.visits.items())
         return math.sqrt(weighted / total)
+
+
+class TrackModel:
+    """The track's side of ``brain.systems.replay_gain_need.ReplayModel``: state indices, the one-step
+    structure (predecessors and successors by action), the agent's policy read on given values, V by index,
+    the successor representation's need, and the state the agent acts from next (``set_acting``)."""
+
+    def __init__(self, cfg: TrackConfig, track: LinearTrack, agent: "TrackAgent") -> None:
+        self.cfg = cfg
+        self.track = track
+        self.agent = agent
+        self._successors: Dict[int, Dict[str, int]] = {}
+        self._predecessors: Dict[int, List[Tuple[int, str]]] = {i: [] for i in range(track.n_states)}
+        for state in track.states():
+            p = track.index(state)
+            succ = {action: track.index(track.step(state, action)[0]) for action in ACTIONS}
+            self._successors[p] = succ
+            for action, s in succ.items():
+                self._predecessors[s].append((p, action))
+        self._acting: int = track.index(track.start_state(EAST))
+
+    def state_index(self, x: float, y: float) -> int:
+        return self.track.index_of_position(x, y)
+
+    def predecessors(self, state: int) -> Sequence[Tuple[int, str]]:
+        return self._predecessors[state]
+
+    def successors(self, state: int) -> Mapping[str, int]:
+        return self._successors[state]
+
+    def action_scores(self, state: int, value_of: Mapping[int, float]) -> Mapping[str, float]:
+        succ = self._successors[state]
+        return {"FORWARD": self.cfg.forward_prior + self.cfg.value_gain * value_of[succ["FORWARD"]],
+                "TURN": self.cfg.value_gain * value_of[succ["TURN"]]}
+
+    def policy(self, scores: Mapping[str, float]) -> Mapping[str, float]:
+        """The softmax ``softmax_sample`` draws from, as probabilities (same weights, same order)."""
+        top = max(scores.values())
+        weights = {a: math.exp((scores[a] - top) / self.cfg.temperature) for a in ACTIONS}
+        total = math.fsum(weights.values())
+        return {a: w / total for a, w in weights.items()}
+
+    def value_of_index(self, state: int) -> float:
+        return self.agent.learner.value(*self.track.position(self.track.state_of(state)))
+
+    @property
+    def learning_rate(self) -> float:
+        return self.cfg.learning_rate
+
+    def need(self, from_state: int, to_state: int) -> float:
+        return self.agent.sr.need(from_state, to_state)
+
+    def acting_state(self) -> int:
+        return self._acting
+
+    def set_acting(self, state: State) -> None:
+        self._acting = self.track.index(state)
 
 
 @dataclass
@@ -365,6 +492,9 @@ class LapRecord:
     pre_run_event: bool = False
     pre_run_direction: str = ""
     pre_run_sequence_r: float = float("nan")
+    # --- M2a step 3: the rule's priority read before each pause's first backup (what the thresholded mode tests) ---
+    reward_priority_before: float = float("nan")
+    pre_run_priority_before: float = float("nan")
 
 
 @dataclass
@@ -415,19 +545,24 @@ class SeedRun:
         return out
 
 
-def _rule_for(condition: str, cfg: TrackConfig) -> Optional[ReplayRule]:
+def _rule_for(condition: str, cfg: TrackConfig, model: Optional[TrackModel] = None) -> Optional[ReplayRule]:
     if condition == RULE_NONE:
         return None
+    if condition in GAIN_NEED_CONDITIONS:
+        if model is None:
+            raise ValueError(f"{condition} needs the track model")
+        return GainNeedReplay(model, condition)
     if condition not in CONDITIONS:
-        raise ValueError(f"unknown condition {condition!r}; one of {CONDITIONS}")
-    return make_rule(condition, cfg.priority_epsilon)
+        raise ValueError(f"unknown condition {condition!r}; one of {ALL_CONDITIONS}")
+    return make_rule(condition, cfg.priority_epsilon, cfg.trajectory_priority)
 
 
 def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> SeedRun:
     """One seed of one condition: ``cfg.laps`` laps, replay at every rewarded lap end."""
     track = LinearTrack(cfg)
     agent = TrackAgent(cfg, track)
-    rule = _rule_for(condition, cfg)
+    model = TrackModel(cfg, track, agent)
+    rule = _rule_for(condition, cfg, model)
     rng = RNG(seed=seed)
     action_stream = rng.stream(ACTION_STREAM)
     replay_stream = rng.stream(REPLAY_STREAM)
@@ -437,17 +572,23 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
     goal = EAST
     cumulative = 0
 
-    def do_replay(trigger: str, episode: int, travel: int) -> Optional[ReplayOutcome]:
-        """One pause of the condition's rule under the configured budget mode; None when nothing was replayed."""
+    def do_replay(trigger: str, episode: int, travel: int, acting: State) -> Tuple[Optional[ReplayOutcome], float]:
+        """One pause of the condition's rule under the configured budget mode: (outcome or None when nothing was
+        replayed, the rule's priority before the first backup). ``acting`` is the state the agent acts from next."""
         if rule is None or len(agent.memory) == 0:
-            return None
+            return None, float("nan")
         if trigger == TRIGGER_PRE_RUN and not agent.memory.episode(episode):
-            return None  # nothing completed yet to replay (the very first pause)
+            return None, float("nan")  # nothing completed yet to replay (the very first pause)
+        model.set_acting(acting)
+        rule.begin(agent.memory, episode)
+        before = rule.priority(agent.memory, agent.learner, 0)
         if cfg.budget_mode == "thresholded":
-            return replay_thresholded(rule, agent.memory, agent.learner, cfg.threshold, cfg.backup_cap, episode,
-                                      replay_stream, tick=cumulative, travel_sign=travel, trigger=trigger)
-        return replay(rule, agent.memory, agent.learner, cfg.backups_per_trigger, episode, replay_stream,
-                      tick=cumulative, travel_sign=travel, trigger=trigger)
+            outcome = replay_thresholded(rule, agent.memory, agent.learner, cfg.threshold, cfg.backup_cap, episode,
+                                         replay_stream, tick=cumulative, travel_sign=travel, trigger=trigger)
+        else:
+            outcome = replay(rule, agent.memory, agent.learner, cfg.backups_per_trigger, episode, replay_stream,
+                             tick=cumulative, travel_sign=travel, trigger=trigger)
+        return outcome, before
 
     def event_row(outcome: ReplayOutcome, lap: int, goal_name: str, agent_cell: int, block: int) -> Dict[str, Any]:
         """One line of the events file: the ReplayEvent plus the lap, its goal, the reward block and the cell the
@@ -461,18 +602,21 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
         }
 
     last_completed: Optional[int] = None  # the most recently completed lap (the reverse rule's content)
+    last_state: Optional[State] = None  # where the agent stood when the previous lap ended
     for lap in range(cfg.laps):
         block, reward_east, reward_west = cfg.block_of(lap)
         track.set_rewards(reward_east, reward_west)
         agent.learner.reset_episode()
         state = track.start_state(goal)
+        agent.place(last_state, state)
         agent.visit(state)
         goal_name = "east" if goal == EAST else "west"
         pre_run: Optional[ReplayOutcome] = None
+        pre_run_before = float("nan")
         if cfg.pre_run_pause and last_completed is not None:
             # The pre-run pause: the body is turned to face the new goal; the replayed transitions are read
             # against the travel of the lap they belong to (the most recently completed one, for the reverse rule).
-            pre_run = do_replay(TRIGGER_PRE_RUN, last_completed, -goal)
+            pre_run, pre_run_before = do_replay(TRIGGER_PRE_RUN, last_completed, -goal, state)
             if pre_run is not None:
                 events.append(event_row(pre_run, lap, goal_name, state.cell, block))  # the body waits at the start end
         goal_cell = track.goal_cell(goal)
@@ -510,8 +654,12 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
             pre_run_event=pre_run is not None,
             pre_run_direction=pre_run.event.direction if pre_run is not None else "",
             pre_run_sequence_r=pre_run.sequence_r if pre_run is not None else float("nan"),
+            pre_run_priority_before=pre_run_before,
         )
-        outcome: Optional[ReplayOutcome] = do_replay(TRIGGER_REWARD, lap, goal) if rewarded else None
+        outcome: Optional[ReplayOutcome] = None
+        if rewarded:
+            # At the reward pause the agent acts next from the turned-around start of the next lap.
+            outcome, record.reward_priority_before = do_replay(TRIGGER_REWARD, lap, goal, track.start_state(-goal))
         if outcome is not None:
             cells = [t.cell[0] for t in outcome.transitions]
             distances = [abs(c - goal_cell) for c in cells]
@@ -527,6 +675,7 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
         record.value_rmse = agent.value_rmse()
         record.value_rmse_visited = agent.value_rmse_visited()
         laps.append(record)
+        last_state = state
         if rewarded:
             last_completed = lap
             goal = -goal  # the next lap runs back; a capped lap is tried again from its start end
