@@ -81,12 +81,17 @@ def gain_of(model: ReplayModel, state: int, delta: float) -> float:
 class GainNeedReplay:
     """Argmax replay by EVB = need * gain, or by one factor alone (``mode``)."""
 
+    # A gain is in value units; a need is an occupancy and is not (``ReplayRule.value_scaled``).
+    VALUE_SCALED = {"gain_need": True, "gain_only": True, "need_only": False}
+
+
     def __init__(self, model: ReplayModel, mode: str = "gain_need") -> None:
         if mode not in MODES:
             raise ValueError(f"mode must be one of {MODES}, got {mode!r}")
         self.model = model
         self.mode = mode
         self.name = mode
+        self.value_scaled = self.VALUE_SCALED[mode]
         self.last_priorities: Dict[Tuple[float, float, float, float, float, bool], float] = {}  # diagnostics
 
     def begin(self, memory: TransitionMemory, episode: int) -> None:

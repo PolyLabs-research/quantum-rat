@@ -190,3 +190,13 @@ def test_the_three_modes_rank_differently_and_run_as_track_conditions() -> None:
     before = agent2.sr.M.copy()
     _store_lap(track2, agent2, list(range(8)), lt.EAST)
     assert agent2.sr.updates == 7 and not (agent2.sr.M == before).all()  # seven moves update the SR, the consume does not
+
+
+def test_gain_is_in_value_units_and_need_is_not() -> None:
+    """``value_scaled`` per mode (M2a step 4): EVB and gain scale with V, an occupancy does not."""
+    from brain.systems.replay_gain_need import MODES, GainNeedReplay
+
+    assert set(GainNeedReplay.VALUE_SCALED) == set(MODES)
+    for mode in MODES:
+        rule = GainNeedReplay(object(), mode)  # the model is not read until a backup
+        assert rule.value_scaled is (mode != "need_only") and rule.value_scaled is GainNeedReplay.VALUE_SCALED[mode]

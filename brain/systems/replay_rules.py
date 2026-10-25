@@ -146,10 +146,14 @@ class ReplayRule(Protocol):
     ``k``; ``span`` is the size of the content the rule walks (for the event
     record); ``priority`` is what the plan's thresholded mode compares with
     its threshold before the ``k``-th backup (:func:`replay_thresholded`): the
-    rule keeps replaying while it exceeds the threshold.
+    rule keeps replaying while it exceeds the threshold. ``value_scaled`` says whether that
+    priority is in the learner's value units (a |TD error|, a gain), so a protocol that
+    normalises its threshold by the value scale knows which rules to normalise (M2a step 4,
+    docs/prereg/rq1_track_step4.md); a scale-free priority (an occupancy) reads False.
     """
 
     name: str
+    value_scaled: bool
 
     def begin(self, memory: TransitionMemory, episode: int) -> None: ...
 
@@ -169,6 +173,7 @@ class UniformReplay:
     """Uniform over every stored transition, with replacement; one ``random()`` per backup."""
 
     name = RULE_UNIFORM
+    value_scaled = True  # priority: the mean |TD error| in memory
 
     def begin(self, memory: TransitionMemory, episode: int) -> None:
         if len(memory) == 0:
@@ -200,6 +205,7 @@ class ReverseTrajectoryReplay:
     """
 
     name = RULE_REVERSE_TRAJECTORY
+    value_scaled = True  # priority: a |TD error| of the sweep
     PRIORITIES = ("next", "remaining_max")
 
     def __init__(self, priority: str = "next") -> None:
@@ -240,6 +246,7 @@ class PrioritisedTDReplay:
     """
 
     name = RULE_PRIORITISED_TD
+    value_scaled = True  # priority: the largest |TD error| in memory
 
     def __init__(self, epsilon: float = 1e-6) -> None:
         if not epsilon > 0.0 or not math.isfinite(epsilon):

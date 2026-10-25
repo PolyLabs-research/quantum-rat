@@ -83,8 +83,13 @@ offline.
    python -m experiments.linear_track_rq1 --version step2 --workers 4
    python -m experiments.linear_track_dose_response --workers 4
    # step 3 (docs/prereg/rq1_track_gain_need.md): the same protocol with gain x need, gain-only and need-only
-   # beside the floors, theta per rule, the trajectory rule's remaining-max priority; about 25 min on 4 cores,
+   # beside the floors, theta per rule, the trajectory rule's remaining-max priority; about 17 min on 4 cores,
    # writes docs/data/m2a/rq1_step3
+   python -m experiments.linear_track_rq1 --version step3 --workers 4
+   # step 4 (docs/prereg/rq1_track_step4.md): the seven conditions in two sessions per seed (baseline then x4;
+   # baseline then x0.25), theta scaled by the learner's value scale; the pilot that set theta (6 s) and the
+   # evaluation (about 17 min on 4 cores, writes docs/data/m2a/rq1_step4)
+   python -m experiments.linear_track_rq1 --pilot --workers 4
    python -m experiments.linear_track_rq1 --workers 4
    ```
 

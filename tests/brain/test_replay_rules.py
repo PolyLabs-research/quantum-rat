@@ -261,3 +261,13 @@ def test_thresholded_replay_runs_while_the_priority_exceeds_the_threshold_up_to_
     # The pre-run trigger is a name the event carries.
     out = replay_thresholded(make_rule(RULE_REVERSE_TRAJECTORY), memory, _learner(), 0.02, 100, 0, stream, tick=0, trigger="pre_run")
     assert out is not None and out.event.trigger == "pre_run"
+
+
+def test_every_rule_declares_whether_its_priority_is_in_value_units() -> None:
+    """``ReplayRule.value_scaled`` (M2a step 4): a protocol that scales its threshold by the learner's value scale
+    normalises the rules whose priority is a |TD error| or a gain and leaves a scale-free priority alone."""
+    from brain.systems.replay_rules import PrioritisedTDReplay, ReverseTrajectoryReplay, UniformReplay, make_rule
+
+    assert UniformReplay.value_scaled is True and ReverseTrajectoryReplay.value_scaled is True and PrioritisedTDReplay.value_scaled is True
+    for name in ("uniform", "reverse_trajectory", "prioritised_td"):
+        assert make_rule(name).value_scaled is True

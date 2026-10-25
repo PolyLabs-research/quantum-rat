@@ -282,12 +282,15 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   distinct cells spanning 0.3 m) off its event file; `experiments/linear_track_sensitivity.py`
   re-runs the comparison with one parameter changed at a time (11 variants).
   `experiments/linear_track_rq1.py` runs the preregistered RQ1 protocol
-  (`docs/prereg/rq1_track_tabular.md`: four reward blocks, a pre-run pause beside the reward
-  pause, fixed and thresholded budgets, the plan's event definition) in two versions: step 2
-  on the floors (`--version step2`, `docs/data/m2a/rq1/`) and step 3 with the plan's reference
-  rule gain × need and its gain-only and need-only ablations (`docs/prereg/rq1_track_gain_need.md`,
-  a tabular successor representation for need, `brain/systems/successor.py` and
-  `brain/systems/replay_gain_need.py`; `docs/data/m2a/rq1_step3/`);
+  (`docs/prereg/rq1_track_tabular.md`: reward blocks, a pre-run pause beside the reward
+  pause, fixed and thresholded budgets, the plan's event definition) in three versions: step 2
+  on the floors (`--version step2`, `docs/data/m2a/rq1/`), step 3 with the plan's reference
+  rule gain × need and its gain-only and need-only ablations (`--version step3`,
+  `docs/prereg/rq1_track_gain_need.md`, a tabular successor representation for need,
+  `brain/systems/successor.py` and `brain/systems/replay_gain_need.py`; `docs/data/m2a/rq1_step3/`)
+  and step 4, the default, with each reward change in its own session against a baseline block
+  and the thresholded θ scaled by the learner's value scale (`docs/prereg/rq1_track_step4.md`,
+  `--pilot` for the θ pilot; `docs/data/m2a/rq1_step4/`);
   `experiments/linear_track_dose_response.py` runs the fixed-budget effect at 5 to 40 backups
   per pause (`docs/data/m2a/rq1/`).
 * `experiments/odometry_characterisation.py` — the research profile's odometry noise characterised

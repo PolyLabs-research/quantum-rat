@@ -58,6 +58,7 @@ import core  # noqa: F401  # pins the BLAS thread counts before numpy (analysis.
 import numpy as np
 
 from analysis.stats import bootstrap_ci, summarise, tidy_table
+from brain.systems.replay_events import TRIGGER_REWARD
 from brain.systems.replay_rules import sequence_direction
 
 MIN_DISTINCT_CELLS = 4
@@ -186,7 +187,21 @@ def extract_events(
 
 
 STOP_COLUMNS = ("condition", "seed", "lap", "trigger", "rule", "n_backups", "n_events", "n_reverse", "n_forward",
-                "n_neither", "n_remote", "backups_in_events", "mean_span", "mean_length", "mean_abs_r")
+                "n_neither", "n_remote", "backups_in_events", "mean_span", "mean_length", "mean_abs_r", "from_this_lap")
+
+
+def from_this_lap_share(record: Mapping[str, Any]) -> float:
+    """At a reward pause, the share of the replay's backups whose transition belongs to the lap just run (the
+    record's ``episodes`` against its ``lap``); NaN at a pre-run pause or without the per-backup laps.
+
+    A "reverse" label at the reward window is met both by a sweep of the lap just run and by a sweep of the lap
+    ahead backward from its far goal (G29 C5); this share tells the two apart and is reported beside the direction.
+    """
+    episodes = record.get("episodes")
+    if not episodes or str(record.get("trigger", TRIGGER_REWARD)) != TRIGGER_REWARD:
+        return math.nan
+    lap = int(record["lap"])
+    return sum(int(e) == lap for e in episodes) / len(episodes)
 
 
 def per_stop_rows(records: Iterable[Mapping[str, Any]], n_bins: int, **kwargs: Any) -> List[Dict[str, Any]]:
@@ -207,12 +222,14 @@ def per_stop_rows(records: Iterable[Mapping[str, Any]], n_bins: int, **kwargs: A
             "mean_span": (sum(e.span_cells for e in events) / n) if n else math.nan,
             "mean_length": (sum(e.n_backups for e in events) / n) if n else math.nan,
             "mean_abs_r": (sum(abs(e.sequence_r) for e in events) / n) if n else math.nan,
+            "from_this_lap": from_this_lap_share(record),
         })
     return rows
 
 
 SEED_METRICS = ("events_per_stop", "stops_with_event", "reverse_share", "forward_share", "neither_share",
-                "remote_share", "backups_in_events_share", "mean_span_cells", "mean_length_backups", "mean_abs_sequence_r")
+                "remote_share", "backups_in_events_share", "mean_span_cells", "mean_length_backups", "mean_abs_sequence_r",
+                "from_this_lap_share")
 
 
 def per_seed_rows(stop_rows: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]]:
@@ -233,6 +250,9 @@ def per_seed_rows(stop_rows: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]
         spans = [r["mean_span"] * r["n_events"] for r in rows if r["n_events"]]
         lengths = [r["mean_length"] * r["n_events"] for r in rows if r["n_events"]]
         abs_r = [r["mean_abs_r"] * r["n_events"] for r in rows if r["n_events"]]
+        # Backup-weighted over the reward pauses that carry the per-backup laps (NaN at pre-run pauses).
+        own = [(float(r["from_this_lap"]), r["n_backups"]) for r in rows
+               if r["n_backups"] and not math.isnan(float(r.get("from_this_lap", math.nan)))]
         out.append({
             "condition": condition, "seed": seed, "task": "linear_track",
             "events_per_stop": events / stops,
@@ -245,6 +265,7 @@ def per_seed_rows(stop_rows: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]
             "mean_span_cells": (math.fsum(spans) / events) if events else math.nan,
             "mean_length_backups": (math.fsum(lengths) / events) if events else math.nan,
             "mean_abs_sequence_r": (math.fsum(abs_r) / events) if events else math.nan,
+            "from_this_lap_share": (math.fsum(s * n for s, n in own) / sum(n for _, n in own)) if own else math.nan,
         })
     return out
 

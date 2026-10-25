@@ -141,6 +141,7 @@ GAIN_NEED_CONDITIONS: Tuple[str, ...] = tuple(GAIN_NEED_MODES)  # gain_need, gai
 ALL_CONDITIONS: Tuple[str, ...] = CONDITIONS + GAIN_NEED_CONDITIONS
 ACTIONS: Tuple[str, ...] = ("FORWARD", "TURN")
 BUDGET_MODES: Tuple[str, ...] = ("fixed", "thresholded")
+THRESHOLD_SCALES: Tuple[str, ...] = ("none", "mean_abs_value")  # M2a step 4: how the thresholded theta is scaled
 EAST, WEST = 1, -1  # goal ends and headings: +1 toward increasing cells, -1 toward decreasing
 TASK = "linear_track"
 DEFAULT_SEEDS: Tuple[int, ...] = tuple(range(1, 31))
@@ -185,6 +186,14 @@ class TrackConfig:
     trajectory_priority: str = "next"  # "next" (step 2) or "remaining_max" (step 3)
     # The successor representation's learning rate (its discount is ``discount``); learned in every condition.
     sr_learning_rate: float = 0.2
+    # --- M2a step 4 (docs/prereg/rq1_track_step4.md; G29 C3): the scale of the thresholded theta ---
+    # "none": a rule's priority is compared with ``threshold`` as it is (steps 2 and 3). "mean_abs_value": a rule
+    # whose priority is in value units (``ReplayRule.value_scaled``: a |TD error|, a gain) is compared with
+    # ``threshold`` x the mean |V| over the distinct states occupied so far, read once before the pause's first
+    # backup and held through the pause, floored at ``threshold_scale_floor``; a scale-free priority (a need)
+    # is compared with ``threshold`` itself.
+    threshold_scale: str = "none"
+    threshold_scale_floor: float = 1e-9
 
     def __post_init__(self) -> None:
         if self.n_bins < 2 or self.laps < 1 or self.lap_cap < 1 or self.backups_per_trigger < 1 or self.memory_capacity < 1:
@@ -199,6 +208,10 @@ class TrackConfig:
             raise ValueError("trajectory_priority must be 'next' or 'remaining_max'")
         if not (0.0 < self.sr_learning_rate <= 1.0):
             raise ValueError("sr_learning_rate in (0, 1]")
+        if self.threshold_scale not in THRESHOLD_SCALES:
+            raise ValueError(f"threshold_scale must be one of {THRESHOLD_SCALES}, got {self.threshold_scale!r}")
+        if not (math.isfinite(self.threshold_scale_floor) and self.threshold_scale_floor > 0.0):
+            raise ValueError("threshold_scale_floor must be a positive finite number")
         if self.reward_blocks:
             blocks = tuple(tuple(b) for b in self.reward_blocks)
             object.__setattr__(self, "reward_blocks", blocks)  # lists from a manifest become tuples
@@ -388,6 +401,13 @@ class TrackAgent:
         if from_state is not None:
             self.sr.update(self.track.index(from_state), self.track.index(to_state), False)
 
+    def value_scale(self) -> float:
+        """Mean |V| over the distinct states occupied so far: the value scale the thresholded theta is multiplied by
+        under ``threshold_scale="mean_abs_value"`` (step 4). 0 before any state was occupied."""
+        if not self.visits:
+            return 0.0
+        return math.fsum(abs(self.value(s)) for s in self.visits) / len(self.visits)
+
     def value_rmse(self) -> float:
         """RMS error of V against the exact V* over all states, each state weighted equally."""
         errors = [self.value(s) - self.track.optimal_value(s) for s in self.track.states()]
@@ -495,6 +515,10 @@ class LapRecord:
     # --- M2a step 3: the rule's priority read before each pause's first backup (what the thresholded mode tests) ---
     reward_priority_before: float = float("nan")
     pre_run_priority_before: float = float("nan")
+    # --- M2a step 4: the value scale (mean |V| over occupied states) read before each pause; under
+    # ``threshold_scale="mean_abs_value"`` the thresholded comparison is priority > theta x scale ---
+    reward_value_scale: float = float("nan")
+    pre_run_value_scale: float = float("nan")
 
 
 @dataclass
@@ -572,23 +596,28 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
     goal = EAST
     cumulative = 0
 
-    def do_replay(trigger: str, episode: int, travel: int, acting: State) -> Tuple[Optional[ReplayOutcome], float]:
+    def do_replay(trigger: str, episode: int, travel: int, acting: State) -> Tuple[Optional[ReplayOutcome], float, float]:
         """One pause of the condition's rule under the configured budget mode: (outcome or None when nothing was
-        replayed, the rule's priority before the first backup). ``acting`` is the state the agent acts from next."""
+        replayed, the rule's priority before the first backup, the value scale read then). ``acting`` is the state
+        the agent acts from next."""
         if rule is None or len(agent.memory) == 0:
-            return None, float("nan")
+            return None, float("nan"), float("nan")
         if trigger == TRIGGER_PRE_RUN and not agent.memory.episode(episode):
-            return None, float("nan")  # nothing completed yet to replay (the very first pause)
+            return None, float("nan"), float("nan")  # nothing completed yet to replay (the very first pause)
         model.set_acting(acting)
         rule.begin(agent.memory, episode)
         before = rule.priority(agent.memory, agent.learner, 0)
+        scale = agent.value_scale()
         if cfg.budget_mode == "thresholded":
-            outcome = replay_thresholded(rule, agent.memory, agent.learner, cfg.threshold, cfg.backup_cap, episode,
+            threshold = cfg.threshold
+            if cfg.threshold_scale == "mean_abs_value" and rule.value_scaled:
+                threshold = cfg.threshold * max(scale, cfg.threshold_scale_floor)  # step 4: theta in value units
+            outcome = replay_thresholded(rule, agent.memory, agent.learner, threshold, cfg.backup_cap, episode,
                                          replay_stream, tick=cumulative, travel_sign=travel, trigger=trigger)
         else:
             outcome = replay(rule, agent.memory, agent.learner, cfg.backups_per_trigger, episode, replay_stream,
                              tick=cumulative, travel_sign=travel, trigger=trigger)
-        return outcome, before
+        return outcome, before, scale
 
     def event_row(outcome: ReplayOutcome, lap: int, goal_name: str, agent_cell: int, block: int) -> Dict[str, Any]:
         """One line of the events file: the ReplayEvent plus the lap, its goal, the reward block and the cell the
@@ -612,11 +641,11 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
         agent.visit(state)
         goal_name = "east" if goal == EAST else "west"
         pre_run: Optional[ReplayOutcome] = None
-        pre_run_before = float("nan")
+        pre_run_before = pre_run_scale = float("nan")
         if cfg.pre_run_pause and last_completed is not None:
             # The pre-run pause: the body is turned to face the new goal; the replayed transitions are read
             # against the travel of the lap they belong to (the most recently completed one, for the reverse rule).
-            pre_run, pre_run_before = do_replay(TRIGGER_PRE_RUN, last_completed, -goal, state)
+            pre_run, pre_run_before, pre_run_scale = do_replay(TRIGGER_PRE_RUN, last_completed, -goal, state)
             if pre_run is not None:
                 events.append(event_row(pre_run, lap, goal_name, state.cell, block))  # the body waits at the start end
         goal_cell = track.goal_cell(goal)
@@ -655,11 +684,12 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
             pre_run_direction=pre_run.event.direction if pre_run is not None else "",
             pre_run_sequence_r=pre_run.sequence_r if pre_run is not None else float("nan"),
             pre_run_priority_before=pre_run_before,
+            pre_run_value_scale=pre_run_scale,
         )
         outcome: Optional[ReplayOutcome] = None
         if rewarded:
             # At the reward pause the agent acts next from the turned-around start of the next lap.
-            outcome, record.reward_priority_before = do_replay(TRIGGER_REWARD, lap, goal, track.start_state(-goal))
+            outcome, record.reward_priority_before, record.reward_value_scale = do_replay(TRIGGER_REWARD, lap, goal, track.start_state(-goal))
         if outcome is not None:
             cells = [t.cell[0] for t in outcome.transitions]
             distances = [abs(c - goal_cell) for c in cells]
