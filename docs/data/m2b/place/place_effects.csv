@@ -1,0 +1,21 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+t1_throughput,ticks_per_s_median,,"m2b, 400 cells",5,,,16216.1,14591.9,16328.9,,,,>= 1000,passes,off: 17573
+t2_decoder,decode_vs_estimate_max,,"integrated, m2b",30,,,6.40475e-14,,,,,,< 1e-06 units at every tick (an undefined decode fails),passes,"undefined decodes: integrated 0, m2b 0"
+t3_decoding_drop_at_contact,decode_drop_at_contact,,m2b,30,,-0.560114,-0.560114,-0.597618,-0.520229,,,,"< 0, interval below",passes,
+t4_map_fidelity,correlation_mean,integrated,m2b,30,0.326462,0.913305,0.586843,0.542166,0.629066,1,1,1,"b > a: delta >= 0.3, interval above 0",passes,all bootstrap replicates equal; interval collapsed to the estimate
+reported,correlation_mean,,integrated,30,,0.326462,0.326462,0.284272,0.372533,,,,reported,reported,
+reported,correlation_wall,,integrated,30,,0.338754,0.338754,0.296732,0.383015,,,,reported,reported,
+reported,correlation_interior,,integrated,30,,0.303915,0.303915,0.256604,0.35399,,,,reported,reported,
+reported,centroid_shift_mean,,integrated,30,,3.67897,3.67897,3.20062,4.20852,,,,reported,reported,
+reported,centroid_shift_wall,,integrated,30,,3.51333,3.51333,3.09014,3.99608,,,,reported,reported,
+reported,centroid_shift_interior,,integrated,30,,3.97926,3.97926,3.39511,4.63888,,,,reported,reported,
+reported,info_ratio_mean,,integrated,30,,0.840642,0.840642,0.817725,0.87698,,,,reported,reported,
+reported,decode_error_median_late,,integrated,30,,10.195,10.195,8.60141,11.9781,,,,reported,reported,
+reported,correlation_mean,,m2b,30,,0.913305,0.913305,0.904101,0.921079,,,,reported,reported,
+reported,correlation_wall,,m2b,30,,0.912608,0.912608,0.904128,0.920313,,,,reported,reported,
+reported,correlation_interior,,m2b,30,,0.914597,0.914597,0.903639,0.923243,,,,reported,reported,
+reported,centroid_shift_mean,,m2b,30,,0.34797,0.34797,0.32181,0.380759,,,,reported,reported,
+reported,centroid_shift_wall,,m2b,30,,0.343337,0.343337,0.316166,0.377477,,,,reported,reported,
+reported,centroid_shift_interior,,m2b,30,,0.355176,0.355176,0.327441,0.392363,,,,reported,reported,
+reported,info_ratio_mean,,m2b,30,,0.908088,0.908088,0.900648,0.914877,,,,reported,reported,
+reported,decode_error_median_late,,m2b,30,,0.700401,0.700401,0.654988,0.76078,,,,reported,reported,
