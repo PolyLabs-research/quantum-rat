@@ -375,8 +375,8 @@ def learning_rows(runs_by_mode: Mapping[str, Sequence[SeedRun]], n_boot: int) ->
             base = {"mode": mode, "condition": condition, "n": int(arr.size), "mean_total_steps": ci.estimate, "low": ci.low,
                     "high": ci.high, "laps_capped_total": capped[condition]}
             for reference in (RULE_NONE, "prioritised_td"):
-                if reference == condition or reference not in totals:
-                    continue
+                if condition == RULE_NONE or reference == condition or reference not in totals:
+                    continue  # none is the baseline: its row is the summary alone
                 ref = np.array([totals[reference][s] for s in seeds], dtype=np.float64)
                 eff = paired_effect(ref, arr, n_boot=n_boot, seed=_stat_seed("learning", mode, condition, reference))
                 delta = cliffs_delta(ref, arr, n_boot=n_boot, seed=_stat_seed("learning_cliff", mode, condition, reference))
