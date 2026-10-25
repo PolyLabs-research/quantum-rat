@@ -62,6 +62,14 @@ DEFAULT_SEEDS: Tuple[int, ...] = tuple(range(1, 31))
 DEFAULT_OUT = Path("docs/data/m2b/gate")
 DEFAULT_N_BOOT = 10_000
 QUICK_TRIALS = 8
+# The preregistrations a run can answer to, with the settings each fixes (decisions G36): the gate as first
+# preregistered, and the confirmatory gate on fresh seeds with the per-feature reward rule written after its failure.
+DEFAULT_PREREG = "docs/prereg/m2b_gate.md"
+PREREGS: Dict[str, Dict[str, Any]] = {
+    DEFAULT_PREREG: {"seeds": DEFAULT_SEEDS, "reward_rule": "nlms", "out": DEFAULT_OUT},
+    "docs/prereg/m2b_gate_confirmatory.md": {"seeds": tuple(range(31, 61)), "reward_rule": "per_feature",
+                                             "out": Path("docs/data/m2b/gate_confirmatory")},
+}
 
 
 def gate_config(source: str, reward_rule: str = "nlms") -> EngineConfig:
@@ -279,8 +287,12 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     parser.add_argument("--sources", default=",".join(SOURCES), help="comma-separated; default all three")
     parser.add_argument("--reward-rule", default="nlms", choices=("nlms", "per_feature"),
                         help="the SR's reward rule: nlms (preregistered) or per_feature (exploratory, decisions G36)")
+    parser.add_argument("--prereg", default=DEFAULT_PREREG,
+                        help="the preregistration this run answers to (a run away from its settings is marked exploratory)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args(argv)
+    if args.prereg not in PREREGS:
+        parser.error(f"--prereg must be one of {tuple(PREREGS)}")
     seeds = list(range(args.seed_start, args.seed_start + args.seeds))
     trials = QUICK_TRIALS if args.quick else TRIALS
     learning = trials // 2
@@ -289,10 +301,12 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     for s in sources:
         if s not in SOURCES:
             parser.error(f"unknown source {s!r}")
-    full = (tuple(seeds) == DEFAULT_SEEDS and not args.quick and n_boot >= 1000 and sources == SOURCES
-            and args.reward_rule == "nlms")
-    if args.out.resolve() == DEFAULT_OUT.resolve() and not full:
-        parser.error(f"a partial run must not overwrite the committed tables in {DEFAULT_OUT}: give --out")
+    spec = PREREGS[args.prereg]
+    full = (tuple(seeds) == spec["seeds"] and not args.quick and n_boot >= 1000 and sources == SOURCES
+            and args.reward_rule == spec["reward_rule"])
+    for committed in (p["out"] for p in PREREGS.values()):
+        if args.out.resolve() == Path(committed).resolve() and not (full and Path(committed).resolve() == Path(spec["out"]).resolve()):
+            parser.error(f"a partial run (or another preregistration's) must not overwrite the committed tables in {committed}: give --out")
     started = time.perf_counter()
     trial_rows = run_all(seeds, trials, args.workers, sources, args.reward_rule)
     per_seed = per_seed_rows(trial_rows, learning)
@@ -303,10 +317,10 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
         cfg, protocol="rq4a_gate", seeds=seeds, ticks_requested=len(seeds) * len(sources) * len(SESSIONS) * trials * (TIMEOUT + GUIDE),
         extra={"goal": list(GOAL), "goal_radius": GOAL_RADIUS, "starts": [list(s) for s in STARTS], "trials": trials,
                "learning_trials": learning, "timeout": TIMEOUT, "guide": GUIDE, "sources": list(sources), "sessions": list(SESSIONS),
-               "reward_rule": args.reward_rule, "exploratory": args.reward_rule != "nlms",
+               "reward_rule": args.reward_rule, "exploratory": not full,
                "ratio_bound": RATIO_BOUND, "error_bound": ERROR_BOUND, "protocol_stream": PROTOCOL_STREAM,
                "config_diff_from_research": {src: [list(map(str, d)) for d in EngineConfig.research().diff(gate_config(src, args.reward_rule))] for src in sources},
-               "n_boot": n_boot, "full_evaluation": full, "quick": args.quick, "prereg": "docs/prereg/m2b_gate.md",
+               "n_boot": n_boot, "full_evaluation": full, "quick": args.quick, "prereg": args.prereg,
                "dependencies": _dependency_versions(),
                "command": "python3 -m experiments.rq4a_gate " + " ".join(list(argv) if argv is not None else sys.argv[1:])},
     )
@@ -319,7 +333,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     write_csv(out / OUTPUT_FILES[2], CURVE_COLUMNS, curve)
     write_csv(out / OUTPUT_FILES[3], EFFECT_COLUMNS, effects)
     write_manifest(out / OUTPUT_FILES[4], manifest)
-    print("preregistered tests and reported statistics (docs/prereg/m2b_gate.md):")
+    print(f"tests and reported statistics ({args.prereg}{'' if full else '; EXPLORATORY: not the preregistered settings'}):")
     for e in effects:
         est = "nan" if (isinstance(e["estimate"], float) and math.isnan(e["estimate"])) else f"{e['estimate']:.4g}"
         rng = "" if e["low"] == "" or (isinstance(e["low"], float) and math.isnan(e["low"])) else f" [{e['low']:.4g}, {e['high']:.4g}]"
