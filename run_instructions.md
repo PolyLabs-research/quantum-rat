@@ -104,6 +104,9 @@ offline.
    # M2b step 1 (docs/prereg/m2b_estimate.md): the heading oracle and the wall-contact reset in the
    # 2 m open field, 8 cells x 30 seeds x 3,000 ticks (writes docs/data/m2b/estimate)
    python -m experiments.estimate_correction --workers 4
+   # M2b step 2 (docs/prereg/m2b_place_population.md): a 400-cell place population over the estimate,
+   # rate maps, the decoder and a throughput benchmark (writes docs/data/m2b/place)
+   python -m experiments.place_population --workers 4
    ```
 
 Stop the server with `Ctrl+C`.

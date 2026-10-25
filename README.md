@@ -305,6 +305,10 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   wall-contact position reset (`sensors.heading_oracle`, `sensors.wall_contact_sensing`,
   `spatial.heading_source`, `spatial.wall_reset`; all off in both profiles), characterised in the
   2 m open field over 30 seeds (`docs/prereg/m2b_estimate.md`; `docs/data/m2b/estimate/`).
+* `experiments/place_population.py` — M2b step 2: a 400-cell Gaussian place population over the
+  estimate (`EngineConfig.place`, `brain/systems/place_population.py`, off in both profiles), its
+  rate maps against true position (`analysis/place_metrics.py`), an exact decoder and the engine's
+  throughput with it (`docs/prereg/m2b_place_population.md`; `docs/data/m2b/place/`).
 
 ### Tournaments
 * **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.

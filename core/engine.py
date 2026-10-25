@@ -58,6 +58,8 @@ class EngineContext:
     neuromodulators: Dict[str, float] = field(default_factory=dict)
     observation: Observation | None = None
     observation_checksum: str = ""
+    # The place population's rates at this tick's estimate (M2b step 2; None when place.enabled is off). Not in TickData.
+    place_rates: Any = None
     trn_state: str = "OPEN"
     trn_gate_value: float = 1.0
     microsleep_active: bool = False
@@ -198,6 +200,15 @@ class Engine:
             # The agent knows the arena's half-extent in its estimate frame (declared, docs/prereg/m2b_estimate.md).
             reset_bounds=(c.spatial.reset_bounds or tuple(self.world.bounds)) if c.spatial.wall_reset else None,
         )
+        # The place population (M2b step 2), off by default. Imported here, not at the top: it needs numpy, and
+        # importing core.engine must not import numpy (docs/determinism.md, numpy rule 2).
+        self.place = None
+        self.place_rates = None
+        if c.place.enabled:
+            from brain.systems.place_population import PlacePopulation
+
+            self.place = PlacePopulation(c.place.extent or tuple(self.world.bounds), spacing=c.place.spacing,
+                                         width=c.place.width, max_rate=c.place.max_rate)
         self.working_memory = WorkingMemory(capacity=c.working_memory.capacity)
         self.last_action: Action = Action(name="REST", thrust=0.0, turn=0.0)
         self.pipeline = Pipeline(
@@ -374,6 +385,8 @@ class Engine:
         ctx.grid_x = state.grid_x
         ctx.grid_y = state.grid_y
         ctx.place_id = state.place_id
+        if self.place is not None:
+            self.place_rates = ctx.place_rates = self.place.rates(state.grid_x, state.grid_y)
 
     def _wm_step(self, ctx: EngineContext) -> None:
         if ctx.observation is None:
