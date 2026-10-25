@@ -91,4 +91,11 @@ def test_quick_run_is_identical_across_workers_and_refuses_the_committed_directo
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit):
         rg.main(["--quick", "--seeds", "2"])
+    with pytest.raises(SystemExit):
+        rg.main(["--sources", "sr", "--reward-rule", "per_feature", "--seeds", "1"])  # partial: refuses the default directory
+    explor = tmp_path / "explor"
+    rg.main(["--quick", "--seeds", "1", "--workers", "1", "--sources", "sr", "--reward-rule", "per_feature", "--out", str(explor)])
+    m = json.loads((explor / "gate_manifest.json").read_text())
+    assert m["reward_rule"] == "per_feature" and m["exploratory"] is True and m["sources"] == ["sr"] and m["full_evaluation"] is False
+    assert {r["source"] for r in _read(explor / "gate_trials.csv")} == {"sr"}
     assert not (tmp_path / "docs").exists()

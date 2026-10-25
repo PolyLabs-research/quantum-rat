@@ -498,10 +498,14 @@ class Engine:
         phi = normalised(self.place_rates)
         if self._sr_prev is not None:
             self.sr.update(self._sr_prev, phi)
-        norm = float((phi * phi).sum())
-        if norm > 0.0:
-            err = reward - float((phi * self.sr_weights).sum())
-            self.sr_weights += (self.config.place.reward_learning_rate * err / norm) * phi
+        rate = self.config.place.reward_learning_rate
+        if self.config.place.reward_rule == "per_feature":
+            self.sr_weights += rate * phi * (reward - self.sr_weights)  # exploratory (decisions G36)
+        else:
+            norm = float((phi * phi).sum())
+            if norm > 0.0:
+                err = reward - float((phi * self.sr_weights).sum())
+                self.sr_weights += (rate * err / norm) * phi
         self._sr_prev = phi
         self._sr_u = None  # M^T R changed
 

@@ -343,6 +343,10 @@ class PlaceConfig:
     sr_learning_rate: float = 0.1
     sr_discount: float = 0.95
     reward_learning_rate: float = 0.5
+    # How R learns: "nlms" (the preregistered rule above; a regression of the point reward on overlapping fields, which
+    # rings the goal with negative weights: decisions G36) or "per_feature", exploratory (each weight tracks the reward
+    # seen while its cell is active, R += reward_learning_rate * phi * (r - R), so R >= 0 when rewards are >= 0).
+    reward_rule: str = "nlms"
 
     def __post_init__(self) -> None:
         for name in ("spacing", "width", "max_rate", "sr_learning_rate", "reward_learning_rate"):
@@ -356,6 +360,11 @@ class PlaceConfig:
             object.__setattr__(self, "extent", extent)
         if not (math.isfinite(self.sr_discount) and 0.0 <= self.sr_discount < 1.0):
             raise ValueError("place.sr_discount must be in [0, 1)")
+        if self.reward_rule not in REWARD_RULES:
+            raise ValueError(f"place.reward_rule must be one of {REWARD_RULES}, got {self.reward_rule!r}")
+
+
+REWARD_RULES: Tuple[str, ...] = ("nlms", "per_feature")
 
 
 VALUE_SOURCES: Tuple[str, ...] = ("tabular", "sr", "none")

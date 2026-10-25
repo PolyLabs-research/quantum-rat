@@ -70,3 +70,25 @@ def test_none_gives_no_value_steering_and_tabular_reads_the_map() -> None:
     tab.value_memory.values[(2, 0)] = 5.0
     assert tab._value_at(1.25, 0.25) == 5.0 and tab._value_at(-3.0, 0.0) == tab.value_memory.value_of(tab.spatial.bins_at(-3.0, 0.0))
     assert tab._value_signals(ctx) != (0.0, 0.0, 0.0)
+
+
+def test_the_exploratory_per_feature_reward_rule_keeps_r_non_negative() -> None:
+    """decisions G36: the preregistered NLMS rule rings a point reward with negative weights; the exploratory
+    per-feature rule moves each weight toward the reward seen while its cell is active, so R >= 0 when r >= 0."""
+    from core.config import REWARD_RULES, PlaceConfig
+
+    assert REWARD_RULES == ("nlms", "per_feature") and PlaceConfig().reward_rule == "nlms"
+    with pytest.raises(ValueError):
+        PlaceConfig(reward_rule="td")
+    results = {}
+    for rule in REWARD_RULES:
+        cfg = _cfg("sr")
+        cfg.place.reward_rule = rule
+        eng = Engine(seed=4, config=cfg)
+        eng.run(20, reset=True)
+        eng._sr_learn(1.0)  # one rewarded arrival, then unrewarded ticks nearby
+        for _ in range(30):
+            eng.run(1)
+        results[rule] = eng.sr_weights.copy()
+    assert float(results["per_feature"].min()) >= 0.0 and float(results["per_feature"].max()) > 0.0
+    assert float(results["nlms"].min()) < 0.0  # the ring

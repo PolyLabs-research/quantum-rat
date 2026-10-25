@@ -64,12 +64,14 @@ DEFAULT_N_BOOT = 10_000
 QUICK_TRIALS = 8
 
 
-def gate_config(source: str) -> EngineConfig:
-    """Step 1's M2b estimate, step 2's population, and the value source that steers."""
+def gate_config(source: str, reward_rule: str = "nlms") -> EngineConfig:
+    """Step 1's M2b estimate, step 2's population, and the value source that steers (``reward_rule``: the SR's R rule;
+    "nlms" is the preregistered one, "per_feature" the exploratory one of decisions G36)."""
     if source not in SOURCES:
         raise ValueError(f"source must be one of {SOURCES}, got {source!r}")
     cfg = engine_config("oracle_reset", ORACLE_NOISE)
     cfg.place.enabled = True
+    cfg.place.reward_rule = reward_rule
     cfg.value_memory.source = source
     return cfg
 
@@ -90,10 +92,10 @@ def _reached(eng: Engine) -> bool:
     return math.hypot(x - GOAL[0], y - GOAL[1]) <= GOAL_RADIUS
 
 
-def run_session(source: str, session: str, seed: int, trials: int = TRIALS) -> List[Dict[str, Any]]:
+def run_session(source: str, session: str, seed: int, trials: int = TRIALS, reward_rule: str = "nlms") -> List[Dict[str, Any]]:
     if session not in SESSIONS:
         raise ValueError(f"session must be one of {SESSIONS}")
-    eng = Engine(seed=seed, config=gate_config(source))
+    eng = Engine(seed=seed, config=gate_config(source, reward_rule))
     goal = WorldObject(GOAL[0], GOAL[1], GOAL_RADIUS, "hidden" if session == "hidden" else "target")
     eng.world.add_object(goal)
     rows: List[Dict[str, Any]] = []
@@ -134,12 +136,13 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS) -> L
     return rows
 
 
-def _job(args: Tuple[str, str, int, int]) -> List[Dict[str, Any]]:
+def _job(args: Tuple[str, str, int, int, str]) -> List[Dict[str, Any]]:
     return run_session(*args)
 
 
-def run_all(seeds: Sequence[int], trials: int, workers: Optional[int]) -> List[Dict[str, Any]]:
-    jobs = [(src, ses, s, trials) for src in SOURCES for ses in SESSIONS for s in seeds]
+def run_all(seeds: Sequence[int], trials: int, workers: Optional[int], sources: Sequence[str] = SOURCES,
+            reward_rule: str = "nlms") -> List[Dict[str, Any]]:
+    jobs = [(src, ses, s, trials, reward_rule) for src in sources for ses in SESSIONS for s in seeds]
     if workers == 1 or len(jobs) == 1:
         out = [_job(j) for j in jobs]
     else:
@@ -273,27 +276,36 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     parser.add_argument("--workers", type=int, default=None)
     parser.add_argument("--n-boot", type=int, default=DEFAULT_N_BOOT)
     parser.add_argument("--quick", action="store_true", help=f"{QUICK_TRIALS} trials (the gate reads the second half), 200 replicates; needs --out")
+    parser.add_argument("--sources", default=",".join(SOURCES), help="comma-separated; default all three")
+    parser.add_argument("--reward-rule", default="nlms", choices=("nlms", "per_feature"),
+                        help="the SR's reward rule: nlms (preregistered) or per_feature (exploratory, decisions G36)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args(argv)
     seeds = list(range(args.seed_start, args.seed_start + args.seeds))
     trials = QUICK_TRIALS if args.quick else TRIALS
     learning = trials // 2
     n_boot = min(args.n_boot, 200) if args.quick else args.n_boot
-    full = tuple(seeds) == DEFAULT_SEEDS and not args.quick and n_boot >= 1000
+    sources = tuple(s.strip() for s in args.sources.split(",") if s.strip())
+    for s in sources:
+        if s not in SOURCES:
+            parser.error(f"unknown source {s!r}")
+    full = (tuple(seeds) == DEFAULT_SEEDS and not args.quick and n_boot >= 1000 and sources == SOURCES
+            and args.reward_rule == "nlms")
     if args.out.resolve() == DEFAULT_OUT.resolve() and not full:
         parser.error(f"a partial run must not overwrite the committed tables in {DEFAULT_OUT}: give --out")
     started = time.perf_counter()
-    trial_rows = run_all(seeds, trials, args.workers)
+    trial_rows = run_all(seeds, trials, args.workers, sources, args.reward_rule)
     per_seed = per_seed_rows(trial_rows, learning)
     curve = curve_rows(trial_rows, n_boot)
     effects = effect_rows(per_seed, n_boot)
-    cfg = gate_config("sr")
+    cfg = gate_config(sources[0], args.reward_rule)
     manifest = build_manifest(
-        cfg, protocol="rq4a_gate", seeds=seeds, ticks_requested=len(seeds) * len(SOURCES) * len(SESSIONS) * trials * (TIMEOUT + GUIDE),
+        cfg, protocol="rq4a_gate", seeds=seeds, ticks_requested=len(seeds) * len(sources) * len(SESSIONS) * trials * (TIMEOUT + GUIDE),
         extra={"goal": list(GOAL), "goal_radius": GOAL_RADIUS, "starts": [list(s) for s in STARTS], "trials": trials,
-               "learning_trials": learning, "timeout": TIMEOUT, "guide": GUIDE, "sources": list(SOURCES), "sessions": list(SESSIONS),
+               "learning_trials": learning, "timeout": TIMEOUT, "guide": GUIDE, "sources": list(sources), "sessions": list(SESSIONS),
+               "reward_rule": args.reward_rule, "exploratory": args.reward_rule != "nlms",
                "ratio_bound": RATIO_BOUND, "error_bound": ERROR_BOUND, "protocol_stream": PROTOCOL_STREAM,
-               "config_diff_from_research": {src: [list(map(str, d)) for d in EngineConfig.research().diff(gate_config(src))] for src in SOURCES},
+               "config_diff_from_research": {src: [list(map(str, d)) for d in EngineConfig.research().diff(gate_config(src, args.reward_rule))] for src in sources},
                "n_boot": n_boot, "full_evaluation": full, "quick": args.quick, "prereg": "docs/prereg/m2b_gate.md",
                "dependencies": _dependency_versions(),
                "command": "python3 -m experiments.rq4a_gate " + " ".join(list(argv) if argv is not None else sys.argv[1:])},
