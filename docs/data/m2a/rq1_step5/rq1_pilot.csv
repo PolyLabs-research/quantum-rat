@@ -1,0 +1,6 @@
+version,condition,statistic,n_pauses,theta,min,max,laps,seeds
+step5,uniform,priority / value_scale,30,0.124286,0.0895598,0.267561,11-20,"1,2,3"
+step5,reverse_trajectory,priority / value_scale,30,2.25714,1.43861,4.07791,11-20,"1,2,3"
+step5,prioritised_td,priority / value_scale,30,0.940048,0.555553,1.46099,11-20,"1,2,3"
+step5,mattar_daw,priority / value_scale,30,3.90938e-05,1.55219e-05,0.000113043,11-20,"1,2,3"
+step5,mattar_daw_1step,priority / value_scale,30,1.04689e-06,5.27421e-07,3.05714e-06,11-20,"1,2,3"

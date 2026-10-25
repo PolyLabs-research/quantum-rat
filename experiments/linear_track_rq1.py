@@ -54,6 +54,7 @@ from analysis.replay_metrics import extract_events
 from analysis.stats import bootstrap_ci, cliffs_delta, paired_effect, pseudo_replication_guard, tost
 from brain.systems.replay_events import RULE_NONE, TRIGGER_PRE_RUN, TRIGGER_REWARD
 from brain.systems.replay_gain_need import GainNeedReplay
+from brain.systems.replay_mattar_daw import MATTAR_DAW_CONDITIONS, MattarDawReplay
 from brain.systems.replay_rules import make_rule
 from experiments.linear_track_replay import (
     ALL_CONDITIONS,
@@ -71,11 +72,19 @@ from experiments.linear_track_replay import (
 )
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
-VERSIONS = ("step2", "step3", "step4")
-DEFAULT_VERSION = "step4"
-DEFAULT_OUTS = {"step2": Path("docs/data/m2a/rq1"), "step3": Path("docs/data/m2a/rq1_step3"), "step4": Path("docs/data/m2a/rq1_step4")}
+# Step 5 (G31; docs/prereg/rq1_track_mattar_daw.md), the default: step 4's protocol on the Q learner, with the floors
+# rerun under it and the Mattar & Daw rule with and without its forward n-step extension; the (b) rate tests add the
+# east change minus the west change (G30 C2); docs/data/m2a/rq1_step5.
+VERSIONS = ("step2", "step3", "step4", "step5")
+DEFAULT_VERSION = "step5"
+DEFAULT_OUTS = {"step2": Path("docs/data/m2a/rq1"), "step3": Path("docs/data/m2a/rq1_step3"), "step4": Path("docs/data/m2a/rq1_step4"),
+                "step5": Path("docs/data/m2a/rq1_step5")}
 DEFAULT_OUT = DEFAULT_OUTS[DEFAULT_VERSION]
-PREREGS = {"step2": "docs/prereg/rq1_track_tabular.md", "step3": "docs/prereg/rq1_track_gain_need.md", "step4": "docs/prereg/rq1_track_step4.md"}
+PREREGS = {"step2": "docs/prereg/rq1_track_tabular.md", "step3": "docs/prereg/rq1_track_gain_need.md", "step4": "docs/prereg/rq1_track_step4.md",
+           "step5": "docs/prereg/rq1_track_mattar_daw.md"}
+LEARNERS_BY_VERSION = {"step2": "v", "step3": "v", "step4": "v", "step5": "q"}
+STEP3_CONDITIONS: Tuple[str, ...] = CONDITIONS + GAIN_NEED_CONDITIONS  # the seven of steps 3 and 4 (the v learner)
+STEP5_CONDITIONS: Tuple[str, ...] = CONDITIONS + MATTAR_DAW_CONDITIONS  # the floors on the q learner and the two Mattar & Daw rules
 # Steps 2 and 3: four blocks in one session.
 BLOCKS: Tuple[Tuple[int, float, float], ...] = ((20, 1.0, 1.0), (20, 4.0, 1.0), (20, 1.0, 1.0), (20, 0.25, 1.0))
 BLOCK_NAMES = ("baseline", "increase_x4", "washout", "decrease_x0.25")
@@ -84,10 +93,14 @@ FOUR_BLOCK = "four_block"
 # the baseline that precedes it (in the four-block protocol the decrease followed a washout block whose own surprise,
 # |dr| 3.0, let an unsigned rule pass "down" for a magnitude reason). Both sessions run from the same seed, so their
 # baseline blocks are the same 20 laps and the sessions part at lap 21.
+TWO_SESSIONS: Dict[str, Tuple[Tuple[int, float, float], ...]] = {
+    "increase": ((20, 1.0, 1.0), (20, 4.0, 1.0)), "decrease": ((20, 1.0, 1.0), (20, 0.25, 1.0)),
+}
 SESSIONS: Dict[str, Dict[str, Tuple[Tuple[int, float, float], ...]]] = {
     "step2": {FOUR_BLOCK: BLOCKS},
     "step3": {FOUR_BLOCK: BLOCKS},
-    "step4": {"increase": ((20, 1.0, 1.0), (20, 4.0, 1.0)), "decrease": ((20, 1.0, 1.0), (20, 0.25, 1.0))},
+    "step4": TWO_SESSIONS,
+    "step5": TWO_SESSIONS,
 }
 SESSION_BLOCK_NAMES: Dict[str, Tuple[str, ...]] = {
     FOUR_BLOCK: BLOCK_NAMES, "increase": ("baseline", "increase_x4"), "decrease": ("baseline", "decrease_x0.25"),
@@ -109,7 +122,13 @@ THRESHOLDS_STEP4: Dict[str, Optional[float]] = {
     "uniform": 0.130951, "reverse_trajectory": 2.25778, "prioritised_td": 1.59017,
     "gain_need": 6.13424e-06, "gain_only": 0.0102264, "need_only": 2.71085,
 }
-THRESHOLD_SCALES = {"step2": "none", "step3": "none", "step4": "mean_abs_value"}
+# Step 5's theta per rule: the step-4 pilot rule on the q learner's priorities (``--pilot --version step5``; the table
+# is docs/data/m2a/rq1_step5/rq1_pilot.csv). ``None`` until the pilot has run.
+THRESHOLDS_STEP5: Dict[str, Optional[float]] = {
+    "uniform": 0.124286, "reverse_trajectory": 2.25714, "prioritised_td": 0.940048, "mattar_daw": 3.90938e-05, "mattar_daw_1step": 1.04689e-06,
+}
+THRESHOLD_SCALES = {"step2": "none", "step3": "none", "step4": "mean_abs_value", "step5": "mean_abs_value"}
+THETA_TABLES: Dict[str, Dict[str, Optional[float]]] = {"step3": THRESHOLDS_STEP3, "step4": THRESHOLDS_STEP4, "step5": THRESHOLDS_STEP5}
 PILOT_SEEDS: Tuple[int, ...] = (1, 2, 3)
 BACKUP_CAP = 100
 ENDS = ("east", "west")
@@ -121,8 +140,13 @@ TOST_RELATIVE = 0.2
 
 
 def version_conditions(version: str) -> Tuple[str, ...]:
-    """The conditions a version runs: the four floors in step 2, all seven since step 3."""
-    return CONDITIONS if version == "step2" else ALL_CONDITIONS
+    """The conditions a version runs: the four floors in step 2, the seven of the v learner in steps 3 and 4, the
+    floors and the two Mattar & Daw rules on the q learner in step 5."""
+    if version == "step2":
+        return CONDITIONS
+    if version == "step5":
+        return STEP5_CONDITIONS
+    return STEP3_CONDITIONS
 
 
 def condition_is_value_scaled(condition: str) -> bool:
@@ -131,6 +155,8 @@ def condition_is_value_scaled(condition: str) -> bool:
         return False
     if condition in GAIN_NEED_CONDITIONS:
         return GainNeedReplay.VALUE_SCALED[condition]
+    if condition in MATTAR_DAW_CONDITIONS:
+        return bool(MattarDawReplay.value_scaled)
     return bool(make_rule(condition).value_scaled)
 
 
@@ -140,8 +166,7 @@ def theta_for(condition: str, version: str, overrides: Optional[Mapping[str, flo
         return float(overrides[condition])
     if version == "step2":
         return THRESHOLD
-    table = THRESHOLDS_STEP3 if version == "step3" else THRESHOLDS_STEP4
-    theta = table.get(condition)
+    theta = THETA_TABLES[version].get(condition)
     if theta is None:
         if condition == RULE_NONE:
             return THRESHOLD  # never used: none makes no pause
@@ -181,6 +206,7 @@ def protocol_config(mode: str, quick: bool = False, *, version: str = DEFAULT_VE
         threshold=THRESHOLD if theta is None else float(theta), backup_cap=BACKUP_CAP,
         trajectory_priority="next" if version == "step2" else "remaining_max",
         threshold_scale=THRESHOLD_SCALES[version],
+        learner=LEARNERS_BY_VERSION[version],
     )
 
 
@@ -440,10 +466,12 @@ CHANGE_CELLS: Dict[str, Cell] = {"increase": ("increase", 1), "decrease": ("decr
 DISTINCT_CELLS: Tuple[Cell, ...] = (BASELINE_CELL, CHANGE_CELLS["increase"], CHANGE_CELLS["decrease"])
 
 
-def _tests_step4(seed_blocks, pauses, condition: str, modes: Sequence[str], n_boot: int) -> List[Dict[str, Any]]:
+def _tests_step4(seed_blocks, pauses, condition: str, modes: Sequence[str], n_boot: int, versus_control: bool = False) -> List[Dict[str, Any]]:
     """Step 4 (docs/prereg/rq1_track_step4.md): (a) on the baseline block, (d) over the three distinct blocks, (b) each
     change against the baseline that precedes it in its session, (c) within the baseline block (preregistered) and,
-    labelled ``c_after_change``, within each changed block."""
+    labelled ``c_after_change``, within each changed block. ``versus_control`` (step 5, G30 C2) adds the (b) rate tests
+    as the east change minus the west change, (east block 2 − block 1) − (west block 2 − block 1), paired by seed, and
+    the reverse share at the reward pauses of the changed blocks (``a_direction_after_change``)."""
     rows: List[Dict[str, Any]] = []
     gt = lambda bound: (lambda ci: "passes" if ci.low > bound else ("fails" if ci.estimate <= bound else "estimate above, interval not"))  # noqa: E731
     if "fixed" in modes:
@@ -457,12 +485,22 @@ def _tests_step4(seed_blocks, pauses, condition: str, modes: Sequence[str], n_bo
                             lambda ci: "passes" if ci.estimate >= REMOTE_BOUND else "fails"))
         rows.append(_ci_row("d_remote", condition, "fixed", "remote_share_pre_run_pauses", rem_p, n_boot, f">= {REMOTE_BOUND}",
                             lambda ci: "passes" if ci.estimate >= REMOTE_BOUND else "fails"))
+        if versus_control:
+            changed = tuple(CHANGE_CELLS.values())
+            rev_c = _per_seed(seed_blocks, condition, "fixed", "reverse_share", cells=changed, ends=ENDS, trigger=TRIGGER_REWARD)
+            rows.append(_ci_row("a_direction_after_change", condition, "fixed", "reverse_share_reward_pauses_changed_blocks", rev_c, n_boot,
+                                f"> {DIRECTION_BOUND}", gt(DIRECTION_BOUND)))
+            fwd_c = _per_seed(seed_blocks, condition, "fixed", "forward_share", cells=changed, ends=ENDS, trigger=TRIGGER_PRE_RUN)
+            rows.append(_ci_row("a_direction_after_change", condition, "fixed", "forward_share_pre_run_pauses_changed_blocks", fwd_c, n_boot,
+                                f"> {DIRECTION_BOUND}", gt(DIRECTION_BOUND)))
     if "thresholded" in modes:
         for metric in ("reverse_per_stop", "backups_per_stop", "events_per_stop"):
             for session, expect in (("increase", "up"), ("decrease", "down")):
+                changes: Dict[str, Dict[int, float]] = {}
                 for end in ENDS:
                     pre = _per_seed(seed_blocks, condition, "thresholded", metric, cells=((session, 0),), ends=(end,), trigger=TRIGGER_REWARD)
                     post = _per_seed(seed_blocks, condition, "thresholded", metric, cells=((session, 1),), ends=(end,), trigger=TRIGGER_REWARD)
+                    changes[end] = {s: post[s] - pre[s] for s in pre if s in post}
                     stat = f"{metric}_{end}_{session}_block2_minus_block1"
                     if end == "east":
                         sign = ">=" if expect == "up" else "<="
@@ -471,6 +509,12 @@ def _tests_step4(seed_blocks, pauses, condition: str, modes: Sequence[str], n_bo
                     else:
                         rows.append(_paired_row("b_control_end", condition, "thresholded", stat, pre, post, n_boot,
                                                 f"unchanged: TOST +-{TOST_RELATIVE:.0%}", "unchanged"))
+                if versus_control:
+                    # The time control (G30 C2): the east change minus the west change, paired by seed (b - a = east - west).
+                    sign = ">=" if expect == "up" else "<="
+                    rows.append(_paired_row("b_rate_increase_vs_control" if expect == "up" else "b_rate_decrease_vs_control", condition, "thresholded",
+                                            f"{metric}_east_minus_west_change_{session}", changes["west"], changes["east"], n_boot,
+                                            f"{expect}: delta {sign} {'' if expect == 'up' else '-'}{DELTA_BOUND}, interval {'>' if expect == 'up' else '<'} 0", expect))
         for session in ("increase", "decrease"):
             fpre = _per_seed(seed_blocks, condition, "thresholded", "forward_per_stop", cells=((session, 0),), ends=("east",), trigger=TRIGGER_REWARD)
             fpost = _per_seed(seed_blocks, condition, "thresholded", "forward_per_stop", cells=((session, 1),), ends=("east",), trigger=TRIGGER_REWARD)
@@ -490,8 +534,8 @@ def rq1_tests(seed_blocks: Sequence[Mapping[str, Any]], pauses: Sequence[Mapping
     for condition in conditions:
         if condition == RULE_NONE:
             continue
-        if version == "step4":
-            rows.extend(_tests_step4(seed_blocks, pauses, condition, modes, n_boot))
+        if version in ("step4", "step5"):
+            rows.extend(_tests_step4(seed_blocks, pauses, condition, modes, n_boot, versus_control=(version == "step5")))
         else:
             rows.extend(_tests_four_block(seed_blocks, pauses, condition, modes, n_boot))
     return rows
@@ -636,7 +680,8 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--version", choices=VERSIONS, default=DEFAULT_VERSION,
                         help="step2: the four floors, one theta, the 'next' trajectory priority (G28); step3: seven conditions, "
-                             "theta per rule, 'remaining_max' (G29); step4: two sessions per seed, theta scaled by the value scale (default)")
+                             "theta per rule, 'remaining_max' (G29); step4: two sessions per seed, theta scaled by the value scale (G30); "
+                             "step5: step 4's protocol on the Q learner with the floors and the Mattar & Daw rules (default)")
     parser.add_argument("--modes", default=",".join(BUDGET_MODES))
     parser.add_argument("--conditions", default=None, help="comma-separated; default: the version's set")
     parser.add_argument("--sessions", default=None, help="comma-separated; default: the version's set")
@@ -739,7 +784,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
                "block_names": list(SESSION_BLOCK_NAMES[sessions[0]]),
                "session_block_names": {s: list(SESSION_BLOCK_NAMES[s]) for s in sessions},
                "threshold": THRESHOLD if version == "step2" else None, "thetas": thetas, "backup_cap": BACKUP_CAP,
-               "threshold_scale": base_cfg.threshold_scale,
+               "threshold_scale": base_cfg.threshold_scale, "learner": base_cfg.learner,
                "trajectory_priority": base_cfg.trajectory_priority,
                "n_boot": n_boot, "full_evaluation": full, "quick": args.quick,
                "prereg": PREREGS[version],

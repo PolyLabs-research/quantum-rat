@@ -130,15 +130,18 @@ from brain.systems.basal_ganglia import softmax_sample
 from brain.systems.replay_events import RULE_NONE, RULE_PRIORITISED_TD, RULE_REVERSE_TRAJECTORY, RULE_UNIFORM, TRIGGER_PRE_RUN, TRIGGER_REWARD
 from brain.systems.replay_gain_need import MODES as GAIN_NEED_MODES
 from brain.systems.replay_gain_need import GainNeedReplay
+from brain.systems.replay_mattar_daw import MATTAR_DAW, MATTAR_DAW_CONDITIONS, MattarDawReplay
 from brain.systems.replay_rules import ReplayOutcome, ReplayRule, StoredTransition, TransitionMemory, make_rule, replay, replay_thresholded
 from brain.systems.successor import TabularSR
-from brain.systems.value_learners import TabularTD0
+from brain.systems.value_learners import TabularQ, TabularTD0
 from core.rng import RNG
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 CONDITIONS: Tuple[str, ...] = (RULE_NONE, RULE_UNIFORM, RULE_REVERSE_TRAJECTORY, RULE_PRIORITISED_TD)
-GAIN_NEED_CONDITIONS: Tuple[str, ...] = tuple(GAIN_NEED_MODES)  # gain_need, gain_only, need_only (M2a step 3)
-ALL_CONDITIONS: Tuple[str, ...] = CONDITIONS + GAIN_NEED_CONDITIONS
+GAIN_NEED_CONDITIONS: Tuple[str, ...] = tuple(GAIN_NEED_MODES)  # gain_need, gain_only, need_only (M2a step 3; the V learner)
+# mattar_daw, mattar_daw_1step (M2a step 5; the Q learner). ALL_CONDITIONS is the order every table sorts by.
+ALL_CONDITIONS: Tuple[str, ...] = CONDITIONS + GAIN_NEED_CONDITIONS + MATTAR_DAW_CONDITIONS
+LEARNERS: Tuple[str, ...] = ("v", "q")  # TabularTD0 over afterstates; TabularQ over (state, action) (step 5)
 ACTIONS: Tuple[str, ...] = ("FORWARD", "TURN")
 BUDGET_MODES: Tuple[str, ...] = ("fixed", "thresholded")
 THRESHOLD_SCALES: Tuple[str, ...] = ("none", "mean_abs_value")  # M2a step 4: how the thresholded theta is scaled
@@ -194,6 +197,11 @@ class TrackConfig:
     # is compared with ``threshold`` itself.
     threshold_scale: str = "none"
     threshold_scale_floor: float = 1e-9
+    # --- M2a step 5 (docs/prereg/rq1_track_mattar_daw.md): the learner the agent acts on ---
+    # "v": TabularTD0, the policy a softmax over the afterstates' V (steps 0-4). "q": TabularQ (Q-learning, the
+    # action read off each transition's geometry), the policy the same softmax over Q(s, .); the gain x need rules
+    # need "v", the Mattar & Daw rules "q", the floors run on either.
+    learner: str = "v"
 
     def __post_init__(self) -> None:
         if self.n_bins < 2 or self.laps < 1 or self.lap_cap < 1 or self.backups_per_trigger < 1 or self.memory_capacity < 1:
@@ -212,6 +220,8 @@ class TrackConfig:
             raise ValueError(f"threshold_scale must be one of {THRESHOLD_SCALES}, got {self.threshold_scale!r}")
         if not (math.isfinite(self.threshold_scale_floor) and self.threshold_scale_floor > 0.0):
             raise ValueError("threshold_scale_floor must be a positive finite number")
+        if self.learner not in LEARNERS:
+            raise ValueError(f"learner must be one of {LEARNERS}, got {self.learner!r}")
         if self.reward_blocks:
             blocks = tuple(tuple(b) for b in self.reward_blocks)
             object.__setattr__(self, "reward_blocks", blocks)  # lists from a manifest become tuples
@@ -356,7 +366,10 @@ class TrackAgent:
     def __init__(self, cfg: TrackConfig, track: LinearTrack) -> None:
         self.cfg = cfg
         self.track = track
-        self.learner = TabularTD0(bin_size=cfg.bin_size, learning_rate=cfg.learning_rate, discount=cfg.discount)
+        if cfg.learner == "q":
+            self.learner = TabularQ(bin_size=cfg.bin_size, learning_rate=cfg.learning_rate, discount=cfg.discount, actions=ACTIONS)
+        else:
+            self.learner = TabularTD0(bin_size=cfg.bin_size, learning_rate=cfg.learning_rate, discount=cfg.discount)
         self.memory = TransitionMemory(cfg.memory_capacity)
         self.visits: Dict[State, int] = {}  # how often each state was occupied (the lap starts and every step's arrival)
         # The tabular successor representation (need): initialised from the track's known cyclic structure under a
@@ -373,6 +386,11 @@ class TrackAgent:
         return self.learner.value(*self.track.position(state))
 
     def scores(self, state: State) -> Dict[str, float]:
+        """The action scores the softmax reads: the prior on FORWARD plus ``value_gain`` x the value of each action,
+        V of its afterstate under the "v" learner, Q(s, a) under the "q" learner."""
+        if self.cfg.learner == "q":
+            q = self.learner.q(*self.track.position(state))  # type: ignore[union-attr]
+            return {"FORWARD": self.cfg.forward_prior + self.cfg.value_gain * q["FORWARD"], "TURN": self.cfg.value_gain * q["TURN"]}
         forward, _ = self.track.step(state, "FORWARD")
         turn, _ = self.track.step(state, "TURN")
         return {
@@ -480,6 +498,50 @@ class TrackModel:
         self._acting = self.track.index(state)
 
 
+class QTrackModel:
+    """The track's side of ``brain.systems.replay_mattar_daw.QReplayModel`` (step 5): state indices, the action a
+    transition took (the Q learner's reading of its geometry), the agent's action scores on given Q values and
+    their softmax, the learning rate and discount, the successor representation's need, and the acting state."""
+
+    def __init__(self, cfg: TrackConfig, track: LinearTrack, agent: "TrackAgent") -> None:
+        if cfg.learner != "q":
+            raise ValueError("QTrackModel needs the q learner")
+        self.cfg = cfg
+        self.track = track
+        self.agent = agent
+        self._acting: int = track.index(track.start_state(EAST))
+
+    def state_index(self, x: float, y: float) -> int:
+        return self.track.index_of_position(x, y)
+
+    def action_of(self, x: float, y: float, x_next: float, y_next: float) -> str:
+        return self.agent.learner.action_of(x, y, x_next, y_next)  # type: ignore[union-attr]
+
+    def action_scores(self, q: Mapping[str, float]) -> Mapping[str, float]:
+        return {"FORWARD": self.cfg.forward_prior + self.cfg.value_gain * q["FORWARD"], "TURN": self.cfg.value_gain * q["TURN"]}
+
+    def policy(self, scores: Mapping[str, float]) -> Mapping[str, float]:
+        top = max(scores.values())
+        weights = {a: math.exp((scores[a] - top) / self.cfg.temperature) for a in ACTIONS}
+        total = math.fsum(weights.values())
+        return {a: w / total for a, w in weights.items()}
+
+    def learning_rate(self) -> float:
+        return self.cfg.learning_rate
+
+    def discount(self) -> float:
+        return self.cfg.discount
+
+    def need(self, from_state: int, to_state: int) -> float:
+        return self.agent.sr.need(from_state, to_state)
+
+    def acting_state(self) -> int:
+        return self._acting
+
+    def set_acting(self, state: State) -> None:
+        self._acting = self.track.index(state)
+
+
 @dataclass
 class LapRecord:
     condition: str
@@ -569,13 +631,17 @@ class SeedRun:
         return out
 
 
-def _rule_for(condition: str, cfg: TrackConfig, model: Optional[TrackModel] = None) -> Optional[ReplayRule]:
+def _rule_for(condition: str, cfg: TrackConfig, model: Optional[Any] = None) -> Optional[ReplayRule]:
     if condition == RULE_NONE:
         return None
     if condition in GAIN_NEED_CONDITIONS:
-        if model is None:
-            raise ValueError(f"{condition} needs the track model")
+        if cfg.learner != "v" or not isinstance(model, TrackModel):
+            raise ValueError(f"{condition} needs the v learner and its track model")
         return GainNeedReplay(model, condition)
+    if condition in MATTAR_DAW_CONDITIONS:
+        if cfg.learner != "q" or not isinstance(model, QTrackModel):
+            raise ValueError(f"{condition} needs the q learner and its track model")
+        return MattarDawReplay(model, extension=(condition == MATTAR_DAW))
     if condition not in CONDITIONS:
         raise ValueError(f"unknown condition {condition!r}; one of {ALL_CONDITIONS}")
     return make_rule(condition, cfg.priority_epsilon, cfg.trajectory_priority)
@@ -585,7 +651,7 @@ def run_seed(condition: str, seed: int, cfg: TrackConfig = TrackConfig()) -> See
     """One seed of one condition: ``cfg.laps`` laps, replay at every rewarded lap end."""
     track = LinearTrack(cfg)
     agent = TrackAgent(cfg, track)
-    model = TrackModel(cfg, track, agent)
+    model = QTrackModel(cfg, track, agent) if cfg.learner == "q" else TrackModel(cfg, track, agent)
     rule = _rule_for(condition, cfg, model)
     rng = RNG(seed=seed)
     action_stream = rng.stream(ACTION_STREAM)

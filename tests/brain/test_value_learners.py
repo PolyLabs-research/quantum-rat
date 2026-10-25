@@ -462,3 +462,40 @@ def test_unnormalised_features_dip_between_the_centres_where_normalised_ones_int
         assert lin.value(x10, y) == pytest.approx(1.0, abs=1e-6)
     assert plain.value(mid, y) < 0.3
     assert 0.9 <= unity.value(mid, y) <= 1.0
+
+
+def test_tabular_q_learns_action_values_in_the_value_function_form() -> None:
+    """``TabularQ`` (M2a step 5): Q-learning over cells, the action read off the transition's geometry, ``value`` the
+    greedy value, ``update_target`` a backup toward a caller's target (the n-step extension's)."""
+    import pytest
+
+    from brain.systems.value_learners import TabularQ, ValueFunction, action_from_rows
+
+    q = TabularQ(bin_size=0.5, learning_rate=0.5, discount=0.9)
+    assert isinstance(q, ValueFunction) and q.parameters()["learner"] == "tabular_q" and q.parameters()["actions"] == ["FORWARD", "TURN"]
+    # Geometry: a move along x (or staying put) is a FORWARD, a change of the y row a TURN.
+    assert action_from_rows(0.5, 0.25, 0.25, 0.75, 0.25) == "FORWARD" and action_from_rows(0.5, 0.25, 0.25, 0.25, 0.25) == "FORWARD"
+    assert action_from_rows(0.5, 0.25, 0.25, 0.25, -0.25) == "TURN"
+    # A terminal consume at the goal writes Q(goal, FORWARD) = lr * r; the predecessor then bootstraps on max_a Q(goal).
+    assert q.update(19.75, 0.25, 1.0, 19.75, 0.25, True) == 1.0 and q.q(19.75, 0.25) == {"FORWARD": 0.5, "TURN": 0.0}
+    assert q.value(19.75, 0.25) == 0.5 and q.value(0.25, 0.25) == 0.0
+    assert q.td_error(19.25, 0.25, 0.0, 19.75, 0.25, False) == pytest.approx(0.9 * 0.5)
+    assert q.update(19.25, 0.25, 0.0, 19.75, 0.25, False) == pytest.approx(0.45) and q.q(19.25, 0.25)["FORWARD"] == pytest.approx(0.225)
+    # A TURN at the same cell writes the other action and leaves FORWARD alone.
+    q.update(19.25, 0.25, 0.0, 19.25, -0.25, False)
+    assert q.q(19.25, 0.25)["TURN"] == 0.0 and q.q(19.25, 0.25)["FORWARD"] == pytest.approx(0.225)  # the turned-to row is unvisited
+    # update_target: toward an arbitrary target, returning the error before the write.
+    assert q.update_target(19.25, 0.25, "TURN", 2.0) == 2.0 and q.q(19.25, 0.25)["TURN"] == 1.0
+    with pytest.raises(ValueError):
+        q.update_target(0.0, 0.0, "JUMP", 1.0)
+    with pytest.raises(ValueError):
+        TabularQ(actions=("A", "A"))
+    with pytest.raises(ValueError):
+        TabularQ(learning_rate=0.0)
+    # A custom action reader is honoured and checked against the action set.
+    custom = TabularQ(action_of=lambda x, y, x2, y2: "TURN")
+    custom.update(0.0, 0.0, 1.0, 0.0, 0.0, True)
+    assert custom.q(0.0, 0.0) == {"FORWARD": 0.0, "TURN": 0.2}
+    bad = TabularQ(action_of=lambda x, y, x2, y2: "JUMP")
+    with pytest.raises(ValueError):
+        bad.td_error(0.0, 0.0, 1.0, 0.0, 0.0, True)
