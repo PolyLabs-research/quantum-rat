@@ -390,6 +390,119 @@ survive is the forward pre-run replay and the signed response to a decrease, and
 gain chains backward; a scale change moves every gain). The thresholded mode's design (one θ per rule from a baseline
 median, a washout reference) is the other half of the reason, and is the first thing to change.
 
+## Step 4 of the remainder: each change against its baseline, θ in value units, the lap of origin
+
+Preregistered in `docs/prereg/rq1_track_step4.md` before any run, with the θ values of its pilot recorded there;
+decisions entry G30. No rule changed. Runner: `experiments/linear_track_rq1.py` (the default, step-4 version;
+`--version step3` and `--version step2` reproduce the earlier protocols), 12 min on 4 cores; tables in
+`docs/data/m2a/rq1_step4/`. Three changes from step 3, all three of G29 C: (1) **two sessions per seed** instead of
+four blocks, *increase* (20 laps at east 1.0, then 20 at 4.0) and *decrease* (20 at 1.0, then 20 at 0.25), run from
+the same seed so that their baseline blocks are the same 20 laps (verified by the tests) and each change is read
+against the baseline block that precedes it, not against a washout block with a surprise of its own; (2) in the
+thresholded mode a rule whose priority is in value units (a |TD error| or a gain) is compared with **θ × the mean
+|V| over the states occupied so far**, read before each pause, with θ per rule set by step 3's pilot rule on the
+normalised priority (uniform 0.131, reverse 2.26, prioritised 1.59, gain_need 6.13 × 10⁻⁶, gain_only 0.0102;
+need_only's priority is an occupancy and keeps its raw θ 2.71, the same value as step 3's to the digit); (3) the
+**share of a reward pause's backups that came from the lap just run** is a metric of `analysis.replay_metrics` and
+sits beside every direction share below. The guard found 30 distinct lap-length vectors in every condition, mode
+and session.
+
+**Fixed-mode content** (20 backups per pause; events per pause and the shares among them; "after" pools the two
+changed blocks, which differ little; `from_this_lap` is the share of the reward pauses' backups from the lap just
+run):
+
+| condition | events / reward pause, baseline → after | events / pre-run pause | reverse share | remote share (reward / pre-run) | from_this_lap |
+|---|---|---|---|---|---|
+| gain_need | 0.52 → 0.54 | 0.66 → 1.05 | 1.00 | 1.00 / 1.00 | 0.05 → 0.00 |
+| gain_only | 0.75 → 1.16 | 0.78 → 1.42 | 1.00 | 0.24 → 0.57 / 0.49 → 0.72 | 0.71 → 0.70 |
+| reverse_trajectory | 1.00 → 1.00 | 0.95 → 1.00 | 1.00 | 0.00 / 0.00 | 1.00 |
+| uniform | 0 | 0 | undefined | undefined | 0.26 → 0.16 |
+| prioritised_td | 0 | 0 | undefined | undefined | 0.20 → 0.09 |
+| need_only | 0 | 0 | undefined | undefined | 0.05 → 0.00 |
+
+The content is step 3's: gain × need makes reverse, remote sequences at both pauses, and after a change none of its
+reward-pause backups come from the lap just run (they sweep the lap ahead, backward from its far goal); the
+trajectory rule's are all from the lap just run; gain alone sits between (0.7).
+
+**The preregistered verdicts** (`rq1_tests.csv`; thresholded rows are the east end's reward pauses, block 2 − block 1
+of the named session, paired by seed; the prereg's prediction in brackets):
+
+| test | gain_need | gain_only | reverse_trajectory | prioritised_td / uniform / need_only |
+|---|---|---|---|---|
+| (a) reverse share, reward pauses, baseline > 0.6 | 1.00 **passes** [pass] | 1.00 passes [pass] | 1.00 passes [pass] | undefined, no events |
+| (a) forward share, pre-run pauses > 0.6 | 0.00 **fails** [fail] | 0.00 fails [fail] | 0.00 fails [fail] | undefined |
+| (d) remote ≥ 10%, reward / pre-run | 1.00 / 1.00 passes [pass] | 0.49 / 0.67 passes [pass] | 0 fails [fail] | undefined |
+| (b) increase: backups per stop | **+59.2** [+48.8, +66.5] (19.6 → 78.7), δ 0.96, passes [pass] | **−25.6** [−27.0, −24.4] (25.6 → 0.0), fails [fail] | −0.44 [−1.58, +0.10] (5.7 → 5.3), fails | prioritised +15.4 [+9.6, +22.4] passes; uniform −18.8 fails; need_only +17 [+7, +27] passes [fail] |
+| (b) increase: events per stop | +2.80 [+2.31, +3.17] (0.44 → 3.24), passes | −1.07 [−1.17, −0.99], fails | +0.093 [+0.077, +0.107] passes (reverse events +0.100 passes) [pass] | 0, no events |
+| (b) decrease: backups per stop, "down" | **+78.1** [+72.1, +82.0] (19.6 → 97.7), δ +1.00, **fails** [fail] | −25.3 [−26.6, −24.0] (25.6 → 0.3), passes [pass] | −4.11 [−5.16, −3.53] (5.7 → 1.6), passes [fail] | prioritised +24.1 fails [fail]; uniform −50.1 passes [fail]; need_only +17 fails [fail] |
+| (b) decrease: events per stop, "down" | +3.50 [+3.16, +3.73] (0.44 → 3.94), **fails** | −1.07 [−1.17, −0.98], passes | −0.313 [−0.330, −0.303] passes (reverse events −0.307 passes) | 0, no events |
+| (b) west control end, backups, TOST ±20% | +59.1 / +71.7, not equivalent [not equivalent] | −20.9 / −20.6, not equivalent | −5.56 / −5.56, not equivalent [equivalent] | prioritised +15.2 / +25.2; uniform −28.4 / −49.1; need_only +10 / +10: not equivalent |
+| (c) baseline: slope of backups per stop vs lap | **+1.70** [+1.18, +2.22], **fails** [pass] | −5.25 [−5.36, −5.16] passes, 0 from lap 7.6 [pass] | −0.409 [−0.603, −0.279] passes, 0 from lap 17 [pass] | prioritised −6.73 passes, 0 from lap 11.2 [pass]; uniform −6.13 passes, 0 from lap 10.6 [pass]; need_only −0.21 [−1.13, +0.60] fails [fail] |
+| (c) after each change (secondary) | +2.26 / +0.61, fails; 0 reached at 15 / 2 of 30 seeds | −0.007 / +0.011; 0 from the first changed lap | −0.101 / −0.117 passes, 0 from lap 22 | prioritised −5.9 / −4.7 passes; uniform −4.8 / −0.9 passes; need_only +0.85 fails |
+
+Two sessions, two modes, seven conditions and thirty seeds ran as specified; no deviation to record. The cap of 100
+binds for gain × need at the decrease (97.7 of 100 per stop) and nowhere else.
+
+**Three readings.**
+
+1. **The decrease, read cleanly, is unsigned for gain × need.** Against its own baseline the rule's thresholded rate
+   *rises* after the ×0.25 decrease, by 78 backups and 3.5 events per stop, on every one of the 30 seeds (δ = 1.00),
+   more than after the ×4 increase (+59 and +2.8). Step 3's "down" pass against the washout block was the magnitude
+   artefact G29 C2 suspected, and the G29 C1 reading stands: gain is the size of the policy's move whatever the
+   sign of the change. The sweeps that carry the rise are of the lap ahead backward from its far goal
+   (`from_this_lap` 0.00), at both ends alike (+59 west after the east increase, +72 after the decrease): at a west
+   pause the lap ahead *is* the east-bound lap whose reward changed, so for this rule the unchanged end is not a
+   control, as the prereg said.
+2. **Familiarity: the scaled θ gives the decline to every |TD error| rule and to gain alone, and not to gain × need.**
+   Within the baseline block uniform, prioritised, reverse_trajectory and gain_only now fall to zero backups at every
+   seed (first zero at laps 10.6, 11.2, 17 and 7.6), the (c) pass that step 3's raw θ could not show for three of
+   them because its cap bound. gain × need's rate rises across the same block, +1.7 backups per lap, and after both
+   changes (+2.3, +0.6): with θ in value units the gain term no longer carries the scale, so what remains is the
+   need term, which *grows* with familiarity (the learned successor representation concentrates occupancy on the
+   lap ahead as laps shorten) faster than gain shrinks. The failure of (c) is therefore not θ's scale, which change 2
+   removed, but the need term's own course; a declining rate would need gain to vanish, as it does for gain alone.
+3. **A change read against its own baseline is also read against time.** Block 2 is always the later block, and four
+   rules' rates fall over laps (reading 2). Where a "down" verdict passes for a declining rule, the unchanged west
+   end fell by as much: reverse_trajectory −4.1 east against −5.6 west, gain_only −25.3 against −20.6, uniform −50
+   against −49. The preregistered test cannot separate the change from the trend; the within-session control can.
+   **Exploratory, not preregistered:** the east change minus the west change, (east block 2 − block 1) − (west block
+   2 − block 1), paired by seed, backups per stop: reverse_trajectory **+5.1** [+3.8, +6.7] at the increase and
+   **+1.5** [+0.2, +3.0] at the decrease (δ 0.88, 0.70): relative to its own unchanged end the trajectory rule's rate
+   rises after both changes, tracking |Δr| as G28 found; gain_only −4.7 [−6.1, −3.5] at both (a slightly larger fall
+   at the changed end, whatever the sign); uniform +9.6 [+4.4, +15.1] at the increase, −1.0 [−4.6, +2.9] at the
+   decrease; prioritised_td +0.3 and −1.1 (its priority is the largest |TD error| anywhere in memory, so the east
+   change raises both ends equally); gain_need +0.1 [−12.6, +11.8] and +6.3 [−0.9, +13.6] (both ends rise equally,
+   reading 1); need_only +7 [−5, +19] at both (its backups change no value, and its rate is identical in the two
+   sessions). On this statistic no rule shows a signed response to the reward change; the only one with the sign of
+   the change in it, gain_only's, has the wrong sign at the increase. Its "up" and "down" passes in the table are
+   time.
+
+**Gain does not respond to a magnitude change once the policy is decided.** gain_only's thresholded rate goes to 0.0
+backups per stop after the ×4 increase and 0.3 after the decrease, and its total steps over the thresholded sessions
+are identical in the two sessions (7,015): by lap 8 of the baseline its policy is deterministic along the lap, and a
+scalar change of the reward moves no decision, so the expected improvement of any backup is near zero whatever the
+new values. The rate-after-a-reward-change bound of RQ1 (b), written from Ambrose et al.'s finding, is a |TD error|
+phenomenon in this family: the floors and need × gain (through need) show it, gain alone cannot, and gain × need
+shows it unsigned.
+
+**Learning speed per session** (`rq1_learning.csv`; total steps over the 40 laps, fixed mode; the two sessions share
+their first 20 laps): none 14,488; uniform 14,204 (−283 [−714, +48] against none, faster on 13 of 30, δ −0.08: the
+null of the 40-lap evaluation again, G28); reverse_trajectory 9,884 (−4,604 [−5,348, −3,905], every seed);
+prioritised_td 9,161 (increase) / 8,807 (decrease); gain_need 7,866 in both, faster than prioritised by 1,295
+[916, 1,670] on 27 of 30 seeds (δ −0.68 [−0.84, −0.42]) in the increase session and by 941 [594, 1,301] on 24 of 30
+in the decrease session; gain_only 7,940 / 7,946, faster than prioritised on 28 and 26 of 30; need_only 14,488,
+identical to none on every seed. The prereg's learning prediction holds. Thresholded: prioritised_td is fastest
+(7,186 / 6,824) with gain_only level with it (−171 [−561, +260]; +192 [−202, +586]), gain_need slower by 1,501 [959,
+2,080] and 1,590 [1,074, 2,153], reverse 12,296, uniform 13,470 / 13,623.
+
+**Predictions against outcomes.** Held: gain × need's (a), (d), (b) increase, (b) decrease (unsigned), west end;
+gain_only's (a), (d), fall at the increase, fall at the decrease, (c); the floors' content and (c) under the scaled
+θ; the learning ordering; the identical baselines. Failed: gain × need's (c) in the baseline block (predicted to
+pass, rose); reverse_trajectory's decrease (predicted to rise against the baseline, fell with time, and rose only
+against the west end); need_only's "up" at the increase (predicted to fail; passes on a time trend shared with the
+west end). The step's question has an answer: of the two step-3 failures, the decrease was the confound (and the
+clean reading is still a fail, for the structural reason), the familiarity decline was not.
+
 ## Reading
 
 - **The ranking.** Prioritised sweeping and reverse replay both propagate the reward's TD error back along the lap
@@ -418,14 +531,22 @@ median, a washout reference) is the other half of the reason, and is the first t
 
 - Oracle, tabular state over the true cell; no odometry noise, no place population. The embodied arm (M3) is the
   comparison this pass exists to be compared with.
-- Seven rules of nine after step 3 (the goal-uncertainty need variant and Diekmann–Cheng remain); both budget modes,
-  the reward schedule, the pre-run window, the plan's event definition and remote flag are in place since steps 1
-  and 2, and RQ1 (a)–(d) have been run (step 3: the acceptance is not met, for the structural reasons given there).
-  The thresholded mode is degenerate (cap-bound) for gain × need, prioritised and uniform under the per-rule θ.
+- Seven rules of nine after steps 3 and 4 (the goal-uncertainty need variant and Diekmann–Cheng remain); both budget
+  modes, the reward schedule, the pre-run window, the plan's event definition and remote flag are in place since
+  steps 1 and 2, and RQ1 (a)–(d) have been run (steps 3 and 4: the acceptance is not met, for the structural reasons
+  given there). Under step 4's scaled θ the thresholded cap binds only for gain × need after the decrease (97.7 of
+  100 backups per stop); under step 3's raw θ it bound for gain × need, prioritised and uniform through most of the
+  protocol.
+- Step 4's two sessions read each change against the baseline that precedes it, but block 2 is always the later
+  block and four rules' rates fall over laps, so a "down" verdict can be the trend; the unchanged west end is the
+  within-session control, and the east change minus the west change is reported as exploratory, not preregistered.
+  The two sessions are not independent samples of the baseline (same seed, same 20 laps), so the baseline block is
+  counted once in every pooled statistic.
 - The replay rules run outside the engine, on the track's own loop, with the engine's learner, sampler, RNG and
   event record; wiring them into the engine's tick and the console's arena is M3's.
 - Direction is read on the plan's sequences against the lap the replayed states belong to (step 1 and step 3); the
-  label cannot tell a sweep of the lap just run from a sweep of the lap ahead, which `from_this_lap_share` does.
+  label cannot tell a sweep of the lap just run from a sweep of the lap ahead, which `from_this_lap_share` does
+  (reported beside every direction share since step 4).
 - One learning rate, discount, temperature, prior and gain; no sweep. The ranking's robustness to them is untested.
 - Linux only (the development box: Python 3.11.15, numpy 2.4.6, OpenBLAS 0.3.31 on the SkylakeX kernel, one thread,
   detected and verified by `threadpoolctl`); no BLAS product is used, and the tables are byte-identical across
