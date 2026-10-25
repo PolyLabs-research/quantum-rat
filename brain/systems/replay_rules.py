@@ -190,11 +190,22 @@ class UniformReplay:
 
 
 class ReverseTrajectoryReplay:
-    """The episode that just ended, newest transition first, cycling if the budget outlasts it. No draw."""
+    """The episode that just ended, newest transition first, cycling if the budget outlasts it. No draw.
+
+    ``priority`` (for the thresholded mode): ``"next"`` (M2a step 2) reads the |TD error| of the next
+    transition of the sweep alone, so a sweep stops at an error-free consume whatever lies deeper in the
+    lap; ``"remaining_max"`` (step 3, docs/prereg/rq1_track_gain_need.md change 1) reads the largest
+    |TD error| over the remaining part of the one-pass sweep, so the sweep runs on through error-free
+    transitions to reach error deeper in the lap and stops once nothing ahead exceeds the threshold.
+    """
 
     name = RULE_REVERSE_TRAJECTORY
+    PRIORITIES = ("next", "remaining_max")
 
-    def __init__(self) -> None:
+    def __init__(self, priority: str = "next") -> None:
+        if priority not in self.PRIORITIES:
+            raise ValueError(f"priority must be one of {self.PRIORITIES}, got {priority!r}")
+        self.priority_kind = priority
         self._sequence: List[StoredTransition] = []
 
     def begin(self, memory: TransitionMemory, episode: int) -> None:
@@ -209,11 +220,14 @@ class ReverseTrajectoryReplay:
         return len(self._sequence)
 
     def priority(self, memory: TransitionMemory, learner: Learner, k: int) -> float:
-        """The |TD error| of the next transition of the sweep; 0 once the sweep has covered the episode once
-        (so a thresholded replay is at most one pass, no cycling)."""
+        """``"next"``: the |TD error| of the next transition of the sweep; ``"remaining_max"``: the largest over
+        the transitions the sweep has yet to make. 0 once the sweep has covered the episode once (so a
+        thresholded replay is at most one pass, no cycling)."""
         if k >= len(self._sequence):
             return 0.0
-        return abs(self._sequence[k].td_error(learner))
+        if self.priority_kind == "next":
+            return abs(self._sequence[k].td_error(learner))
+        return max(abs(t.td_error(learner)) for t in self._sequence[k:])
 
 
 class PrioritisedTDReplay:
@@ -268,10 +282,13 @@ RULES = {
 }
 
 
-def make_rule(name: str, epsilon: float = 1e-6) -> ReplayRule:
-    """A fresh rule by its plan name (``uniform``, ``reverse_trajectory``, ``prioritised_td``)."""
+def make_rule(name: str, epsilon: float = 1e-6, trajectory_priority: str = "next") -> ReplayRule:
+    """A fresh rule by its plan name (``uniform``, ``reverse_trajectory``, ``prioritised_td``); the gain x need
+    rules need an environment model and are made by ``brain.systems.replay_gain_need.GainNeedReplay``."""
     if name == RULE_PRIORITISED_TD:
         return PrioritisedTDReplay(epsilon)
+    if name == RULE_REVERSE_TRAJECTORY:
+        return ReverseTrajectoryReplay(trajectory_priority)
     try:
         return RULES[name]()
     except KeyError:

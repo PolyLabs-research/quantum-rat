@@ -283,9 +283,13 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   re-runs the comparison with one parameter changed at a time (11 variants).
   `experiments/linear_track_rq1.py` runs the preregistered RQ1 protocol
   (`docs/prereg/rq1_track_tabular.md`: four reward blocks, a pre-run pause beside the reward
-  pause, fixed and thresholded budgets, the plan's event definition) and
-  `experiments/linear_track_dose_response.py` the fixed-budget effect at 5 to 40 backups per
-  pause; both write `docs/data/m2a/rq1/`.
+  pause, fixed and thresholded budgets, the plan's event definition) in two versions: step 2
+  on the floors (`--version step2`, `docs/data/m2a/rq1/`) and step 3 with the plan's reference
+  rule gain × need and its gain-only and need-only ablations (`docs/prereg/rq1_track_gain_need.md`,
+  a tabular successor representation for need, `brain/systems/successor.py` and
+  `brain/systems/replay_gain_need.py`; `docs/data/m2a/rq1_step3/`);
+  `experiments/linear_track_dose_response.py` runs the fixed-budget effect at 5 to 40 backups
+  per pause (`docs/data/m2a/rq1/`).
 * `experiments/odometry_characterisation.py` — the research profile's odometry noise characterised
   (`docs/odometry.md`; tables in `docs/data/m2a/odometry/`, the M1 record in `docs/data/m1/`).
 
