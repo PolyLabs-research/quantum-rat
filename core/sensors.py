@@ -15,7 +15,7 @@ import math
 from dataclasses import asdict
 from typing import List, Optional, Tuple
 
-from brain.contracts import Observation, VisionRay
+from brain.contracts import Observation, VisionRay, observation_fields
 from core.config import SensorConfig
 from core.entities import Agent
 from core.rng import RNGStream
@@ -151,13 +151,14 @@ def gather_observation(
     vision_stream: Optional[RNGStream] = None,
     noise_stream: Optional[RNGStream] = None,
     odometry_stream: Optional[RNGStream] = None,
+    heading_stream: Optional[RNGStream] = None,
 ) -> Observation:
     """Collect normalized sensor outputs for the agent from world geometry.
 
     ``vision_stream`` and ``noise_stream`` carry ``config.noise`` (rangefinder
     and pain); ``odometry_stream`` carries the odometry noise on egomotion (see
-    ``_compute_egomotion``). A stream that is None, or a noise parameter that
-    is 0, means no draw from it.
+    ``_compute_egomotion``); ``heading_stream`` the heading oracle's error (M2b).
+    A stream that is None, or a noise parameter that is 0, means no draw from it.
     """
     world = world if world is not None else World()
     config = config if config is not None else SensorConfig()
@@ -178,21 +179,57 @@ def gather_observation(
         pain_signal = _normalize(pain_signal + noise_stream.uniform(-config.noise, config.noise), 0.0, 1.0)
 
     forward_delta, turn_delta = _compute_egomotion(agent, config, odometry_stream)
+    heading: Optional[float] = None
+    if config.heading_oracle:
+        heading = agent.heading
+        if config.heading_oracle_noise > 0.0 and heading_stream is not None:
+            heading += heading_stream.gauss(0.0, config.heading_oracle_noise)
+        heading = _wrap(heading)
+    contacts = _wall_contacts(agent, world) if config.wall_contact_sensing else None
     obs = Observation(
         vision_rays=tuple(rays),
         whisker_hits=whisker_hits,
         pain_signal=pain_signal,
         forward_delta=forward_delta,
         turn_delta=turn_delta,
+        heading=heading,
+        wall_contacts=contacts,
     )
     obs.validate(forward_limit=config.forward_delta_limit)
     return obs
 
 
 
+# Wall contact (M2b step 1): within this distance of a wall's line the body touches it. The world clamps the body to
+# the bounds, so a body pressed against a wall sits on the line exactly; the tolerance only absorbs float rounding.
+WALL_CONTACT_TOLERANCE = 1e-9
+
+
+def _wrap(angle: float) -> float:
+    """``angle`` wrapped to [-pi, pi)."""
+    return (angle + math.pi) % (2.0 * math.pi) - math.pi
+
+
+def _wall_contacts(agent: Agent, world: World) -> Tuple[float, ...]:
+    """The egocentric angle of the outward normal of each wall the body touches: x walls (normal 0 at +x, pi at -x)
+    before y walls (pi/2 at +y, -pi/2 at -y), each relative to the body's heading. Empty when it touches none."""
+    bx, by = world.bounds
+    x, y = agent.pos
+    out: List[float] = []
+    if x >= bx - WALL_CONTACT_TOLERANCE:
+        out.append(_wrap(0.0 - agent.heading))
+    elif x <= -bx + WALL_CONTACT_TOLERANCE:
+        out.append(_wrap(math.pi - agent.heading))
+    if y >= by - WALL_CONTACT_TOLERANCE:
+        out.append(_wrap(0.5 * math.pi - agent.heading))
+    elif y <= -by + WALL_CONTACT_TOLERANCE:
+        out.append(_wrap(-0.5 * math.pi - agent.heading))
+    return tuple(out)
+
+
 def observation_checksum(obs: Observation) -> str:
-    """Compute a stable checksum of an observation."""
-    data = asdict(obs)
+    """Compute a stable checksum of an observation (its optional M2b fields only when present: ``observation_fields``)."""
+    data = observation_fields(obs)
 
     def _normalize_obj(obj):
         if isinstance(obj, dict):
