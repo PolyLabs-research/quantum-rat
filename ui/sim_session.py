@@ -30,6 +30,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from brain.systems.basal_ganglia import channel_terms, selection_probabilities
 from brain.systems.replay_events import REPLAY_EVENTS_FILE, write_replay_events
+from metrics.decisions import COUNTERFACTUAL_TERMS, DECISIONS_FILE, counterfactual_probabilities, decision_record, record_line, total_variation
 from core.engine import Engine
 from metrics.logger import _canonical_json
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
@@ -42,6 +43,7 @@ Event = Dict[str, Any]
 
 MAX_STEPS_PER_CALL = 200
 HISTORY_LIMIT = 50_000
+TURNING_WINDOW = 300  # ticks over which the live turning and closure readouts are taken
 EVENT_LIMIT = 300
 # Finished replay events kept for the frame and the recording, drained from the
 # engine's bounded log every tick. At the legacy defaults a microsleep bout
@@ -203,6 +205,10 @@ class SimSession:
         self._finds = 0
         self._last_find_tick: Optional[int] = None
         self._reward_total = 0.0
+        self._recent: Deque[Tuple[float, float, float]] = deque(maxlen=TURNING_WINDOW + 1)  # (x, y, heading)
+        # The decision log (metrics.decisions): one canonical line per tick, kept beside the tick history and
+        # written into a recording as decisions.jsonl.
+        self.decisions: Deque[Tuple[int, str]] = deque(maxlen=HISTORY_LIMIT)
         self.history: Deque[Dict[str, Any]] = deque(maxlen=HISTORY_LIMIT)
         self.events: Deque[Event] = deque(maxlen=EVENT_LIMIT)
         self.replay_events: Deque[Dict[str, Any]] = deque(maxlen=REPLAY_EVENT_LIMIT)
@@ -281,6 +287,7 @@ class SimSession:
         td = self.engine.run(1)[0]
         self.tick = td.tick
         self.history.append(td.to_ordered_dict())
+        self.decisions.append((td.tick, record_line(decision_record(self.engine))))  # before the scenario acts
         self._count_behaviour(td)
         for event in self.scenario.on_tick(self.engine, td.tick) + self._generic_events(td.tick):
             self._emit(event)
@@ -332,6 +339,23 @@ class SimSession:
             self._finds += 1
             self._last_find_tick = td.tick
         self._reward_total += float(td.reward)
+        self._recent.append((x, y, self.engine.agent.heading))
+
+    def _turning(self) -> Tuple[float, float]:
+        """Signed turning (revolutions) and closure (net displacement / distance) over the last TURNING_WINDOW ticks."""
+        pts = list(self._recent)
+        if len(pts) < 2:
+            return 0.0, 0.0
+        turning = 0.0
+        dist = 0.0
+        for (x0, y0, h0), (x1, y1, h1) in zip(pts, pts[1:]):
+            step = math.hypot(x1 - x0, y1 - y0)
+            if step > self.TELEPORT:
+                continue
+            turning += (h1 - h0 + math.pi) % (2 * math.pi) - math.pi
+            dist += step
+        net = math.hypot(pts[-1][0] - pts[0][0], pts[-1][1] - pts[0][1])
+        return turning / (2 * math.pi), (net / dist) if dist > 0 else 0.0
 
     def behaviour(self) -> Dict[str, Any]:
         """Generic readouts of what the body did since the session was built or reset."""
@@ -342,6 +366,11 @@ class SimSession:
             "ticks_since_find": (self.tick - self._last_find_tick) if self._last_find_tick is not None else None,
             "distance_per_find": _r(self._distance / self._finds, 1) if self._finds else None,
             "reward_total": _r(self._reward_total, 2),
+            # Circling, live: signed turning over the last TURNING_WINDOW ticks in revolutions (left positive) and the
+            # closure of that stretch (net displacement over distance: 0 for a closed loop, 1 for a straight line).
+            "turning_window": TURNING_WINDOW,
+            "turning_revolutions": _r(self._turning()[0], 2),
+            "closure": _r(self._turning()[1], 2),
         }
 
     # -------------------------------------------------------------- mechanisms
@@ -456,12 +485,19 @@ class SimSession:
         bg = eng.config.basal_ganglia
         terms: Dict[str, Dict[str, float]] = {}
         probs: Dict[str, float] = {}
+        probs_without_memory: Dict[str, float] = {}
+        influence: Dict[str, float] = {}
         if ctx is not None and obs is not None and scores:
             pacing_rest = bg.pace_rest_bonus if ctx.pacing_active else 0.0
             raw = channel_terms(obs, ctx.wm_novelty, ctx.trn_gate_value, ctx.microsleep_active, bg, ctx.neuromodulators,
                                 *ctx.value_signals, ctx.criticality_gain, ctx.freeze_habituation, pacing_rest)
             terms = {ch: {k: _r(v) for k, v in t.items()} for ch, t in raw.items()}
-            probs = {k: _r(v) for k, v in selection_probabilities(scores, bg.softmax_temperature).items()}
+            exact = selection_probabilities(scores, bg.softmax_temperature)
+            probs = {k: _r(v) for k, v in exact.items()}
+            without_memory = counterfactual_probabilities(scores, raw, bg.softmax_temperature, ("memory",))
+            probs_without_memory = {k: _r(v) for k, v in without_memory.items()}
+            influence = {name: _r(total_variation(exact, counterfactual_probabilities(scores, raw, bg.softmax_temperature, (name,))))
+                         for name in COUNTERFACTUAL_TERMS}
         goal_cell = None  # the goal-vector memory, in world coordinates (only with oracle homing on)
         goal = eng.goal_point() if eng.config.value_memory.oracle_homing else None
         if goal is not None:
@@ -482,6 +518,10 @@ class SimSession:
                 "scores": {k: _r(v) for k, v in scores.items()},
                 "terms": terms,
                 "probs": probs,
+                # Counterfactuals (metrics.decisions): the selection without the memory term, and each term
+                # family's immediate influence as the total-variation shift it makes to the probabilities.
+                "probs_without_memory": probs_without_memory,
+                "influence": influence,
                 "temperature": _r(bg.softmax_temperature),
                 "source": eng.config.value_memory.source,
                 "value_gain": _r(bg.value_gain),
@@ -738,6 +778,10 @@ class SimSession:
         if recorded_events:
             with open(run_dir / REPLAY_EVENTS_FILE, "w", encoding="utf-8") as fh:
                 n_written = write_replay_events(fh, recorded_events)
+        decision_lines = [line for tick, line in self.decisions if tick >= first_tick]
+        with open(run_dir / DECISIONS_FILE, "w", encoding="utf-8") as fh:
+            for line in decision_lines:
+                fh.write(line + "\n")
         summary = {
             "protocol": self.scenario_id,
             "source": "live console",
@@ -750,6 +794,7 @@ class SimSession:
             "status": self.scenario.status(),
             "n_replay_events": n_written,
             "n_replay_events_total": self.n_replay_events,
+            "n_decision_records": len(decision_lines),
         }
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
         # Objects as they stand now (a beacon shows its latest spot); the start

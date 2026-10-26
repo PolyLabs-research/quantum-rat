@@ -61,7 +61,10 @@ export class DecisionPanel {
     // selection gives it (softmax at the profile's temperature; 1 on the argmax at 0). Columns that are
     // 0 for every channel are left out, so the table stays as wide as the mechanisms in force.
     this.selectNote = el('span', { class: 'muted' });
-    this.table = el('table', { class: 'terms', 'aria-label': 'Each action score as its terms, the total and the selection probability' });
+    this.table = el('table', { class: 'terms', 'aria-label': 'Each action score as its terms, the total, the selection probability and the probability without the memory term' });
+    // Counterfactual readout: how much each term family moves this tick's selection (total variation),
+    // recomputed from the same scores with the term removed; no draw, the run is untouched.
+    this.influence = el('div', { class: 'crit-line' });
     // Why memory or pain is (partly) switched off right now; hidden when none is.
     this.mods = el('div', { class: 'crit-line decision-mods' });
     this.gain = el('div', { class: 'crit-line' });
@@ -69,6 +72,7 @@ export class DecisionPanel {
       bars,
       el('div', { class: 'subhead' }, el('span', { text: 'What made each score' }), this.selectNote),
       this.table,
+      this.influence,
       el('div', { class: 'subhead' }, this.steerHead, this.pullNote),
       pull,
       this.mods,
@@ -154,8 +158,16 @@ export class DecisionPanel {
     const labels = { bias: 'Bias', vision: 'Vision', memory: 'Memory', wall: 'Wall', pain: 'Pain', novelty: 'Novelty', gate: 'Gate', patience: 'Patience', pacing: 'Pacing', microsleep: 'Sleep' };
     const terms = action.terms || {};
     const cols = order.filter((k) => Object.values(terms).some((t) => Math.abs(t[k] ?? 0) > 1e-9));
+    const without = action.probs_without_memory || {};
+    const hasWithout = Object.keys(without).length > 0 && cols.includes('memory');
     this.selectNote.textContent = tau > 0 ? `softmax τ ${fmt(tau, 2)}: the highest score need not win` : 'argmax: the highest score wins';
-    const head = el('tr', {}, el('th', { text: 'Action' }), ...cols.map((k) => el('th', { text: labels[k] })), el('th', { class: 'total', text: 'Total' }), el('th', { text: 'P' }));
+    const head = el('tr', {}, el('th', { text: 'Action' }), ...cols.map((k) => el('th', { text: labels[k] })), el('th', { class: 'total', text: 'Total' }), el('th', { text: 'P' }), hasWithout ? el('th', { text: 'P −mem', title: 'The selection probability with the memory term removed from every score' }) : null);
+    const inf = action.influence || {};
+    const parts = ['memory', 'vision', 'wall'].filter((k) => inf[k] !== undefined).map((k) => `${k} ${fmt(inf[k], 2)}`);
+    this.influence.replaceChildren(
+      'Immediate influence on the selection (total variation, 0 = none, 1 = decisive): ',
+      el('span', { class: 'num', text: parts.length ? parts.join(' · ') : '—' }),
+    );
     const rows = [head];
     for (const [key, label] of ACTIONS) {
       if (!(key in scores)) continue; // asleep: only REST is scored
@@ -169,6 +181,7 @@ export class DecisionPanel {
           ...cols.map((k) => cell(t[k] ?? 0)),
           el('td', { class: 'total', text: fmtSigned(scores[key] ?? 0, 2) }),
           el('td', { text: probs[key] !== undefined ? `${fmt(100 * probs[key], 0)}%` : '—' }),
+          hasWithout ? el('td', { text: without[key] !== undefined ? `${fmt(100 * without[key], 0)}%` : '—' }) : null,
         ),
       );
     }

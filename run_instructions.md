@@ -52,6 +52,15 @@ offline.
    python -m experiments.runner --protocol console_hidden_food --seed 7 --ticks 3000
    python -m experiments.runner --protocol console_memory_maze --seed 7 --ticks 3000 --profile research
 
+   # also log every tick's decision (decisions.jsonl: scores, terms, probabilities, counterfactuals,
+   # contacts, episode boundaries); a live recording writes the same file. Then summarise the circling
+   python -m experiments.runner --protocol console_hidden_food --seed 7 --ticks 3000 --profile research --log-decisions
+   python -m analysis.orbits runs/console_hidden_food_7
+
+   # memory steering on vs off on matched seeds (legacy needs sensor noise, or every seed is one run)
+   python -m experiments.console_ablation --scenario hidden_food --profile research --seeds 1-8 --out runs/ablation_hf_research
+   python -m experiments.console_ablation --scenario hidden_food --profile legacy --set sensors.noise=0.03 --out runs/ablation_hf_legacy
+
    # a tournament with per-tick logs (without --include-ticks only summaries are saved)
    python -m tournaments.runner --seed 7 --n-agents 2 --ticks 300 \
        --protocols beacon,open_field --include-ticks --out runs/my_tournament

@@ -250,6 +250,24 @@ their learner: "Forget the rewards" clears the SR's reward weights as well as th
 and the maze's consolidation says when it changes the diagnostic map only; the maze's
 inter-trial rest is physiology updates, frozen with the research profile's energy.
 
+**Measuring the circling** (G40). Every live session keeps a per-tick **decision log** and a
+recording writes it as `decisions.jsonl` beside `ticks.jsonl` (`metrics/decisions.py`): position,
+heading, the estimate, the action, the scores and their terms, the selection probabilities, the
+probabilities **without** the memory, vision or wall term (the same softmax with the term
+removed: no draw, the run untouched) and each term's immediate influence as the total-variation
+shift it makes, target visibility and distance, contacts, reward and the episode boundaries. The
+headless runner writes the same file with `--log-decisions`. `python -m analysis.orbits <run>`
+cuts a log into loops (one full turn of accumulated heading), orbits (loops that close on
+themselves) and bouts of same-direction orbits, each with its duration, loops, mean radius,
+contacts, the dominant term among the turns that made it and memory's mean immediate influence,
+and sorts the bouts into productive (a target was touched), memory (memory-dominant turns with an
+influence above the bound), wall and other. `python -m experiments.console_ablation` runs a
+scenario on matched seeds with memory steering on and off (`value_gain` 0; the learners still
+run) and pairs the arms by seed on finds, unique sites, distance per find, wall contact and the
+orbit measures (`analysis/stats.py`, BCa intervals); its runs on the console scenarios are in
+`docs/data/console_ablation/` and read in G40. The Decision panel shows the counterfactual column
+and influence live; the Behaviour readouts show the turning and closure of the last 300 ticks.
+
 Keys: `Space` play/pause, `→` step. Deep links work, e.g.
 `/live?scenario=memory_maze&seed=7&speed=300&paused=1` or `/live?profile=research&scenario=open_field`.
 

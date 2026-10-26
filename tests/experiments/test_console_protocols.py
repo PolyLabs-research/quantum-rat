@@ -187,3 +187,17 @@ def test_headless_console_protocol_matches_the_live_session_on_the_research_prof
     assert out["ticks"] == rows
     assert out["manifest"]["profile"] == "research" and out["manifest"]["config"]["place"]["enabled"] is True
     assert out["summary"]["status"] == session.scenario.status()
+
+
+def test_log_decisions_writes_one_record_per_tick_that_matches_the_live_session(tmp_path):
+    from metrics.decisions import DECISIONS_FILE
+
+    ticks, seed = 150, 7
+    session, _ = _live_rows("hidden_food", seed, ticks, profile="research")
+    run(CONSOLE_PREFIX + "hidden_food", seed=seed, ticks=ticks, outdir=tmp_path, profile="research", log_decisions=True)
+    lines = (tmp_path / DECISIONS_FILE).read_text().splitlines()
+    assert len(lines) == ticks and lines == [line for _, line in session.decisions]
+    assert json.loads((tmp_path / "summary.json").read_text())["n_decision_records"] == ticks
+    assert json.loads((tmp_path / "manifest.json").read_text())["log_decisions"] is True
+    run(CONSOLE_PREFIX + "open_field", seed=1, ticks=10, outdir=tmp_path / "plain")
+    assert not (tmp_path / "plain" / DECISIONS_FILE).exists()

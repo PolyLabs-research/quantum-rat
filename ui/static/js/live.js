@@ -199,6 +199,11 @@ export class LiveController {
     row('Ticks since last find', b.ticks_since_find === null || b.ticks_since_find === undefined ? '—' : fmtInt(b.ticks_since_find));
     row('Distance per find', b.distance_per_find === null || b.distance_per_find === undefined ? '—' : `${fmt(b.distance_per_find, 1)} units`);
     row('Reward total', fmtSigned(b.reward_total, 2));
+    if (b.turning_revolutions !== undefined) {
+      const w = b.turning_window || 300;
+      row(`Turning, last ${w}`, `${fmtSigned(b.turning_revolutions, 2)} rev`);
+      row(`Closure, last ${w}`, fmt(b.closure, 2));
+    }
   }
 
   _renderProfileNote() {

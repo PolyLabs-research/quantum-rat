@@ -372,3 +372,20 @@ def test_maze_rest_respects_frozen_physiology_and_the_memory_controls_name_their
     assert not hidden.engine.sr_weights.any() and not hidden.engine.value_memory.values
     assert "SR reward weights erased" in hidden.events[-1]["text"]
     assert [a["label"] for a in hidden.scenario.actions()] == ["Forget the rewards"]
+
+
+def test_recordings_carry_the_decision_log_and_the_frame_its_counterfactuals(tmp_path):
+    from metrics.decisions import DECISIONS_FILE, read_decisions
+
+    session = SimSession("beacon", seed=5, profile="research")
+    session.step(60)
+    a = session.frame()["action"]
+    assert set(a["probs_without_memory"]) == set(a["probs"]) and set(a["influence"]) == {"memory", "vision", "wall"}
+    assert all(0.0 <= v <= 1.0 for v in a["influence"].values())
+    b = session.frame()["behaviour"]
+    assert b["turning_window"] == 300 and isinstance(b["turning_revolutions"], float) and 0.0 <= b["closure"] <= 1.0
+    run_id = session.record(tmp_path)
+    records = read_decisions(tmp_path / run_id)
+    assert len(records) == len(session.history) == 61 and [r["tick"] for r in records] == [row["tick"] for row in session.history]
+    assert json.loads((tmp_path / run_id / "summary.json").read_text())["n_decision_records"] == 61
+    assert (tmp_path / run_id / DECISIONS_FILE).exists()

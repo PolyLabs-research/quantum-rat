@@ -169,6 +169,11 @@ class Engine:
         # the backups: nothing here feeds TickData or the trace hash.
         self._replay_event: OpenReplayEvent | None = None
         self.replay_log = ReplayLog()
+        # Episode counters for the decision log (metrics.decisions, G40): ``episode`` counts calls to
+        # ``begin_episode`` (a reset or a scenario's teleport), ``value_episode`` the learners' boundaries
+        # (``reset_value_episode``). Readouts; nothing in the pipeline reads them.
+        self.episode = 0
+        self.value_episode = 0
         # Goal-vector extinction: whether the agent is inside the remembered goal's
         # place cell on this visit, whether it found reward there, and how many
         # visits in a row (to the goal held in _goal_misses_cell) found none.
@@ -521,6 +526,7 @@ class Engine:
         """An episode boundary for every value learner (a protocol's trial start, a teleport): nothing links across it."""
         self.value_memory.reset_episode()
         self._sr_prev = None
+        self.value_episode += 1
 
     def forget_rewards(self) -> None:
         """Erase what the value learners know about reward: the tabular map's values and, with the SR source, its
@@ -799,6 +805,7 @@ class Engine:
         self._close_replay_event()
         self.value_memory.reset_episode()
         self._sr_prev = None  # the SR value source's episode boundary too (M2b step 4)
+        self.episode += 1
 
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:
         """Execute the pipeline for N ticks and return TickData stream."""
