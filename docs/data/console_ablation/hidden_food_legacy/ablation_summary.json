@@ -1,0 +1,356 @@
+{
+ "arms": {
+  "no_steer": {
+   "basal_ganglia.value_gain": 0.0
+  },
+  "steer": {}
+ },
+ "effects": {
+  "distance": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.625,
+   "fraction_ties": 0.0,
+   "high": 5.0156037008005105,
+   "low": -1.5858792961352137,
+   "mean_a": 527.3539739105947,
+   "mean_b": 529.277826541188,
+   "mean_diff": 1.9238526305932027,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "distance_per_find": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 0.0,
+   "high": -97.00412387243422,
+   "low": -201.2284540281179,
+   "mean_a": 257.95377646142435,
+   "mean_b": 108.31420753915397,
+   "mean_diff": -149.6395689222703,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "finds": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 1.0,
+   "fraction_ties": 0.0,
+   "high": 9.25,
+   "low": 2.375,
+   "mean_a": 2.375,
+   "mean_b": 6.75,
+   "mean_diff": 4.375,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "loops": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 1.0,
+   "fraction_ties": 0.0,
+   "high": 14.125,
+   "low": 4.0,
+   "mean_a": 8.0,
+   "mean_b": 15.625,
+   "mean_diff": 7.625,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "mean_memory_influence": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 1.0,
+   "fraction_ties": 0.0,
+   "high": 0.19845131486583067,
+   "low": 0.07754166666666668,
+   "mean_a": 0.0,
+   "mean_b": 0.115375,
+   "mean_diff": 0.115375,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbit_fraction": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 0.0,
+   "high": -0.17391666666666666,
+   "low": -0.4029166666666666,
+   "mean_a": 0.9359999999999999,
+   "mean_b": 0.675875,
+   "mean_diff": -0.260125,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbit_ticks_memory": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 1.0,
+   "fraction_ties": 0.0,
+   "high": 184.125,
+   "low": 94.375,
+   "mean_a": 0.0,
+   "mean_b": 137.0,
+   "mean_diff": 137.0,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbit_ticks_other": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.0,
+   "mean_b": 0.0,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "orbit_ticks_productive": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 0.0,
+   "high": -597.125,
+   "low": -1942.875,
+   "mean_a": 2095.375,
+   "mean_b": 932.375,
+   "mean_diff": -1163.0,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbit_ticks_wall": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.375,
+   "fraction_ties": 0.375,
+   "high": 868.5,
+   "low": -129.1423071326583,
+   "mean_a": 712.625,
+   "mean_b": 958.25,
+   "mean_diff": 245.625,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbits": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.75,
+   "fraction_ties": 0.125,
+   "high": 11.0,
+   "low": 1.75,
+   "mean_a": 8.0,
+   "mean_b": 13.5,
+   "mean_diff": 5.5,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "reward": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.75,
+   "fraction_ties": 0.0,
+   "high": 27.229650114017915,
+   "low": 1.4077625000000007,
+   "mean_a": 0.09775000000000289,
+   "mean_b": 11.35597499999999,
+   "mean_diff": 11.258224999999987,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "unique_sites": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.375,
+   "fraction_ties": 0.375,
+   "high": 1.25,
+   "low": -0.375,
+   "mean_a": 1.75,
+   "mean_b": 2.125,
+   "mean_diff": 0.375,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "wall_fraction": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.875,
+   "fraction_ties": 0.125,
+   "high": 0.018083333333333333,
+   "low": 0.004666666666666667,
+   "mean_a": 0.0,
+   "mean_b": 0.010541666666666666,
+   "mean_diff": 0.010541666666666666,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  }
+ },
+ "guard": 8,
+ "overrides": {
+  "sensors.noise": 0.03
+ },
+ "per_arm_means": {
+  "no_steer": {
+   "distance": 527.3539739105947,
+   "distance_per_find": 257.95377646142435,
+   "finds": 2.375,
+   "loops": 8.0,
+   "mean_memory_influence": 0.0,
+   "orbit_fraction": 0.9359999999999999,
+   "orbit_ticks_memory": 0.0,
+   "orbit_ticks_other": 0.0,
+   "orbit_ticks_productive": 2095.375,
+   "orbit_ticks_wall": 712.625,
+   "orbits": 8.0,
+   "reward": 0.09775000000000289,
+   "unique_sites": 1.75,
+   "wall_fraction": 0.0
+  },
+  "steer": {
+   "distance": 529.277826541188,
+   "distance_per_find": 108.31420753915397,
+   "finds": 6.75,
+   "loops": 15.625,
+   "mean_memory_influence": 0.115375,
+   "orbit_fraction": 0.675875,
+   "orbit_ticks_memory": 137.0,
+   "orbit_ticks_other": 0.0,
+   "orbit_ticks_productive": 932.375,
+   "orbit_ticks_wall": 958.25,
+   "orbits": 13.5,
+   "reward": 11.35597499999999,
+   "unique_sites": 2.125,
+   "wall_fraction": 0.010541666666666666
+  }
+ },
+ "profile": "legacy",
+ "scenario": "hidden_food",
+ "seeds": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "status": {
+  "no_steer_s1": {
+   "Finds per site": "0 0 0 2 0 0",
+   "Food found": 2,
+   "Sites discovered": "1/6",
+   "Sites with food now": "6/6"
+  },
+  "no_steer_s2": {
+   "Finds per site": "0 0 0 0 1 0",
+   "Food found": 1,
+   "Sites discovered": "1/6",
+   "Sites with food now": "6/6"
+  },
+  "no_steer_s3": {
+   "Finds per site": "0 0 0 2 0 0",
+   "Food found": 2,
+   "Sites discovered": "1/6",
+   "Sites with food now": "6/6"
+  },
+  "no_steer_s4": {
+   "Finds per site": "0 2 0 1 0 0",
+   "Food found": 3,
+   "Sites discovered": "2/6",
+   "Sites with food now": "5/6"
+  },
+  "no_steer_s5": {
+   "Finds per site": "0 1 0 0 1 0",
+   "Food found": 2,
+   "Sites discovered": "2/6",
+   "Sites with food now": "6/6"
+  },
+  "no_steer_s6": {
+   "Finds per site": "0 0 0 1 1 0",
+   "Food found": 2,
+   "Sites discovered": "2/6",
+   "Sites with food now": "6/6"
+  },
+  "no_steer_s7": {
+   "Finds per site": "0 1 0 1 1 0",
+   "Food found": 3,
+   "Sites discovered": "3/6",
+   "Sites with food now": "6/6"
+  },
+  "no_steer_s8": {
+   "Finds per site": "0 1 0 3 0 0",
+   "Food found": 4,
+   "Sites discovered": "2/6",
+   "Sites with food now": "6/6"
+  },
+  "steer_s1": {
+   "Finds per site": "0 0 0 2 0 2",
+   "Food found": 4,
+   "Sites discovered": "2/6",
+   "Sites with food now": "6/6"
+  },
+  "steer_s2": {
+   "Finds per site": "0 0 0 0 2 0",
+   "Food found": 2,
+   "Sites discovered": "1/6",
+   "Sites with food now": "5/6"
+  },
+  "steer_s3": {
+   "Finds per site": "0 2 0 4 1 0",
+   "Food found": 7,
+   "Sites discovered": "3/6",
+   "Sites with food now": "5/6"
+  },
+  "steer_s4": {
+   "Finds per site": "0 5 0 0 0 0",
+   "Food found": 5,
+   "Sites discovered": "1/6",
+   "Sites with food now": "6/6"
+  },
+  "steer_s5": {
+   "Finds per site": "5 0 6 0 2 4",
+   "Food found": 17,
+   "Sites discovered": "4/6",
+   "Sites with food now": "5/6"
+  },
+  "steer_s6": {
+   "Finds per site": "0 1 0 6 0 0",
+   "Food found": 7,
+   "Sites discovered": "2/6",
+   "Sites with food now": "6/6"
+  },
+  "steer_s7": {
+   "Finds per site": "0 0 2 5 0 0",
+   "Food found": 7,
+   "Sites discovered": "2/6",
+   "Sites with food now": "6/6"
+  },
+  "steer_s8": {
+   "Finds per site": "3 2 0 0 0 0",
+   "Food found": 5,
+   "Sites discovered": "2/6",
+   "Sites with food now": "5/6"
+  }
+ },
+ "ticks": 3000,
+ "wall_seconds": 1.8
+}

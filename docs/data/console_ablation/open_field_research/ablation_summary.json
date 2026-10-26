@@ -1,0 +1,286 @@
+{
+ "arms": {
+  "no_steer": {
+   "basal_ganglia.value_gain": 0.0
+  },
+  "steer": {}
+ },
+ "effects": {
+  "distance": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 1497.64907757822,
+   "mean_b": 1497.64907757822,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "distance_per_find": {
+   "n": 0,
+   "note": "fewer than two seeds with a value in both arms"
+  },
+  "finds": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.0,
+   "mean_b": 0.0,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "loops": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 15.25,
+   "mean_b": 15.25,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "mean_memory_influence": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.0,
+   "mean_b": 0.0,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "orbit_fraction": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.33495833333333336,
+   "mean_b": 0.33495833333333336,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "orbit_ticks_memory": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.0,
+   "mean_b": 0.0,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "orbit_ticks_other": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.0,
+   "mean_b": 0.0,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "orbit_ticks_productive": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.0,
+   "mean_b": 0.0,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "orbit_ticks_wall": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 1004.875,
+   "mean_b": 1004.875,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "orbits": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 9.5,
+   "mean_b": 9.5,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "reward": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.0,
+   "mean_b": 0.0,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "unique_sites": {
+   "n": 0,
+   "note": "fewer than two seeds with a value in both arms"
+  },
+  "wall_fraction": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.4189583333333333,
+   "mean_b": 0.4189583333333333,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  }
+ },
+ "guard": 8,
+ "overrides": {},
+ "per_arm_means": {
+  "no_steer": {
+   "distance": 1497.64907757822,
+   "distance_per_find": null,
+   "finds": 0.0,
+   "loops": 15.25,
+   "mean_memory_influence": 0.0,
+   "orbit_fraction": 0.33495833333333336,
+   "orbit_ticks_memory": 0.0,
+   "orbit_ticks_other": 0.0,
+   "orbit_ticks_productive": 0.0,
+   "orbit_ticks_wall": 1004.875,
+   "orbits": 9.5,
+   "reward": 0.0,
+   "unique_sites": null,
+   "wall_fraction": 0.4189583333333333
+  },
+  "steer": {
+   "distance": 1497.64907757822,
+   "distance_per_find": null,
+   "finds": 0.0,
+   "loops": 15.25,
+   "mean_memory_influence": 0.0,
+   "orbit_fraction": 0.33495833333333336,
+   "orbit_ticks_memory": 0.0,
+   "orbit_ticks_other": 0.0,
+   "orbit_ticks_productive": 0.0,
+   "orbit_ticks_wall": 1004.875,
+   "orbits": 9.5,
+   "reward": 0.0,
+   "unique_sites": null,
+   "wall_fraction": 0.4189583333333333
+  }
+ },
+ "profile": "research",
+ "scenario": "open_field",
+ "seeds": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "status": {
+  "no_steer_s1": {
+   "Distance travelled": 1564.9
+  },
+  "no_steer_s2": {
+   "Distance travelled": 1443.5
+  },
+  "no_steer_s3": {
+   "Distance travelled": 1602.9
+  },
+  "no_steer_s4": {
+   "Distance travelled": 1382.0
+  },
+  "no_steer_s5": {
+   "Distance travelled": 1518.4
+  },
+  "no_steer_s6": {
+   "Distance travelled": 1419.2
+  },
+  "no_steer_s7": {
+   "Distance travelled": 1672.1
+  },
+  "no_steer_s8": {
+   "Distance travelled": 1378.2
+  },
+  "steer_s1": {
+   "Distance travelled": 1564.9
+  },
+  "steer_s2": {
+   "Distance travelled": 1443.5
+  },
+  "steer_s3": {
+   "Distance travelled": 1602.9
+  },
+  "steer_s4": {
+   "Distance travelled": 1382.0
+  },
+  "steer_s5": {
+   "Distance travelled": 1518.4
+  },
+  "steer_s6": {
+   "Distance travelled": 1419.2
+  },
+  "steer_s7": {
+   "Distance travelled": 1672.1
+  },
+  "steer_s8": {
+   "Distance travelled": 1378.2
+  }
+ },
+ "ticks": 3000,
+ "wall_seconds": 6.7
+}
