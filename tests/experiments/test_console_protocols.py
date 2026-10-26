@@ -118,7 +118,7 @@ def test_same_seed_gives_identical_data_files(name, tmp_path):
         assert a["manifest"][key] == b["manifest"][key]
 
 
-def test_profile_option_applies_only_when_the_protocol_has_no_config(tmp_path):
+def test_profile_option_runs_bare_protocols_on_it_and_puts_console_scenarios_on_it(tmp_path):
     run("open_field", seed=3, ticks=20, outdir=tmp_path / "research", profile="research")
     m = json.loads((tmp_path / "research" / "manifest.json").read_text())
     assert m["profile"] == "research" and m["profile_requested"] == "research"
@@ -132,18 +132,24 @@ def test_profile_option_applies_only_when_the_protocol_has_no_config(tmp_path):
     legacy_summary = json.loads((legacy_dir / "summary.json").read_text())
     assert legacy_summary["run_hash"] != research_summary["run_hash"]
     assert (legacy_dir / "ticks.jsonl").read_text() != (tmp_path / "research" / "ticks.jsonl").read_text()
-    # A console protocol supplies its own config, so the requested profile does not apply.
+    # A console protocol puts its scenario's own settings on the requested profile, as the live console does.
     run("console_open_field", seed=3, ticks=20, outdir=tmp_path / "console", profile="research")
     c = json.loads((tmp_path / "console" / "manifest.json").read_text())
-    assert c["profile"] == "legacy" and c["profile_requested"] == "research"
-    assert c["config"]["trn"]["microsleep_enabled"] is True
+    assert c["profile"] == "research" and c["profile_requested"] == "research"
+    assert c["config"]["trn"]["microsleep_enabled"] is False and c["config"]["place"]["enabled"] is True
+    run("console_memory_maze", seed=3, ticks=20, outdir=tmp_path / "console_maze", profile="research")
+    cm = json.loads((tmp_path / "console_maze" / "manifest.json").read_text())
+    assert cm["profile"] == "research" and cm["config"]["value_memory"]["oracle_homing"] is True  # the maze's own setting
+    assert cm["config"]["value_memory"]["generalization_radius"] == 2
+    run("console_open_field", seed=3, ticks=20, outdir=tmp_path / "console_legacy")
+    assert json.loads((tmp_path / "console_legacy" / "manifest.json").read_text())["profile"] == "legacy"
     with pytest.raises(ValueError):
         run("open_field", seed=3, ticks=1, outdir=tmp_path / "bad", profile="no-such-profile")
 
 
-def _live_rows(scenario_id: str, seed: int, ticks: int):
+def _live_rows(scenario_id: str, seed: int, ticks: int, profile: str = "legacy"):
     """A live session stepped to ``ticks`` rows, as the console would record them."""
-    session = SimSession(scenario_id, seed=seed)  # the build runs tick 0
+    session = SimSession(scenario_id, seed=seed, profile=profile)  # the build runs tick 0
     remaining = ticks - 1
     while remaining > 0:
         n = min(remaining, MAX_STEPS_PER_CALL)
@@ -170,3 +176,14 @@ def test_headless_console_protocol_matches_the_live_session(scenario_id, tmp_pat
     # And the session's own scenario events are the ones in events.jsonl.
     live_events = [e for e in session.events if e["kind"] not in ("session", "sleep", "gate", "criticality", "param")]
     assert [json.loads(line) for line in out["events"]] == [{k: v for k, v in e.items() if k != "seq"} for e in live_events]
+
+
+@pytest.mark.parametrize("scenario_id", ["open_field", "memory_maze"])
+def test_headless_console_protocol_matches_the_live_session_on_the_research_profile(scenario_id, tmp_path):
+    ticks, seed = 200, 7
+    session, rows = _live_rows(scenario_id, seed, ticks, profile="research")
+    run(CONSOLE_PREFIX + scenario_id, seed=seed, ticks=ticks, outdir=tmp_path, profile="research")
+    out = _read(tmp_path)
+    assert out["ticks"] == rows
+    assert out["manifest"]["profile"] == "research" and out["manifest"]["config"]["place"]["enabled"] is True
+    assert out["summary"]["status"] == session.scenario.status()

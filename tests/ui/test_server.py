@@ -159,3 +159,23 @@ def test_series_decimates_long_runs(client, tmp_path, monkeypatch):
     data = client.get("/api/runs/long/default/long/series").get_json()
     assert data["total"] == 95 and data["stride"] == 10
     assert data["columns"]["t"][:3] == [0, 10, 20]
+
+
+def test_meta_lists_profiles_and_a_session_can_run_on_the_research_profile(client):
+    meta = client.get("/api/meta").get_json()
+    assert [p["id"] for p in meta["profiles"]] == ["legacy", "research"] and meta["default_profile"] == "legacy"
+    assert any(p["key"] == "sensors.heading_oracle_noise" for p in meta["params"])
+    rv = post(client, "/api/sim", {"scenario": "memory_maze", "seed": 5, "profile": "research"})
+    assert rv.status_code == 201
+    sim = rv.get_json()
+    assert sim["profile"]["id"] == "research"
+    assert ["value_memory.oracle_homing", False, True] in sim["profile"]["overrides"]
+    assert sim["place"]["n"] == 400 and len(sim["place"]["cx"]) == 400
+    assert sim["frame"]["profile"] == "research" and len(sim["frame"]["sr"]["value"]) == 400
+    step = post(client, f"/api/sim/{sim['id']}/step", {"n": 10}).get_json()
+    assert step["frame"]["place"]["active"] >= 1 and len(step["frame"]["place"]["rates"]) == 400
+    reset = post(client, f"/api/sim/{sim['id']}/reset", {"seed": 6}).get_json()
+    assert reset["profile"]["id"] == "research" and reset["place"]["n"] == 400
+    legacy = post(client, "/api/sim", {"scenario": "open_field"}).get_json()
+    assert legacy["profile"] == {"id": "legacy", "overrides": []} and legacy["place"] is None
+    assert post(client, "/api/sim", {"scenario": "open_field", "profile": "toy"}).status_code == 400

@@ -32,7 +32,18 @@ export class ArenaView {
       goalCell: null, // the remembered goal (goal-vector memory), world coordinates
       microsleep: false,
       targetLabel: 'target',
-      layers: { value: true, rays: true, trail: true, estimate: true },
+      // The place code (research profile): the population grid (once per session), its rates at the
+      // estimate, the successor representation's value at every centre and the successor field from here.
+      placeGrid: null,
+      placeRates: null,
+      srValue: null,
+      srValueMax: 0,
+      srField: null,
+      srFieldMax: 0,
+      // Finished replay events as trails of the cells they backed up (world coordinates, backup order).
+      replayTrails: [],
+      tick: 0,
+      layers: { value: true, rays: true, trail: true, estimate: true, replay: true, place: true, srValue: true, srField: false },
     };
     this._valueIndex = new Map();
     this.render = rafThrottle(() => this._render());
@@ -67,6 +78,16 @@ export class ArenaView {
     const vm = this.s.valueMap;
     if (!vm || !vm.cell) return undefined;
     return this._valueIndex.get(`${Math.floor(x / vm.cell)},${Math.floor(y / vm.cell)}`);
+  }
+
+  /** Index of the place cell whose centre is nearest (x, y) on the population grid, or -1 without one. */
+  cellAt(x, y) {
+    const g = this.s.placeGrid;
+    if (!g || !g.extent) return -1;
+    const ix = Math.floor((x + g.extent[0]) / g.spacing);
+    const iy = Math.floor((y + g.extent[1]) / g.spacing);
+    if (ix < 0 || iy < 0 || ix >= g.nx || iy >= g.ny) return -1;
+    return iy * g.nx + ix;
   }
 
   // ---------------------------------------------------------------- geometry
@@ -132,6 +153,47 @@ export class ArenaView {
       ctx.globalAlpha = 1;
     }
 
+    // The place code (research profile), in the estimate's coordinates like the value map:
+    // the successor representation's value V = phi . M^T R at every cell centre (diverging,
+    // like the map), the successor field from the current place, and the population's activity.
+    const g = s.placeGrid;
+    if (g && s.layers.srValue && s.srValue && s.srValueMax > 0) {
+      const c = g.spacing;
+      for (let i = 0; i < g.cx.length; i++) {
+        const v = s.srValue[i];
+        const t = Math.min(1, Math.abs(v) / s.srValueMax) ** 0.5;
+        if (t < 0.03) continue;
+        ctx.fillStyle = mix(T.mid, v > 0 ? T.pos : T.neg, t);
+        ctx.globalAlpha = 0.25 + 0.6 * t;
+        ctx.fillRect(X(g.cx[i] - c / 2), Y(g.cy[i] + c / 2), c * k + 0.5, c * k + 0.5);
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (g && s.layers.srField && s.srField && s.srFieldMax > 0) {
+      const c = g.spacing;
+      for (let i = 0; i < g.cx.length; i++) {
+        const t = Math.min(1, Math.max(0, s.srField[i]) / s.srFieldMax) ** 0.5;
+        if (t < 0.05) continue;
+        ctx.fillStyle = T.ht;
+        ctx.globalAlpha = 0.08 + 0.55 * t;
+        ctx.fillRect(X(g.cx[i] - c / 2), Y(g.cy[i] + c / 2), c * k + 0.5, c * k + 0.5);
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (g && s.layers.place && s.placeRates) {
+      const rmax = 0.46 * g.spacing * k;
+      for (let i = 0; i < g.cx.length; i++) {
+        const r = s.placeRates[i];
+        if (r < 0.02) continue;
+        ctx.fillStyle = T.ach;
+        ctx.globalAlpha = 0.2 + 0.7 * Math.min(1, r);
+        ctx.beginPath();
+        ctx.arc(X(g.cx[i]), Y(g.cy[i]), Math.max(1.5, rmax * Math.sqrt(Math.min(1, r))), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // Pain zones around hazards.
     for (const o of s.objects) {
       if (o.kind !== 'hazard') continue;
@@ -176,6 +238,39 @@ export class ArenaView {
       ctx.strokeRect(X(rx - c), Y(ry + c), 2 * c * k, 2 * c * k);
       ctx.setLineDash([]);
       this._label(ctx, 'replay', X(rx), Y(ry + c) - 4, 'bottom');
+    }
+
+    // Finished replay events: the cells each one backed up, joined in backup order and
+    // fading with age; the newest carries its label. (The research profile never sleeps,
+    // so it has none until M3 wires replay into its engine.)
+    if (s.layers.replay && s.replayTrails && s.replayTrails.length) {
+      const c = (vm && vm.cell) || 0.5;
+      const n = s.replayTrails.length;
+      s.replayTrails.forEach((tr, idx) => {
+        if (!tr.points || !tr.points.length) return;
+        const age = Math.max(0, (s.tick || 0) - (tr.tick_end ?? s.tick));
+        const fade = Math.max(0.12, 1 - age / 600) * (0.45 + (0.55 * (idx + 1)) / n);
+        const color = alpha(T.ne, fade);
+        if (tr.points.length > 1) this._polyline(ctx, F, tr.points, color, 2);
+        for (const [px, py] of tr.points) {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(X(px), Y(py), Math.max(2, 0.16 * c * k), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // A ring on the first cell backed up, so the order reads.
+        const [sx, sy] = tr.points[0];
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(X(sx), Y(sy), Math.max(4, 0.32 * c * k), 0, Math.PI * 2);
+        ctx.stroke();
+        if (idx === n - 1) {
+          const [lx, ly] = tr.points[tr.points.length - 1];
+          const dir = tr.direction && tr.direction !== 'none' ? ` ${tr.direction}` : '';
+          this._label(ctx, `replay ×${tr.n}${dir}`, X(lx), Y(ly) - 8, 'bottom', T.ne);
+        }
+      });
     }
 
     // Goal-vector memory: where the brain remembers finding reward.
@@ -414,6 +509,12 @@ export class ArenaView {
     const lines = [el('div', {}, el('span', { class: 'muted', text: 'x ' }), fmt(x, 2), el('span', { class: 'muted', text: '  y ' }), fmt(y, 2), el('span', { class: 'muted', text: ' m' }))];
     const v = this.valueAt(x, y);
     if (v !== undefined) lines.push(el('div', {}, el('span', { class: 'muted', text: 'learned value ' }), fmtSigned(v, 3)));
+    const cell = this.cellAt(x, y);
+    if (cell >= 0) {
+      if (this.s.placeRates) lines.push(el('div', {}, el('span', { class: 'muted', text: 'place cell activity ' }), fmt(this.s.placeRates[cell], 2)));
+      if (this.s.srValue) lines.push(el('div', {}, el('span', { class: 'muted', text: 'SR value ' }), fmtSigned(this.s.srValue[cell], 3)));
+      if (this.s.srField) lines.push(el('div', {}, el('span', { class: 'muted', text: 'successor field from here ' }), fmt(this.s.srField[cell], 3)));
+    }
     let nearest = null;
     for (const o of this.s.objects) {
       const d = Math.hypot(o.x - x, o.y - y) - o.r;
@@ -568,6 +669,62 @@ export function buildArenaLegend(host, o) {
     });
     host.append(
       el('span', { class: 'legend-ramp', title: 'Drawn where the brain thinks each place is, so it drifts with path integration' }, 'Learned value (in the brain’s own coordinates)', el('span', { class: 'muted', text: 'avoid' }), ramp, el('span', { text: 'seek' })),
+    );
+  }
+  if (o.place) {
+    item(
+      glyph((ctx, w, h) => {
+        ctx.fillStyle = alpha(T.ach, 0.9);
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = alpha(T.ach, 0.4);
+        ctx.beginPath();
+        ctx.arc(w / 2 + 7, h / 2 + 3, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }),
+      'Place-cell activity (at the estimate)',
+    );
+  }
+  if (o.sr) {
+    const ramp = el('canvas', { 'aria-hidden': 'true' });
+    requestAnimationFrame(() => {
+      const { ctx, w, h } = fitCanvas(ramp, 72, 10);
+      for (let i = 0; i < w; i++) {
+        const t = (i / (w - 1)) * 2 - 1;
+        ctx.fillStyle = mix(T.mid, t > 0 ? T.pos : T.neg, Math.abs(t) ** 0.5);
+        ctx.fillRect(i, 0, 1, h);
+      }
+    });
+    host.append(
+      el('span', { class: 'legend-ramp', title: 'The successor representation’s value, phi · Mᵀ R, at every place-cell centre; what the research profile’s steering reads' }, 'SR value (what steers in the research profile)', el('span', { class: 'muted', text: '−' }), ramp, el('span', { text: '+' })),
+    );
+    item(
+      glyph((ctx, w, h) => {
+        ctx.fillStyle = alpha(T.ht, 0.7);
+        ctx.fillRect(2, 2, w - 4, h - 4);
+      }),
+      'Successor field from here (expected future occupancy)',
+    );
+  }
+  if (o.replay) {
+    item(
+      glyph((ctx, w, h) => {
+        ctx.strokeStyle = alpha(T.ne, 0.9);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(2, h - 3);
+        ctx.lineTo(w / 2, h / 2);
+        ctx.lineTo(w - 3, 3);
+        ctx.stroke();
+        ctx.fillStyle = alpha(T.ne, 0.9);
+        for (const [px, py] of [[2, h - 3], [w / 2, h / 2], [w - 3, 3]]) {
+          ctx.beginPath();
+          ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }),
+      'Replay event (cells backed up, in order)',
     );
   }
 }

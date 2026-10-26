@@ -23,9 +23,13 @@ offline.
 
    `python -m ui.replay_server` still works and starts the same console.
 
-3. **Live tab.** Choose a scenario on the left. Play/pause with the button or `Space`; step one
-   tick with `→`. Drag parameters to change the brain while it runs (they survive a reset).
-   **Record to replay** saves the session into the runs directory.
+3. **Live tab.** Choose a profile and a scenario on the left: **Legacy** is the toy brain the
+   scenarios were built for; **Research** is the research instrument (docs/profiles.md), with the
+   place population and the successor representation drawn on the arena and in the Place code
+   panel. The scenario's own settings ride on top of either profile and are listed under the
+   switch. Play/pause with the button or `Space`; step one tick with `→`. Drag parameters to
+   change the brain while it runs (they survive a reset). **Record to replay** saves the session
+   into the runs directory, with the profile in its summary and manifest.
 
 4. **Replay tab.** Pick a run and an episode, then play or drag the scrubber. Click a chart or a
    "key moment" to jump to it. The tick inspector lists every logged field.
@@ -35,14 +39,15 @@ offline.
    # one experiment run -> runs/foraging_1337/
    python -m experiments.runner --protocol foraging --ticks 2000
 
-   # the same run under the research profile (docs/profiles.md); the bare
-   # protocols take --profile, the console_* ones below bring their own config
+   # the same run under the research profile (docs/profiles.md)
    python -m experiments.runner --protocol foraging --ticks 2000 --profile research
 
    # a console scenario headless: console_open_field, console_beacon, console_foraging,
    # console_hazard_field, console_hidden_food or console_memory_maze. Same ticks as a
-   # live session of that scenario at that seed, plus events.jsonl (the event log)
+   # live session of that scenario at that seed on that profile (legacy by default;
+   # --profile research for the console's Research switch), plus events.jsonl (the event log)
    python -m experiments.runner --protocol console_hidden_food --seed 7 --ticks 3000
+   python -m experiments.runner --protocol console_memory_maze --seed 7 --ticks 3000 --profile research
 
    # a tournament with per-tick logs (without --include-ticks only summaries are saved)
    python -m tournaments.runner --seed 7 --n-agents 2 --ticks 300 \

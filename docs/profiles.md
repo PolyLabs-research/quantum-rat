@@ -18,6 +18,13 @@ engine = Engine(seed=1337, config=EngineConfig.research())  # or EngineConfig.le
 EngineConfig.legacy().diff(EngineConfig.research())         # the table below, as tuples
 ```
 
+The lab console's Live tab has the same choice as a **profile switch** (G38): a scenario's own
+settings (`ui.scenarios.profile_config`) are applied on the chosen profile's base and the fields
+they move away from it are listed under the switch; on the research profile the arena and the
+Place code panel draw the population, the SR value and the successor field. A headless
+`python -m experiments.runner --protocol console_<scenario> --profile research` reproduces such a
+session tick for tick, and a recording's manifest carries the profile.
+
 ## What differs
 
 | Field | legacy | research | Why it is off in research |

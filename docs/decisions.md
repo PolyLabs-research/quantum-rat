@@ -1480,3 +1480,34 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 - `EngineConfig.legacy().diff(EngineConfig.research())`: 25 rows, as docs/profiles.md's table.
 
 **Impact:** this entry; `core/config.py` (`research()`); `tests/determinism/` (the research set); `experiments/odometry_characterisation.py` (M1's instrument pinned), `experiments/place_population.py` (throughput arms); tests in `tests/engine/`, `tests/brain/`, `tests/sensors/`, `tests/determinism/`, `tests/experiments/`; docs/profiles.md (table, seeds, measurements, baselines history), README, docs/research_plan.md (row 2b, status), docs/m2b_place_code.md (where M2b stands). Tag `v1.4-place-code`.
+
+## G38 — The console shows the research instrument: a profile switch, the place code and SR on the arena, replay-event trails
+
+**Date:** 2026-10-26  
+**Why:** The console ran the legacy profile only, so nothing of M2a or M2b was visible in it, and the plan's console panels (row 2a's replay-event panel, row 2b's population and SR-field panels) had been deferred twice. The owner asked for the console first (2026-10-26), before M3, so that M3's instrument can be watched as it is built.
+
+### A. What landed
+1. **A profile switch in the Live tab** (`ui.scenarios.PROFILES`, `profile_config`). A scenario's `config()` stays its own settings on the legacy base; `profile_config(scenario, profile)` applies the same settings (the scenario's diff from `EngineConfig()`) on `EngineConfig.research()` and returns the fields they move away from the profile, which the switch lists ("This scenario keeps its own settings on top of the profile: …"). `SimSession(..., profile=)`, `POST /api/sim {profile}`, `/api/meta` lists the profiles; `reset` keeps the profile; a recording's run id (`live_<scenario>_research_…`), summary (`profile`, `profile_overrides`) and manifest (`profile_requested`, `profile_overrides`; the config already carried the label) record it. Deep link `/live?profile=research`.
+2. **The place code in the frame and on the arena** (research profile; `None` without a population): the population's rates at the estimate, the decoded position and the active-cell count; the SR value V = φ·MᵀR at every cell centre (as the engine computes it, element-wise, from a cached matrix of the population's normalised rates at its own centres), the successor field from here (Mφ), the reward weights R, V here, the update count and the reward rule. Arena layers **Place cells** (activity bubbles), **SR value** (the value map's diverging ramp: what steers there) and **SR field from here** (off by default), all in the estimate's coordinates like the value map; hover reads all three. A **Place code** panel draws the activity and the successor field on the population's own 20 × 20 grid, with the decode error against the estimate and against the body, V here, max |R|, the SR update count and the rule; on the legacy profile it says there is no population.
+3. **Replay-event trails** (row 2a's panel, both profiles): the latest finished replay events (`engine.replay_log`) as trails of the cells they backed up, in backup order, a ring on the first cell, fading over 600 ticks, the newest labelled with its backup count and direction. The research profile produces none until M3 wires replay into its engine; the arena's legend says what the trail is.
+4. **Live parameters** for the research profile's seeded elements and the SR, in a new "Estimate & sampling" group: odometry speed and turn noise, the heading oracle's noise (refused on the legacy profile, which has no oracle: the config's own rule, kept at the slider), the softmax temperature and the SR reward learning rate. Every one is read by the engine each tick.
+5. **Headless parity on a profile.** `Protocol.use_profile` (a no-op by default); `ConsoleProtocol` builds its scenario on the runner's `--profile`, so `python -m experiments.runner --protocol console_<scenario> --profile research` writes the ticks a live research session records (tested on open_field and memory_maze, 200 ticks). The runner refuses an unknown profile before anything runs. Before this the option did not apply to the console protocols; the test that pinned that now pins the new behaviour.
+6. Tests +14 (suite 614). Checked in a headless Chromium (Playwright) on both profiles: the page loads, the switch, the research layers and the panel render, switching the profile restarts the session on it, no page errors.
+
+### B. Measured
+- A research-profile frame costs about 3 ms and 10 KB with the place-code and SR blocks (400 cells; one frame per step request).
+- The scenarios' overrides on the research profile: open_field none; beacon the pacing; foraging and hazard_field the senses and the pacing; hidden_food the value-map radius and the pacing; memory_maze `reward.approach_weight`, the radius, `oracle_homing` and the pacing. The pacing fields are inert there (ATP frozen) and listed anyway.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **What the maze shows on the research profile.** Its sleep action still consolidates the tabular map, but the steering reads the SR value there, so consolidation does not reach behaviour until M3 wires replay to the place code. **Leave it**: it is M3's question made visible, and the switch's note names the profile and the scenario's overrides.
+2. **The replay viewer** does not draw the place code or the trails yet (recordings carry the profile and `replay_events.jsonl`). **Defer** to M3's trial structure, when the replay tab gains phases.
+3. **The scenarios' "what to watch" text** describes the legacy mechanics. **Leave it**; M3's protocols bring their own.
+
+### D. Residuals carried forward
+- The population is drawn where the estimate puts it, like the value map; with the oracle and the reset it sits within centimetres of the body in the open field. A protocol that re-anchors the estimate at known starts (the gate's) is not in the console yet.
+- No browser tests in CI (the repository has no JavaScript test runner); the headless check above is a manual step.
+
+### E. Acceptance, measured at this commit
+- `python3 -m pytest -q`: 614 passed; no engine, profile or baseline change.
+
+**Impact:** this entry; `ui/scenarios.py`, `ui/sim_session.py`, `ui/server.py`, `ui/static/index.html`, `ui/static/js/arena.js`, `live.js`, `brain.js`, `ui/static/css/console.css`; `experiments/protocols/base.py`, `experiments/protocols/console.py`, `experiments/runner.py`; tests in `tests/ui/` and `tests/experiments/test_console_protocols.py`; README (Live tab, console protocols, lab console), run_instructions.md, docs/profiles.md (selecting a profile), docs/research_plan.md (rows 2a and 2b).

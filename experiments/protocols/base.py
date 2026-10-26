@@ -23,6 +23,16 @@ class Protocol(ABC):
         """
         return None
 
+    def use_profile(self, profile: str) -> None:
+        """Tell a protocol which base profile the runner was asked for (``--profile``).
+
+        The default ignores it: a bare protocol takes the runner's base through
+        ``engine_config`` returning None. A protocol that builds its own
+        configuration *on* a profile base (the console scenarios) stores it here
+        and builds on it, so a headless run reproduces a live console session on
+        the same profile.
+        """
+
     @abstractmethod
     def setup(self, engine: Any) -> None:
         """Deterministically configure engine/world before running."""
