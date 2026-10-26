@@ -64,8 +64,8 @@ export function initTheme() {
 
 /** The four neuromodulators, in their fixed categorical order. */
 export const MODULATORS = [
-  { key: 'da', mod: 'DA', name: 'Dopamine', role: 'Reward prediction: spikes when things go better than expected' },
-  { key: 'ne', mod: 'NE', name: 'Norepinephrine', role: 'Arousal and threat: rises with pain and surprise' },
-  { key: 'ach', mod: 'ACh', name: 'Acetylcholine', role: 'Uncertainty: sharpens attention to the senses' },
-  { key: 'ht', mod: '5HT', name: 'Serotonin', role: 'Mood and patience: willingness to wait' },
+  { key: 'da', mod: 'DA', name: 'Dopamine', role: 'Reward minus its running mean (1.0 on a reward); low DA boosts the forward drive' },
+  { key: 'ne', mod: 'NE', name: 'Norepinephrine', role: '½ pain + ½ the novelty bit; scales pain avoidance and freezing' },
+  { key: 'ach', mod: 'ACh', name: 'Acetylcholine', role: 'Equals the novelty bit (checksum change); scales vision drive' },
+  { key: 'ht', mod: '5HT', name: 'Serotonin', role: 'Running mean of reward, lagging DA\'s input; adds patience to rest' },
 ];

@@ -1,7 +1,19 @@
 {
   "seed": 1337,
   "ticks": 200,
+  "profile": "legacy",
   "schema_version": "2.1.6",
+  "hash_kinds": [
+    "full",
+    "behaviour",
+    "physics"
+  ],
+  "files": {
+    "full": "baseline_hashes.json",
+    "behaviour": "baseline_behaviour_legacy.json",
+    "physics": "baseline_physics_legacy.json",
+    "reference_trace": "reference_trace_legacy.jsonl"
+  },
   "generated_by": "update_determinism_baseline.py",
-  "generated_at_utc": "2026-10-01T17:48:01.146108+00:00"
+  "generated_at_utc": "2026-10-03T15:06:15.722929+00:00"
 }

@@ -2,7 +2,9 @@
 
 Vision, whiskers and pain are computed from real world geometry (walls and
 circular objects), not from noise. Egomotion stays derived from the agent's
-own motion. Sensors are allowed to read the World (that is their job); the
+own motion, optionally with seeded odometry noise (a multiplicative speed
+error and an additive heading error, ``SensorConfig.odometry_*``) on the
+estimate only. Sensors are allowed to read the World (that is their job); the
 Brain only ever sees the resulting immutable Observation.
 """
 
@@ -13,7 +15,7 @@ import math
 from dataclasses import asdict
 from typing import List, Optional, Tuple
 
-from brain.contracts import Observation, VisionRay
+from brain.contracts import Observation, VisionRay, observation_fields
 from core.config import SensorConfig
 from core.entities import Agent
 from core.rng import RNGStream
@@ -24,15 +26,48 @@ def _normalize(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def _compute_egomotion(agent: Agent) -> Tuple[float, float]:
+def _compute_egomotion(
+    agent: Agent,
+    config: Optional[SensorConfig] = None,
+    odometry_stream: Optional[RNGStream] = None,
+) -> Tuple[float, float]:
+    """(forward_delta, turn_delta): the agent's own estimate of its motion this tick.
+
+    The raw displacement is projected on the heading (sign = forward/backward)
+    and the raw heading change is taken as is; both are then clamped to the
+    Observation's ranges: [-limit, limit] units with ``limit =
+    config.forward_delta_limit`` (1.0 without a config, the legacy contract)
+    and [-pi, pi] radians. Odometry noise (``SensorConfig.odometry_speed_noise``
+    / ``odometry_turn_noise``) perturbs the raw values before the clamp: the
+    forward displacement d becomes d * (1 + sigma_speed * xi) and the heading
+    change gets + N(0, sigma_turn), with xi a standard normal deviate. The
+    forward draw is made first, then the turn draw, each only when its sigma
+    is > 0 (so at 0 nothing is drawn and the trace is bit-identical to exact
+    odometry), and each on every tick its sigma is on, whether or not the body
+    moved. The body's true motion is never touched: this is the estimate the
+    spatial system integrates. Under the legacy limit of 1.0 a FORWARD step
+    (1.0) sits at the top of the range, so on full-thrust ticks only a slowing
+    speed error survives the clamp and the estimate falls short by
+    sigma / sqrt(2 pi) per unit (docs/odometry.md); the research profile's
+    limit of 2.0 keeps the error signed and zero-mean.
+    """
     dx = agent.pos[0] - agent.last_pos[0]
     dy = agent.pos[1] - agent.last_pos[1]
     # Project displacement onto heading to preserve forward/backward sign.
     heading = agent.heading
     distance = dx * math.cos(heading) + dy * math.sin(heading)
     turn_delta = agent.heading - agent.last_heading
-    # Clamp egomotion to normalized ranges to satisfy validation.
-    return _normalize(distance, -1.0, 1.0), _normalize(turn_delta, -math.pi, math.pi)
+    limit = 1.0
+    if config is not None:
+        limit = config.forward_delta_limit
+        if odometry_stream is not None:
+            if config.odometry_speed_noise > 0.0:
+                distance *= 1.0 + config.odometry_speed_noise * odometry_stream.gauss(0.0, 1.0)
+            if config.odometry_turn_noise > 0.0:
+                turn_delta += odometry_stream.gauss(0.0, config.odometry_turn_noise)
+    # Clamp egomotion to the contract's ranges to satisfy validation.
+    return _normalize(distance, -limit, limit), _normalize(turn_delta, -math.pi, math.pi)
+
 
 
 def _ray_wall_distance(px: float, py: float, dx: float, dy: float, bounds: Tuple[float, float]) -> float:
@@ -115,8 +150,16 @@ def gather_observation(
     config: Optional[SensorConfig] = None,
     vision_stream: Optional[RNGStream] = None,
     noise_stream: Optional[RNGStream] = None,
+    odometry_stream: Optional[RNGStream] = None,
+    heading_stream: Optional[RNGStream] = None,
 ) -> Observation:
-    """Collect normalized sensor outputs for the agent from world geometry."""
+    """Collect normalized sensor outputs for the agent from world geometry.
+
+    ``vision_stream`` and ``noise_stream`` carry ``config.noise`` (rangefinder
+    and pain); ``odometry_stream`` carries the odometry noise on egomotion (see
+    ``_compute_egomotion``); ``heading_stream`` the heading oracle's error (M2b).
+    A stream that is None, or a noise parameter that is 0, means no draw from it.
+    """
     world = world if world is not None else World()
     config = config if config is not None else SensorConfig()
 
@@ -135,21 +178,58 @@ def gather_observation(
     if config.noise > 0.0 and noise_stream is not None:
         pain_signal = _normalize(pain_signal + noise_stream.uniform(-config.noise, config.noise), 0.0, 1.0)
 
-    forward_delta, turn_delta = _compute_egomotion(agent)
+    forward_delta, turn_delta = _compute_egomotion(agent, config, odometry_stream)
+    heading: Optional[float] = None
+    if config.heading_oracle:
+        heading = agent.heading
+        if config.heading_oracle_noise > 0.0 and heading_stream is not None:
+            heading += heading_stream.gauss(0.0, config.heading_oracle_noise)
+        heading = _wrap(heading)
+    contacts = _wall_contacts(agent, world) if config.wall_contact_sensing else None
     obs = Observation(
         vision_rays=tuple(rays),
         whisker_hits=whisker_hits,
         pain_signal=pain_signal,
         forward_delta=forward_delta,
         turn_delta=turn_delta,
+        heading=heading,
+        wall_contacts=contacts,
     )
-    obs.validate()
+    obs.validate(forward_limit=config.forward_delta_limit)
     return obs
 
 
+
+# Wall contact (M2b step 1): within this distance of a wall's line the body touches it. The world clamps the body to
+# the bounds, so a body pressed against a wall sits on the line exactly; the tolerance only absorbs float rounding.
+WALL_CONTACT_TOLERANCE = 1e-9
+
+
+def _wrap(angle: float) -> float:
+    """``angle`` wrapped to [-pi, pi)."""
+    return (angle + math.pi) % (2.0 * math.pi) - math.pi
+
+
+def _wall_contacts(agent: Agent, world: World) -> Tuple[float, ...]:
+    """The egocentric angle of the outward normal of each wall the body touches: x walls (normal 0 at +x, pi at -x)
+    before y walls (pi/2 at +y, -pi/2 at -y), each relative to the body's heading. Empty when it touches none."""
+    bx, by = world.bounds
+    x, y = agent.pos
+    out: List[float] = []
+    if x >= bx - WALL_CONTACT_TOLERANCE:
+        out.append(_wrap(0.0 - agent.heading))
+    elif x <= -bx + WALL_CONTACT_TOLERANCE:
+        out.append(_wrap(math.pi - agent.heading))
+    if y >= by - WALL_CONTACT_TOLERANCE:
+        out.append(_wrap(0.5 * math.pi - agent.heading))
+    elif y <= -by + WALL_CONTACT_TOLERANCE:
+        out.append(_wrap(-0.5 * math.pi - agent.heading))
+    return tuple(out)
+
+
 def observation_checksum(obs: Observation) -> str:
-    """Compute a stable checksum of an observation."""
-    data = asdict(obs)
+    """Compute a stable checksum of an observation (its optional M2b fields only when present: ``observation_fields``)."""
+    data = observation_fields(obs)
 
     def _normalize_obj(obj):
         if isinstance(obj, dict):

@@ -1,0 +1,321 @@
+{
+  "command": "python3 -m experiments.place_population --workers 4",
+  "config": {
+    "astrocyte": {
+      "atp": 1.0,
+      "atp_baseline": 1.0,
+      "atp_cost": 0.04,
+      "atp_floor": 0.0,
+      "frozen": true,
+      "glycogen": 3.0,
+      "glycogen_max": 3.0,
+      "glycogen_recharge": 0.05,
+      "glycogen_regen": 0.03,
+      "glycogen_to_atp_yield": 0.5,
+      "motion_demand": 0.8,
+      "rest_demand": 0.2,
+      "scales_motion": false
+    },
+    "basal_ganglia": {
+      "ach_precision_gain": 0.0,
+      "criticality_gain": 0.0,
+      "cue_gate_gain": 2.0,
+      "dopamine_explore_gain": 0.0,
+      "fiveht_patience_gain": 0.0,
+      "forward_bias": 0.8,
+      "freeze_decay": 0.9,
+      "freeze_pain_threshold": 0.2,
+      "freeze_tau": 15.0,
+      "ne_threat_gain": 0.0,
+      "novelty_gain": 0.0,
+      "novelty_turn_gain": 0.0,
+      "pace_high": 0.9,
+      "pace_low": 0.4,
+      "pace_rest_bonus": 0.0,
+      "pain_avoidance": 0.5,
+      "rest_pain_gain": 0.8,
+      "softmax_temperature": 0.1,
+      "turn_bias": 0.0,
+      "value_ahead_mode": "oppose_positive",
+      "value_common_mode": 0.0,
+      "value_gain": 1.5,
+      "value_steer": "split",
+      "value_turn_dead_zone": 0.1,
+      "value_turn_exclusive": true,
+      "value_turn_ramp": 0.2,
+      "value_turn_relative": true,
+      "vision_gain": 0.6,
+      "wall_avoid_gain": 0.6,
+      "wall_gate_gain": 1.0
+    },
+    "criticality": {
+      "avalanche_history": 4000,
+      "coupling": 0.25,
+      "field_size": 16,
+      "gain_width": 0.3,
+      "kappa_min_avalanches": 20,
+      "kappa_points": 10,
+      "power_law_exponent": 1.5
+    },
+    "neuromod": {
+      "reward_lr": 0.1,
+      "rpe_scale": 1.0
+    },
+    "place": {
+      "enabled": true,
+      "extent": null,
+      "max_rate": 1.0,
+      "spacing": 1.0,
+      "width": 1.0
+    },
+    "profile": "research",
+    "reward": {
+      "approach_weight": 1.0,
+      "contact_bonus": 1.0,
+      "pain_weight": 1.0
+    },
+    "sensors": {
+      "forward_delta_limit": 2.0,
+      "fov": 1.2,
+      "heading_oracle": true,
+      "heading_oracle_noise": 0.05,
+      "noise": 0.0,
+      "odometry_speed_noise": 0.05,
+      "odometry_turn_noise": 0.01,
+      "pain_zone": 1.5,
+      "vision_range": 12.0,
+      "vision_rays": 3,
+      "wall_contact_sensing": true,
+      "whisker_angle": 0.8,
+      "whisker_range": 1.0
+    },
+    "spatial": {
+      "bin_size": 0.5,
+      "decay": 1.0,
+      "gate_scales_egomotion": false,
+      "heading_source": "oracle",
+      "reset_bounds": null,
+      "turn_gain": 1.0,
+      "wall_reset": true
+    },
+    "trn": {
+      "closed_below_atp": 0.35,
+      "duration": 25,
+      "microsleep_enabled": false,
+      "narrow_above_kappa": "inf",
+      "narrow_gain": 0.4,
+      "open_at_atp": 0.55,
+      "recovery_atp": 0.45,
+      "recovery_streak_needed": 5,
+      "replay_window": 50,
+      "trigger_atp": 0.3,
+      "trigger_streak": 10
+    },
+    "units": {
+      "dt_s": 0.2,
+      "metres_per_unit": 0.1
+    },
+    "value_memory": {
+      "capacity": 200,
+      "discount": 0.9,
+      "dwell_extinction": 0.0,
+      "generalization_falloff": 0.5,
+      "generalization_radius": 0,
+      "goal_extinction_misses": 2,
+      "goal_turn_dead_zone": 0.15,
+      "goal_turn_ramp": 0.3,
+      "goal_vector_flat": 0.001,
+      "goal_vector_source": "replay",
+      "learn_shaping": false,
+      "learning_rate": 0.2,
+      "lookahead": 1.0,
+      "oracle_homing": false,
+      "replay_recent": true
+    },
+    "working_memory": {
+      "capacity": 32
+    },
+    "world": {
+      "bounds": [
+        10.0,
+        10.0
+      ]
+    }
+  },
+  "config_diff_from_research": {
+    "integrated": [
+      [
+        "sensors.heading_oracle",
+        "False",
+        "True"
+      ],
+      [
+        "sensors.heading_oracle_noise",
+        "0.0",
+        "0.05"
+      ],
+      [
+        "sensors.wall_contact_sensing",
+        "False",
+        "True"
+      ],
+      [
+        "place.enabled",
+        "False",
+        "True"
+      ]
+    ],
+    "m2b": [
+      [
+        "sensors.heading_oracle",
+        "False",
+        "True"
+      ],
+      [
+        "sensors.heading_oracle_noise",
+        "0.0",
+        "0.05"
+      ],
+      [
+        "sensors.wall_contact_sensing",
+        "False",
+        "True"
+      ],
+      [
+        "spatial.heading_source",
+        "integrated",
+        "oracle"
+      ],
+      [
+        "spatial.wall_reset",
+        "False",
+        "True"
+      ],
+      [
+        "place.enabled",
+        "False",
+        "True"
+      ]
+    ]
+  },
+  "created_at": "2026-10-25T18:51:12+00:00",
+  "dependencies": {
+    "numpy": "2.4.6",
+    "pandas": "3.0.6",
+    "pyarrow": "25.0.1",
+    "python": "3.11.15",
+    "scipy": "1.17.1",
+    "threadpoolctl": "3.7.0"
+  },
+  "dt_s": 0.2,
+  "estimates": {
+    "integrated": "integrated",
+    "m2b": "oracle_reset"
+  },
+  "full_evaluation": true,
+  "git": {
+    "branch": "m2b-place",
+    "dirty": false,
+    "sha": "cab16db8bdeaeed708c3b1b45a03f0745f88ed92"
+  },
+  "guard": {
+    "distinct_walks": 30,
+    "message": "",
+    "same_walk_across_estimates": true
+  },
+  "late_from": 1001,
+  "machine": "x86_64",
+  "manifest_version": 1,
+  "n_boot": 10000,
+  "platform": {
+    "blas": "scipy-openblas 0.3.31.188.0 (OpenBLAS 0.3.31.188.0 USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=64)",
+    "blas_runtime": [
+      {
+        "architecture": "SkylakeX",
+        "internal_api": "openblas",
+        "num_threads": 1,
+        "threading_layer": "pthreads",
+        "user_api": "blas",
+        "version": "0.3.31.188.0"
+      }
+    ],
+    "blas_runtime_status": "detected",
+    "blas_threads": {
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "blas_threads_verified": true,
+    "machine": "x86_64",
+    "numpy": "2.4.6",
+    "numpy_loaded_before_pin": false,
+    "python": "3.11.15",
+    "release": "7.0.0-38-generic",
+    "system": "Linux"
+  },
+  "population": {
+    "decode_cells": 9,
+    "extent": [
+      10.0,
+      10.0
+    ],
+    "max_rate": 1.0,
+    "n": 400,
+    "population": "gaussian_place",
+    "spacing": 1.0,
+    "width": 1.0
+  },
+  "populations": [
+    "reference",
+    "integrated",
+    "m2b"
+  ],
+  "prereg": "docs/prereg/m2b_place_population.md",
+  "profile": "research",
+  "protocol": "place_population",
+  "quick": false,
+  "schema_version": "2.1.6",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+  ],
+  "throughput_repeats": 5,
+  "ticks": 3000,
+  "ticks_requested": 180000,
+  "ticks_run": 180000,
+  "timing": {
+    "ticks_per_second": 26469.92529205029,
+    "wall_seconds": 6.800170307018561
+  },
+  "wall_cell_distance": 2.0,
+  "workers": 4
+}

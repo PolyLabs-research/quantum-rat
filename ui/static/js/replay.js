@@ -43,9 +43,9 @@ export class ReplayController {
       }),
       kappa: new LineChart($('#rp-chart-kappa'), {
         title: 'Criticality κ',
-        sub: '1 = critical',
+        sub: 'exponent-1.5 estimator; 1 is not the lattice critical point',
         series: [{ key: 'k', label: 'κ', color: 'ink-1' }],
-        band: { lo: 0.85, hi: 1.05, label: 'near-critical' },
+        band: { lo: 0.85, hi: 1.05, label: '0.85–1.05 band' },
         minSpan: 0.4,
         format: (v) => fmt(v, 3),
         onSeek: seek,
@@ -438,7 +438,7 @@ function tickGroups(row, heading) {
     ['Neuromodulators', MODULATORS.map((m) => [`${m.name} (${m.mod})`, fmt(mods[m.mod] ?? 0, 3)])],
     ['Energy & gate', [['ATP', fmt(take('atp'), 3)], ['Glycogen', fmt(take('glycogen'), 3)], ['Sensory gate', take('trn_state')], ['Microsleep', take('microsleep_active') ? `yes, ${take('microsleep_ticks_remaining')} left` : 'no'], ['Replay', take('replay_active') ? `step ${take('replay_index')}` : 'no']]],
     ['Criticality', [['κ', fmt(take('kappa'), 3)], ['Avalanche completed', take('avalanche_size')], ['Active cells', take('criticality_active')]]],
-    ['Working memory', [['Load', take('wm_load')], ['Novelty', fmt(take('wm_novelty'), 3)]]],
+    ['Working memory', [['Load', take('wm_load')], ['Novelty (checksum change)', fmt(take('wm_novelty'), 3)]]],
   ];
   for (const k of ['neuromodulators', 'microsleep_ticks_remaining', 'replay_index']) used.add(k);
   const rest = Object.keys(row)

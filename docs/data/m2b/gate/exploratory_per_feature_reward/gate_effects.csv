@@ -1,0 +1,5 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+g1_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,1,0.995,0.995,0.988333,1,,,,>= 0.8,passes,sr
+g2_arrival_error,"per-seed median estimate error at arrival, hidden, trials 21-40",,sr,30,,0.212419,0.212419,0.200848,0.223934,,,,"< 2.0 units, interval below",passes,seeds without an arrival: 0
+reported_absolute_success,"success, trials 21-40",,sr/hidden,30,,,0.995,0.988333,1,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,sr/visible,30,,,1,1,1,,,,reported,reported,"degenerate: all values equal, nothing resampled"

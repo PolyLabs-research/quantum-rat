@@ -30,7 +30,7 @@ def test_tournament_determinism():
         seed = 42
         n_agents = 4
         ticks = 200
-        protocols = "open_field,morris_water_maze"
+        protocols = "open_field,beacon,foraging"
 
         run_tournament(seed, n_agents, ticks, protocols, out_dir1)
         run_tournament(seed, n_agents, ticks, protocols, out_dir2)

@@ -25,7 +25,7 @@ class TickData:
     glycogen: float = 0.0
     reward: float = 0.0
     neuromodulators: Dict[str, float] = field(default_factory=dict)
-    # Observation summary
+    # Observation summary (obs_forward_delta within +-sensors.forward_delta_limit: 1.0 legacy, 2.0 research)
     obs_forward_delta: float = 0.0
     obs_turn_delta: float = 0.0
     obs_pain: float = 0.0
@@ -43,6 +43,8 @@ class TickData:
     place_id: int = 0
     # Working memory / action
     wm_load: int = 0
+    # 1.0 iff the observation checksum differs from the previous tick's, else 0.0
+    # (a checksum-changed bit, not a novelty measure; 1 on every tick at sensor noise 0.03)
     wm_novelty: float = 0.0
     action_name: str = "REST"
     action_thrust: float = 0.0

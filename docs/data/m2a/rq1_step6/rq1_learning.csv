@@ -1,0 +1,57 @@
+mode,session,condition,n,mean_total_steps,low,high,laps_capped_total,vs,mean_diff,diff_low,diff_high,fraction_faster,cliffs_delta,cliffs_low,cliffs_high,cliffs_magnitude,note
+fixed,increase,none,30,15566.6,14951.7,16151.1,1,,nan,nan,nan,nan,nan,nan,nan,,
+fixed,increase,uniform,30,15212.7,14594.3,15861.3,1,none,-353.9,-609.606,-182.266,0.5,-0.117778,-0.407778,0.182222,negligible,
+fixed,increase,uniform,30,15212.7,14594.3,15861.3,1,prioritised_td,6136.9,5475.12,6778.1,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,increase,reverse_trajectory,30,10132.8,9676.74,10500.8,0,none,-5433.8,-6090.06,-4711.4,1,-0.997778,-1,-0.955556,large,
+fixed,increase,reverse_trajectory,30,10132.8,9676.74,10500.8,0,prioritised_td,1057,763.992,1343.52,0.1,0.562222,0.277778,0.771111,large,
+fixed,increase,prioritised_td,30,9075.8,8700.94,9389.32,0,none,-6490.8,-7066.34,-5822.17,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,increase,mattar_daw,30,5874.8,5667.63,6160.44,0,none,-9691.8,-10421.1,-8994.57,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,increase,mattar_daw,30,5874.8,5667.63,6160.44,0,prioritised_td,-3201,-3594.67,-2772.52,1,-0.98,-0.997778,-0.906667,large,
+fixed,increase,mattar_daw_1step,30,9598.57,9183.43,10103.9,0,none,-5968.03,-6689.86,-5256.29,1,-0.993333,-1,-0.942715,large,
+fixed,increase,mattar_daw_1step,30,9598.57,9183.43,10103.9,0,prioritised_td,522.767,104.567,964.676,0.333333,0.218889,-0.08,0.493333,small,
+fixed,increase,mattar_daw_pos,30,6062.37,5803.33,6314.22,0,none,-9504.23,-10095,-8873.42,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,increase,mattar_daw_pos,30,6062.37,5803.33,6314.22,0,prioritised_td,-3013.43,-3417.88,-2609.31,1,-0.984444,-1,-0.913333,large,
+fixed,increase,mattar_daw_1step_pos,30,10152.2,9714.44,10586.9,0,none,-5414.43,-6133.67,-4630.18,1,-0.988889,-1,-0.918918,large,
+fixed,increase,mattar_daw_1step_pos,30,10152.2,9714.44,10586.9,0,prioritised_td,1076.37,686.531,1496.46,0.2,0.55,0.251111,0.751111,large,
+fixed,decrease,none,30,15566.6,14939.2,16157.9,1,,nan,nan,nan,nan,nan,nan,nan,,
+fixed,decrease,uniform,30,15212.7,14593.7,15842.6,1,none,-353.9,-602.778,-180.891,0.5,-0.117778,-0.407778,0.18551,negligible,
+fixed,decrease,uniform,30,15212.7,14593.7,15842.6,1,prioritised_td,6364.17,5680.39,6983.19,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,reverse_trajectory,30,10132.8,9666.76,10500.5,0,none,-5433.8,-6097.33,-4730.26,1,-0.997778,-1,-0.957704,large,
+fixed,decrease,reverse_trajectory,30,10132.8,9666.76,10500.5,0,prioritised_td,1284.27,969.415,1599.9,0.0666667,0.613333,0.334918,0.804444,large,
+fixed,decrease,prioritised_td,30,8848.53,8489.86,9193.77,0,none,-6718.07,-7269,-6053.58,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,mattar_daw,30,5862.93,5652.88,6145.05,0,none,-9703.67,-10393.7,-9001.45,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,mattar_daw,30,5862.93,5652.88,6145.05,0,prioritised_td,-2985.6,-3391.56,-2563.08,1,-0.98,-1,-0.895979,large,
+fixed,decrease,mattar_daw_1step,30,9598.57,9171.05,10102.3,0,none,-5968.03,-6684.4,-5255.04,1,-0.993333,-1,-0.937778,large,
+fixed,decrease,mattar_daw_1step,30,9598.57,9171.05,10102.3,0,prioritised_td,750.033,386.366,1109.44,0.266667,0.328889,0.031666,0.58,small,
+fixed,decrease,mattar_daw_pos,30,6060.77,5803.32,6310.63,0,none,-9505.83,-10077.3,-8879.58,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,mattar_daw_pos,30,6060.77,5803.32,6310.63,0,prioritised_td,-2787.77,-3179.33,-2430.5,1,-0.984444,-1,-0.920734,large,
+fixed,decrease,mattar_daw_1step_pos,30,10152.2,9720.66,10595.7,0,none,-5414.43,-6141.88,-4629.59,1,-0.988889,-1,-0.927094,large,
+fixed,decrease,mattar_daw_1step_pos,30,10152.2,9720.66,10595.7,0,prioritised_td,1303.63,877.041,1750.21,0.133333,0.585556,0.313333,0.782222,large,
+thresholded,increase,none,30,15566.6,14968.3,16146.1,1,,nan,nan,nan,nan,nan,nan,nan,,
+thresholded,increase,uniform,30,13817.7,13220.9,14578.3,1,none,-1748.93,-2393.23,-1155.1,0.8,-0.557778,-0.766667,-0.273333,large,
+thresholded,increase,uniform,30,13817.7,13220.9,14578.3,1,prioritised_td,6869.13,6199.73,7655.2,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,reverse_trajectory,30,12709.1,12258.4,13167.1,0,none,-2857.53,-3483.57,-2095.57,0.933333,-0.822222,-0.931111,-0.602222,large,
+thresholded,increase,reverse_trajectory,30,12709.1,12258.4,13167.1,0,prioritised_td,5760.53,5194.05,6269.73,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,prioritised_td,30,6948.53,6604.67,7326.72,0,none,-8618.07,-9319.97,-7818.3,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,mattar_daw,30,11175.8,10639.6,11684.7,2,none,-4390.77,-5136.73,-3608.77,0.966667,-0.951111,-0.993333,-0.788889,large,
+thresholded,increase,mattar_daw,30,11175.8,10639.6,11684.7,2,prioritised_td,4227.3,3575.41,4794.38,0,0.991111,0.928889,1,large,
+thresholded,increase,mattar_daw_1step,30,15211.8,14723.5,15819.9,1,none,-354.833,-714.052,-69.7457,0.466667,-0.15,-0.426667,0.157778,small,
+thresholded,increase,mattar_daw_1step,30,15211.8,14723.5,15819.9,1,prioritised_td,8263.23,7572.83,8933.35,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,mattar_daw_pos,30,12097.6,11704.4,12533.6,1,none,-3469.03,-4072.37,-2700.29,0.966667,-0.902222,-0.971111,-0.717778,large,
+thresholded,increase,mattar_daw_pos,30,12097.6,11704.4,12533.6,1,prioritised_td,5149.03,4596.86,5705.66,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,mattar_daw_1step_pos,30,13328.8,12875.4,13840.6,0,none,-2237.83,-2855.5,-1684.09,0.966667,-0.704444,-0.86,-0.444444,large,
+thresholded,increase,mattar_daw_1step_pos,30,13328.8,12875.4,13840.6,0,prioritised_td,6380.23,5874.41,7013.11,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,none,30,15566.6,14937.9,16165.3,1,,nan,nan,nan,nan,nan,nan,nan,,
+thresholded,decrease,uniform,30,14058.4,13539.8,14768.5,1,none,-1508.17,-2119.21,-988.659,0.8,-0.524444,-0.735556,-0.235556,large,
+thresholded,decrease,uniform,30,14058.4,13539.8,14768.5,1,prioritised_td,7728.83,7098.82,8376.99,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,reverse_trajectory,30,12709.1,12262.8,13175.3,0,none,-2857.53,-3497.94,-2075.33,0.933333,-0.822222,-0.928889,-0.608889,large,
+thresholded,decrease,reverse_trajectory,30,12709.1,12262.8,13175.3,0,prioritised_td,6379.47,5816.57,6872.39,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,prioritised_td,30,6329.6,5991.1,6750,0,none,-9237,-9885.91,-8415.15,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,mattar_daw,30,10435,9995.78,10873.1,2,none,-5131.63,-5832.75,-4446.95,1,-0.984444,-1,-0.916691,large,
+thresholded,decrease,mattar_daw,30,10435,9995.78,10873.1,2,prioritised_td,4105.37,3565.88,4517.8,0,0.984444,0.922222,1,large,
+thresholded,decrease,mattar_daw_1step,30,14479.7,14036,15018.8,1,none,-1086.9,-1520.37,-713.914,0.866667,-0.411111,-0.651111,-0.113333,medium,
+thresholded,decrease,mattar_daw_1step,30,14479.7,14036,15018.8,1,prioritised_td,8150.1,7505.24,8763.82,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,mattar_daw_pos,30,12097.6,11689.3,12538.5,1,none,-3469.03,-4062.92,-2712.81,0.966667,-0.902222,-0.973333,-0.72,large,
+thresholded,decrease,mattar_daw_pos,30,12097.6,11689.3,12538.5,1,prioritised_td,5767.97,5248.6,6266.07,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,mattar_daw_1step_pos,30,13328.8,12864,13823.1,0,none,-2237.83,-2828.21,-1680.97,0.966667,-0.704444,-0.862222,-0.453333,large,
+thresholded,decrease,mattar_daw_1step_pos,30,13328.8,12864,13823.1,0,prioritised_td,6999.17,6528.29,7556.44,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate

@@ -4,6 +4,8 @@
 a dead zone in units of the local relief; the older max-normalised advantages
 ("maxnorm") stay available behind the same switch. See ``split_value_signals``
 and docs/decisions.md (G15) for why each part is there and what was measured.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from __future__ import annotations

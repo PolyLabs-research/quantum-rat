@@ -387,8 +387,9 @@ const SUPERSCRIPT = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴',
 const pow10Label = (e) => (e === 0 ? '1' : e === -1 ? '0.1' : `10${String(e).split('').map((c) => SUPERSCRIPT[c]).join('')}`);
 
 /**
- * Avalanche sizes on log-log axes against the power-law reference
- * (slope -exponent): at criticality the points fall along the line.
+ * Avalanche sizes on log-log axes with a reference line of slope -exponent
+ * (1.5 by default). The line is a reference, not a fit: at the default
+ * coupling 0.25 the lattice is subcritical (its critical point is 0.5).
  */
 export class AvalancheHistogram {
   constructor(host) {
@@ -476,7 +477,7 @@ export class AvalancheHistogram {
       ctx.fillStyle = T['ink-3'];
       ctx.textAlign = 'right';
       ctx.textBaseline = 'top';
-      ctx.fillText(`power law, slope −${d.exponent}`, L.l + pw, L.t + 2);
+      ctx.fillText(`reference slope −${d.exponent}`, L.l + pw, L.t + 2);
     }
 
     for (const p of this.points) {
@@ -520,7 +521,8 @@ export class AvalancheHistogram {
   }
 }
 
-/** Horizontal kappa gauge with the near-critical band. */
+/** Horizontal kappa gauge with the 0.85-1.05 band the regime chip uses (an estimator band, not the lattice's critical point).
+ *  κ = 1 is the exponent-1.5 reference, not the lattice critical point (coupling 0.5). */
 export function drawKappaGauge(canvas, kappa, measuring) {
   const { ctx, w, h } = fitCanvas(canvas);
   ctx.clearRect(0, 0, w, h);
@@ -551,11 +553,11 @@ export function drawKappaGauge(canvas, kappa, measuring) {
   }
   ctx.textBaseline = 'bottom';
   ctx.textAlign = 'left';
-  ctx.fillText('subcritical', l, y - 8);
+  ctx.fillText('κ < 0.85', l, y - 8);
   ctx.textAlign = 'right';
-  ctx.fillText('supercritical', l + pw, y - 8);
+  ctx.fillText('κ > 1.05', l + pw, y - 8);
   ctx.textAlign = 'center';
-  ctx.fillText('critical', sx(0.95), y - 8);
+  ctx.fillText('0.85–1.05 band', sx(0.95), y - 8);
 
   if (measuring) return;
   const x = sx(kappa);

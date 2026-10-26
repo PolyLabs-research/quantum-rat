@@ -87,6 +87,19 @@ def test_vrest_share_and_maze_metrics():
     assert any(r["first_hidden_ticks"] is not None for r in maze)
 
 
+def test_rows_carry_the_runs_trace_hash_and_outcome_fields_exclude_the_job():
+    rows = ss.run_jobs([ss.Job("foraging", 1.5, seed, 0.03, 60) for seed in (1, 2)], workers=1)
+    for row in rows:
+        assert len(row["trace_hash"]) == 64 and int(row["trace_hash"], 16) >= 0
+        assert set(ss.JOB_FIELDS) <= set(row)
+        outcome = ss.outcome_fields(row)
+        assert not set(ss.JOB_FIELDS) & set(outcome)
+        assert {"score", "vrest", "trace_hash"} <= set(outcome)
+    assert rows[0]["trace_hash"] != rows[1]["trace_hash"]  # two seeds, two runs (sensor noise on)
+    again = ss.run_job(ss.Job("foraging", 1.5, 1, 0.03, 60))
+    assert again["trace_hash"] == rows[0]["trace_hash"]  # the same job, the same trace
+
+
 def _ctx(scores, signals, action=None):
     return SimpleNamespace(action_scores=scores, value_signals=signals, action_name=action)
 
@@ -107,6 +120,69 @@ def test_is_value_rest_counterfactual():
     tie = {"FORWARD": -0.5, "TURN_LEFT": -0.5, "TURN_RIGHT": -0.5, "REST": 0.0}
     assert ss.is_value_rest(_ctx(tie, (-0.5, -0.5, -0.5)), 1.0)
     assert not ss.is_value_rest(_ctx(tie, (-0.5, -0.5, -0.5)), 0.0)
+
+
+def test_is_value_rest_attributes_on_the_argmax_not_the_sampled_action():
+    # A REST the sampler drew while FORWARD is the argmax: the sampler's, not the value drive's.
+    sampled = {"FORWARD": 0.2, "TURN_LEFT": -0.4, "TURN_RIGHT": -0.6, "REST": 0.0}
+    assert not ss.is_value_rest(_ctx(sampled, (-1.0, -1.0, -1.0), "REST"), 0.8)
+    # REST the argmax, a move the counterfactual argmax: counted when the tick rested ...
+    valued = {"FORWARD": -0.3, "TURN_LEFT": -0.4, "TURN_RIGHT": -0.6, "REST": 0.0}
+    assert ss.is_value_rest(_ctx(valued, (-1.0, -1.0, -1.0), "REST"), 0.8)
+    # ... and not when the sampler drew a move instead.
+    assert not ss.is_value_rest(_ctx(valued, (-1.0, -1.0, -1.0), "FORWARD"), 0.8)
+    # At value_gain 0 the counterfactual is the scores themselves, so nothing counts, sampled or not.
+    assert not ss.is_value_rest(_ctx(sampled, (0.0, 0.0, 0.0), "REST"), 0.0)
+    assert not ss.is_value_rest(_ctx(valued, (0.0, 0.0, 0.0), "REST"), 0.0)
+
+
+def _old_is_value_rest(ctx, value_gain):
+    """The reading before M1: attribution on the sampled action (every REST whose counterfactual argmax was a move)."""
+    scores = ctx.action_scores
+    if any(name not in scores for name in ss.ACTION_ORDER) or ctx.action_name != "REST":
+        return False
+    ahead, left, right = ctx.value_signals
+    counterfactual = dict(scores)
+    counterfactual["FORWARD"] -= value_gain * ahead
+    counterfactual["TURN_LEFT"] -= value_gain * left
+    counterfactual["TURN_RIGHT"] -= value_gain * right
+    return ss._winner(counterfactual) != "REST"
+
+
+@pytest.mark.parametrize("temperature", [0.0, 0.05, 0.3])
+def test_vrest_under_softmax_is_at_most_the_old_reading_and_excludes_sampled_rests(temperature):
+    # hazard_field, sensor noise 0.03, gain 1.5, 1,200 ticks at seed 1. Per tick the new reading implies
+    # the old one, so vrest can only fall; at temperature 0 the engine's action is the argmax, so the
+    # two readings are the same tick set (the pinned --json outputs rest on that); at 0.3 the sampler
+    # draws RESTs the argmax would not have chosen, and none of them counts.
+    from core.engine import Engine
+
+    sc = scenarios_module.make_scenario("hazard_field")
+    config = sc.config()
+    config.sensors.noise = 0.03
+    config.basal_ganglia.value_gain = gain = 1.5
+    config.basal_ganglia.softmax_temperature = temperature
+    engine = Engine(seed=1, config=config)
+    sc.setup(engine)
+    new = old = sampled = 0
+    for _ in range(1200):
+        td = engine.run(1)[0]
+        ctx = engine.context
+        flagged_new = ss.is_value_rest(ctx, gain)
+        flagged_old = _old_is_value_rest(ctx, gain)
+        assert flagged_old or not flagged_new
+        new += flagged_new
+        old += flagged_old
+        scores = ctx.action_scores
+        if set(scores) == set(ss.ACTION_ORDER) and ctx.action_name == "REST" and ss._winner(scores) != "REST":
+            sampled += 1
+            assert not flagged_new
+        sc.on_tick(engine, td.tick)
+    assert new <= old
+    if temperature == 0.0:
+        assert sampled == 0 and new == old
+    if temperature == 0.3:
+        assert sampled > 0 and new < old
 
 
 def test_sweep_single_job_path_applies_ticks_override():

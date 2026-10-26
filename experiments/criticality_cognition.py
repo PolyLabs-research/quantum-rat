@@ -7,11 +7,13 @@ converged kappa and the resulting cortical gain (``near_critical_gain``). The
 gain peaks in the near-critical regime (kappa ~ 1) and falls off for sub- and
 super-critical fields.
 
-That gain is wired into the engine: it scales sensory (vision) precision in
-action selection when ``BasalGangliaConfig.criticality_gain`` > 0, so the
-criticality field is no longer an instrumented side-process but feeds the rest
-of cognition. (Whether a given behaviour improves is task-dependent; this module
-asserts the gain itself peaks near criticality, which is the direct prediction.)
+The engine multiplies vision_gain by this gain in proportion to
+``BasalGangliaConfig.criticality_gain``, which is 0 by default; at 1.0 and the
+default coupling the multiplier is 0.93-1.0 after warm-up and flips no decision
+in the barren, beacon or foraging worlds (tools/probes/dormant_couplings). This
+module only checks that the gain curve itself peaks where kappa is near 1, which
+with the exponent-1.5 estimator is coupling ~0.32, not the lattice's critical
+point (0.5).
 """
 
 from __future__ import annotations

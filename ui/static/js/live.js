@@ -65,9 +65,9 @@ export class LiveController {
       }),
       kappa: new LineChart($('#chart-kappa'), {
         title: 'Criticality κ',
-        sub: '1 = critical',
+        sub: 'exponent-1.5 estimator; 1 is not the lattice critical point',
         series: [{ key: 'k', label: 'κ', color: 'ink-1' }],
-        band: { lo: 0.85, hi: 1.05, label: 'near-critical' },
+        band: { lo: 0.85, hi: 1.05, label: '0.85–1.05 band' },
         minSpan: 0.4,
         format: (v) => fmt(v, 3),
       }),

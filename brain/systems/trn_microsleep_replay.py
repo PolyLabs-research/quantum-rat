@@ -32,6 +32,14 @@ class TRNGate:
     duration: int = 25
     recovery_atp: float = 0.45
     recovery_streak_needed: int = 5
+    # Gate thresholds (see core.config.TRNConfig; the defaults are the values
+    # that were hard-coded in trn_state before they became configuration).
+    closed_below_atp: float = 0.35
+    open_at_atp: float = 0.55
+    narrow_above_kappa: float = 1.1
+    narrow_gain: float = 0.4
+    # False: no bout ever starts (a bout already in progress still runs out).
+    microsleep_enabled: bool = True
 
     def update_microsleep(self, atp: float) -> None:
         ms = self.microsleep
@@ -45,6 +53,9 @@ class TRNGate:
                 ms.active = False
                 ms.ticks_remaining = 0
                 ms.recovery_streak = 0
+            return
+
+        if not self.microsleep_enabled:
             return
 
         if atp < self.trigger_atp:
@@ -84,14 +95,19 @@ class TRNGate:
         return self.replay_active, self.replay_index
 
     def trn_state(self, atp: float, kappa: float) -> Tuple[str, float]:
-        """Return (state, gate_value) where gate_value in [0,1]."""
-        if self.microsleep.active or atp < 0.35:
+        """Return (state, gate_value) where gate_value in [0,1].
+
+        The branch order is the original one: CLOSED beats OPEN beats NARROW.
+        At the default thresholds this is the table that was hard-coded here
+        (0.35 / 0.55 / 1.1 / 0.4).
+        """
+        if self.microsleep.active or atp < self.closed_below_atp:
             return "CLOSED", 0.0
-        if atp >= 0.55 and kappa <= 1.1:
+        if atp >= self.open_at_atp and kappa <= self.narrow_above_kappa:
             return "OPEN", 1.0
-        if 0.35 <= atp < 0.55 or kappa > 1.1:
-            return "NARROW", 0.4
-        return "NARROW", 0.4
+        if self.closed_below_atp <= atp < self.open_at_atp or kappa > self.narrow_above_kappa:
+            return "NARROW", self.narrow_gain
+        return "NARROW", self.narrow_gain
 
 
 __all__ = ["TRNGate", "TRN_STATES"]

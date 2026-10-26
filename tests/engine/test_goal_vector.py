@@ -6,6 +6,8 @@ of a rewarded transition, or online on contact) and extinguished
 no reward; any contact resets the count), and of the engine's arbitration
 (the vector steers only where the map's largest sampled advantage is below
 ``value_memory.goal_vector_flat``).
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from __future__ import annotations

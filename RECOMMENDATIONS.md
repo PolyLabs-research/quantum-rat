@@ -223,6 +223,13 @@ undeclared.
 
 ## Progress update (2026-10-01)
 
+> *Dated log. The claims below about criticality being coupled to cognition, the modulators being
+> causal or control signals, replay being necessary for recall and the ~16 vs ~66 speed-up were
+> superseded on 2026-10-03 by the probes in `tools/probes/` (criticality_gain is 0 by default and
+> inert at 1.0; the four modulators are the formulas in `core/neuromodulation.py`; online learning
+> alone recalls; the replay margin is 13 vs 14 ticks in one deterministic sample). See the
+> 'Honesty pass' section at the end and `docs/decisions.md` G22.*
+
 The findings above are the original review. The **NOW** and **NEXT** lists have since
 been implemented on this branch; the **LATER** list remains open.
 
@@ -247,7 +254,7 @@ been implemented on this branch; the **LATER** list remains open.
   (`tests/tournaments/test_dna_effect.py`).
 - **Energy equilibrium**: effort-scaled demand + glycogen regeneration — a resting agent
   sustains, sustained effort still triggers microsleep (`tests/physiology/test_energy_equilibrium.py`).
-- **Assay positions consistent**: `t_maze` now scores off true `pos`.
+- **Assay positions consistent**: `t_maze` (now `t_maze_toy`) scores off true `pos`.
 - **Vestigial `app/` server removed** (see `docs/decisions.md` DEC-2).
 
 Test count went from 40 to 50, all passing.
@@ -257,7 +264,10 @@ Test count went from 40 to 50, all passing.
 - Make neuromodulators causal (they are still logged but inert) and give replay a plastic
   substrate to consolidate — or relabel both as toys.
 - Add behavioural assertions to the other assays (does t_maze beat chance? does path
-  integration track truth?), and wire the regression harness into CI.
+  integration track truth?), and wire the regression harness into CI. (2026-10-03: no, it is
+  reached in 6 ticks by walking forward, so `t_maze`, `morris_water_maze` and `survival_arena`
+  are now `t_maze_toy`, `morris_water_maze_toy` and `survival_arena_toy`, and the harness runs
+  `open_field,beacon,foraging`.)
 - Decide and state, in the README, whether this is an engineering sandbox or a scientific model.
 
 ### LATER — mostly done (2026-10-01)
@@ -372,9 +382,37 @@ and the branching-criticality field is not yet coupled to the rest of cognition.
   - With hidden_food included, the band where every scenario stays within 20% of its best narrows (G21): 0.4-1.5 at noise 0.03 (worst fraction 0.83 at the default gain 1.5), 0.4-3.0 at noise 0 and on held-out seeds, and with pacing off 0.4-1.0 (noise 0.03, worst 0.88 at 1.5) and 0.4-0.8 (noise 0, worst 0.76 at 1.5). That reflects hidden_food's own gain profile; it is still x1.8-4.3 over memory off at every gain. G20's held-out band of 0.4-0.8 did not survive the G21 fix, which showed it was run-to-run variation.
 - **Next candidates:**
   - Keep place cells updating until sleep (or replay the recent sequence of *places*), so that reverse replay can carry value along a real path. A scratch variant of the latter was slightly better with pacing off, on one sample.
-  - Make the TRN narrowing threshold (0.55) a config value; gate-safe pacing (`GATE_SAFE_PACE_LOW`) is tied to it. Consider gate-safe pacing in beacon, foraging and hazard_field, which pace at 0.4 and can drift on long runs.
+  - Done in G22 (`TRNConfig.open_at_atp`); remaining: derive `GATE_SAFE_PACE_LOW` from it (today a literal 0.6 checked against it by a test, since 0.55 + 0.05 is not 0.6 in floating point) and consider gate-safe pacing in beacon, foraging and hazard_field, which pace at 0.4 and leave the gate NARROW on about a third of ticks (23.7 units of path-integration error at seed 1 over 3,000 ticks).
   - Report both bands (G21 does): the four-scenario band for continuity with G16, and the five-scenario band with hidden_food's own gain profile. Its score varies with the gain more than the other scenarios', and with pacing off its counts (1-11 finds) are too small to locate a best gain; longer runs or more seeds would.
   - A hidden-food variant that needs exact sites (e.g. a smaller RADIUS with sites off the agent's loop), if the task is meant to test site memory rather than search near recent finds.
   - Searching for a goal that starts out of view on the visible maze trial (one noise-0.03 full-circle run never finds it).
   - A memory task where the agent must tour several remembered places; the value gradient reaches only about 3 m.
   - Make `steering_sensitivity --set` reject or accept Python-style `False`; it currently parses JSON, so `False` becomes a truthy string.
+
+### Honesty pass and toy renames (2026-10-03, research plan M0a)
+
+The research-readiness audit measured the model with the probes now in `tools/probes/`
+(`tools/probes/README.md`). This pass makes the repository's own text agree with them.
+
+- **Toy protocols renamed**: `morris_water_maze`, `t_maze` and `survival_arena` are now
+  `morris_water_maze_toy`, `t_maze_toy` and `survival_arena_toy` (modules, registry keys and
+  tests; the old keys are gone and fail loudly). Their docstrings say what they are not: no pool
+  or probe trial (platform reached in 5 ticks by walking forward; 1,804 from heading pi; two of
+  five placements never within 2,000 ticks), no T (reached in 6 ticks), no hazard the agent can
+  sense (`tools/probes/assay_triviality`, `neuromod_traces`).
+- **Regression harness re-pointed** to `open_field,beacon,foraging` and `regression/baseline/`
+  regenerated with the harness's own command.
+- **README** no longer says the criticality statistics behave correctly across regimes (the
+  lattice is bond percolation, subcritical at the default coupling 0.25, critical at 0.5), that
+  whiskers drive behaviour (they are computed and not read by action selection) or that all
+  four neuromodulators are causal (four scalar traces: DA = reward minus a running mean, ACh =
+  the checksum-changed "novelty" bit, NE = half pain + half that bit, 5HT = the running mean).
+  The place-value, replay and steering results are labelled legacy-profile results. A Profiles
+  section introduces the legacy / research split.
+- **Console labels**: the "near-critical sensory gain" panel says the gain is a readout at
+  defaults; the criticality panel states the estimator's exponent and where the critical point
+  is; the histogram line is labelled a reference slope; the neuromodulator panel carries a
+  one-line note on what the traces are; "Novelty" is "Novelty (checksum change)". No DOM id,
+  class or behaviour changed.
+- **The novelty bit is labelled at its source** (`brain/systems/working_memory.py`,
+  `metrics/schema.py`).

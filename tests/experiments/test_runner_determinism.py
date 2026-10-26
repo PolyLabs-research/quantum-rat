@@ -23,9 +23,9 @@ def test_open_field_runner_deterministic():
     assert_deterministic("open_field", seed=1337, ticks=300)
 
 
-def test_morris_water_maze_runner_deterministic():
-    assert_deterministic("morris_water_maze", seed=1337, ticks=300)
+def test_morris_water_maze_toy_runner_deterministic():
+    assert_deterministic("morris_water_maze_toy", seed=1337, ticks=300)
 
 
-def test_survival_arena_runner_deterministic():
-    assert_deterministic("survival_arena", seed=1337, ticks=300)
+def test_survival_arena_toy_runner_deterministic():
+    assert_deterministic("survival_arena_toy", seed=1337, ticks=300)

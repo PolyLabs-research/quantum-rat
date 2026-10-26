@@ -1,0 +1,49 @@
+mode,session,condition,n,mean_total_steps,low,high,laps_capped_total,vs,mean_diff,diff_low,diff_high,fraction_faster,cliffs_delta,cliffs_low,cliffs_high,cliffs_magnitude,note
+fixed,increase,none,30,14487.5,13979.4,15183.3,1,,nan,nan,nan,nan,nan,nan,nan,,
+fixed,increase,uniform,30,14204.2,13709.6,14779.1,0,none,-283.333,-714.168,47.9689,0.433333,-0.08,-0.357778,0.218889,negligible,
+fixed,increase,uniform,30,14204.2,13709.6,14779.1,0,prioritised_td,5042.87,4479.46,5621.57,0,0.997778,0.960464,1,large,
+fixed,increase,reverse_trajectory,30,9883.87,9407.27,10344.5,0,none,-4603.63,-5347.87,-3904.79,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,increase,reverse_trajectory,30,9883.87,9407.27,10344.5,0,prioritised_td,722.567,451.698,995.664,0.133333,0.373333,0.0644444,0.635556,medium,
+fixed,increase,prioritised_td,30,9161.3,8785.12,9494.33,0,none,-5326.2,-6003.16,-4694.36,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,increase,gain_need,30,7866.4,7566.9,8169.99,0,none,-6621.1,-7194.45,-6129.32,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,increase,gain_need,30,7866.4,7566.9,8169.99,0,prioritised_td,-1294.9,-1669.6,-915.546,0.9,-0.675556,-0.837778,-0.422222,large,
+fixed,increase,gain_only,30,7939.97,7624.16,8323.37,0,none,-6547.53,-7096.17,-6036.95,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,increase,gain_only,30,7939.97,7624.16,8323.37,0,prioritised_td,-1221.33,-1541.71,-930.867,0.933333,-0.636667,-0.822222,-0.373333,large,
+fixed,increase,need_only,30,14487.5,14001.8,15202,1,none,0,0,0,0,0,-0.283333,0.302222,negligible,"degenerate: all values equal, nothing resampled"
+fixed,increase,need_only,30,14487.5,14001.8,15202,1,prioritised_td,5326.2,4727.45,6034.45,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,none,30,14487.5,13979.4,15168.6,1,,nan,nan,nan,nan,nan,nan,nan,,
+fixed,decrease,uniform,30,14204.2,13683.6,14745.5,0,none,-283.333,-720.824,57.8958,0.433333,-0.08,-0.356667,0.228889,negligible,
+fixed,decrease,uniform,30,14204.2,13683.6,14745.5,0,prioritised_td,5397.17,4863.82,5977.71,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,reverse_trajectory,30,9883.87,9391.92,10332,0,none,-4603.63,-5351.46,-3918.8,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,reverse_trajectory,30,9883.87,9391.92,10332,0,prioritised_td,1076.87,769.333,1402.53,0.1,0.49,0.193333,0.722222,large,
+fixed,decrease,prioritised_td,30,8807,8500.92,9122.74,0,none,-5680.5,-6364.8,-5089.35,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,gain_need,30,7866.4,7570.97,8173.43,0,none,-6621.1,-7205.38,-6153.08,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,gain_need,30,7866.4,7570.97,8173.43,0,prioritised_td,-940.6,-1300.53,-593.706,0.8,-0.547778,-0.747778,-0.268889,large,
+fixed,decrease,gain_only,30,7946.1,7634.76,8319.17,0,none,-6541.4,-7105.85,-6045.83,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+fixed,decrease,gain_only,30,7946.1,7634.76,8319.17,0,prioritised_td,-860.9,-1207.65,-578.23,0.866667,-0.517778,-0.731111,-0.217984,large,
+fixed,decrease,need_only,30,14487.5,13981.1,15163.4,1,none,0,0,0,0,0,-0.296667,0.294405,negligible,"degenerate: all values equal, nothing resampled"
+fixed,decrease,need_only,30,14487.5,13981.1,15163.4,1,prioritised_td,5680.5,5079.55,6366.68,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,none,30,14487.5,13976.8,15161.3,1,,nan,nan,nan,nan,nan,nan,nan,,
+thresholded,increase,uniform,30,13469.9,12886.4,14115.4,1,none,-1017.6,-1618.75,-513.693,0.633333,-0.352222,-0.601111,-0.0477778,medium,
+thresholded,increase,uniform,30,13469.9,12886.4,14115.4,1,prioritised_td,6283.8,5629.14,7010.91,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,reverse_trajectory,30,12296.5,11864.3,12728.4,0,none,-2191,-2882.92,-1471.68,0.866667,-0.755556,-0.886667,-0.544444,large,
+thresholded,increase,reverse_trajectory,30,12296.5,11864.3,12728.4,0,prioritised_td,5110.4,4489.34,5725.5,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,prioritised_td,30,7186.1,6740.57,7647.29,0,none,-7301.4,-7942.67,-6763.65,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,gain_need,30,8687.43,8441,8980.19,0,none,-5800.07,-6524.9,-5200.53,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,gain_need,30,8687.43,8441,8980.19,0,prioritised_td,1501.33,959.051,2079.75,0.166667,0.637778,0.353333,0.821762,large,
+thresholded,increase,gain_only,30,7015.03,6779.73,7286.27,0,none,-7472.47,-8128.32,-6966.73,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,increase,gain_only,30,7015.03,6779.73,7286.27,0,prioritised_td,-171.067,-561.132,259.556,0.6,-0.0755556,-0.38,0.228889,negligible,
+thresholded,increase,need_only,30,14487.5,13990.4,15175.5,1,none,0,0,0,0,0,-0.295556,0.298889,negligible,"degenerate: all values equal, nothing resampled"
+thresholded,increase,need_only,30,14487.5,13990.4,15175.5,1,prioritised_td,7301.4,6742.65,7935.21,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,none,30,14487.5,13964.6,15182.3,1,,nan,nan,nan,nan,nan,nan,nan,,
+thresholded,decrease,uniform,30,13622.7,13025.9,14278.9,1,none,-864.767,-1455.81,-333.197,0.6,-0.277778,-0.542407,0.0333333,small,
+thresholded,decrease,uniform,30,13622.7,13025.9,14278.9,1,prioritised_td,6799.23,6158.15,7492.92,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,reverse_trajectory,30,12296.5,11881.7,12745.6,0,none,-2191,-2886.39,-1477.09,0.866667,-0.755556,-0.882222,-0.537778,large,
+thresholded,decrease,reverse_trajectory,30,12296.5,11881.7,12745.6,0,prioritised_td,5473,4859.49,6043.99,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,prioritised_td,30,6823.5,6380.42,7310.93,0,none,-7664,-8301.02,-7082.6,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,gain_need,30,8413.97,8185.27,8733.79,0,none,-6073.53,-6786.79,-5514.74,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,gain_need,30,8413.97,8185.27,8733.79,0,prioritised_td,1590.47,1074.08,2153.14,0.166667,0.673333,0.393333,0.851111,large,
+thresholded,decrease,gain_only,30,7015.03,6780.5,7278,0,none,-7472.47,-8150.9,-6971.43,1,-1,-1,-1,large,all bootstrap replicates equal; interval collapsed to the estimate
+thresholded,decrease,gain_only,30,7015.03,6780.5,7278,0,prioritised_td,191.533,-202.378,586.433,0.4,0.136667,-0.179571,0.426194,negligible,
+thresholded,decrease,need_only,30,14487.5,13980.4,15156,1,none,0,0,0,0,0,-0.283333,0.301111,negligible,"degenerate: all values equal, nothing resampled"
+thresholded,decrease,need_only,30,14487.5,13980.4,15156,1,prioritised_td,7664,7093.58,8322.35,0,1,1,1,large,all bootstrap replicates equal; interval collapsed to the estimate

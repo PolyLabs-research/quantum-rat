@@ -12,10 +12,78 @@ hardcoded values exactly.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Tuple
+import math
+from dataclasses import dataclass, field, fields, is_dataclass
+from typing import Any, ClassVar, Dict, List, Mapping, Optional, Tuple
 
 from brain.systems.criticality import CriticalityConfig
+
+
+@dataclass
+class UnitsConfig:
+    """Physical units, declared once (docs/units.md; docs/research_plan.md section 5, M0b item 6).
+
+    This is a declaration, not a mechanism: no engine constant reads it yet.
+    The engine moves in world units and ticks; these two numbers say what a
+    unit and a tick mean, so that every distance, speed and duration in a
+    write-up, and the durations in the replay metrics (plan section 2), are
+    expressed in metres and seconds through one place. The declaration is the
+    same in both profiles (``EngineConfig.legacy()`` and ``research()``).
+
+    Derived table at the defaults (dt_s 0.2, metres_per_unit 0.1):
+
+    - the 20 x 20 unit arena (``WorldConfig.bounds`` (10, 10)) is a 2 m x 2 m
+      open field;
+    - FORWARD, 1.0 unit per tick, is 0.5 m/s. Realised only where energy
+      scaling is off (the research profile); under the legacy throttle the
+      step is ``thrust * energy_scale``;
+    - a TURN, ``TURN_STEP`` 0.3 rad per tick, is 1.5 rad/s, and its
+      ``TURN_THRUST`` 0.3 unit per tick is 0.15 m/s. Heading is quantised in
+      0.3 rad steps: a kinematic constraint to state in every write-up;
+    - the memory maze's 300-tick trial timeout is the standard 60 s;
+    - for comparison, rats run tracks at 0.2-0.6 m/s (plan section 5, item 6).
+      The realised speeds are measured by tools/probes/realised_speed.
+
+    Rates per second multiply by :attr:`ticks_per_second` (1 / dt_s, exactly
+    5.0 at the default) rather than divide by ``dt_s``, so that the table
+    above holds to the last bit (0.3 / 0.2 reads 1.4999999999999998 in
+    binary floating point; 0.3 * 5.0 reads 1.5). :meth:`ticks` rounds to the
+    nearest whole tick, halves up (``floor(x + 0.5)``), so 0.1 s is 1 tick.
+    """
+
+    dt_s: float = 0.2  # seconds per engine tick
+    metres_per_unit: float = 0.1  # metres per world unit
+
+    def __post_init__(self) -> None:
+        if not (self.dt_s > 0.0 and self.metres_per_unit > 0.0):
+            raise ValueError(f"UnitsConfig needs positive dt_s and metres_per_unit, got {self.dt_s}, {self.metres_per_unit}")
+
+    @property
+    def ticks_per_second(self) -> float:
+        return 1.0 / self.dt_s
+
+    def seconds(self, ticks: float) -> float:
+        """Duration of ``ticks`` ticks in seconds."""
+        return ticks * self.dt_s
+
+    def ticks(self, seconds: float) -> int:
+        """Whole ticks in ``seconds``: the nearest integer, halves rounded up."""
+        return int(math.floor(seconds * self.ticks_per_second + 0.5))
+
+    def metres(self, units: float) -> float:
+        return units * self.metres_per_unit
+
+    def units(self, metres: float) -> float:
+        return metres / self.metres_per_unit
+
+    def metres_per_second(self, units_per_tick: float) -> float:
+        return units_per_tick * self.metres_per_unit * self.ticks_per_second
+
+    def radians_per_second(self, rad_per_tick: float) -> float:
+        return rad_per_tick * self.ticks_per_second
+
+
+HEADING_SOURCES: Tuple[str, ...] = ("integrated", "oracle")
 
 
 @dataclass
@@ -34,6 +102,45 @@ class SensorConfig:
     whisker_range: float = 1.0  # contact distance for a whisker hit
     pain_zone: float = 1.5  # distance from a hazard surface at which pain begins
     noise: float = 0.0  # additive sensor noise (0 => fully deterministic, no RNG draw)
+    # Odometry noise on the agent's self-motion estimate (the egomotion the
+    # spatial system integrates; the body moves exactly as before). Drawn from
+    # the "sensors_odometry" stream in core.sensors._compute_egomotion, forward
+    # first then turn, each only when its sigma is > 0 (0 => no draw).
+    # odometry_speed_noise: standard deviation of a multiplicative Gaussian
+    # factor on the raw forward displacement, d' = d * (1 + sigma * xi).
+    # odometry_turn_noise: standard deviation (radians) of an additive Gaussian
+    # term on the raw heading change. Both are counted by
+    # EngineConfig.stochastic_elements (core.seeds).
+    odometry_speed_noise: float = 0.0
+    odometry_turn_noise: float = 0.0
+    # The Observation's egomotion range: forward_delta is clamped to
+    # [-forward_delta_limit, +forward_delta_limit] after the odometry noise is
+    # applied (core.sensors._compute_egomotion; Observation.validate checks it).
+    # 1.0 (legacy) puts a full-thrust FORWARD step of 1.0 at the top of the
+    # range, so a positive speed error is clamped away and a full-speed step
+    # averages 1 - sigma / sqrt(2 pi) (0.980 at sigma 0.05: the clamp bias,
+    # docs/odometry.md). The research profile sets 2.0, so the estimate carries
+    # the signed, zero-mean error it draws (a clip at 2.0 needs xi > 20 at sigma
+    # 0.05 and never occurs). The body's motion is unchanged by this field.
+    forward_delta_limit: float = 1.0
+    # --- M2b step 1 (docs/prereg/m2b_estimate.md): the declared heading oracle and wall-contact sensing ---
+    # heading_oracle: the Observation carries ``heading``, the body's allocentric heading plus a Gaussian error of sd
+    # heading_oracle_noise (radians), drawn per tick from the "sensors_heading" stream (no draw at 0). Off, the
+    # field is None and nothing is drawn. Plan section 2 item 1: heading is given, not inferred from landmarks; a
+    # declared limitation of every result that uses it.
+    heading_oracle: bool = False
+    heading_oracle_noise: float = 0.0
+    # wall_contact_sensing: the Observation carries ``wall_contacts``, the egocentric angle (radians, relative to the
+    # body's heading) of the outward normal of each arena wall the body touches, x walls before y walls; empty when
+    # it touches none. Off, the field is None. Touch is exact: it says which side of the body is against a wall.
+    wall_contact_sensing: bool = False
+
+    def __post_init__(self) -> None:
+        if not (math.isfinite(self.heading_oracle_noise) and self.heading_oracle_noise >= 0.0):
+            raise ValueError("heading_oracle_noise must be a finite non-negative number")
+        if self.heading_oracle_noise > 0.0 and not self.heading_oracle:
+            raise ValueError("heading_oracle_noise > 0 needs heading_oracle = True (nothing would be drawn)")
+
 
 
 @dataclass
@@ -52,12 +159,27 @@ class AstrocyteConfig:
     atp_floor: float = 0.0
     rest_demand: float = 0.2  # metabolic demand at rest (thrust == 0)
     motion_demand: float = 0.8  # additional demand scaled by |thrust|
+    # Whether the ATP throttle scales the body's motion. World.step multiplies
+    # thrust and turn by the energy_scale the engine hands it: atp / atp_baseline
+    # when this is True (legacy), 1.0 on every tick when it is False (step length
+    # independent of ATP; the gate value still scales the FORWARD drive, so ATP
+    # reaches action selection by that route unless the gate is held OPEN, see
+    # docs/profiles.md; the energy stores still move and are still logged).
+    scales_motion: bool = True
+    # When True the astrocyte does not tick at all: ATP and glycogen stay at
+    # their initial values (``atp``, ``glycogen`` above) for the whole run and
+    # the throttle is 1.0 on every tick; ctx.atp / ctx.glycogen are logged as
+    # before. At the default initial ATP (1.0, above trn.open_at_atp) the TRN
+    # gate therefore stays OPEN unless kappa exceeds trn.narrow_above_kappa, and
+    # microsleep (ATP below trn.trigger_atp for trn.trigger_streak ticks) cannot
+    # trigger.
+    frozen: bool = False
 
 
 @dataclass
 class NeuromodConfig:
-    reward_lr: float = 0.1  # EMA rate for expected reward (dopamine RPE baseline)
-    rpe_scale: float = 1.0  # reward-prediction-error scale for dopamine
+    reward_lr: float = 0.1  # EMA rate of the running mean of reward (DA = reward - this mean)
+    rpe_scale: float = 1.0  # scale of (reward - running mean) in DA and of the mean in 5HT
 
 
 @dataclass
@@ -69,6 +191,10 @@ class RewardConfig:
 
 @dataclass
 class ValueMemoryConfig:
+    # What the steering reads (M2b step 4, docs/prereg/m2b_gate.md): "tabular", this map over the estimate's bins (every
+    # profile so far); "sr", the successor representation's value V = M R over the place code (needs place.enabled;
+    # brain.systems.successor_features, PlaceConfig.sr_*); "none", no value steering. This map learns in all three.
+    source: str = "tabular"
     learning_rate: float = 0.2
     discount: float = 0.9
     capacity: int = 200  # trajectory length retained for replay
@@ -102,8 +228,10 @@ class ValueMemoryConfig:
     # ~150-200 ticks old, every second one, in forward order. TickData.replay_index
     # is the TRN index either way.
     replay_recent: bool = True
-    # Goal-vector memory: remember the place cell where reward was found and,
-    # wherever the value map is locally flat (largest sampled advantage below
+    # Oracle homing: the goal-vector slot, an explicit oracle control condition
+    # (docs/research_plan.md section 6; relabelled from ``goal_vector`` in M1).
+    # Remember the place cell where reward was found and, wherever the sampled
+    # value map is locally flat (largest sampled advantage below
     # goal_vector_flat), turn toward it by path integration. The TD map's
     # values fall by ``discount`` per step of the demonstration, so after a long
     # first trial (a start facing away from the goal: 34-129 ticks of search)
@@ -119,7 +247,12 @@ class ValueMemoryConfig:
     # FORWARD giving way by the same amount, and nothing while the goal lies
     # inside the ~1 m circle a run of turns traces (turning would orbit it; see
     # brain.systems.basal_ganglia.goal_vector_signals). False disables.
-    goal_vector: bool = False
+    # ``goal_vector`` stays as a read/write alias of this field (the property
+    # below), so existing call sites and ``--set value_memory.goal_vector=...``
+    # keep working; to_dict writes ``oracle_homing`` and from_dict accepts
+    # either name. The goal_vector_* fields below name the mechanism and keep
+    # their names.
+    oracle_homing: bool = False
     goal_vector_source: str = "replay"
     # The vector steers only where the map's largest sampled advantage is below
     # this (the map's own flatness threshold, Engine.VALUE_FLAT, where split and
@@ -136,12 +269,105 @@ class ValueMemoryConfig:
     # extinction. Measured in docs/decisions.md G21.
     goal_extinction_misses: int = 2
 
+    # Former field names accepted by ``EngineConfig.from_dict`` (not fields: not
+    # in ``fields()``, ``to_dict`` or ``diff``).
+    FIELD_ALIASES: ClassVar[Mapping[str, str]] = {"goal_vector": "oracle_homing"}
+
+    @property
+    def goal_vector(self) -> bool:
+        """Alias of :attr:`oracle_homing` (the field's name before M1); reads and writes it."""
+        return self.oracle_homing
+
+    @goal_vector.setter
+    def goal_vector(self, value: bool) -> None:
+        self.oracle_homing = value
+
+    def __post_init__(self) -> None:
+        if self.source not in VALUE_SOURCES:
+            raise ValueError(f"value_memory.source must be one of {VALUE_SOURCES}, got {self.source!r}")
+
 
 @dataclass
 class SpatialConfig:
     turn_gain: float = 1.0
     decay: float = 1.0
     bin_size: float = 0.5
+    # Whether the TRN gate value (1.0 OPEN, trn.narrow_gain NARROW, 0.0 CLOSED)
+    # multiplies the egomotion deltas before path integration (legacy). When
+    # False the engine passes sensory_gain = 1.0, so the estimate keeps
+    # integrating the true egomotion through NARROW, CLOSED and microsleep. With
+    # sensor noise 0 it then equals the true position on every tick; with the
+    # gate scaling it, the legacy estimate ends 22.8 units off after 3000
+    # barren-world ticks (tools/probes/path_integration_capture).
+    gate_scales_egomotion: bool = True
+    # --- M2b step 1 (docs/prereg/m2b_estimate.md) ---
+    # heading_source: "integrated" sums the egomotion turn into the heading estimate (every profile so far);
+    # "oracle" takes the Observation's ``heading`` (needs sensors.heading_oracle).
+    heading_source: str = "integrated"
+    # wall_reset: on every tick the body touches a wall, the estimate's coordinate along that wall's normal is set to
+    # the wall's (Hardcastle, Ganguli & Giocomo 2015, for the reset only); the wall is identified by snapping the
+    # allocentric contact normal (heading estimate + the touch's egocentric angle) to the nearest arena axis; the
+    # along-wall coordinate is untouched. Needs sensors.wall_contact_sensing. reset_bounds is the arena's half-extent
+    # the agent knows, in its estimate frame (which starts at the body's start pose); None means the world's bounds.
+    wall_reset: bool = False
+    reset_bounds: Optional[Tuple[float, float]] = None
+
+    def __post_init__(self) -> None:
+        if self.heading_source not in HEADING_SOURCES:
+            raise ValueError(f"heading_source must be one of {HEADING_SOURCES}, got {self.heading_source!r}")
+        if self.reset_bounds is not None:
+            bounds = tuple(float(b) for b in self.reset_bounds)
+            if len(bounds) != 2 or not all(math.isfinite(b) and b > 0.0 for b in bounds):
+                raise ValueError("reset_bounds must be two positive finite half-extents, or None")
+            object.__setattr__(self, "reset_bounds", bounds)
+
+
+@dataclass
+class PlaceConfig:
+    """M2b step 2 (docs/prereg/m2b_place_population.md): a Gaussian place-cell population over the position estimate.
+
+    Off by default in both profiles. On, the engine computes every tick the rates r_j = max_rate * exp(-|e - c_j|^2
+    / (2 width^2)) of cells centred on a regular grid of pitch ``spacing`` over the arena (``extent`` is the
+    half-extent the grid covers; None means the world's bounds), at the spatial system's estimate e
+    (``brain.systems.place_population``). The rates feed nothing yet: no action, no learner, no TickData field.
+    """
+
+    enabled: bool = False
+    spacing: float = 1.0  # units between neighbouring centres (0.1 m): 400 cells in the 2 m box
+    width: float = 1.0  # the Gaussian's sd, units (0.1 m; full width at half maximum 0.24 m)
+    max_rate: float = 1.0
+    extent: Optional[Tuple[float, float]] = None
+    # M2b step 4: the SR over the population, learned online when value_memory.source is "sr" (successor features from
+    # the identity by TD(0) on the normalised rates; the reward weights R by normalised least mean squares on the map
+    # reward at arrival, R += reward_learning_rate * (r - phi.R) phi / |phi|^2). V(p) = phi(p) . (M^T R).
+    sr_learning_rate: float = 0.1
+    sr_discount: float = 0.95
+    reward_learning_rate: float = 0.5
+    # How R learns: "nlms" (the preregistered rule above; a regression of the point reward on overlapping fields, which
+    # rings the goal with negative weights: decisions G36) or "per_feature", exploratory (each weight tracks the reward
+    # seen while its cell is active, R += reward_learning_rate * phi * (r - R), so R >= 0 when rewards are >= 0).
+    reward_rule: str = "nlms"
+
+    def __post_init__(self) -> None:
+        for name in ("spacing", "width", "max_rate", "sr_learning_rate", "reward_learning_rate"):
+            value = getattr(self, name)
+            if not (math.isfinite(value) and value > 0.0):
+                raise ValueError(f"place.{name} must be a positive finite number, got {value!r}")
+        if self.extent is not None:
+            extent = tuple(float(e) for e in self.extent)
+            if len(extent) != 2 or not all(math.isfinite(e) and e > 0.0 for e in extent):
+                raise ValueError("place.extent must be two positive finite half-extents, or None")
+            object.__setattr__(self, "extent", extent)
+        if not (math.isfinite(self.sr_discount) and 0.0 <= self.sr_discount < 1.0):
+            raise ValueError("place.sr_discount must be in [0, 1)")
+        if self.reward_rule not in REWARD_RULES:
+            raise ValueError(f"place.reward_rule must be one of {REWARD_RULES}, got {self.reward_rule!r}")
+
+
+REWARD_RULES: Tuple[str, ...] = ("nlms", "per_feature")
+
+
+VALUE_SOURCES: Tuple[str, ...] = ("tabular", "sr", "none")
 
 
 @dataclass
@@ -152,6 +378,17 @@ class TRNConfig:
     recovery_atp: float = 0.45
     recovery_streak_needed: int = 5
     replay_window: int = 50
+    # Gate thresholds (previously hard-coded in TRNGate.trn_state; same values,
+    # same branch order): CLOSED (gate 0.0) during microsleep or when
+    # ATP < closed_below_atp; OPEN (gate 1.0) when ATP >= open_at_atp and
+    # kappa <= narrow_above_kappa; otherwise NARROW (gate narrow_gain).
+    closed_below_atp: float = 0.35
+    open_at_atp: float = 0.55
+    narrow_above_kappa: float = 1.1
+    narrow_gain: float = 0.4
+    # When False no microsleep bout ever starts, so the replay gating that
+    # depends on microsleep never fires either (replay_active stays False).
+    microsleep_enabled: bool = True
 
 
 @dataclass
@@ -166,7 +403,15 @@ class BasalGangliaConfig:
     forward_bias: float = 0.8  # base FORWARD drive (multiplied by trn_gain)
     pain_avoidance: float = 0.5  # weight pulling FORWARD down under pain
     rest_pain_gain: float = 0.8  # weight pushing REST up under pain
+    # The checksum-changed "novelty" bit (brain.systems.working_memory) in
+    # action selection: novelty_gain adds novelty_gain * novelty (scaled by
+    # dopamine through dopamine_explore_gain) to FORWARD, novelty_turn_gain adds
+    # novelty_turn_gain * novelty to each TURN channel (the 0.3 that was a
+    # literal in _channel_scores until M2a). The research profile sets both to
+    # 0: the bit is still computed, logged (TickData.wm_novelty) and fed to the
+    # ACh and NE traces, but no longer moves the decision (docs/profiles.md).
     novelty_gain: float = 0.2  # exploration drive from working-memory novelty
+    novelty_turn_gain: float = 0.3  # the same bit on the two TURN channels
     turn_bias: float = 0.0  # constant bias: >0 favours TURN_LEFT, <0 favours TURN_RIGHT
     vision_gain: float = 0.6  # drive toward a visible target (0 => blind to vision)
     wall_avoid_gain: float = 0.6  # drive to turn away from a close wall ahead
@@ -177,7 +422,18 @@ class BasalGangliaConfig:
     ne_threat_gain: float = 0.5  # norepinephrine raises arousal / threat sensitivity
     fiveht_patience_gain: float = 0.4  # serotonin raises patience (willingness to rest)
     value_gain: float = 1.5  # drive toward higher-value directions from the learned map
-    criticality_gain: float = 0.0  # how strongly near-critical cortical gain scales vision (0 = off)
+    # Weight of the kappa gain (brain.systems.criticality.near_critical_gain) on
+    # vision_gain: 0 = off, the default; at 1.0 it flips no decision in the
+    # probed worlds (tools/probes/dormant_couplings).
+    criticality_gain: float = 0.0
+    # Softmax action selection. 0 (default): the deterministic argmax over the
+    # channel scores with its fixed tie order (ACTION_ORDER), no RNG draw. tau > 0:
+    # the action is sampled with probability proportional to exp((s_i - max_j
+    # s_j) / tau) over the channels in that same order, from one random() draw
+    # per tick on the "action_softmax" stream (brain.systems.basal_ganglia
+    # .softmax_sample); the logged scores stay the scores. Counted by
+    # EngineConfig.stochastic_elements (core.seeds).
+    softmax_temperature: float = 0.0
     # Freeze habituation: pain-driven REST habituates while the agent keeps freezing
     # in pain, so a freeze is not an absorbing state. The pain->REST drive is scaled
     # by exp(-F / freeze_tau), where F counts recent pain-freeze ticks (+1 per REST
@@ -238,10 +494,34 @@ class BasalGangliaConfig:
     value_common_mode: float = 0.0
 
 
+# The config fields that make a run depend on its seed, in the order
+# EngineConfig.stochastic_elements reports them. Every other RNG stream the
+# engine opens is either unused (neuromod) or behaviourally dormant at the
+# defaults (criticality, tools/probes/seed_pseudoreplication).
+STOCHASTIC_PARAMETERS: Tuple[str, ...] = (
+    "sensors.noise",
+    "sensors.odometry_speed_noise",
+    "sensors.odometry_turn_noise",
+    "basal_ganglia.softmax_temperature",
+)
+
+
 @dataclass
 class EngineConfig:
-    """Aggregate of every subsystem's configuration."""
+    """Aggregate of every subsystem's configuration.
 
+    ``profile`` labels the set of flags in force: ``"legacy"`` for the defaults
+    (``EngineConfig()`` and :meth:`legacy`) and ``"research"`` for
+    :meth:`research`. It is a label only: it is not logged in TickData and never
+    enters a trace hash. docs/profiles.md lists what the two profiles differ
+    in; :meth:`diff` computes it. ``units`` (:class:`UnitsConfig`) declares
+    what a tick and a world unit mean in seconds and metres; it is identical
+    in both profiles and read by no engine constant. :meth:`to_dict` and
+    :meth:`from_dict` serialise the whole config as a nested plain dict.
+    """
+
+    profile: str = "legacy"
+    units: UnitsConfig = field(default_factory=UnitsConfig)
     world: WorldConfig = field(default_factory=WorldConfig)
     sensors: SensorConfig = field(default_factory=SensorConfig)
     astrocyte: AstrocyteConfig = field(default_factory=AstrocyteConfig)
@@ -250,16 +530,289 @@ class EngineConfig:
     value_memory: ValueMemoryConfig = field(default_factory=ValueMemoryConfig)
     criticality: CriticalityConfig = field(default_factory=CriticalityConfig)
     spatial: SpatialConfig = field(default_factory=SpatialConfig)
+    place: PlaceConfig = field(default_factory=PlaceConfig)
     trn: TRNConfig = field(default_factory=TRNConfig)
     working_memory: WorkingMemoryConfig = field(default_factory=WorkingMemoryConfig)
     basal_ganglia: BasalGangliaConfig = field(default_factory=BasalGangliaConfig)
 
+    @classmethod
+    def legacy(cls) -> "EngineConfig":
+        """The defaults, labelled: equal to ``EngineConfig()`` in every field."""
+        return cls(profile="legacy")
+
+    @classmethod
+    def research(cls) -> "EngineConfig":
+        """The research profile (docs/research_plan.md section 6, milestone 0a).
+
+        Differs from :meth:`legacy` in exactly these fields (``diff`` lists them):
+
+        - ``spatial.gate_scales_egomotion = False``: the TRN gate no longer
+          scales egomotion, so low ATP does not freeze path integration.
+        - ``astrocyte.scales_motion = False`` and ``astrocyte.frozen = True``:
+          ATP stays at its initial value and energy_scale is 1.0 on every tick,
+          so the body moves the commanded thrust.
+        - ``trn.microsleep_enabled = False``: no microsleep bouts, hence no
+          microsleep-gated replay (sleep becomes a protocol phase later).
+        - ``trn.narrow_above_kappa = inf``: the gate's kappa branch is off. With
+          ATP frozen at 1.0 the gate is then OPEN on every tick, so the
+          criticality lattice cannot reach the FORWARD drive through the gate
+          value (at the legacy 1.1 it did at 2 of 41 seeds scanned, see
+          docs/profiles.md).
+        - ``value_memory.dwell_extinction = 0.0``: no charge for dwelling.
+        - Neuromodulator coupling gains in ``basal_ganglia`` set to 0:
+          ``dopamine_explore_gain``, ``ach_precision_gain``, ``ne_threat_gain``
+          and ``fiveht_patience_gain``. The modulator traces are still computed
+          and logged; they just do not reach action selection.
+
+        - Seeds are samples (milestone 0b, item 8): ``sensors.odometry_speed_noise
+          = 0.05``, ``sensors.odometry_turn_noise = 0.01`` (seeded noise on the
+          self-motion estimate; the body moves exactly as before) and
+          ``basal_ganglia.softmax_temperature = 0.1`` (seeded softmax action
+          selection). The odometry values were characterised in milestone 1 and
+          kept (docs/odometry.md); the temperature is still a placeholder.
+          What they fix is that two seeds under this profile are two different
+          runs, which :meth:`stochastic_elements` and ``core.seeds`` can check.
+        - ``sensors.forward_delta_limit = 2.0`` (milestone 2a): the Observation's
+          egomotion range is wide enough that the speed error keeps both signs.
+          At the legacy 1.0 a full-thrust step sits at the top of the range, so
+          positive errors were clamped away and a full-speed step averaged 0.980
+          instead of 1.0 (docs/odometry.md); the body is unchanged.
+        - ``basal_ganglia.novelty_gain = 0.0`` and ``novelty_turn_gain = 0.0``
+          (milestone 2a): the checksum-changed "novelty" bit no longer enters
+          action selection. It is still computed and logged (``wm_novelty``)
+          and still feeds the ACh and NE traces, which are logged too.
+
+        Also set explicitly, but already the legacy value, so not in the diff:
+        ``value_memory.generalization_radius = 0``, ``value_memory.oracle_homing
+        = False`` (the goal-vector slot) and ``basal_ganglia.criticality_gain =
+        0.0`` (the criticality coupling to cognition; kappa is still computed
+        and logged).
+
+        - Milestone 2b's exit (docs/decisions.md G37): the instrument the
+          RQ4(a) gate passed with. ``sensors.heading_oracle = True`` with
+          ``heading_oracle_noise = 0.05`` (the declared heading oracle, sd 0.05
+          rad per tick on its own stream, ``sensors_heading``: the fourth seeded
+          element) and ``spatial.heading_source = "oracle"``;
+          ``sensors.wall_contact_sensing = True`` and ``spatial.wall_reset =
+          True`` (the wall-contact position reset); ``place.enabled = True``
+          (the 400-cell Gaussian population over the estimate) with
+          ``place.reward_rule = "per_feature"`` and ``value_memory.source =
+          "sr"`` (the successor-feature value V = M R steers where the tabular
+          map did; the map still learns). The research baselines were
+          regenerated once for it (docs/profiles.md).
+
+        Nothing else differs. Not yet in this profile: replay as an event
+        stream inside the engine (M3; the M2a linear-track experiments run
+        their replay rules outside the engine, experiments.linear_track_replay).
+        """
+        cfg = cls(profile="research")
+        cfg.sensors.odometry_speed_noise = 0.05
+        cfg.sensors.odometry_turn_noise = 0.01
+        cfg.sensors.forward_delta_limit = 2.0
+        cfg.spatial.gate_scales_egomotion = False
+        cfg.astrocyte.scales_motion = False
+        cfg.astrocyte.frozen = True
+        cfg.trn.microsleep_enabled = False
+        cfg.trn.narrow_above_kappa = float("inf")
+        cfg.value_memory.generalization_radius = 0
+        cfg.value_memory.oracle_homing = False
+        cfg.value_memory.dwell_extinction = 0.0
+        bg = cfg.basal_ganglia
+        bg.criticality_gain = 0.0
+        bg.novelty_gain = 0.0
+        bg.novelty_turn_gain = 0.0
+        bg.dopamine_explore_gain = 0.0
+        bg.ach_precision_gain = 0.0
+        bg.ne_threat_gain = 0.0
+        bg.fiveht_patience_gain = 0.0
+        bg.softmax_temperature = 0.1
+        # Milestone 2b's exit (docs/decisions.md G37): the configuration the RQ4(a) gate passed with.
+        cfg.sensors.heading_oracle = True
+        cfg.sensors.heading_oracle_noise = 0.05
+        cfg.sensors.wall_contact_sensing = True
+        cfg.spatial.heading_source = "oracle"
+        cfg.spatial.wall_reset = True
+        cfg.place.enabled = True
+        cfg.place.reward_rule = "per_feature"
+        cfg.value_memory.source = "sr"
+        return cfg
+
+    def stochastic_elements(self) -> List[str]:
+        """The stochastic elements this config has on, as ``"dotted.field=value"``.
+
+        One entry per parameter in :data:`STOCHASTIC_PARAMETERS` that is > 0,
+        in that order: sensor noise (rangefinder and pain), odometry speed
+        noise, odometry turn noise and the softmax temperature. Empty means
+        no behavioural path draws from the RNG, so every seed gives the same
+        run (the criticality lattice is seeded but dormant at the defaults,
+        docs/profiles.md); ``core.seeds.require_seeds_are_samples`` refuses a
+        multi-seed claim on such a config.
+        """
+        out: List[str] = []
+        for name in STOCHASTIC_PARAMETERS:
+            section, field_name = name.split(".")
+            value = getattr(getattr(self, section), field_name)
+            if value > 0.0:
+                out.append(f"{name}={value!r}")
+        # The heading oracle's error draws only while the oracle is on (M2b step 1), so it is counted only then; it is
+        # not in STOCHASTIC_PARAMETERS, whose entries draw whenever they are > 0.
+        if self.sensors.heading_oracle and self.sensors.heading_oracle_noise > 0.0:
+            out.append(f"sensors.heading_oracle_noise={self.sensors.heading_oracle_noise!r}")
+        return out
+
+    def get_field(self, key: str) -> Any:
+        """The value of the dotted field ``key`` (``"sensors.noise"``); an unknown field is an ``AttributeError``."""
+        obj, attr = _walk_dotted(self, key)
+        return getattr(obj, attr)
+
+    def set_field(self, key: str, value: Any) -> None:
+        """Set the dotted field ``key`` (``"sensors.noise"``) to ``value``.
+
+        The one dotted setter: the harness's ``--set``, the G23 overrides and
+        the console's live parameters all go through it. A former field name
+        that a section keeps as a property alias (``value_memory.goal_vector``
+        for ``oracle_homing``) works; an unknown field raises
+        ``AttributeError`` naming the dotted path, so a typo is never a silent
+        new attribute. The value is assigned as given (no coercion and no
+        ``__post_init__`` re-validation: that is ``from_dict``'s job).
+        """
+        obj, attr = _walk_dotted(self, key)
+        setattr(obj, attr, value)
+
+    def diff(self, other: "EngineConfig") -> List[Tuple[str, Any, Any]]:
+        """Fields where ``self`` and ``other`` differ: (dotted.field, self_value, other_value).
+
+        Every nested config dataclass is walked in field declaration order, so
+        the list is deterministic, and it is empty when the two are equal.
+        """
+        return config_diff(self, other)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Every field as a nested plain dict, ``profile`` first, strict-JSON-serialisable.
+
+        Nested config dataclasses become dicts in field declaration order,
+        tuples become lists (``world.bounds``) and a non-finite float becomes
+        the string ``"inf"``, ``"-inf"`` or ``"nan"`` (the research profile's
+        ``trn.narrow_above_kappa``), so ``json.dumps(..., allow_nan=False)``
+        accepts the result and a strict JSON reader can open it (``Infinity``
+        is not JSON). Every other value is kept as it is. :meth:`from_dict`
+        inverts it: ``diff`` is empty after a round trip, also through
+        ``json.dumps`` / ``json.loads``.
+        """
+        return _dataclass_to_plain(self)
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "EngineConfig":
+        """The inverse of :meth:`to_dict`.
+
+        Every key must name a field at its level, or a former name of one that
+        the section lists in ``FIELD_ALIASES`` (``value_memory.goal_vector``
+        for ``oracle_homing``; giving both with different values raises); an
+        unknown key raises ``ValueError`` naming the dotted path, so a typo or
+        a field from a later version is never dropped silently. A key that is
+        missing keeps the field's default. A list is turned back into a tuple where the
+        field holds a tuple, and the strings ``"inf"``, ``"-inf"`` and
+        ``"nan"`` back into floats where the field holds a float; nothing
+        else changes type. Each section's ``__post_init__`` runs after its
+        fields are set, so the validation a constructor does (``UnitsConfig``
+        rejects a non-positive ``dt_s``) applies to deserialised values too.
+        """
+        cfg = cls()
+        _dataclass_from_plain(cfg, data, "")
+        return cfg
+
+
+def _walk_dotted(config: Any, key: str) -> Tuple[Any, str]:
+    """The object and attribute name a dotted ``key`` names, or ``AttributeError`` for an unknown field."""
+    obj = config
+    parts = key.split(".")
+    for part in parts[:-1]:
+        if not hasattr(obj, part):
+            raise AttributeError(f"config has no field {key!r}")
+        obj = getattr(obj, part)
+    if not hasattr(obj, parts[-1]):
+        raise AttributeError(f"config has no field {key!r}")
+    return obj, parts[-1]
+
+
+_NON_FINITE_TO_STR = {math.inf: "inf", -math.inf: "-inf"}
+_STR_TO_NON_FINITE = {"inf": math.inf, "-inf": -math.inf, "nan": math.nan}
+
+
+def _dataclass_to_plain(obj: Any) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for f in fields(obj):
+        value = getattr(obj, f.name)
+        if is_dataclass(value):
+            out[f.name] = _dataclass_to_plain(value)
+        elif isinstance(value, tuple):
+            out[f.name] = list(value)
+        elif isinstance(value, float) and not math.isfinite(value):
+            out[f.name] = "nan" if math.isnan(value) else _NON_FINITE_TO_STR[value]
+        else:
+            out[f.name] = value
+    return out
+
+
+def _resolve_aliases(obj: Any, data: Mapping[str, Any], prefix: str) -> Dict[str, Any]:
+    """``data`` with the section's former field names (``FIELD_ALIASES``) replaced by the current ones."""
+    aliases: Mapping[str, str] = getattr(type(obj), "FIELD_ALIASES", {})
+    out: Dict[str, Any] = {}
+    for key, value in data.items():
+        name = aliases.get(key, key) if isinstance(key, str) else key
+        if name in out and out[name] != value:
+            raise ValueError(f"config field {prefix}{name} given twice ({key!r} is an alias of it) with different values")
+        out[name] = value
+    return out
+
+
+def _dataclass_from_plain(obj: Any, data: Mapping[str, Any], prefix: str) -> None:
+    if not isinstance(data, Mapping):
+        raise ValueError(f"config section {prefix or '<root>'}: expected a mapping, got {type(data).__name__}")
+    data = _resolve_aliases(obj, data, prefix)
+    known = [f.name for f in fields(obj)]
+    unknown = sorted(str(k) for k in data if k not in known)
+    if unknown:
+        raise ValueError("unknown config field(s): " + ", ".join(prefix + k for k in unknown))
+    for name in known:
+        if name not in data:
+            continue
+        current = getattr(obj, name)
+        value = data[name]
+        if is_dataclass(current):
+            _dataclass_from_plain(current, value, f"{prefix}{name}.")
+        elif isinstance(current, tuple):
+            setattr(obj, name, tuple(value))
+        elif isinstance(current, float) and isinstance(value, str) and value in _STR_TO_NON_FINITE:
+            setattr(obj, name, _STR_TO_NON_FINITE[value])
+        else:
+            setattr(obj, name, value)
+    # The constructor's validation, for values that arrived by assignment.
+    post_init = getattr(obj, "__post_init__", None)
+    if callable(post_init):
+        post_init()
+
+
+def config_diff(a: Any, b: Any, prefix: str = "") -> List[Tuple[str, Any, Any]]:
+    """Field-by-field difference of two config dataclasses (see ``EngineConfig.diff``)."""
+    out: List[Tuple[str, Any, Any]] = []
+    for f in fields(a):
+        name = f"{prefix}{f.name}"
+        va, vb = getattr(a, f.name), getattr(b, f.name)
+        if is_dataclass(va) and is_dataclass(vb):
+            out.extend(config_diff(va, vb, f"{name}."))
+        elif va != vb:
+            out.append((name, va, vb))
+    return out
+
 
 __all__ = [
+    "UnitsConfig",
     "WorldConfig",
     "SensorConfig",
     "AstrocyteConfig",
     "NeuromodConfig",
+    "PlaceConfig",
     "RewardConfig",
     "ValueMemoryConfig",
     "SpatialConfig",
@@ -267,4 +820,8 @@ __all__ = [
     "WorkingMemoryConfig",
     "BasalGangliaConfig",
     "EngineConfig",
+    "HEADING_SOURCES",
+    "VALUE_SOURCES",
+    "STOCHASTIC_PARAMETERS",
+    "config_diff",
 ]

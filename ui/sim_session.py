@@ -4,11 +4,13 @@ A ``SimSession`` owns one engine running one scenario. It advances the engine
 on request and turns engine state into compact, JSON-serialisable views:
 
 * ``step(n)``      -> a per-tick series (for charts and the trail) + new events
-* ``frame()``      -> the full display state of the latest tick
+* ``frame()``      -> the full display state of the latest tick (``replay_events``:
+  the last five finished replay events, ``brain.systems.replay_events``)
 * ``value_map()``  -> the learned place-value map in world coordinates
 * ``avalanche_histogram()`` -> the avalanche-size distribution (log bins)
 * ``params()`` / ``set_param()`` -> whitelisted live parameters
 * ``record(dir)``  -> save the session as a run the replay viewer can open
+  (with ``replay_events.jsonl`` when any replay event happened)
 
 Everything here is instrumentation: it reads the engine to *show* it, and the
 brain still only ever sees its Observation.
@@ -26,8 +28,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
+from brain.systems.replay_events import REPLAY_EVENTS_FILE, write_replay_events
 from core.engine import Engine
 from metrics.logger import _canonical_json
+from metrics.manifest import build_manifest, finish_manifest, write_manifest
 from metrics.scene import write_scene
 from metrics.schema import SCHEMA_VERSION
 from ui.scenarios import START_POSE, Scenario, make_scenario
@@ -37,6 +41,14 @@ Event = Dict[str, Any]
 MAX_STEPS_PER_CALL = 200
 HISTORY_LIMIT = 50_000
 EVENT_LIMIT = 300
+# Finished replay events kept for the frame and the recording, drained from the
+# engine's bounded log every tick. At the legacy defaults a microsleep bout
+# comes about every 60 ticks, so this covers more ticks than HISTORY_LIMIT; the
+# keep is not tied to the history, so ``record`` writes only the kept events
+# that end inside the recorded ticks (``n_replay_events`` counts those, and
+# ``n_replay_events_total`` every event the session saw).
+REPLAY_EVENT_LIMIT = 4096
+FRAME_REPLAY_EVENTS = 5  # how many of the latest replay events a frame carries
 REGIME_EVENT_GAP = 60  # ticks between criticality-regime announcements
 GATE_EVENT_GAP = 30  # ticks between sensory-gate announcements (the gate can flicker)
 
@@ -78,17 +90,27 @@ PARAMS: Tuple[Param, ...] = (
           "instead of trapping it there. Sleep replay applies the same rule, so a peak fades to "
           "about zero (never below one step's charge) instead of turning aversive. 0 turns extinction off."),
     Param("basal_ganglia.dopamine_explore_gain", "Dopamine → exploration", "Neuromodulation", 0.0, 1.5, 0.05,
-          "Below-baseline dopamine (disappointment) boosts novelty seeking."),
+          "Dopamine below 0.5 (reward under its running mean) scales up the novelty term in the "
+          "FORWARD drive."),
     Param("basal_ganglia.ach_precision_gain", "Acetylcholine → precision", "Neuromodulation", 0.0, 1.5, 0.05,
-          "Acetylcholine (uncertainty) sharpens how much vision is trusted."),
+          "Scales the vision drive by (1 + gain × ACh), where ACh is the novelty bit: 1 whenever the "
+          "observation checksum changed, which is every tick at sensor noise 0.03, so there this is a "
+          "constant ×(1 + gain)."),
     Param("basal_ganglia.ne_threat_gain", "Norepinephrine → threat", "Neuromodulation", 0.0, 1.5, 0.05,
-          "Norepinephrine (arousal) amplifies pain avoidance and freezing."),
+          "Scales pain avoidance and the pain → REST (freezing) drive by (1 + gain × NE), "
+          "NE = ½ pain + ½ the novelty bit."),
     Param("basal_ganglia.fiveht_patience_gain", "Serotonin → patience", "Neuromodulation", 0.0, 1.5, 0.05,
-          "Serotonin (mood) raises willingness to rest and wait."),
+          "Adds a REST drive of gain × (5HT − 0.5); 5HT is 0.5 plus half the running mean of reward, "
+          "so 0.5 with no reward."),
     Param("criticality.coupling", "E/I coupling", "Criticality", 0.10, 0.45, 0.01,
-          "Per-neighbour activation probability. Branching ratio σ = 4 × coupling; σ = 1 is critical."),
+          "Per-neighbour activation probability on the 16 × 16 torus (bond percolation). The lattice is "
+          "critical at coupling 0.5, above this slider's 0.45; at the default 0.25 it is subcritical "
+          "and κ settles near 0.91."),
     Param("basal_ganglia.criticality_gain", "Criticality → sensory gain", "Criticality", 0.0, 1.0, 0.05,
-          "How strongly the near-critical cortical gain scales vision. 0 disconnects it."),
+          "How strongly a gain computed from κ scales vision. 0 at defaults, so the panel is a readout. "
+          "With the default coupling the gain is a 0.93–1.0 multiplier after warm-up (0.92 at the "
+          "long-run κ of 0.91) that changes no decision in the probed worlds (barren, beacon, foraging; "
+          "tools/probes/dormant_couplings)."),
     Param("sensors.fov", "Field of view", "Senses", 0.4, 3.0, 0.1,
           "Angular spread of the vision rays, in radians."),
     Param("sensors.vision_rays", "Vision rays", "Senses", 1, 9, 1,
@@ -147,12 +169,15 @@ class SimSession:
             self._apply_param(key, value)
         self.history: Deque[Dict[str, Any]] = deque(maxlen=HISTORY_LIMIT)
         self.events: Deque[Event] = deque(maxlen=EVENT_LIMIT)
+        self.replay_events: Deque[Dict[str, Any]] = deque(maxlen=REPLAY_EVENT_LIMIT)
+        self.n_replay_events = 0  # every finished replay event since the session was built or reset
         self._seq = 0
         self._prev_microsleep = False
         self._regime: Optional[str] = None
         self._regime_tick = -REGIME_EVENT_GAP
         self._gate = "OPEN"
         self._gate_tick = -GATE_EVENT_GAP
+        self._built_at = time.monotonic()  # for the recording's manifest (wall-clock, pauses included)
         self.tick = -1
         self._emit({"tick": 0, "text": f"{self.scenario.title} started (seed {self.seed})", "level": "info", "kind": "session"})
         self._advance()  # one tick so there is always a sensory snapshot to show
@@ -199,7 +224,16 @@ class SimSession:
         field = self.engine.criticality
         regime = criticality_regime(field.kappa, len(field.avalanche_sizes), field.config.kappa_min_avalanches)
         if regime != "measuring" and regime != self._regime and tick - self._regime_tick >= REGIME_EVENT_GAP:
-            events.append({"tick": tick, "text": f"Criticality: {regime} (κ = {field.kappa:.2f})", "level": "info", "kind": "criticality"})
+            events.append({
+                "tick": tick,
+                "text": (
+                    f"κ = {field.kappa:.2f}, in the {regime} band of the exponent-1.5 estimator "
+                    "(0.85–1.05 is called 'near-critical'); this is not the lattice's critical point, "
+                    "which is at coupling 0.5"
+                ),
+                "level": "info",
+                "kind": "criticality",
+            })
             self._regime = regime
             self._regime_tick = tick
         return events
@@ -212,6 +246,9 @@ class SimSession:
         self.history.append(td.to_ordered_dict())
         for event in self.scenario.on_tick(self.engine, td.tick) + self._generic_events(td.tick):
             self._emit(event)
+        for replay_event in self.engine.replay_log.drain():
+            self.replay_events.append(replay_event.to_dict())
+            self.n_replay_events += 1
         m = td.neuromodulators
         return {
             "t": td.tick,
@@ -258,8 +295,8 @@ class SimSession:
         if ctx and ctx.replay_active and ctx.replay_cell is not None:
             replay_cell = self._cell_center(*ctx.replay_cell)
         scores = ctx.action_scores if ctx else {}
-        goal_cell = None  # the goal-vector memory, in world coordinates (only when that memory is on)
-        goal = eng.goal_point() if eng.config.value_memory.goal_vector else None
+        goal_cell = None  # the goal-vector memory, in world coordinates (only with oracle homing on)
+        goal = eng.goal_point() if eng.config.value_memory.oracle_homing else None
         if goal is not None:
             gx, gy, _ = _to_world(goal[0], goal[1], 0.0)
             goal_cell = [_r(gx, 3), _r(gy, 3)]
@@ -308,6 +345,9 @@ class SimSession:
                 "back": ctx.replay_back if ctx else 0,
                 "span": ctx.replay_span if ctx else 0,
             },
+            # The latest finished replay events (brain.systems.replay_events.ReplayEvent.to_dict),
+            # oldest first; a replay in progress is in "replay" above, not here.
+            "replay_events": list(self.replay_events)[-FRAME_REPLAY_EVENTS:],
             "mod": {k: _r(v) for k, v in (ctx.neuromodulators if ctx else {}).items()},
             "reward": _r(ctx.reward if ctx else 0.0),
             "crit": {
@@ -370,13 +410,6 @@ class SimSession:
 
     # ---------------------------------------------------------------- params
 
-    def _target(self, key: str) -> Tuple[Any, str]:
-        obj: Any = self.engine.config
-        parts = key.split(".")
-        for part in parts[:-1]:
-            obj = getattr(obj, part)
-        return obj, parts[-1]
-
     def _apply_param(self, key: str, value: Any) -> float:
         param = PARAM_INDEX.get(key)
         if param is None:
@@ -389,8 +422,7 @@ class SimSession:
             raise ValueError(f"Parameter {key!r} needs a finite number")
         number = min(param.max, max(param.min, number))
         applied: float = int(round(number)) if param.integer else number
-        obj, attr = self._target(key)
-        setattr(obj, attr, applied)
+        self.engine.config.set_field(key, applied)
         if key == "criticality.coupling":
             self.engine.criticality.reset_statistics()
         self.overrides[key] = applied
@@ -404,11 +436,8 @@ class SimSession:
         return applied
 
     def params(self) -> List[Dict[str, Any]]:
-        out = []
-        for p in PARAMS:
-            obj, attr = self._target(p.key)
-            out.append({**asdict(p), "value": getattr(obj, attr)})
-        return out
+        config = self.engine.config
+        return [{**asdict(p), "value": config.get_field(p.key)} for p in PARAMS]
 
     # --------------------------------------------------------------- actions
 
@@ -419,6 +448,16 @@ class SimSession:
     # ---------------------------------------------------------------- record
 
     def record(self, runs_dir: Path) -> str:
+        """Save the session as a run directory the replay viewer can open; returns the run id.
+
+        ``ticks.jsonl`` holds the history deque (the newest ``HISTORY_LIMIT``
+        ticks). ``replay_events.jsonl`` holds the kept replay events
+        (``REPLAY_EVENT_LIMIT``, the newest) that end inside those ticks, so
+        the file never begins before the ticks it sits beside; the summary's
+        ``n_replay_events`` counts the lines written and
+        ``n_replay_events_total`` every event the session saw. No events file
+        when there is nothing to write.
+        """
         runs_dir.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d-%H%M%S")
         base = f"live_{self.scenario_id}_s{self.seed}_{stamp}"
@@ -431,6 +470,14 @@ class SimSession:
         with open(run_dir / "ticks.jsonl", "w", encoding="utf-8") as fh:
             for row in self.history:
                 fh.write(_canonical_json(row) + "\n")
+        # The kept replay events that end inside the recorded ticks, as the
+        # headless runner writes them; no file when there are none.
+        first_tick = self.history[0]["tick"] if self.history else 0
+        recorded_events = [e for e in self.replay_events if e["tick_end"] >= first_tick]
+        n_written = 0
+        if recorded_events:
+            with open(run_dir / REPLAY_EVENTS_FILE, "w", encoding="utf-8") as fh:
+                n_written = write_replay_events(fh, recorded_events)
         summary = {
             "protocol": self.scenario_id,
             "source": "live console",
@@ -439,6 +486,8 @@ class SimSession:
             "schema_version": SCHEMA_VERSION,
             "params": dict(self.overrides),
             "status": self.scenario.status(),
+            "n_replay_events": n_written,
+            "n_replay_events_total": self.n_replay_events,
         }
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
         # Objects as they stand now (a beacon shows its latest spot); the start
@@ -448,6 +497,25 @@ class SimSession:
             "scenario": self.scenario.describe(),
             "snapshot_tick": self.tick,
         })
+        # Provenance (metrics.manifest): the config as it stands now, parameter
+        # overrides included, since those are what ran. The replay viewer
+        # ignores this file. A live session has no tick budget, so
+        # ticks_requested is how far the session advanced; the history deque
+        # may hold fewer rows than that (ticks_run is what was written).
+        manifest = build_manifest(
+            self.engine.config,
+            protocol=self.scenario_id,
+            seeds=[self.seed],
+            ticks_requested=self.tick + 1,
+            extra={
+                "source": "live console",
+                "params": dict(self.overrides),
+                "scenario": self.scenario.describe(),
+                "timing_note": "wall_seconds is the time since the session was built, pauses included",
+            },
+        )
+        finish_manifest(manifest, ticks_run=len(self.history), wall_seconds=time.monotonic() - self._built_at)
+        write_manifest(run_dir / "manifest.json", manifest)
         self._emit({"tick": self.tick, "text": f"Recorded {len(self.history)} ticks as run '{run_id}'", "level": "good", "kind": "session"})
         return run_id
 

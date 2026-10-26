@@ -4,6 +4,8 @@ content, cue gating and homeostatic pacing.
 Each mechanism has a config switch. The last test proves the redesign is purely
 additive: with every switch off (and the old value_gain), the lab-console
 scenarios reproduce, bit for bit, traces recorded on the code before it.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from __future__ import annotations
@@ -512,6 +514,7 @@ def legacy_digest(scenario_id: str, noise: float, value_gain: float, overrides: 
     return hashlib.sha256((run_hash.hexdigest() + extra.hexdigest()).encode()).hexdigest()
 
 
+@pytest.mark.exact_hash  # compares against the committed steering_legacy_hashes.json (pytest.ini)
 @pytest.mark.parametrize("scenario_id,noise,value_gain", LEGACY_CASES)
 def test_all_features_off_reproduces_the_pre_redesign_traces(scenario_id, noise, value_gain):
     digest = legacy_digest(scenario_id, noise, value_gain, ALL_OFF)

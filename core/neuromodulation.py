@@ -1,18 +1,18 @@
-"""Neuromodulator updates driven by real state signals.
+"""Four scalar neuromodulator traces, deterministic functions of reward, pain and the working-memory novelty bit.
 
-Previously these were a bounded random walk read by nothing. Now they are
-deterministic functions of the agent's situation:
+- DA = 0.5 + 0.5 * clamp(reward - running mean of reward): reward minus an EMA,
+  not a prediction error over states. In reward-free protocols it sits at
+  exactly 0.5.
+- NE = 0.5 * pain + 0.5 * novelty, where novelty is the checksum-changed bit
+  (1 on every tick at sensor noise 0.03).
+- ACh = that bit.
+- 5HT = 0.5 + 0.5 * clamp(running mean): a lagged copy of DA's input.
 
-- **Dopamine (DA)** encodes a reward-prediction error: it rises above its 0.5
-  baseline on better-than-expected reward and falls below on worse. The engine
-  feeds DA into action selection (low DA boosts exploration), so dopamine
-  closes a causal loop onto behaviour.
-- **Norepinephrine (NE)** tracks arousal from pain and novelty.
-- **Acetylcholine (ACh)** tracks sensory novelty (a proxy for uncertainty).
-- **Serotonin (5HT)** tracks a slow mood baseline (expected reward).
-
-NE/ACh/5HT are honest state readouts but do not yet drive behaviour; only DA
-does. See RECOMMENDATIONS.md for the remaining work to make them control signals.
+Each enters action selection through one gain in BasalGangliaConfig
+(dopamine_explore_gain, ach_precision_gain, ne_threat_gain,
+fiveht_patience_gain); the research profile sets all four to 0 and keeps the
+traces logged. Measured traces: tools/probes/neuromod_traces and
+novelty_pinning.
 """
 
 from __future__ import annotations

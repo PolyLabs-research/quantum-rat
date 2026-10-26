@@ -33,13 +33,16 @@ START_POSE: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # x, y, heading (all s
 # memory_maze and hidden_food pace with a higher threshold (GATE_SAFE_PACE_LOW).
 PACE_REST_BONUS = 5.0
 # Gate-safe pacing (memory_maze, hidden_food): rest before ATP reaches the
-# level (0.55, hard-coded in TRNGate.trn_state) below which the TRN narrows the
+# level (0.55, `TRNConfig.open_at_atp`) below which the TRN narrows the
 # sensory gate. The gate also scales the egomotion fed to path integration, so
 # a fatigued agent's internal frame drifts: in the maze a long search on the
 # visible trial (a start facing away from the goal) shifts it by up to 12 m and
 # the goal it learns is in the wrong place; in hidden_food, where nothing resets
 # the frame, it reaches 16-37 m after 3000 ticks. The default pace_low (0.4)
 # lies below that level and does not prevent the drift.
+# Kept a literal (0.55 + 0.05 is 0.6000000000000001 in floating point, which
+# would move the pacing latch); tests/ui/test_sim_session.py checks it stays
+# above TRNConfig().open_at_atp.
 GATE_SAFE_PACE_LOW = 0.6
 MAZE_PACE_LOW = GATE_SAFE_PACE_LOW
 
@@ -111,9 +114,13 @@ class OpenField(Scenario):
     title = "Open field"
     summary = "An empty arena. The agent explores, tires, sleeps and replays."
     watch = (
-        "Wall-following exploration driven by novelty and wall avoidance",
+        "Exploration driven by a forward bias, the novelty bit (1 on any tick whose observation "
+        "changed, which here means the agent moved) and wall avoidance at 12 m range; the agent "
+        "keeps to the middle (85% of ticks in the central 10 x 10 m, under 3% within 1 m of a wall)",
         "Effort drains ATP; sustained running triggers microsleep and replay",
-        "Avalanches spreading on the criticality lattice; drag the E/I coupling to change regime",
+        "Avalanches spreading on the criticality lattice. It is bond percolation: subcritical at "
+        "the default coupling 0.25 (κ settles near 0.91 with the exponent-1.5 estimator), spanning "
+        "avalanches from 0.35, critical at 0.5, just above the slider's 0.45",
     )
 
     def __init__(self) -> None:
@@ -137,7 +144,8 @@ class Beacon(Scenario):
     summary = "A visible beacon hops to a new spot each time the agent reaches it."
     watch = (
         "Vision rays lock onto the beacon and steer the agent toward it",
-        "Dopamine spikes on arrival (better than expected), then dips when the beacon jumps away",
+        "Dopamine (reward minus its running mean) hits 1.0 on arrival; between beacons it tracks "
+        "the approach reward against that mean",
         "The value map remembers where the beacon was, but memory is muted while the beacon is "
         "in view (cue gating). Set cue gating of memory to 0 and old spots can pull the agent "
         "away from the beacon it is looking at",
@@ -186,7 +194,8 @@ class Foraging(Scenario):
     summary = "Five food items to collect; the patch refills once it is cleared."
     watch = (
         "A wide field of view lets the agent notice food off to the side",
-        "Each collection is a reward: watch dopamine and the value map build up",
+        "Each collection is a reward: dopamine (reward minus its running mean) hits 1.0 on contact "
+        "and sits below 0.5 on most other ticks once the mean is up; the value map builds up",
         "Narrow the field of view and foraging slows down",
     )
     RADIUS = 1.0
@@ -238,7 +247,7 @@ class HazardField(Scenario):
     title = "Hazard field"
     summary = "Food lies beyond hazards. Contact hurts; the agent learns where not to linger."
     watch = (
-        "Pain near a hazard drives norepinephrine (arousal) and a brief freeze; the freeze "
+        "Pain near a hazard raises norepinephrine (half pain plus half the novelty bit) and a brief freeze; the freeze "
         "habituates, so the agent does not stay stuck in the pain zone",
         "Reward goes negative in the pain zone; the value map turns red there",
         "Raise NE → threat sensitivity for a more cautious agent",
@@ -290,21 +299,22 @@ class HazardField(Scenario):
 class MemoryMaze(Scenario):
     id = "memory_maze"
     title = "Memory maze"
-    summary = "Water-maze recall: find a visible goal once, then return to it after it is hidden."
+    summary = "Hidden-goal recall: find a visible goal once, then return to it after it is hidden."
     watch = (
         "Trial 1: vision guides the agent to the goal, laying down a trajectory",
         "Sleep: replay propagates value backward along the path (watch the value map light up)",
         "Later trials: the goal is invisible; the agent navigates from its value map",
-        "Turn replay off and restart to compare: online learning alone still recalls, but each "
-        "recall takes longer (median ~16 vs ~10 ticks), so fewer fit in a session. The very first "
-        "hidden trial is not faster with replay (15 vs 13 ticks at the default goal)",
+        "Turn replay off and restart to compare: online learning alone still recalls, but early "
+        "recalls take longer (median 16 vs 10 ticks over the first 1,500 ticks; by 3,000 ticks both "
+        "medians are 10), so fewer fit in a session (about 240 vs 300 in 3,000 ticks at seed 1337). "
+        "The very first hidden trial is not faster with replay (15 vs 13 ticks at the default goal)",
         "Turn the inter-trial rest off: the agent now has to stop and recover mid-trial "
         "(fatigue pacing), so recalls take longer and fewer fit in a session. Set fatigue "
         "pacing to 0 as well: the agent tires, its sensory gate narrows, path integration "
         "drifts (the hollow ghost) and recall starts to fail",
         "Started facing away from the goal, the visible trial is a long search, so the replayed "
         "gradient has faded to nothing at the start. Sleep also stores the goal's place, and where "
-        "the map is flat the agent turns toward it (goal vector). Fatigue pacing keeps the "
+        "the map is flat the agent turns toward it: oracle homing (goal vector). Fatigue pacing keeps the "
         "sensory gate open during the search so that place is stored where it really is. The stored "
         "place is forgotten after two visits in a row that find no goal there, so the stored place of "
         "a goal that moved stops pulling the agent (the value map can still lead it back there for a "
@@ -327,7 +337,7 @@ class MemoryMaze(Scenario):
 
     def config(self) -> EngineConfig:
         config = memory_nav_config()
-        config.value_memory.goal_vector = True
+        config.value_memory.oracle_homing = True  # the goal-vector slot (an oracle control condition)
         config.basal_ganglia.pace_rest_bonus = PACE_REST_BONUS
         config.basal_ganglia.pace_low = MAZE_PACE_LOW
         return config
@@ -570,6 +580,29 @@ class HiddenFood(Scenario):
 
     def sites_found(self) -> int:
         return sum(1 for n in self.site_counts if n > 0)
+
+    BAND = (2.0, 3.0)  # the moved-sites control's band, in from the walls (the sites sit ~2.5 in)
+
+    @classmethod
+    def band_point(cls, rng: Any) -> Tuple[float, float]:
+        """A point uniform on the band ``BAND`` in from the walls of the 20-unit box.
+
+        Two ``rng.uniform(-8.0, 8.0)`` draws per candidate, rejected until the
+        candidate is in the band; ``rng`` is any object with ``uniform``
+        (``random.Random`` or a ``core.rng`` stream). The construction of the
+        moved-sites control, shared by tests/experiments/test_hidden_food.py and
+        experiments/g23_remeasure.py so it is defined once.
+        """
+        low, high = cls.BAND
+        while True:
+            x, y = rng.uniform(-8.0, 8.0), rng.uniform(-8.0, 8.0)
+            if low <= 10.0 - max(abs(x), abs(y)) <= high:
+                return x, y
+
+    def jump_sites(self, rng: Any) -> None:
+        """Move every site to a fresh :meth:`band_point` (the moved-sites control), in site order."""
+        for item in self.items:
+            item.x, item.y = self.band_point(rng)
 
     BLOCK = 500  # ticks per block of the learning curve
 

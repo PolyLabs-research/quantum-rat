@@ -76,7 +76,7 @@ class ValueMemory:
         # with positive reward (see replay_backup). With the default
         # primary-only map that is target contact; with learn_shaping on,
         # approach steps carry positive reward too and would also be written.
-        # Only read when the engine's value_memory.goal_vector is on.
+        # Only read when the engine's value_memory.oracle_homing (alias goal_vector) is on.
         self.goal_cell: Optional[Cell] = None
 
     def _kernel(self, cell: Cell) -> Iterable[Tuple[Cell, float]]:

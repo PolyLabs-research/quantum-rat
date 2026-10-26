@@ -43,7 +43,11 @@ Noise caveat: sensor noise (default 0.03) makes each seed a genuinely different
 run, so the numbers are distributions. At noise 0 the seed barely matters
 (different seeds usually give the identical run), so ``--seeds N`` at noise 0
 is close to N copies of one sample; vary the start heading instead
-(``--noise 0 --seeds 1 --headings 8``). Noise is also not neutral. In the stock
+(``--noise 0 --seeds 1 --headings 8``). Since M0b item 8 the harness refuses
+several seeds on a config with no stochastic element on (noise 0 and no
+odometry noise or softmax temperature among the ``--set`` overrides) unless
+``--allow-identical-seeds`` is given, which prints a warning and runs them
+(``core.seeds``). Noise is also not neutral. In the stock
 engine (6c0ea9d, max-norm steering with shaping in the map) clamped pain noise
 entered the value map and acted as a hidden cost on dwelling, which masked
 value-induced REST. Since G14 and G16 the map only learns pain above max(0.05,
@@ -62,10 +66,16 @@ Metrics per run (higher is better unless noted):
                 hidden trial, reached or timed out; lower is better; None if no
                 hidden trial started), train_ticks (the visible trial; None if
                 it did not end) and timeouts (hidden trials that timed out)
-  all           vrest: share of all ticks on which REST was chosen although the
-                same tick's scores without the value terms (FORWARD, TURN_LEFT and
-                TURN_RIGHT minus value_gain * the value signal fed to them) would
-                not choose REST. Microsleep ticks never count. Lower is better.
+  all           vrest: share of all ticks on which the agent rested, REST was the
+                argmax of the tick's scores, and the same scores without the value
+                terms (FORWARD, TURN_LEFT and TURN_RIGHT minus value_gain * the
+                value signal fed to them) would not make REST the argmax. Under a
+                softmax temperature a REST the sampler drew while the argmax was a
+                move is the sampler's, not the value drive's, and does not count
+                (M1; before it every sampled REST whose counterfactual argmax was
+                a move counted, docs/decisions.md G24 D). At temperature 0 the two
+                readings are the same tick set. Microsleep ticks never count.
+                Lower is better.
 
 Summary per noise block: per scenario and gain the mean/min/max score and mean
 vrest; robustness() (gains within 80% of each scenario's own best);
@@ -81,11 +91,14 @@ import math
 import statistics
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import ui.scenarios as scenarios_module
 from brain.systems.spatial import wrap_angle
+from core.config import EngineConfig
 from core.engine import Engine
+from core.seeds import require_seeds_are_samples
+from metrics.hash import RunHash
 from ui.scenarios import make_scenario
 
 SCENARIOS = ("beacon", "foraging", "hazard_field", "hidden_food", "memory_maze")
@@ -99,7 +112,24 @@ ACTION_ORDER = ("FORWARD", "TURN_LEFT", "TURN_RIGHT", "REST")  # selection tie-b
 BAND_THRESHOLDS = (0.8, 0.85)
 RECALL_OK = 0.9  # a maze run "recalls" when at least this share of its hidden trials reach the goal
 
+# The fields of a run_job row that describe the job rather than its outcome. Everything
+# else in a row (score, the task's counters, vrest, trace_hash) is what the run produced:
+# the vector a pseudo-replication guard compares between seeds.
+JOB_FIELDS = ("scenario", "value_gain", "seed", "noise", "heading", "ticks")
+
 Summary = Dict[str, Dict[float, Dict[str, Any]]]
+
+
+def outcome_fields(row: Mapping[str, Any]) -> Dict[str, Any]:
+    """A run_job row without its :data:`JOB_FIELDS`: the run's outcome, trace hash included."""
+    return {key: value for key, value in row.items() if key not in JOB_FIELDS}
+
+
+# A per-run hook called as ``hook(engine, scenario, tick)`` before each tick's engine
+# step; ``Job.before_tick`` is a zero-argument factory that makes one per run, so the
+# hook can own state (an RNG stream) that starts fresh for every run and the Job stays
+# picklable for the worker pool (a module-level function is).
+TickHook = Callable[[Any, Any, int], None]
 
 
 @dataclass(frozen=True)
@@ -111,6 +141,7 @@ class Job:
     ticks: int
     overrides: Tuple[Tuple[str, Any], ...] = ()
     heading: Optional[float] = None  # start heading in radians; None = START_POSE as is
+    before_tick: Optional[Callable[[], TickHook]] = None  # see TickHook; None = plain run
 
 
 MazeHeadings = Union[None, str, int]
@@ -147,14 +178,10 @@ def headings_for(scenario: str, n: Optional[int], maze: MazeHeadings = None) -> 
     return [2.0 * math.pi * i / n for i in range(n)]
 
 
-def _set(config: Any, key: str, value: Any) -> None:
-    obj = config
-    parts = key.split(".")
-    for part in parts[:-1]:
-        obj = getattr(obj, part)
-    if not hasattr(obj, parts[-1]):
-        raise AttributeError(f"config has no field {key!r}")
-    setattr(obj, parts[-1], value)
+def set_field(config: EngineConfig, key: str, value: Any) -> None:
+    """Set the dotted config field ``key`` (``"sensors.noise"``) to ``value``: ``EngineConfig.set_field``
+    (an unknown field is an ``AttributeError``), kept here as the name the harness's callers import."""
+    config.set_field(key, value)
 
 
 def _winner(scores: Mapping[str, float]) -> str:
@@ -162,7 +189,7 @@ def _winner(scores: Mapping[str, float]) -> str:
 
 
 def is_value_rest(ctx: Any, value_gain: float) -> bool:
-    """True when this tick chose REST but the no-value counterfactual would not.
+    """True when this tick rested, REST is the argmax of its scores, and the no-value counterfactual argmax is not REST.
 
     Reads the display-only readouts the engine leaves on its context:
     ``action_scores``, ``value_signals`` (the effective signals fed to action
@@ -173,13 +200,23 @@ def is_value_rest(ctx: Any, value_gain: float) -> bool:
     checks this against the engine's own scores recomputed with zero value input.
     Microsleep ticks (scores ``{"REST": 1.0}`` only) and engines that expose no
     scores never count.
+
+    The attribution is made on the argmax of the scores, not on the sampled
+    action: under ``basal_ganglia.softmax_temperature > 0`` a REST the sampler
+    drew while the argmax was a move is the sampler's doing, not the value
+    drive's, and is not counted (so at value_gain 0 nothing is, the
+    counterfactual being the scores themselves). At temperature 0 the
+    engine's action is the argmax with the same tie order, so the two
+    readings coincide and the pinned outputs are unchanged. Without
+    ``action_name`` the argmax stands in for the action taken.
     """
     scores = getattr(ctx, "action_scores", None) or {}
     if any(name not in scores for name in ACTION_ORDER):
         return False  # microsleep ({"REST": 1.0}) or no readout
-    chosen = getattr(ctx, "action_name", None) or _winner(scores)
-    if chosen != "REST":
-        return False
+    argmax = _winner(scores)
+    rested = getattr(ctx, "action_name", None) or argmax
+    if rested != "REST" or argmax != "REST":
+        return False  # no REST happened, or a sampled REST the argmax would not have chosen
     signals = tuple(getattr(ctx, "value_signals", None) or (0.0, 0.0, 0.0))
     ahead, left, right = (tuple(signals) + (0.0, 0.0, 0.0))[:3]
     counterfactual = dict(scores)
@@ -195,7 +232,55 @@ def _apply_heading(engine: Engine, heading: float) -> None:
     engine.spatial.state.hd_angle = wrap_angle(heading)
 
 
+def _job_config(job: Job, scenario: Any) -> EngineConfig:
+    """The engine config a job runs with: the scenario's own, plus the job's noise, overrides and gain."""
+    config = scenario.config()
+    config.sensors.noise = job.noise
+    for key, value in job.overrides:
+        set_field(config, key, value)
+    if job.value_gain is not None:
+        config.basal_ganglia.value_gain = job.value_gain
+    return config
+
+
+def check_seeds_are_samples(jobs: Sequence[Job], allow_identical_seeds: bool = False) -> None:
+    """The pseudo-replication guard (core.seeds) over a job list.
+
+    Jobs that differ only in their seed are one group; a group of more than
+    one seed must have a stochastic element on in its config (sensor noise,
+    odometry noise or a softmax temperature, possibly from ``--set``), or
+    ``PseudoReplicationError`` is raised, unless ``allow_identical_seeds``, in
+    which case a warning line is printed and the jobs run. The guard is called
+    once per distinct set of enabled elements, so the warning prints once.
+    """
+    seeds: Dict[Tuple[Any, ...], set] = {}
+    first: Dict[Tuple[Any, ...], Job] = {}
+    for job in jobs:
+        key = (job.scenario, job.noise, job.overrides, job.value_gain, job.heading, job.ticks)
+        seeds.setdefault(key, set()).add(job.seed)
+        first.setdefault(key, job)
+    checked: set = set()
+    for key, group in seeds.items():  # insertion order: the job order
+        if len(group) < 2:
+            continue
+        job = first[key]
+        config = _job_config(job, make_scenario(job.scenario))
+        elements = tuple(config.stochastic_elements())
+        if elements in checked:
+            continue
+        checked.add(elements)
+        require_seeds_are_samples(config, len(group), allow_identical_seeds=allow_identical_seeds)
+
+
 def run_job(job: Job) -> Dict[str, Any]:
+    """One run: the scenario's config plus the job's noise, overrides and gain, ``job.ticks`` ticks.
+
+    With ``job.before_tick`` set, its factory is called once and the hook it
+    returns runs before every tick's engine step (the moved-sites control of
+    hidden food moves the sites this way); the row's fields do not change.
+    Every row carries ``trace_hash``, the gate's full ``RunHash`` over the
+    run's ticks, so two runs with the same scores can still be told apart.
+    """
     saved_pose = scenarios_module.START_POSE
     maze_pose = job.heading is not None and job.scenario == "memory_maze"
     try:
@@ -203,20 +288,20 @@ def run_job(job: Job) -> Dict[str, Any]:
             # The maze teleports to START_POSE at every trial, so the heading must live there.
             scenarios_module.START_POSE = (0.0, 0.0, float(job.heading))
         scenario = make_scenario(job.scenario)
-        config = scenario.config()
-        config.sensors.noise = job.noise
-        for key, value in job.overrides:
-            _set(config, key, value)
-        if job.value_gain is not None:
-            config.basal_ganglia.value_gain = job.value_gain
+        config = _job_config(job, scenario)
         engine = Engine(seed=job.seed, config=config)
         scenario.setup(engine)
         if job.heading is not None and not maze_pose:
             _apply_heading(engine, job.heading)
         bg_config = getattr(engine.config, "basal_ganglia", None)
+        hook = job.before_tick() if job.before_tick is not None else None
+        run_hash = RunHash()
         value_rest = 0
-        for _ in range(job.ticks):
+        for tick in range(job.ticks):
+            if hook is not None:
+                hook(engine, scenario, tick)
             td = engine.run(1)[0]
+            run_hash.update(td)
             ctx = getattr(engine, "context", None)
             if ctx is not None and is_value_rest(ctx, getattr(bg_config, "value_gain", 0.0)):
                 value_rest += 1
@@ -255,6 +340,7 @@ def run_job(job: Job) -> Dict[str, Any]:
         out["train_ticks"] = visible[0]["ticks"] if visible else None
         out["timeouts"] = len(hidden) - len(reached)
     out["vrest"] = value_rest / job.ticks if job.ticks > 0 else 0.0
+    out["trace_hash"] = run_hash.hexdigest()
     return out
 
 
@@ -283,8 +369,15 @@ def make_jobs(
     ]
 
 
-def run_jobs(jobs: Sequence[Job], workers: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Run jobs in order; in-process when there is one job or ``workers == 1``."""
+def run_jobs(
+    jobs: Sequence[Job], workers: Optional[int] = None, *, allow_identical_seeds: bool = False
+) -> List[Dict[str, Any]]:
+    """Run jobs in order; in-process when there is one job or ``workers == 1``.
+
+    ``check_seeds_are_samples`` runs first: several seeds on a config with no
+    stochastic element are refused unless ``allow_identical_seeds``.
+    """
+    check_seeds_are_samples(jobs, allow_identical_seeds)
     if len(jobs) <= 1 or workers == 1:
         return [run_job(job) for job in jobs]
     with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -301,9 +394,11 @@ def sweep(
     workers: Optional[int] = None,
     headings: Optional[int] = None,
     maze_headings: MazeHeadings = None,
+    allow_identical_seeds: bool = False,
 ) -> List[Dict[str, Any]]:
     """Rows for every (scenario, gain, seed, heading). ``ticks``: int or per-scenario budgets."""
-    return run_jobs(make_jobs(scenarios, gains, seeds, noise, overrides, ticks, headings, maze_headings), workers)
+    jobs = make_jobs(scenarios, gains, seeds, noise, overrides, ticks, headings, maze_headings)
+    return run_jobs(jobs, workers, allow_identical_seeds=allow_identical_seeds)
 
 
 def sweep_both(
@@ -316,11 +411,12 @@ def sweep_both(
     workers: Optional[int] = None,
     headings: int = NOISE_BOTH_HEADINGS,
     maze_headings: MazeHeadings = None,
+    allow_identical_seeds: bool = False,
 ) -> List[Dict[str, Any]]:
     """``noise`` over ``seeds`` at the default heading, then noise 0 over headings at ``seeds[0]``."""
     seeded = make_jobs(scenarios, gains, seeds, noise, overrides, ticks)
     headed = make_jobs(scenarios, gains, list(seeds)[:1], 0.0, overrides, ticks, headings, maze_headings)
-    return run_jobs(seeded + headed, workers)
+    return run_jobs(seeded + headed, workers, allow_identical_seeds=allow_identical_seeds)
 
 
 def by_noise(rows: Sequence[Mapping[str, Any]]) -> Dict[float, List[Mapping[str, Any]]]:
@@ -516,6 +612,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                         help="config override applied to every run, e.g. value_memory.lookahead=1.5")
     parser.add_argument("--json", action="store_true", help="print raw rows as JSON")
+    parser.add_argument("--allow-identical-seeds", action="store_true",
+                        help="run several seeds although no stochastic element is on (one sample, "
+                             "not N; prints a warning instead of refusing, see core.seeds)")
     args = parser.parse_args(argv)
     if args.seeds < 1:
         parser.error("--seeds must be >= 1")
@@ -538,10 +637,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     seeds = range(args.seed_start, args.seed_start + args.seeds)
     if args.noise_both:
         rows = sweep_both(scenarios, gains, seeds, args.noise, overrides, args.ticks, args.workers,
-                          args.headings or NOISE_BOTH_HEADINGS, args.maze_headings)
+                          args.headings or NOISE_BOTH_HEADINGS, args.maze_headings,
+                          allow_identical_seeds=args.allow_identical_seeds)
     else:
         rows = sweep(scenarios, gains, seeds, args.noise, overrides, args.ticks, args.workers, args.headings,
-                     args.maze_headings)
+                     args.maze_headings, allow_identical_seeds=args.allow_identical_seeds)
     if args.json:
         print(json.dumps(rows, indent=1))
         return

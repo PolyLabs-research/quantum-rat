@@ -42,6 +42,8 @@ The recall counts differ a lot between headings (9-128): a long, wandering
 demonstration still leaves a slow route where the map is not quite flat
 (e.g. heading 5.11: 9 recalls), because the vector only steers where the map
 is flat.
+
+These tests pin the legacy profile (EngineConfig() defaults); see docs/decisions.md G22 and docs/profiles.md.
 """
 
 from __future__ import annotations
