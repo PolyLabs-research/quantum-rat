@@ -191,6 +191,10 @@ class RewardConfig:
 
 @dataclass
 class ValueMemoryConfig:
+    # What the steering reads (M2b step 4, docs/prereg/m2b_gate.md): "tabular", this map over the estimate's bins (every
+    # profile so far); "sr", the successor representation's value V = M R over the place code (needs place.enabled;
+    # brain.systems.successor_features, PlaceConfig.sr_*); "none", no value steering. This map learns in all three.
+    source: str = "tabular"
     learning_rate: float = 0.2
     discount: float = 0.9
     capacity: int = 200  # trajectory length retained for replay
@@ -278,6 +282,10 @@ class ValueMemoryConfig:
     def goal_vector(self, value: bool) -> None:
         self.oracle_homing = value
 
+    def __post_init__(self) -> None:
+        if self.source not in VALUE_SOURCES:
+            raise ValueError(f"value_memory.source must be one of {VALUE_SOURCES}, got {self.source!r}")
+
 
 @dataclass
 class SpatialConfig:
@@ -329,9 +337,19 @@ class PlaceConfig:
     width: float = 1.0  # the Gaussian's sd, units (0.1 m; full width at half maximum 0.24 m)
     max_rate: float = 1.0
     extent: Optional[Tuple[float, float]] = None
+    # M2b step 4: the SR over the population, learned online when value_memory.source is "sr" (successor features from
+    # the identity by TD(0) on the normalised rates; the reward weights R by normalised least mean squares on the map
+    # reward at arrival, R += reward_learning_rate * (r - phi.R) phi / |phi|^2). V(p) = phi(p) . (M^T R).
+    sr_learning_rate: float = 0.1
+    sr_discount: float = 0.95
+    reward_learning_rate: float = 0.5
+    # How R learns: "nlms" (the preregistered rule above; a regression of the point reward on overlapping fields, which
+    # rings the goal with negative weights: decisions G36) or "per_feature", exploratory (each weight tracks the reward
+    # seen while its cell is active, R += reward_learning_rate * phi * (r - R), so R >= 0 when rewards are >= 0).
+    reward_rule: str = "nlms"
 
     def __post_init__(self) -> None:
-        for name in ("spacing", "width", "max_rate"):
+        for name in ("spacing", "width", "max_rate", "sr_learning_rate", "reward_learning_rate"):
             value = getattr(self, name)
             if not (math.isfinite(value) and value > 0.0):
                 raise ValueError(f"place.{name} must be a positive finite number, got {value!r}")
@@ -340,6 +358,16 @@ class PlaceConfig:
             if len(extent) != 2 or not all(math.isfinite(e) and e > 0.0 for e in extent):
                 raise ValueError("place.extent must be two positive finite half-extents, or None")
             object.__setattr__(self, "extent", extent)
+        if not (math.isfinite(self.sr_discount) and 0.0 <= self.sr_discount < 1.0):
+            raise ValueError("place.sr_discount must be in [0, 1)")
+        if self.reward_rule not in REWARD_RULES:
+            raise ValueError(f"place.reward_rule must be one of {REWARD_RULES}, got {self.reward_rule!r}")
+
+
+REWARD_RULES: Tuple[str, ...] = ("nlms", "per_feature")
+
+
+VALUE_SOURCES: Tuple[str, ...] = ("tabular", "sr", "none")
 
 
 @dataclass
@@ -772,6 +800,7 @@ __all__ = [
     "BasalGangliaConfig",
     "EngineConfig",
     "HEADING_SOURCES",
+    "VALUE_SOURCES",
     "STOCHASTIC_PARAMETERS",
     "config_diff",
 ]

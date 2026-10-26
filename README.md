@@ -312,6 +312,10 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 * `experiments/sr_fields.py` — M2b step 3: successor features over the place code, learned by
   TD (`brain/systems/successor_features.py`), on forced laps of a 2 m track (one-way and two-way)
   and on the agent's own walk in the open field (`docs/prereg/m2b_sr_fields.md`; `docs/data/m2b/sr/`).
+* `experiments/rq4a_gate.py` — M2b step 4: the RQ4(a) gate, relative to the visible-goal ceiling
+  (the owner's decision, G36), with the SR's value read-out V = M·R steering
+  (`value_memory.source = "sr"`; `"tabular"`, the default, and `"none"` as ablation and control)
+  (`docs/prereg/m2b_gate.md`; `docs/data/m2b/gate/`).
 
 ### Tournaments
 * **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.
