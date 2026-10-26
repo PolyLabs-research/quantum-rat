@@ -4,7 +4,7 @@
 
 import { api } from './api.js';
 import { ArenaView, buildArenaLegend } from './arena.js';
-import { CompassPanel, CriticalityPanel, DecisionPanel, EnergyPanel, ModulatorPanel, frameTableGroups, renderTable } from './brain.js';
+import { CompassPanel, CriticalityPanel, DecisionPanel, EnergyPanel, ModulatorPanel, PlaceCodePanel, frameTableGroups, renderTable } from './brain.js';
 import { LineChart } from './charts.js';
 import { MODULATORS, onThemeChange } from './theme.js';
 import { $, $$, clear, debounce, el, fmt, fmtAny, fmtSigned, store, toast } from './util.js';
@@ -36,6 +36,9 @@ export class LiveController {
     this.lastChartsAt = 0;
     this.rateSamples = [];
     this.statusKey = '';
+    this.profile = 'legacy'; // the engine profile sessions are started on (docs/profiles.md)
+    this.profileInfo = null; // {id, overrides} of the running session
+    this.placeGrid = null; // the place population's grid (research profile), once per session
     this._loop = this._loop.bind(this);
     this._resetBuffers();
 
@@ -45,6 +48,7 @@ export class LiveController {
     this.energy = new EnergyPanel($('#energy'));
     this.crit = new CriticalityPanel($('#criticality'));
     this.compass = new CompassPanel($('#compass'));
+    this.placeCode = new PlaceCodePanel($('#placecode'));
     this.inspector = $('#inspector');
     this.inspectorDetails = this.inspector.closest('details');
 
@@ -99,8 +103,56 @@ export class LiveController {
     const speed = Number.parseInt(params.get('speed') ?? '', 10);
     if (Number.isFinite(speed) && speed > 0) this._setSpeed(speed);
     if (params.get('paused') === '1') this.wantPlay = false;
+    const profiles = (this.meta.profiles || []).map((p) => p.id);
+    let profile = params.get('profile') || store.get('quantum-rat-profile') || this.meta.default_profile || 'legacy';
+    if (!profiles.includes(profile)) profile = this.meta.default_profile || 'legacy';
+    this.profile = profile;
+    this._buildProfileList();
     this._buildScenarioList();
     await this.start(scenario, Number.isFinite(seed) ? seed : this.meta.default_seed);
+  }
+
+  _buildProfileList() {
+    const list = clear($('#profile-list'));
+    for (const p of this.meta.profiles || []) {
+      list.append(
+        el('button', {
+          class: 'seg-btn',
+          type: 'button',
+          role: 'radio',
+          'aria-checked': String(p.id === this.profile),
+          dataset: { id: p.id },
+          title: p.summary,
+          text: p.label,
+          onclick: () => this.setProfile(p.id),
+        }),
+      );
+    }
+  }
+
+  setProfile(id) {
+    if (id === this.profile) return;
+    this.profile = id;
+    store.set('quantum-rat-profile', id);
+    this.start(this.scenario?.id || store.get('quantum-rat-scenario') || 'foraging', this.seed ?? this.meta.default_seed);
+  }
+
+  _renderProfileNote() {
+    const host = clear($('#profile-note'));
+    const info = this.profileInfo;
+    if (!info) return;
+    const meta = (this.meta.profiles || []).find((p) => p.id === info.id);
+    for (const btn of $$('.seg-btn')) btn.setAttribute('aria-checked', String(btn.dataset.id === info.id));
+    host.append(el('span', { text: meta ? meta.summary : info.id }));
+    if (info.overrides && info.overrides.length) {
+      host.append(
+        el('span', { class: 'over' }, `This scenario keeps its own settings on top of the profile: ${info.overrides
+          .map(([field, profileValue, scenarioValue]) => `${field} ${fmtAny(profileValue)} → ${fmtAny(scenarioValue)}`)
+          .join('; ')}.`),
+      );
+    } else if (info.id !== 'legacy') {
+      host.append(el('span', { class: 'over', text: 'This scenario runs the profile as it is.' }));
+    }
   }
 
   _buildScenarioList() {
@@ -176,7 +228,7 @@ export class LiveController {
     this._stopLoop();
     if (old) api(`/api/sim/${old}`, { method: 'DELETE' }).catch(() => {});
     try {
-      const payload = await api('/api/sim', { method: 'POST', body: { scenario: scenarioId, seed } });
+      const payload = await api('/api/sim', { method: 'POST', body: { scenario: scenarioId, seed, profile: this.profile } });
       store.set('quantum-rat-scenario', scenarioId);
       this.defaults = Object.fromEntries(payload.params.map((p) => [p.key, p.value]));
       this._load(payload, { fresh: true });
@@ -202,6 +254,12 @@ export class LiveController {
     this.sid = payload.id;
     this.seed = payload.seed;
     this.scenario = payload.scenario;
+    this.profileInfo = payload.profile || { id: 'legacy', overrides: [] };
+    this.profile = this.profileInfo.id;
+    this.placeGrid = payload.place || null;
+    this._renderProfileNote();
+    for (const label of $$('[data-research]')) label.hidden = !this.placeGrid;
+    this.placeCode.setGrid(this.placeGrid);
     this.seq = 0;
     this._resetBuffers();
     $('#seed').value = String(payload.seed);
@@ -214,7 +272,16 @@ export class LiveController {
     this._events(payload.events);
     this.frame = payload.frame;
     this._pushTrail(payload.frame.agent.x, payload.frame.agent.y);
-    this.arena.set({ trail: this.trail, valueMap: payload.value_map, targetLabel: TARGET_LABEL[payload.scenario.id] || 'target' });
+    this.arena.set({
+      trail: this.trail,
+      valueMap: payload.value_map,
+      targetLabel: TARGET_LABEL[payload.scenario.id] || 'target',
+      placeGrid: this.placeGrid,
+      placeRates: null,
+      srValue: null,
+      srField: null,
+      replayTrails: [],
+    });
     this.crit.setHistogram(payload.histogram);
     this.legendKinds = '';
     this.statusKey = '';
@@ -519,10 +586,19 @@ export class LiveController {
 
     const kinds = new Set(f.world.objects.map((o) => o.kind));
     if (this.scenario && (this.scenario.id === 'memory_maze' || this.scenario.id === 'hidden_food')) kinds.add('hidden');
-    const kindKey = [...kinds].sort().join(',');
+    const kindKey = `${[...kinds].sort().join(',')}|${f.place ? 'place' : ''}|${f.sr ? 'sr' : ''}`;
     if (kindKey !== this.legendKinds) {
       this.legendKinds = kindKey;
-      buildArenaLegend($('#arena-legend'), { kinds, targetLabel: TARGET_LABEL[this.scenario?.id] || 'target', value: true, rays: true, estimate: true });
+      buildArenaLegend($('#arena-legend'), {
+        kinds,
+        targetLabel: TARGET_LABEL[this.scenario?.id] || 'target',
+        value: true,
+        rays: true,
+        estimate: true,
+        place: !!f.place,
+        sr: !!f.sr,
+        replay: true,
+      });
     }
     this.arena.set({
       bounds: f.world.bounds,
@@ -539,9 +615,17 @@ export class LiveController {
       goalCell: f.goal ?? null,
       microsleep: f.microsleep.active,
       trail: this.trail,
+      tick: f.tick,
+      replayTrails: f.replay_trails || [],
+      placeRates: f.place ? f.place.rates : null,
+      srValue: f.sr ? f.sr.value : null,
+      srValueMax: f.sr ? f.sr.value_max : 0,
+      srField: f.sr ? f.sr.field : null,
+      srFieldMax: f.sr ? f.sr.field_max : 0,
     });
 
     this.decision.update(f.action);
+    this.placeCode.update(f);
     const spark = Object.fromEntries(MODULATORS.map((m) => [m.key, this.buf[m.key].slice(-SPARK)]));
     this.mods.update(f.mod, spark);
     this.energy.update(f);
@@ -633,6 +717,7 @@ export class LiveController {
     this.arena.render();
     this.crit.redraw();
     this.compass.redraw();
+    this.placeCode.redraw();
     this._render(true);
     for (const c of Object.values(this.charts)) c.render();
   }

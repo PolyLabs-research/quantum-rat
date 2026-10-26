@@ -75,6 +75,50 @@ def teleport_to_start(engine: Engine) -> None:
     engine.begin_episode()
 
 
+# The engine profiles a live session can run a scenario on (docs/profiles.md). A
+# scenario's ``config()`` is its own settings on the legacy base; ``profile_config``
+# puts the same settings on another profile's base.
+PROFILES: Tuple[Dict[str, str], ...] = (
+    {"id": "legacy", "label": "Legacy",
+     "summary": "The toy brain as the scenarios were built for it: fatigue, microsleep and replay, the criticality "
+                "lattice and the neuromodulators all reach behaviour; the tabular value map steers."},
+    {"id": "research", "label": "Research",
+     "summary": "The research instrument (docs/profiles.md): seeded odometry noise and softmax, a declared heading "
+                "oracle, the wall-contact reset, a 400-cell place population and the successor-representation value "
+                "steering; ATP is frozen, so no fatigue, microsleep or lattice coupling."},
+)
+PROFILE_IDS: Tuple[str, ...] = tuple(p["id"] for p in PROFILES)
+DEFAULT_PROFILE = "legacy"
+
+Override = Tuple[str, Any, Any]  # dotted field, the profile's value, the scenario's value
+
+
+def profile_config(scenario: "Scenario", profile: str = DEFAULT_PROFILE) -> Tuple[EngineConfig, List[Override]]:
+    """The scenario's configuration on a profile, with the scenario's own settings listed.
+
+    A scenario's ``config()`` is written on the legacy base (``EngineConfig()``), so its
+    own settings are its diff from that base: the arena's senses, the pacing, the maze's
+    value-map radius and goal memory. On ``"legacy"`` that config is returned as it is,
+    with no overrides. On ``"research"`` the same settings are applied on
+    ``EngineConfig.research()`` and returned with the list of fields they moved away from
+    the profile's value, so the console can say exactly how the session differs from the
+    profile (``reset`` rebuilds the same way; a recording's manifest carries the config).
+    """
+    if profile not in PROFILE_IDS:
+        raise ValueError(f"Unknown profile: {profile!r}; one of {PROFILE_IDS}")
+    own = scenario.config()
+    if profile == "legacy":
+        return own, []
+    base = EngineConfig.research()
+    overrides: List[Override] = []
+    for name, _legacy_value, scenario_value in EngineConfig.legacy().diff(own):
+        profile_value = base.get_field(name)
+        if profile_value != scenario_value:
+            base.set_field(name, scenario_value)
+            overrides.append((name, profile_value, scenario_value))
+    return base, overrides
+
+
 class Scenario:
     id = "base"
     title = "Scenario"
@@ -82,6 +126,7 @@ class Scenario:
     watch: Tuple[str, ...] = ()
 
     def config(self) -> EngineConfig:
+        """The scenario's own settings on the legacy base (see ``profile_config`` for another base)."""
         return EngineConfig()
 
     def setup(self, engine: Engine) -> None:
@@ -648,4 +693,5 @@ def list_scenarios() -> List[Dict[str, Any]]:
     return [cls().describe() for cls in SCENARIOS.values()]
 
 
-__all__ = ["Scenario", "SCENARIOS", "START_POSE", "make_scenario", "list_scenarios", "teleport_to_start"]
+__all__ = ["DEFAULT_PROFILE", "PROFILES", "PROFILE_IDS", "Scenario", "SCENARIOS", "START_POSE", "make_scenario",
+           "list_scenarios", "profile_config", "teleport_to_start"]

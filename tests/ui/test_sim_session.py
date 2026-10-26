@@ -8,6 +8,7 @@ import math
 
 import pytest
 
+from core.config import EngineConfig
 from ui.scenarios import SCENARIOS, list_scenarios
 from ui.sim_session import MAX_STEPS_PER_CALL, PARAMS, SessionStore, SimSession
 
@@ -206,3 +207,86 @@ def test_session_store_evicts_least_recently_used():
     assert store.get(a.id) is a and store.get(c.id) is c
     assert store.get(b.id) is None
     assert store.delete(a.id) and not store.delete(a.id)
+
+
+# --- the research profile in the console (docs/decisions.md G38) ---------------------------
+
+
+@pytest.mark.parametrize("scenario_id", sorted(SCENARIOS))
+def test_every_scenario_runs_on_the_research_profile_and_reports_the_place_code(scenario_id):
+    session = SimSession(scenario_id, seed=7, profile="research")
+    session.step(30)
+    frame = session.frame()
+    info = session.place_info()
+    assert frame["profile"] == "research" and session.engine.config.profile == "research"
+    assert info["n"] == info["nx"] * info["ny"] == len(info["cx"]) == len(info["cy"]) == 400
+    assert len(frame["place"]["rates"]) == len(frame["sr"]["value"]) == len(frame["sr"]["field"]) == 400
+    assert len(frame["sr"]["weights"]) == 400 and frame["sr"]["rule"] == "per_feature" and frame["sr"]["updates"] >= 1
+    assert frame["place"]["active"] >= 1 and 0.0 < frame["place"]["max"] <= 1.0
+    # The decoded position is the estimate (the decoder is exact for noiseless rates).
+    dx, dy = frame["place"]["decoded"]
+    assert math.hypot(dx - frame["agent"]["est_x"], dy - frame["agent"]["est_y"]) < 0.02
+    # The research profile freezes ATP and never sleeps; everything sent is plain JSON.
+    assert frame["energy"]["atp"] == 1.0 and frame["trn"]["state"] == "OPEN"
+    json.dumps(frame)
+    json.dumps(info)
+
+
+def test_the_legacy_profile_is_the_default_and_has_no_place_code():
+    session = SimSession("open_field", seed=7)
+    frame = session.frame()
+    assert session.profile == "legacy" == frame["profile"]
+    assert frame["place"] is None and frame["sr"] is None and session.place_info() is None
+    assert frame["replay_trails"] == []
+    with pytest.raises(ValueError):
+        SimSession("open_field", profile="toy")
+
+
+def test_profile_overrides_are_the_scenarios_own_settings_and_survive_a_reset():
+    session = SimSession("memory_maze", seed=3, profile="research")
+    fields = {name: (p, s) for name, p, s in session.profile_overrides}
+    assert fields["value_memory.generalization_radius"] == (0, 2)
+    assert fields["value_memory.oracle_homing"] == (False, True)
+    assert fields["reward.approach_weight"] == (1.0, 0.0)
+    cfg = session.engine.config
+    assert cfg.profile == "research" and cfg.trn.microsleep_enabled is False and cfg.place.enabled
+    assert cfg.value_memory.generalization_radius == 2 and cfg.value_memory.oracle_homing is True
+    session.reset(seed=4)
+    assert session.profile == "research" and session.engine.config.profile == "research"
+    # A scenario with no settings of its own runs the profile as it is.
+    plain = SimSession("open_field", seed=3, profile="research")
+    assert plain.profile_overrides == [] and plain.engine.config.diff(EngineConfig.research()) == []
+
+
+def test_research_params_are_live_and_the_oracle_noise_needs_the_oracle():
+    legacy = SimSession("open_field", seed=1)
+    with pytest.raises(ValueError):
+        legacy.set_param("sensors.heading_oracle_noise", 0.1)
+    assert legacy.set_param("sensors.heading_oracle_noise", 0.0) == 0.0
+    assert legacy.set_param("basal_ganglia.softmax_temperature", 0.2) == 0.2
+    research = SimSession("open_field", seed=1, profile="research")
+    assert research.set_param("sensors.heading_oracle_noise", 0.1) == 0.1
+    assert research.engine.config.sensors.heading_oracle_noise == 0.1
+    assert research.set_param("place.reward_learning_rate", 0.25) == 0.25
+    assert research.engine.config.place.reward_learning_rate == 0.25
+    assert "Estimate & sampling" in {p["group"] for p in research.params()}
+
+
+def test_same_seed_gives_identical_series_on_the_research_profile_and_differs_from_legacy():
+    a = SimSession("foraging", seed=11, profile="research").step(80)
+    b = SimSession("foraging", seed=11, profile="research").step(80)
+    assert a == b
+    assert SimSession("foraging", seed=11).step(80) != a
+
+
+def test_recording_carries_the_profile(tmp_path):
+    session = SimSession("hidden_food", seed=2, profile="research")
+    session.step(40)
+    run_id = session.record(tmp_path)
+    assert "_research_" in run_id
+    summary = json.loads((tmp_path / run_id / "summary.json").read_text())
+    assert summary["profile"] == "research"
+    assert ["value_memory.generalization_radius", 0, 2] in summary["profile_overrides"]
+    manifest = json.loads((tmp_path / run_id / "manifest.json").read_text())
+    assert manifest["profile"] == "research" and manifest["profile_requested"] == "research"
+    assert manifest["config"]["place"]["enabled"] is True

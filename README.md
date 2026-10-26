@@ -200,7 +200,15 @@ Without the flags, the `PORT` and `CRITICAL_RAT_RUNS_DIR` environment variables 
 It needs nothing beyond Flask: the page is plain HTML/CSS/JS with no CDN or build step, so it
 works offline.
 
-**Live tab.** Pick one of six scenarios and watch the brain think while it runs:
+**Live tab.** Pick a profile and one of six scenarios and watch the brain think while it runs.
+The **profile switch** (G38) runs a scenario on the legacy engine (the toy mechanisms the
+scenarios were built for) or on the **research profile** (`docs/profiles.md`: seeded odometry
+noise and softmax, the declared heading oracle, the wall-contact reset, the 400-cell place
+population and the successor-representation value steering; ATP frozen, so no fatigue or
+microsleep). A scenario keeps its own settings on either base (the maze's value-map radius and
+goal memory, the foraging senses, the pacing) and the switch lists which fields those move away
+from the profile. `python -m experiments.runner --protocol console_<scenario> --profile research`
+reproduces such a session tick for tick.
 
 | Scenario | What it shows |
 |---|---|
@@ -217,11 +225,19 @@ scores, memory steering from the value map, the four neuromodulator traces, ATP/
 sensory gate, the 16×16 criticality lattice with live avalanches, the κ gauge and log-log
 avalanche-size histogram with a reference line of slope −1.5 (a reference, not a fit: the lattice
 is subcritical at the default coupling), path-integration drift, an event log and a full readout
-table. Parameters (action selection, neuromodulator gains, E/I coupling, senses, sensor noise)
-change live. **Record to replay** saves the session as a run.
+table. On the research profile the arena also draws the **place code** (G38): the population's
+activity at the estimate, the **SR value** V = φ·MᵀR at every cell centre (the diverging ramp of
+the value map; it is what steers there), the **successor field from here** (expected future
+occupancy) and, on either profile, the latest **replay events** as trails of the cells they
+backed up, in order; a **Place code** panel shows the activity and the successor field on the
+population's own grid with the decode error, the SR value here, the reward weights and the SR
+update count. Parameters (action selection, neuromodulator gains, E/I coupling, senses, sensor
+noise, and the research profile's odometry noise, oracle noise, softmax temperature and SR
+reward rate) change live. **Record to replay** saves the session as a run; its manifest and
+summary carry the profile.
 
 Keys: `Space` play/pause, `→` step. Deep links work, e.g.
-`/live?scenario=memory_maze&seed=7&speed=300&paused=1`.
+`/live?scenario=memory_maze&seed=7&speed=300&paused=1` or `/live?profile=research&scenario=open_field`.
 
 **Replay tab.** Opens any run in the runs directory: live recordings, headless experiment runs
 (`python -m experiments.runner --protocol foraging --ticks 2000`) and tournaments recorded with
@@ -264,10 +280,11 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   `tools/probes/assay_triviality`. The regression harness runs `open_field,beacon,foraging`.
 * `console_open_field`, `console_beacon`, `console_foraging`, `console_hazard_field`,
   `console_hidden_food`, `console_memory_maze` — the lab console's six scenarios run headless
-  (`experiments/protocols/console.py`), with each scenario's own engine config and the engine
-  stepped before the scenario on every tick, as the live session does: a headless run writes
-  the same `ticks.jsonl` (and run hash) a live session of that scenario records at that seed.
-  They also write `events.jsonl`, the scenario's event log, and never end early.
+  (`experiments/protocols/console.py`), with each scenario's own settings on the runner's
+  `--profile` (legacy by default, as the console's switch) and the engine stepped before the
+  scenario on every tick, as the live session does: a headless run writes the same `ticks.jsonl`
+  (and run hash) a live session of that scenario records at that seed on that profile. They also
+  write `events.jsonl`, the scenario's event log, and never end early.
 * Every run writes `manifest.json` beside `ticks.jsonl`, `scene.json` and `summary.json`
   (`metrics/manifest.py`): git SHA and dirty flag, the full `EngineConfig` and its profile,
   seeds, platform, Python and numpy versions, BLAS build and `*_NUM_THREADS` settings,
@@ -339,7 +356,9 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   `obs_checksum` only when the observation it hashes agrees within tolerance (`docs/determinism.md`).
 
 ### Lab console (`python -m ui`)
-* **Live**: six scenarios run on the real engine with live brain panels and live parameters.
+* **Live**: six scenarios run on the real engine, on the legacy or the research profile, with live
+  brain panels (the place code and the successor representation on the research profile) and live
+  parameters.
 * **Replay**: browse runs, play/scrub trajectories with the arena scene, charts and a tick inspector.
 * See "Run the lab console locally" above.
 

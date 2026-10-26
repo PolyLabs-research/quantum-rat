@@ -33,6 +33,15 @@
     <section id="view-live" class="view live-grid" role="tabpanel" aria-labelledby="tab-live">
 
       <div class="col col-side">
+        <section class="card" aria-labelledby="h-profile">
+          <div class="card-head">
+            <h2 id="h-profile" class="card-title">Profile</h2>
+            <span class="card-meta">engine configuration</span>
+          </div>
+          <div id="profile-list" class="seg" role="radiogroup" aria-label="Engine profile"></div>
+          <p id="profile-note" class="hint profile-note"></p>
+        </section>
+
         <section class="card" aria-labelledby="h-scenario">
           <h2 id="h-scenario" class="card-title">Scenario</h2>
           <div id="scenario-list" class="scenario-list" role="radiogroup" aria-label="Scenario"></div>
@@ -115,6 +124,10 @@
               <label><input type="checkbox" data-layer="rays" checked> Vision</label>
               <label><input type="checkbox" data-layer="trail" checked> Trail</label>
               <label><input type="checkbox" data-layer="estimate" checked> Estimate</label>
+              <label><input type="checkbox" data-layer="replay" checked> Replay events</label>
+              <label data-research hidden><input type="checkbox" data-layer="place" checked> Place cells</label>
+              <label data-research hidden><input type="checkbox" data-layer="srValue" checked> SR value</label>
+              <label data-research hidden><input type="checkbox" data-layer="srField"> SR field from here</label>
             </div>
           </div>
           <div class="arena-wrap">
@@ -179,6 +192,14 @@
             <span class="card-meta">where it is vs where it thinks it is</span>
           </div>
           <div id="compass"></div>
+        </section>
+
+        <section class="card" aria-labelledby="h-placecode">
+          <div class="card-head">
+            <h2 id="h-placecode" class="card-title">Place code</h2>
+            <span class="card-meta">place cells · successor representation</span>
+          </div>
+          <div id="placecode"></div>
         </section>
 
         <section class="card" aria-labelledby="h-inspector">

@@ -141,9 +141,9 @@ def parse_args() -> argparse.Namespace:
         choices=sorted(PROFILES.keys()),
         default=DEFAULT_PROFILE,
         help=(
-            "Base engine profile (default: %(default)s) for protocols that do not supply their own "
-            "configuration. The console_* protocols supply the scenario's own configuration, which "
-            "wins over this option; the manifest records both the profile that ran and the one requested."
+            "Base engine profile (default: %(default)s). A bare protocol runs on it as it is; a console_* "
+            "protocol puts its scenario's own settings on it, as the live console does on that profile; the "
+            "manifest records the profile that ran and the one requested."
         ),
     )
     return parser.parse_args()
@@ -160,6 +160,8 @@ def run(
 ) -> None:
     proto_cls = PROTOCOLS[protocol_name]
     protocol = proto_cls(protocol_config)
+    base_config(profile)  # an unknown profile is refused before anything runs
+    protocol.use_profile(profile)
     config = protocol.engine_config()
     if config is None:
         config = base_config(profile)

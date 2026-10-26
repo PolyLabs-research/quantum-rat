@@ -40,7 +40,8 @@ from typing import Any, Dict, List, Optional, Type
 from core.config import EngineConfig
 from experiments.protocols.base import Protocol
 from metrics.schema import TickData
-from ui.scenarios import Beacon, Foraging, HazardField, HiddenFood, MemoryMaze, OpenField, Scenario, make_scenario
+from ui.scenarios import (DEFAULT_PROFILE, Beacon, Foraging, HazardField, HiddenFood, MemoryMaze, OpenField, Scenario,
+                          make_scenario, profile_config)
 
 Event = Dict[str, Any]
 
@@ -56,12 +57,17 @@ class ConsoleProtocol(Protocol):
         if config:
             raise ValueError(f"{self.name} takes no protocol config; the scenario fixes its own layout and settings")
         self.scenario: Scenario = make_scenario(self.scenario_id)
+        self.profile = DEFAULT_PROFILE
         self.events: List[Event] = []
         self.ticks_run = 0
 
+    def use_profile(self, profile: str) -> None:
+        self.profile = profile
+
     def engine_config(self) -> Optional[EngineConfig]:
-        """The scenario's own configuration; it wins over the runner's base profile."""
-        return self.scenario.config()
+        """The scenario's own settings on the runner's base profile (``ui.scenarios.profile_config``): what a live
+        session of this scenario runs on that profile, so the two produce the same ticks."""
+        return profile_config(self.scenario, self.profile)[0]
 
     def setup(self, engine: Any) -> None:
         self.scenario.setup(engine)

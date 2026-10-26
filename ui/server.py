@@ -29,7 +29,7 @@ from flask import Blueprint, Flask, abort, current_app, jsonify, request, send_f
 
 from metrics.schema import SCHEMA_VERSION
 from ui.replay_index import get_run_root, get_safe_path, read_jsonl_paged
-from ui.scenarios import SCENARIOS, list_scenarios
+from ui.scenarios import DEFAULT_PROFILE, PROFILE_IDS, PROFILES, SCENARIOS, list_scenarios
 from ui.sim_session import MAX_STEPS_PER_CALL, PARAMS, SessionStore, SimSession
 
 # Some platforms map .js to text/plain, which browsers refuse for ES modules.
@@ -123,6 +123,10 @@ def _session_payload(session: SimSession) -> Dict[str, Any]:
         "id": session.id,
         "seed": session.seed,
         "scenario": session.scenario.describe(),
+        # The engine profile the session runs on and the scenario's own settings that differ from it.
+        "profile": {"id": session.profile, "overrides": [list(o) for o in session.profile_overrides]},
+        # The place population's grid (research profile), once; None without one.
+        "place": session.place_info(),
         "params": session.params(),
         "frame": session.frame(),
         "value_map": session.value_map(),
@@ -142,6 +146,8 @@ def meta():
     return jsonify(
         {
             "scenarios": list_scenarios(),
+            "profiles": [dict(p) for p in PROFILES],
+            "default_profile": DEFAULT_PROFILE,
             "params": [asdict(p) for p in PARAMS],
             "max_steps": MAX_STEPS_PER_CALL,
             "schema_version": SCHEMA_VERSION,
@@ -157,11 +163,14 @@ def create_sim():
     if scenario_id not in SCENARIOS:
         raise BadRequest(f"Unknown scenario: {scenario_id!r}")
     seed = _int_field(body, "seed", 1337, 0, MAX_SEED)
+    profile = body.get("profile", DEFAULT_PROFILE)
+    if profile not in PROFILE_IDS:
+        raise BadRequest(f"Unknown profile: {profile!r}")
     params = body.get("params") or {}
     if not isinstance(params, dict):
         raise BadRequest("'params' must be an object")
     try:
-        session = _sessions().create(scenario_id, seed, params)
+        session = _sessions().create(scenario_id, seed, params, profile)
     except ValueError as exc:
         raise BadRequest(str(exc)) from None
     with session.lock:

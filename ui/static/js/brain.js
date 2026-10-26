@@ -3,7 +3,7 @@
 
 import { AvalancheHistogram, drawKappaGauge, drawSparkline } from './charts.js';
 import { MODULATORS, T } from './theme.js';
-import { clamp, clear, deg, el, fitCanvas, fmt, fmtAny, fmtInt, fmtSigned, headingDeg, wrapAngle } from './util.js';
+import { clamp, clear, deg, el, fitCanvas, fmt, fmtAny, fmtInt, fmtSigned, headingDeg, mix, wrapAngle } from './util.js';
 
 const ACTIONS = [
   ['FORWARD', 'Forward'],
@@ -379,6 +379,98 @@ export class CompassPanel {
   }
 }
 
+// --------------------------------------------------------------- place code
+
+/**
+ * The place code (research profile): the population's activity on its own grid, the
+ * successor field from the current place, and the numbers behind the SR value steering.
+ * Without a population (legacy profile) it says so.
+ */
+export class PlaceCodePanel {
+  constructor(host) {
+    clear(host);
+    this.grid = null;
+    this.last = null;
+    this.empty = el('p', { class: 'hint placecode-empty', text: 'The legacy profile has no place population. Switch the profile to Research to watch the place code and the successor representation.' });
+    this.rates = el('canvas', { class: 'heat', role: 'img', 'aria-label': 'Place-cell activity on the population grid' });
+    this.field = el('canvas', { class: 'heat', role: 'img', 'aria-label': 'Successor field from the current place' });
+    this.vals = {};
+    const kv = (label, key) => {
+      this.vals[key] = el('span', { class: 'num' });
+      return el('div', {}, `${label} `, this.vals[key]);
+    };
+    this.body = el(
+      'div',
+      { class: 'placecode-wrap' },
+      el('div', { class: 'heat-box' }, this.rates, el('span', { class: 'heat-label', text: 'Activity now' })),
+      el('div', { class: 'heat-box' }, this.field, el('span', { class: 'heat-label', text: 'Successor field from here' })),
+      el(
+        'div',
+        { class: 'compass-key placecode-key' },
+        kv('Active cells (> ½ max)', 'active'),
+        kv('Decode − estimate', 'decode'),
+        kv('Decode − body', 'decodeBody'),
+        kv('SR value here', 'here'),
+        kv('Reward weights, max', 'rmax'),
+        kv('SR updates', 'updates'),
+        kv('Reward rule', 'rule'),
+      ),
+    );
+    this.body.hidden = true;
+    host.append(this.empty, this.body);
+  }
+
+  setGrid(grid) {
+    this.grid = grid || null;
+    this.empty.hidden = !!this.grid;
+    this.body.hidden = !this.grid;
+  }
+
+  update(f) {
+    this.last = f;
+    if (!this.grid || !f || !f.place) {
+      if (!f || !f.place) this.setGrid(null);
+      return;
+    }
+    this._heat(this.rates, f.place.rates, f.place.max || 1, T.ach);
+    if (f.sr) this._heat(this.field, f.sr.field, f.sr.field_max || 1, T.ht);
+    this.vals.active.textContent = fmtInt(f.place.active);
+    const d = f.place.decoded;
+    this.vals.decode.textContent = d ? `${fmt(Math.hypot(d[0] - f.agent.est_x, d[1] - f.agent.est_y), 2)} m` : 'undefined';
+    this.vals.decodeBody.textContent = d ? `${fmt(Math.hypot(d[0] - f.agent.x, d[1] - f.agent.y), 2)} m` : 'undefined';
+    this.vals.here.textContent = f.sr ? fmtSigned(f.sr.here, 3) : '—';
+    this.vals.rmax.textContent = f.sr ? fmt(f.sr.weights_max, 3) : '—';
+    this.vals.updates.textContent = f.sr ? fmtInt(f.sr.updates) : '—';
+    this.vals.rule.textContent = f.sr ? f.sr.rule : '—';
+  }
+
+  // One square per cell on the nx × ny grid, row 0 (lowest y) at the bottom, as the arena is drawn.
+  _heat(canvas, values, max, color) {
+    const g = this.grid;
+    const { ctx, w, h } = fitCanvas(canvas, 120, 120);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = T.floor;
+    ctx.fillRect(0, 0, w, h);
+    const cw = w / g.nx;
+    const ch = h / g.ny;
+    for (let i = 0; i < values.length; i++) {
+      const t = Math.min(1, Math.max(0, values[i] / (max || 1)));
+      if (t < 0.02) continue;
+      const ix = i % g.nx;
+      const iy = Math.floor(i / g.nx);
+      ctx.fillStyle = mix(T.floor, color, t ** 0.6);
+      ctx.fillRect(ix * cw, (g.ny - 1 - iy) * ch, cw + 0.5, ch + 0.5);
+    }
+    ctx.strokeStyle = T.grid;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  }
+
+  redraw() {
+    if (this.last) this.update(this.last);
+  }
+}
+
 // ------------------------------------------------------------ readout table
 
 /** Render a grouped key/value table: groups = [[title, [[label, value], ...]], ...]. */
@@ -402,5 +494,8 @@ export function frameTableGroups(f) {
     ['Energy', [['ATP', fmt(f.energy.atp, 3)], ['Glycogen', fmt(f.energy.glycogen, 3)], ['Sensory gate', `${f.trn.state} (${fmt(f.trn.gate, 2)})`], ['Microsleep', f.microsleep.active ? `yes, ${f.microsleep.remaining} left` : 'no'], ['Fatigue pacing', f.energy.pacing ? 'resting to recover' : 'no'], ['Replay', f.replay.active ? replayText(f.replay) : 'no']]],
     ['Criticality', [['κ (exponent 1.5)', fmt(f.crit.kappa, 3)], ['Regime (κ band)', f.crit.regime], ['Coupling (σ)', `${fmt(f.crit.coupling, 2)} (${fmt(f.crit.sigma, 2)})`], ['Active cells', f.crit.active], ['Avalanches', f.crit.n], ['Gain from κ (off at defaults)', `×${fmt(f.crit.gain, 3)}`]]],
     ['Working memory', [['Load', f.wm.load], ['Novelty (checksum change)', fmt(f.wm.novelty, 3)]]],
+    f.place
+      ? ['Place code', [['Profile', f.profile ?? 'research'], ['Active cells (> ½ max)', f.place.active], ['Decoded position', f.place.decoded ? `${fmt(f.place.decoded[0], 2)}, ${fmt(f.place.decoded[1], 2)}` : 'undefined'], ['SR value here', f.sr ? fmtSigned(f.sr.here, 3) : '—'], ['SR updates', f.sr ? f.sr.updates : '—'], ['Reward rule', f.sr ? f.sr.rule : '—']]]
+      : ['Profile', [['Engine profile', f.profile ?? 'legacy']]],
   ];
 }

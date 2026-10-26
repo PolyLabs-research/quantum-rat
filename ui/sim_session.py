@@ -35,6 +35,7 @@ from metrics.manifest import build_manifest, finish_manifest, write_manifest
 from metrics.scene import write_scene
 from metrics.schema import SCHEMA_VERSION
 from ui.scenarios import START_POSE, Scenario, make_scenario
+from ui.scenarios import DEFAULT_PROFILE, PROFILE_IDS, profile_config
 
 Event = Dict[str, Any]
 
@@ -123,6 +124,24 @@ PARAMS: Tuple[Param, ...] = (
     Param("basal_ganglia.pace_rest_bonus", "Fatigue pacing", "Energy", 0.0, 8.0, 0.5,
           "Drive to rest once ATP runs low, held until it has recovered. 0 lets the agent run "
           "until it collapses into microsleep."),
+    # The research profile's seeded elements and its place code (docs/profiles.md). Every one is read
+    # by the engine each tick, so it is live in both profiles where it applies.
+    Param("sensors.odometry_speed_noise", "Odometry speed noise", "Estimate & sampling", 0.0, 0.2, 0.01,
+          "Seeded error on the self-motion estimate's forward step, as a fraction of the step (research 0.05, "
+          "legacy 0). Moves the estimate (the hollow ghost), never the body."),
+    Param("sensors.odometry_turn_noise", "Odometry turn noise", "Estimate & sampling", 0.0, 0.05, 0.0025,
+          "Seeded error on the estimated heading change, radians per tick (research 0.01, legacy 0). With "
+          "the heading oracle on (research) the heading estimate reads the oracle instead, so this moves "
+          "nothing there."),
+    Param("sensors.heading_oracle_noise", "Heading oracle noise", "Estimate & sampling", 0.0, 0.2, 0.01,
+          "The declared heading oracle's error, radians per tick (research 0.05). The legacy profile has no "
+          "oracle, so this cannot be raised there."),
+    Param("basal_ganglia.softmax_temperature", "Action softmax temperature", "Estimate & sampling", 0.0, 0.5, 0.01,
+          "Seeded softmax over the four channel scores (research 0.1); 0 is the deterministic argmax with its "
+          "tie order (legacy)."),
+    Param("place.reward_learning_rate", "SR reward learning rate", "Estimate & sampling", 0.05, 1.0, 0.05,
+          "How fast the successor representation's reward weights track the reward seen at the cells active on "
+          "arrival (research 0.5). Nothing without the place population (research profile)."),
 )
 PARAM_INDEX = {p.key: p for p in PARAMS}
 
@@ -149,9 +168,14 @@ def _to_world(gx: float, gy: float, hd: float) -> Tuple[float, float, float]:
 
 
 class SimSession:
-    def __init__(self, scenario_id: str, seed: int = 1337, params: Optional[Dict[str, float]] = None) -> None:
+    def __init__(self, scenario_id: str, seed: int = 1337, params: Optional[Dict[str, float]] = None,
+                 profile: str = DEFAULT_PROFILE) -> None:
+        if profile not in PROFILE_IDS:
+            raise ValueError(f"Unknown profile: {profile!r}; one of {PROFILE_IDS}")
         self.id = secrets.token_hex(8)
         self.scenario_id = scenario_id
+        self.profile = profile
+        self.profile_overrides: List[Tuple[str, Any, Any]] = []
         self.seed = int(seed)
         self.lock = threading.RLock()
         self.last_access = time.monotonic()
@@ -162,7 +186,9 @@ class SimSession:
 
     def _build(self, params: Dict[str, float]) -> None:
         self.scenario: Scenario = make_scenario(self.scenario_id)
-        self.engine = Engine(seed=self.seed, config=self.scenario.config())
+        config, self.profile_overrides = profile_config(self.scenario, self.profile)
+        self.engine = Engine(seed=self.seed, config=config)
+        self._phi_centres = None  # the population's normalised rates at its own centres (lazily; SR value field)
         self.scenario.setup(self.engine)
         self.overrides = {}
         for key, value in params.items():
@@ -179,7 +205,8 @@ class SimSession:
         self._gate_tick = -GATE_EVENT_GAP
         self._built_at = time.monotonic()  # for the recording's manifest (wall-clock, pauses included)
         self.tick = -1
-        self._emit({"tick": 0, "text": f"{self.scenario.title} started (seed {self.seed})", "level": "info", "kind": "session"})
+        self._emit({"tick": 0, "text": f"{self.scenario.title} started (seed {self.seed}, {self.profile} profile)",
+                    "level": "info", "kind": "session"})
         self._advance()  # one tick so there is always a sensory snapshot to show
 
     def reset(self, seed: Optional[int] = None) -> None:
@@ -370,8 +397,91 @@ class SimSession:
                 "objects": [{"x": _r(o.x, 3), "y": _r(o.y, 3), "r": _r(o.radius, 3), "kind": o.kind} for o in eng.world.objects],
                 "pain_zone": _r(sensors.pain_zone, 3),
             },
+            "profile": self.profile,
+            # The place code (research profile; None without a population): the population's rates
+            # at the estimate and the successor representation's value over the arena (docs/profiles.md).
+            "place": self._place_frame(),
+            "sr": self._sr_frame(),
+            # The latest finished replay events as trails of the cells they backed up, in backup order.
+            "replay_trails": self._replay_trails(),
             "status": self.scenario.status(),
         }
+
+    # ------------------------------------------------------------ place code
+
+    def place_info(self) -> Optional[Dict[str, Any]]:
+        """The place population's grid, once per session: every cell centre in world coordinates; None without one."""
+        pop = self.engine.place
+        if pop is None:
+            return None
+        xs: List[float] = []
+        ys: List[float] = []
+        for cx, cy in zip(pop.cx.tolist(), pop.cy.tolist()):
+            x, y, _ = _to_world(cx, cy, 0.0)
+            xs.append(_r(x, 3))
+            ys.append(_r(y, 3))
+        return {"n": int(pop.size), "nx": int(pop.nx), "ny": int(pop.ny), "spacing": _r(pop.spacing, 3),
+                "width": _r(pop.width, 3), "extent": [_r(e, 3) for e in pop.extent], "cx": xs, "cy": ys}
+
+    def _place_frame(self) -> Optional[Dict[str, Any]]:
+        eng = self.engine
+        pop, rates = eng.place, eng.place_rates
+        if pop is None or rates is None:
+            return None
+        dx, dy = pop.decode(rates)
+        decoded = None
+        if not (math.isnan(dx) or math.isnan(dy)):
+            wx, wy, _ = _to_world(dx, dy, 0.0)
+            decoded = [_r(wx, 3), _r(wy, 3)]
+        peak = float(rates.max()) if rates.size else 0.0
+        return {
+            "rates": [_r(float(v), 3) for v in rates.tolist()],
+            "max": _r(peak, 3),
+            "active": int((rates > 0.5 * pop.max_rate).sum()),
+            "decoded": decoded,  # the position the rates encode (world coordinates); None when undefined
+        }
+
+    def _sr_frame(self) -> Optional[Dict[str, Any]]:
+        eng = self.engine
+        if eng.sr is None or eng.place is None or eng.place_rates is None:
+            return None
+        import numpy as np
+        from brain.systems.successor_features import normalised
+
+        pop = eng.place
+        if self._phi_centres is None:
+            self._phi_centres = np.stack([normalised(pop.rates(float(cx), float(cy))) for cx, cy in zip(pop.cx, pop.cy)])
+        u = (eng.sr.M * eng.sr_weights[:, None]).sum(axis=0)  # M^T R, element-wise as the engine computes it
+        value = (self._phi_centres * u[None, :]).sum(axis=1)  # V = phi . M^T R at every cell centre
+        phi = normalised(eng.place_rates)
+        field = eng.sr.psi(phi)  # M phi: the successor features from here
+        weights = eng.sr_weights
+        return {
+            "value": [_r(float(v), 4) for v in value.tolist()],
+            "value_max": _r(float(np.abs(value).max()) if value.size else 0.0, 4),
+            "field": [_r(float(v), 4) for v in field.tolist()],
+            "field_max": _r(float(field.max()) if field.size else 0.0, 4),
+            "weights": [_r(float(v), 4) for v in weights.tolist()],
+            "weights_max": _r(float(np.abs(weights).max()) if weights.size else 0.0, 4),
+            "here": _r(float((phi * u).sum()), 4),
+            "updates": int(eng.sr.updates),
+            "rule": eng.config.place.reward_rule,
+            "discount": _r(eng.sr.gamma, 3),
+        }
+
+    def _replay_trails(self) -> List[Dict[str, Any]]:
+        trails: List[Dict[str, Any]] = []
+        for e in list(self.replay_events)[-FRAME_REPLAY_EVENTS:]:
+            cells = e.get("cells") or []
+            trails.append({
+                "tick_start": e.get("tick_start"),
+                "tick_end": e.get("tick_end"),
+                "rule": e.get("rule"),
+                "direction": e.get("direction"),
+                "n": int(e.get("n_backups", len(cells))),
+                "points": [self._cell_center(int(c[0]), int(c[1])) for c in cells],
+            })
+        return trails
 
     def _cell_center(self, bx: int, by: int) -> List[float]:
         size = self.engine.spatial.bin_size
@@ -422,6 +532,9 @@ class SimSession:
             raise ValueError(f"Parameter {key!r} needs a finite number")
         number = min(param.max, max(param.min, number))
         applied: float = int(round(number)) if param.integer else number
+        if key == "sensors.heading_oracle_noise" and applied > 0.0 and not self.engine.config.sensors.heading_oracle:
+            raise ValueError("Heading oracle noise needs the heading oracle, which the legacy profile has not: "
+                             "switch the profile to Research")
         self.engine.config.set_field(key, applied)
         if key == "criticality.coupling":
             self.engine.criticality.reset_statistics()
@@ -460,7 +573,8 @@ class SimSession:
         """
         runs_dir.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d-%H%M%S")
-        base = f"live_{self.scenario_id}_s{self.seed}_{stamp}"
+        tag = "" if self.profile == DEFAULT_PROFILE else f"_{self.profile}"
+        base = f"live_{self.scenario_id}{tag}_s{self.seed}_{stamp}"
         run_id, n = base, 1
         while (runs_dir / run_id).exists():
             n += 1
@@ -485,6 +599,8 @@ class SimSession:
             "ticks_run": len(self.history),
             "schema_version": SCHEMA_VERSION,
             "params": dict(self.overrides),
+            "profile": self.profile,
+            "profile_overrides": [list(o) for o in self.profile_overrides],
             "status": self.scenario.status(),
             "n_replay_events": n_written,
             "n_replay_events_total": self.n_replay_events,
@@ -510,6 +626,8 @@ class SimSession:
             extra={
                 "source": "live console",
                 "params": dict(self.overrides),
+                "profile_requested": self.profile,
+                "profile_overrides": [list(o) for o in self.profile_overrides],
                 "scenario": self.scenario.describe(),
                 "timing_note": "wall_seconds is the time since the session was built, pauses included",
             },
@@ -528,8 +646,9 @@ class SessionStore:
         self._sessions: "OrderedDict[str, SimSession]" = OrderedDict()
         self._lock = threading.Lock()
 
-    def create(self, scenario_id: str, seed: int, params: Optional[Dict[str, float]] = None) -> SimSession:
-        session = SimSession(scenario_id, seed=seed, params=params)
+    def create(self, scenario_id: str, seed: int, params: Optional[Dict[str, float]] = None,
+               profile: str = DEFAULT_PROFILE) -> SimSession:
+        session = SimSession(scenario_id, seed=seed, params=params, profile=profile)
         with self._lock:
             self._sessions[session.id] = session
             while len(self._sessions) > self.limit:
