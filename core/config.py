@@ -315,6 +315,34 @@ class SpatialConfig:
 
 
 @dataclass
+class PlaceConfig:
+    """M2b step 2 (docs/prereg/m2b_place_population.md): a Gaussian place-cell population over the position estimate.
+
+    Off by default in both profiles. On, the engine computes every tick the rates r_j = max_rate * exp(-|e - c_j|^2
+    / (2 width^2)) of cells centred on a regular grid of pitch ``spacing`` over the arena (``extent`` is the
+    half-extent the grid covers; None means the world's bounds), at the spatial system's estimate e
+    (``brain.systems.place_population``). The rates feed nothing yet: no action, no learner, no TickData field.
+    """
+
+    enabled: bool = False
+    spacing: float = 1.0  # units between neighbouring centres (0.1 m): 400 cells in the 2 m box
+    width: float = 1.0  # the Gaussian's sd, units (0.1 m; full width at half maximum 0.24 m)
+    max_rate: float = 1.0
+    extent: Optional[Tuple[float, float]] = None
+
+    def __post_init__(self) -> None:
+        for name in ("spacing", "width", "max_rate"):
+            value = getattr(self, name)
+            if not (math.isfinite(value) and value > 0.0):
+                raise ValueError(f"place.{name} must be a positive finite number, got {value!r}")
+        if self.extent is not None:
+            extent = tuple(float(e) for e in self.extent)
+            if len(extent) != 2 or not all(math.isfinite(e) and e > 0.0 for e in extent):
+                raise ValueError("place.extent must be two positive finite half-extents, or None")
+            object.__setattr__(self, "extent", extent)
+
+
+@dataclass
 class TRNConfig:
     trigger_atp: float = 0.30
     trigger_streak: int = 10
@@ -474,6 +502,7 @@ class EngineConfig:
     value_memory: ValueMemoryConfig = field(default_factory=ValueMemoryConfig)
     criticality: CriticalityConfig = field(default_factory=CriticalityConfig)
     spatial: SpatialConfig = field(default_factory=SpatialConfig)
+    place: PlaceConfig = field(default_factory=PlaceConfig)
     trn: TRNConfig = field(default_factory=TRNConfig)
     working_memory: WorkingMemoryConfig = field(default_factory=WorkingMemoryConfig)
     basal_ganglia: BasalGangliaConfig = field(default_factory=BasalGangliaConfig)
@@ -734,6 +763,7 @@ __all__ = [
     "SensorConfig",
     "AstrocyteConfig",
     "NeuromodConfig",
+    "PlaceConfig",
     "RewardConfig",
     "ValueMemoryConfig",
     "SpatialConfig",

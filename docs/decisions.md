@@ -1348,3 +1348,37 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 - `python3 -m experiments.estimate_correction --workers 4` writes `docs/data/m2b/estimate/` (manifest clean at `0f563b7`, 14 s).
 
 **Impact:** this entry; docs/prereg/m2b_estimate.md (new); docs/m2b_place_code.md (new); docs/spec.md (the Observation contract); docs/research_plan.md (§4 row 2b status); docs/odometry.md (a pointer); README, run_instructions.md; `brain/contracts.py`, `brain/systems/spatial.py`, `core/config.py`, `core/sensors.py`, `core/determinism.py`, `core/engine.py`; `experiments/estimate_correction.py` (new); tests in `tests/sensors/`, `tests/brain/`, `tests/experiments/`; `docs/data/m2b/estimate/` (new). No profile default, engine behaviour or baseline changes.
+
+## G34 — M2b step 2: the place population over the corrected estimate
+
+**Date:** 2026-10-25  
+**Why:** The plan's row 2b puts a Gaussian place population over the corrected estimate and asks for rate-map metrics, decoding error that drops at wall contact, and ≥ 1,000 ticks/s with a 400-cell population. This step builds the population, off by default, and measures those against a reference population read at the body's true position on the same walks, preregistered first (`docs/prereg/m2b_place_population.md`). On the branch `m2b-place`, stacked on step 1's `m2b-estimate`.
+
+### A. What landed
+1. **`EngineConfig.place`** (`PlaceConfig`: enabled, spacing 1 unit, width 1 unit, max rate, extent) and **`brain/systems/place_population.py`**: cells on a grid over the arena (`GaussianPlaceFeatures.grid`, unnormalised), rates at the estimate; `decode()` inverts the code by least squares on the log-rates of the most active cell's 3 × 3 grid neighbourhood. The engine builds the population lazily (importing `core.engine` still imports no numpy) and computes the rates in the spatial step; no TickData field, no hash moves.
+2. **`analysis/place_metrics.py`**: rate maps over bins of the true position; per-cell comparison with a reference on the same walk (correlation, centroid shift, Skaggs information).
+3. **`experiments/place_population.py`**: per seed, the research and M2b estimates' populations on the same walk and the reference; the decoder checked every tick with undefined decodes counted; a throughput benchmark. Tests: 587 (+7). Code commits `a37aef9` and `cab16db` (the correction below), data `2beb8c0` (manifest clean at `cab16db`, 7 s on 4 cores).
+
+### B. Measured (docs/m2b_place_code.md, step 2; `docs/data/m2b/place/`; 30 seeds)
+- **All four preregistered tests pass.** Throughput 16,200 ticks/s with 400 cells (17,600 off; bound 1,000); the decoder within 6 × 10⁻¹⁴ units of the estimate at every tick, none undefined; decoding error at contact −0.56 [−0.60, −0.52] units; map correlation +0.59 [+0.54, +0.63] higher under the M2b estimate than the research estimate, δ 1.00, every seed.
+- **Maps**: correlation with the reference 0.91 [0.90, 0.92] (M2b) and 0.33 [0.28, 0.37] (research); centroid shift 0.35 and 3.7 units; information ratio 0.91 and 0.84. Wall and interior cells alike under M2b (0.913, 0.915); the innermost ring lowest (0.87), where sampling is thinnest. 224 of 400 cells have a sampled field in 10 minutes (170 of 400 bins visited five times or more).
+- **Decoding error is the estimate's**: 0.70 units (M2b), 10.2 (research), step 1's numbers to 10⁻¹³, since the rates are noiseless.
+- **One failed prediction**: the research estimate's information ratio was predicted below 0.6 and is 0.84; a displaced map is still a sharp map.
+- **Post-run correction**: the first run's decoder solved over the nine most active cells, collinear when the estimate is more than about ten units beyond an edge, and returned NaN there (117 and 295 ticks at seeds 1, 2); the experiment's `max()` skipped NaN, so the decoder test read as exact and the decoding level (4.2 units) was a selection of the least-drifting seeds. Fixed before any result was reported (the 3 × 3 neighbourhood; undefined decodes counted and failing); tests and bounds unchanged; the first run's tables not committed; only the decoding statistics moved.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **The population for M2b is 400 cells at 0.1 m spacing and width over the M2b estimate.** It carries the true position to a map correlation of 0.91 and runs at sixteen times the plan's throughput bound. **Use it as the SR's state space in step 3**, configured explicitly by each experiment, as step 1's estimate is.
+2. **Report map correlation and centroid shift, not spatial information, wherever estimate error matters.** Information measures selectivity, and a displaced field keeps it.
+3. **A NaN-skipping aggregate is a defect class, not a one-off.** Python's `max()` and a mean over `isnan`-filtered values each hid a failure here. **Every later experiment counts undefined values explicitly and fails a test on them rather than filtering them out.**
+4. **Sampling, not the estimate, limits the interior maps.** Ten minutes visits under half the bins five times. **Step 3's open-field SR maps should run long enough to sample the interior** (or report coverage beside every map statistic).
+
+### D. Residuals carried forward
+- Noiseless rates: the decoder checks consistency; decoding noisy activity is M7 step 0.
+- A regular grid of centres, not random placement; one width; no wall geometry in the fields (the walls are the box's own).
+- Linux locally with CI on macOS.
+
+### E. Acceptance, measured at this commit
+- `python3 -m pytest -q`: 587 passed; the legacy and research determinism baselines unchanged.
+- `python3 -m experiments.place_population --workers 4` writes `docs/data/m2b/place/` (manifest clean at `cab16db`, 7 s).
+
+**Impact:** this entry; docs/prereg/m2b_place_population.md (new, with the post-run correction); docs/m2b_place_code.md (step 2); docs/research_plan.md (row 2b status); README, run_instructions.md; `core/config.py`, `core/engine.py`; `brain/systems/place_population.py`, `analysis/place_metrics.py`, `experiments/place_population.py` (new); tests in `tests/brain/`, `tests/experiments/`; `docs/data/m2b/place/` (new). No profile default, behaviour or baseline changes.

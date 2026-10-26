@@ -89,3 +89,72 @@ below the bound at 0.1 rad. Failed: "no wrong-wall reset up to 0.2 rad" (a handf
 normal, so it measures the mechanism, not a noisy boundary sensor; the estimate starts at the body's start pose, so
 localisation from an unknown start is not tested here (RQ4(a)'s four starts begin from known poses). The wall-slide
 under-read is a property of the egomotion contract and remains. Linux locally; CI runs the suite on macOS.
+
+## Step 2: the place population over the corrected estimate
+
+Preregistered in `docs/prereg/m2b_place_population.md` before the run, with development measurements and a smoke
+disclosed, and a post-run correction recorded there (below); decisions entry G34. Runner:
+`experiments/place_population.py`, 7 s on 4 cores; tables in `docs/data/m2b/place/`.
+
+**What it adds.** An opt-in engine section, `EngineConfig.place`, off in both profiles: 400 Gaussian place cells on a
+20 × 20 grid at 0.1 m spacing over the 2 m box, width 0.1 m (full width at half maximum 0.24 m), rates computed every
+tick at the spatial system's estimate. It is a rate model with no noise, so the code is a deterministic function of
+the estimate. The engine imports numpy only when the population is on, and the rates enter no logged field, so no
+hash moves. A decoder inverts the code exactly, and `analysis/place_metrics.py` builds rate maps over bins of the true
+position.
+
+**Protocol.** Step 1's sensors, 30 seeds, 3,000 ticks. Per seed, two engines walk the same body path: one with the
+research estimate, one with step 1's M2b estimate. A third, reference population is the same cells read at the body's
+true position on that walk: the code a perfect estimate gives. Each population's rate maps are compared cell by cell
+with the reference's on the bins the body visited at least five times. In 10 minutes the body samples about 170 of
+the 400 bins that often, mostly near the walls, so 224 of the 400 cells have a sampled field and enter the comparison.
+
+**The preregistered tests** (`place_effects.csv`):
+
+| test | result | bound | verdict |
+|---|---|---|---|
+| throughput, 400 cells, median of five 3,000-tick runs | 16,200 ticks/s (17,600 with the population off) | ≥ 1,000 | **passes** |
+| decoder against the estimate, every tick | 6 × 10⁻¹⁴ units at worst, no undefined decode | < 10⁻⁶ | **passes** |
+| decoding error drops at wall contact, M2b | −0.56 [−0.60, −0.52] units | < 0, interval below | **passes** |
+| map fidelity, M2b minus research, paired | +0.59 [+0.54, +0.63] in correlation, δ 1.00, every seed | δ ≥ 0.3, interval above 0 | **passes** |
+
+**The maps** (per-seed means over the compared cells; the reference is 1 by construction):
+
+| estimate | map correlation with the reference | centroid shift | spatial information / reference | decoding error, late median |
+|---|---|---|---|---|
+| research (integrated) | 0.33 [0.28, 0.37] | 3.7 units | 0.84 | 10.2 units |
+| M2b (oracle heading and reset) | **0.91** [0.90, 0.92] | **0.35** units | 0.91 | 0.70 units |
+
+Under the M2b estimate the fields an experimenter would record are the cells' own fields, shifted by about a third of
+a field width and slightly broadened. Under the research estimate they are displaced by about four widths and keep
+little of their shape. Wall and interior cells do not differ under the M2b estimate (0.913 and 0.915). The innermost
+ring is lowest, 0.87, where the body samples least.
+
+**Information does not measure accuracy.** The research estimate's maps keep 84% of the reference's spatial
+information, where I predicted below 60%. A map displaced across the arena is still a sharp map: Skaggs information
+measures how selective a cell is, not whether it fires in the right place. Map correlation and centroid shift are the
+statistics that see the error, and later steps should report those.
+
+**The decoding error is the estimate's.** With noiseless rates the decoder returns the estimate itself, so the decoding
+error with respect to the body equals step 1's estimate error to 10⁻¹³: 0.70 units for the M2b estimate, 10.2 for the
+research estimate. The drop at contact is step 1's drop read through the code. A decoder of noisy population activity,
+with the binning the replay papers use, is M7's step 0, not this one.
+
+**Post-run correction.** The first evaluation run reported every test passing, but the research estimate's decoding
+error read 4.2 units against step 1's 10.2 on identical walks. The decoder had solved over the nine most active cells,
+and when the research estimate drifted more than about ten units beyond an arena edge those cells were one grid
+column. The solve was then singular and returned no position, at 117 and 295 ticks at seeds 1 and 2. The experiment's
+`max()` skipped those NaNs, so the decoder test read as exact, and the seed means dropped the seeds that drifted most.
+Before any result was reported, the decoder was changed to solve over the most active cell's 3 × 3 grid neighbourhood,
+which is never collinear. It is now exact at 20,000 random positions over a region nine times the arena's area, and
+the experiment counts undefined decodes and fails the test on any. The tests and bounds are unchanged; the first
+run's tables are not committed. Only the decoding statistics moved; the maps, throughput and drop at contact read the
+same in both runs.
+
+**Predictions against outcomes.** Held: all four tests; research maps with correlation below 0.5 and shifts of several
+units; M2b maps with correlation above 0.85, shifts under one unit and information above 0.8. Failed: the research
+estimate's information ratio below 0.6 (it is 0.84, for the reason above).
+
+**Limitations of step 2.** Rates are noiseless, so decoding is a consistency check rather than a measurement. Ten
+minutes samples only part of the field interior. The grid of centres is regular, not RatInABox's random placement.
+Nothing reads the population yet; step 3's SR is its first reader.
