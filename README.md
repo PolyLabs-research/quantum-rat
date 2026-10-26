@@ -85,6 +85,20 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   odometry noise and the softmax are on, the twelve off-axis headings recalling for 60-83% of
   seeds (turn noise 0.01 rad and the softmax temperature each cost about a tenth of the recalls
   on their own, speed noise 0.05 costs two of 471).
+* **Results of the research profile** (M2a and M2b; `docs/research_plan.md` rows 2a and 2b). M2a
+  compared seven replay rules on a tabular linear track over 30 paired seeds and two budget modes
+  under a preregistered RQ1 protocol: every RQ1 bound is met by some rule, but no single rule meets
+  them all, for reasons recorded as structural in G29–G32 (`docs/m2a_linear_track.md`, tag
+  `v1.3-track-replay`). M2b built the embodied instrument: a declared heading oracle and a
+  wall-contact reset hold the open-field estimate to 7 cm, a 400-cell place population sits on
+  it, successor features learned over it skew backward on one-way laps, and steering by the SR's
+  value passes the RQ4(a) gate on fresh seeds (hidden-goal success 98.7% against 100% visible and
+  5% without value steering; `docs/m2b_place_code.md`, tag `v1.4-place-code`). Its limits: the
+  heading is given, not inferred; the gate has one goal and known starts; replay over the place
+  code is M3's. In the console's scenarios the SR steering circled sites it had just emptied and
+  cost a third of the hidden-food finds (G40). A separate unlearning rate removes that (G41) but
+  costs the gate 13 points of hidden-goal success at the rate that does it (G42), so the instrument
+  keeps one rate and the two renewable-reward scenarios carry the faster one (G43).
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the
@@ -117,14 +131,17 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
 
 So: **this is not a validated model of a real rodent brain.** It's a place to build such
 models one defensible piece at a time, with the engineering guaranteeing that whatever you
-measure is reproducible. See `RECOMMENDATIONS.md` for what's done and what's next, and
-`docs/decisions.md` for the rationale behind each step.
+measure is reproducible. `docs/research_plan.md` is the programme and its status,
+`docs/decisions.md` the rationale behind each step (G1–G43), and `docs/prereg/` the
+preregistrations; `RECOMMENDATIONS.md` is the original review the programme started from, kept as
+a record (it predates most of the work).
 
 ### Profiles
 
 Two configuration profiles exist. The **legacy profile** is `EngineConfig()` as it is today:
-every console scenario runs under it, the G-entries in `docs/decisions.md` were measured under
-it, and its traces are pinned bit-for-bit by the determinism gate. What the gate hashes, the
+the console scenarios were built on it (since G38 the console runs them on either profile), the
+G-entries in `docs/decisions.md` up to G21 were measured under it, and its traces are pinned
+bit-for-bit by the determinism gate. What the gate hashes, the
 baselines per profile and the cross-platform tolerance gate are described in
 `docs/determinism.md`. The **research profile**
 (`EngineConfig.research()`, added in M0a, commit 95667ce) switches the toy mechanisms off for
@@ -146,8 +163,8 @@ reset, a 400-cell place population over the estimate and the successor-feature v
 the steering's source, the instrument RQ4(a) passed with (`docs/m2b_place_code.md`); the research
 baselines were regenerated once more for it (the body's walk at the gate seed is unchanged; the
 estimate is what moved). With microsleep off its engine still produces no replay events; M2a's
-first replay rules run outside the engine on a tabular linear track (below). See
-`docs/profiles.md` and `docs/research_plan.md` (§6).
+replay rules run outside the engine on a tabular linear track (below), and replay over the place
+code is M3's. See `docs/profiles.md` and `docs/research_plan.md` (§6).
 
 ### The first replay result (M2a, first pass)
 
@@ -161,7 +178,9 @@ reverse replay cuts the steps needed for the 40 laps by 2,825 [BCa 95%: 2,147 to
 −224 [−820 to +112], a null. The state is the true cell (an oracle), the budget fixed, four rules
 of the plan's nine: the textbook ordering on a sparse-reward chain, measured with intervals, and
 the instrument for the embodied comparison (M3) rather than a result about rodents. Reproduce with
-`python3 -m experiments.linear_track_replay --workers 4` (7 s).
+`python3 -m experiments.linear_track_replay --workers 4` (7 s). The rest of M2a (G27–G32) took the
+comparison to the preregistered RQ1 protocol with seven rules; its reading is under "Results of the
+research profile" above and in `docs/m2a_linear_track.md`.
 
 ---
 
@@ -206,9 +225,10 @@ scenarios were built for) or on the **research profile** (`docs/profiles.md`: se
 noise and softmax, the declared heading oracle, the wall-contact reset, the 400-cell place
 population and the successor-representation value steering; ATP frozen, so no fatigue or
 microsleep). A scenario keeps its own settings on either base (the maze's value-map radius and
-goal memory, the foraging senses, the pacing) and the switch lists which fields those move away
-from the profile. `python -m experiments.runner --protocol console_<scenario> --profile research`
-reproduces such a session tick for tick.
+goal memory, the foraging senses, the pacing, and on hidden food and beacon the SR's unlearning
+rate, G43) and the switch lists which fields those move away from the profile. `python -m experiments.runner --protocol console_<scenario> --profile research`
+reproduces such a session tick for tick. The table says what each scenario shows on the legacy
+profile; the console's scenario notes say what changes on the research profile.
 
 | Scenario | What it shows |
 |---|---|
@@ -221,7 +241,8 @@ reproduces such a session tick for tick.
 
 Panels: the arena (value map, vision rays coloured by what they hit, whiskers, pain zones, trail,
 and a dashed "ghost" where path integration *thinks* the body is), the basal-ganglia decision
-scores, memory steering from the value map, the four neuromodulator traces, ATP/glycogen and the
+scores, memory steering (from the value map, or from the SR value on the research profile), the
+four neuromodulator traces, ATP/glycogen and the
 sensory gate, the 16×16 criticality lattice with live avalanches, the κ gauge and log-log
 avalanche-size histogram with a reference line of slope −1.5 (a reference, not a fit: the lattice
 is subcritical at the default coupling), path-integration drift, an event log and a full readout
@@ -232,8 +253,8 @@ occupancy) and, on either profile, the latest **replay events** as trails of the
 backed up, in order; a **Place code** panel shows the activity and the successor field on the
 population's own grid with the decode error, the SR value here, the reward weights and the SR
 update count. Parameters (action selection, neuromodulator gains, E/I coupling, senses, sensor
-noise, and the research profile's odometry noise, oracle noise, softmax temperature and SR
-reward rate) change live. **Record to replay** saves the session as a run; its manifest and
+noise, and the research profile's odometry noise, oracle noise, softmax temperature and the SR's
+reward learning and unlearning rates) change live. **Record to replay** saves the session as a run; its manifest and
 summary carry the profile.
 
 The view explains what is in force (G39). **Mechanisms in force** lists every mechanism the
@@ -303,9 +324,12 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 * **Physiology + neuromodulation** logged.
 * **Criticality field** (bond percolation on a torus) + avalanche detection + κ (kappa).
 * **TRN gating**, microsleep + replay gating.
-* **Spatial system** driven purely by egomotion (HD + grid integrator + place id).
-* **Working memory** (bounded; its "novelty" is a checksum-changed bit) + deterministic basal
-  ganglia action selection.
+* **Spatial system** driven by egomotion (HD + grid integrator + place id), with an optional
+  declared heading oracle and wall-contact reset.
+* **Place code** (on in the research profile): a Gaussian place population over the estimate and
+  successor features learned over it by TD, whose value V = φ·MᵀR can steer.
+* **Working memory** (bounded; its "novelty" is a checksum-changed bit) + basal ganglia action
+  selection (the argmax, or a seeded softmax on the research profile).
 * **Action-driven world movement** (no random wandering).
 * **Closed perception loop:** sensors raycast real world geometry (walls + `WorldObject`
   targets/hazards); the brain steers toward visible targets and away from walls.
@@ -331,8 +355,11 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   seeds, platform, Python and numpy versions, BLAS build and `*_NUM_THREADS` settings,
   wall-clock and ticks/s. Provenance only: it enters no hash, and it is the one file in a run
   with wall-clock time in it. Tournaments write one at their root; console recordings too.
-  `--profile legacy|research` picks the base config for protocols that do not supply their own
-  (the `console_*` ones do, and theirs wins; the manifest records both).
+  `--profile legacy|research` picks the base config: a bare protocol runs on it as it is, and a
+  `console_*` protocol puts its scenario's own settings on it, as the console's switch does (G38);
+  the manifest records the profile that ran and the one requested.
+* `--log-decisions` also writes `decisions.jsonl`, one record per tick of the decision and what
+  made it (`metrics/decisions.py`, G40); a live console recording always writes it.
 * A run in which the engine replayed also writes `replay_events.jsonl`, one replay event per line
   (`brain/systems/replay_events.py`: the ticks it ran over, its trigger and rule, the cells it
   backed up in order), and `summary.json` carries `n_replay_events`; the research profile never
@@ -365,10 +392,12 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   (`docs/odometry.md`; tables in `docs/data/m2a/odometry/`, the M1 record in `docs/data/m1/`).
 * `experiments/estimate_correction.py` — M2b step 1: the declared heading oracle and the
   wall-contact position reset (`sensors.heading_oracle`, `sensors.wall_contact_sensing`,
-  `spatial.heading_source`, `spatial.wall_reset`; all off in both profiles), characterised in the
+  `spatial.heading_source`, `spatial.wall_reset`; off on the legacy profile, on in the research
+  profile since G37), characterised in the
   2 m open field over 30 seeds (`docs/prereg/m2b_estimate.md`; `docs/data/m2b/estimate/`).
 * `experiments/place_population.py` — M2b step 2: a 400-cell Gaussian place population over the
-  estimate (`EngineConfig.place`, `brain/systems/place_population.py`, off in both profiles), its
+  estimate (`EngineConfig.place`, `brain/systems/place_population.py`; on in the research profile
+  since G37), its
   rate maps against true position (`analysis/place_metrics.py`), an exact decoder and the engine's
   throughput with it (`docs/prereg/m2b_place_population.md`; `docs/data/m2b/place/`).
 * `experiments/sr_fields.py` — M2b step 3: successor features over the place code, learned by
@@ -376,8 +405,15 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   and on the agent's own walk in the open field (`docs/prereg/m2b_sr_fields.md`; `docs/data/m2b/sr/`).
 * `experiments/rq4a_gate.py` — M2b step 4: the RQ4(a) gate, relative to the visible-goal ceiling
   (the owner's decision, G36), with the SR's value read-out V = M·R steering
-  (`value_memory.source = "sr"`; `"tabular"`, the default, and `"none"` as ablation and control)
-  (`docs/prereg/m2b_gate.md`; `docs/data/m2b/gate/`).
+  (`value_memory.source = "sr"`, the research profile's since G37; `"tabular"`, the legacy default,
+  and `"none"` as ablation and control) (`docs/prereg/m2b_gate.md` and `m2b_gate_confirmatory.md`;
+  `docs/data/m2b/gate/` and `gate_confirmatory/`). The gate sets the SR's reward rule as registered
+  whatever the profile's default; `--reward-unlearning-rate` runs an exploratory variant (G42).
+* `experiments/console_ablation.py` — a console scenario on matched seeds with memory steering on
+  and off, every tick logged and cut into orbits, paired effects with BCa intervals (G40;
+  `docs/data/console_ablation/`).
+* `experiments/sr_unlearning.py` — the preregistered A/B of the SR's reward unlearning rate on
+  hidden food (`docs/prereg/sr_unlearning_rate.md`, G41; data in `docs/data/console_ablation/`).
 
 ### Tournaments
 * **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.
@@ -392,14 +428,18 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 * `analysis/stats.py`: BCa bootstrap intervals, paired per-seed effects, Cliff's δ, TOST
   equivalence and the pseudo-replication guard every multi-seed claim goes through
   (`docs/stats.md`).
+* `analysis/orbits.py`: loops, orbits and bouts from a decision log, each attributed to the term
+  that drove its turns (G40). `analysis/place_metrics.py` and `analysis/replay_metrics.py`: rate
+  maps against true position, and replay events by the plan's definition.
 * `tools/compare_traces.py`: the cross-platform tolerance gate, floats within 1e-9 and everything
   else exact; with the reference traces' observation sidecars it tolerates a differing
   `obs_checksum` only when the observation it hashes agrees within tolerance (`docs/determinism.md`).
 
 ### Lab console (`python -m ui`)
 * **Live**: six scenarios run on the real engine, on the legacy or the research profile, with live
-  brain panels (the place code and the successor representation on the research profile) and live
-  parameters.
+  brain panels (the place code and the successor representation on the research profile), the
+  mechanisms in force, each decision's terms and counterfactuals, behaviour readouts and live
+  parameters; every recording carries its decision log.
 * **Replay**: browse runs, play/scrub trajectories with the arena scene, charts and a tick inspector.
 * See "Run the lab console locally" above.
 
@@ -410,7 +450,7 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 ```text
 core/        – Engine, world, sensors, rng, pipeline
 brain/       – Contracts + systems (criticality, TRN, spatial, WM, BG, etc.)
-metrics/     – TickData schema, logger, hash utilities
+metrics/     – TickData schema, logger, hashing, run manifests, the decision log
 experiments/ – Protocol framework + headless runner
 tournaments/ – Tournament manager + runner
 agents/      – AgentDNA and agent container
@@ -418,7 +458,7 @@ analysis/    – Extract → metrics → report + plots
 ui/          – Lab console: server, live sessions, scenarios, static frontend
 tools/       – Characterisation probes (tools/probes) and baseline utilities
 tests/       – Determinism gate + unit/integration tests
-docs/        – Decisions log, research plan, architecture/spec notes
+docs/        – Decisions log, research plan, preregistrations, committed data, spec notes
 artifacts/   – Agent proof artifacts, run evidence, etc.
 ```
 
@@ -430,5 +470,8 @@ The code is under the MIT licence (`LICENSE`). The documentation in `docs/` (inc
 decisions log) and the figures are under CC BY 4.0 (`LICENSE-docs`,
 https://creativecommons.org/licenses/by/4.0/). To cite the software, use `CITATION.cff` (GitHub
 renders it as "Cite this repository"). Releases are tagged per milestone (`docs/research_plan.md`
-§7): `v1.0-honest` is Milestone 0a, the legacy/research profile split (G22); `v1.1-base` is
-Milestone 0b, the instrument base (G24).
+§7): `v1.3-track-replay` is Milestone 2a, tabular replay on the linear track (G26–G32), and
+`v1.4-place-code` is Milestone 2b, the place code and the RQ4(a) gate (G33–G37). The decision log
+also names `v1.0-honest` (Milestone 0a, G22) and `v1.1-base` (Milestone 0b, G24, commit
+`48c5817`), but those two tags are not in the repository. The package version stays 1.2.0
+(`pyproject.toml`, `CITATION.cff`) until the owner bumps it.
