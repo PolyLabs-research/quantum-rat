@@ -1615,3 +1615,31 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 - `docs/data/console_ablation/sr_unlearning_pilot/` and `sr_unlearning_confirmatory/` regenerate from the commands in the preregistration (17 s and 10 s on four workers).
 
 **Impact:** this entry; `docs/prereg/sr_unlearning_rate.md` (new); `core/config.py` (`PlaceConfig.reward_unlearning_rate`), `core/engine.py` (`_sr_learn`); `experiments/sr_unlearning.py` (new), `experiments/console_ablation.py` (arm tables); `ui/sim_session.py` (the slider); tests in `tests/engine/`, `tests/experiments/`; docs/profiles.md (the reward-rule row), `docs/data/console_ablation/README.md`, README. No profile default change: the recommendation is C1.
+
+## G42 — Before adopting G41's default: the gate does not stand unchanged; the unlearning rate is a stability–plasticity tradeoff
+
+**Date:** 2026-10-26  
+**Why:** The owner accepted G41's recommendations (2026-10-26). C1, adopting `place.reward_unlearning_rate = 4.0` as the research default, rested on a claim G41 did not measure: that the RQ4(a) gate's result stands under U = 4 because "an unlearning rate changes nothing on a rewarded tick and the gate's trials are short". The gate builds on the research profile, so it was measured first.
+
+### A. What landed
+1. **The gate reproduces as registered whatever the profile's default** (`31d10d7`): `gate_config` sets `reward_unlearning_rate` explicitly (None, one rate, as both gate preregistrations ran), the preregistration table records it, and `--reward-unlearning-rate` runs an exploratory variant (marked exploratory in its manifest). Seed 31's hidden SR session reproduces the committed confirmatory trial by trial.
+2. **The gate at U = 1, 2 and 4** on the confirmatory seeds 31–60, SR source, per-feature rule, exploratory, from the clean tree at `31d10d7`: `docs/data/m2b/gate_confirmatory/exploratory_unlearning_u{1,2,4}/`.
+
+### B. Measured (trials 21–40; paired by seed against the committed confirmatory, BCa 95%)
+
+| U | hidden | visible | hidden ÷ visible | hidden − registered | worse on | learning-half hidden | hidden-food finds (G41 pilot, seeds 1–8) | memory-orbit ticks |
+|---|---|---|---|---|---|---|---|---|
+| 0.5 (registered) | 98.7% | 100% | 0.987 | — | — | 0.91 | 17.6 | 1,254 |
+| 1 | 98.5% | 99.3% | 0.992 | −0.002 [−0.010, +0.007] | 13% | 0.91 | 19.6 | 574 |
+| 2 | 96.7% | 96.7% | 1.000 | −0.020 [−0.042, −0.003] | 27% | 0.89 | 23.4 | 221 |
+| 4 | 85.8% | 93.7% | 0.916 [0.865, 0.967] | −0.128 [−0.167, −0.093] | 83% | 0.76 | 27.3 | 65 |
+
+- **G41 C1's claim was wrong.** At U = 4 the gate still passes its bound (0.916 ≥ 0.8; hidden success also clears the plan's original absolute 80%) and the arrival error is unchanged (0.198 units), but hidden-goal success falls 12.8 points, worse on 25 of 30 seeds, and learning is slower (0.76 against 0.91 over trials 1–20). An unlearning rate acts on every unrewarded tick, and in the gate those are most of the ticks the value has to carry the agent through. Median latency is unchanged (14–15 ticks): the successes are as direct, there are fewer of them. The mechanism is not diagnosed further here.
+- **The rate trades one task against the other, monotonically.** A stable goal (the gate) wants slow unlearning; a reward that empties and regrows (hidden food) wants fast unlearning. U = 1 costs the gate nothing measurable and removes over half of the persistence; U = 2 costs the gate 2 points and removes 82% of it; U = 4 removes 95% of it and costs the gate 13 points.
+
+### C. Decisions
+1. **The research default is not changed by this entry**: the premise the owner accepted it on was wrong, so the choice goes back to the owner with the table above (recorded in the next entry).
+2. **G41 C2, accepted by the owner:** M3's protocols are of the gate's kind (a task the perimeter loop does not solve, with the value source's benefit measurable against no steering), and the circling instrument (G40) runs on every one of them. Recorded in docs/research_plan.md's row 3.
+3. **G41 C3, accepted by the owner:** a later change to the SR's reward rule is tested on hidden-food seeds from 17 onward (1–16 are spent on G41), and on gate seeds from 61 onward (1–60 are spent on G36 and on this entry).
+
+**Impact:** this entry; `experiments/rq4a_gate.py` (`31d10d7`); `docs/data/m2b/gate_confirmatory/exploratory_unlearning_u{1,2,4}/`; docs/research_plan.md (row 3).
