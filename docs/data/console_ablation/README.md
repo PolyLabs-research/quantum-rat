@@ -26,6 +26,11 @@ above, run at a later commit, measure the scenarios as the console now runs them
 `--set place.reward_unlearning_rate=0.5` (the learning rate: the same arithmetic as None), or run at
 `f4176d4`.
 
+| directory | what |
+|---|---|
+| `hidden_food_research_scenario_u4` | hidden food on research as the console runs it since G43 (U = 4), seeds 1–8, at `2de623c` |
+| `beacon_research_scenario_u4` | beacon on research as the console runs it since G43 (U = 4), seeds 1–8, at `2de623c` |
+
 ## The SR's unlearning rate (G41, preregistered: `docs/prereg/sr_unlearning_rate.md`)
 
 `experiments/sr_unlearning.py`, hidden food on the research profile, 3,000 ticks; the files are

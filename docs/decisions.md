@@ -1657,7 +1657,9 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 
 ### B. Measured
 - Hidden food on the research profile at U = 4: G41's confirmatory (seeds 9–16): 28.4 finds against 27.3 without steering, memory-category orbit ticks 67 against 1,157 at one rate.
-- Beacon on the research profile at U = 4, seeds 1–8 (the G41 exploratory check, committed here as `docs/data/console_ablation/beacon_research_scenario_u4/` and `hidden_food_research_scenario_u4/` from the clean tree after this entry): see that commit.
+- **The two scenarios as the console now runs them** (seeds 1–8, 3,000 ticks, from the clean tree at `2de623c`; `docs/data/console_ablation/{hidden_food,beacon}_research_scenario_u4/`), steer against no steering, paired, BCa 95%:
+  - Hidden food: finds 27.3 against 26.5, +0.8 [−1.9, +5.3]; memory-category orbit ticks 65 a run (1,254 at one rate, G40); mean memory influence 0.13 (0.44). The same numbers as G41's pilot U = 4 arm on these seeds, as they must be.
+  - Beacon: beacons 15.6 against 21.5, −5.9 [−9.6, −2.6]; memory-category orbit ticks 57 (884 at one rate); influence 0.07 (0.31). The circling goes; the steering still costs where the beacon has always moved on, and that cost is not persistence.
 
 ### C. What follows
 - M3 runs on the instrument (one rate), on protocols of the gate's kind (G42 C2). Whether replay over the place code resolves the persistence that the unlearning rate removes in the console is a question M3 can ask with the G40 instrument, against these scenario settings.
