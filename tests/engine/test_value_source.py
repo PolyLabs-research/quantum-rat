@@ -94,3 +94,35 @@ def test_the_exploratory_per_feature_reward_rule_keeps_r_non_negative() -> None:
         results[rule] = eng.sr_weights.copy()
     assert float(results["per_feature"].min()) >= 0.0 and float(results["per_feature"].max()) > 0.0
     assert float(results["nlms"].min()) < 0.0  # the ring
+
+
+def test_the_unlearning_rate_applies_on_unrewarded_ticks_only_and_none_is_the_old_rule() -> None:
+    """G41 (docs/prereg/sr_unlearning_rate.md): with the per-feature rule, reward_unlearning_rate is the rate on a
+    tick with reward 0; None uses the learning rate, bit for bit the G36 rule."""
+    from core.config import PlaceConfig
+
+    assert PlaceConfig().reward_unlearning_rate is None and EngineConfig.research().place.reward_unlearning_rate is None
+    with pytest.raises(ValueError):
+        PlaceConfig(reward_unlearning_rate=0.0)
+    with pytest.raises(ValueError):
+        PlaceConfig(reward_unlearning_rate=float("nan"))
+
+    def weights(unlearning, ticks_after=30):
+        cfg = _cfg("sr")
+        cfg.place.reward_rule = "per_feature"
+        cfg.place.reward_unlearning_rate = unlearning
+        eng = Engine(seed=4, config=cfg)
+        eng.run(20, reset=True)
+        eng._sr_learn(1.0)  # one rewarded arrival
+        after_meal = eng.sr_weights.copy()
+        for _ in range(ticks_after):
+            eng.run(1)  # unrewarded ticks nearby
+        return after_meal, eng.sr_weights.copy()
+
+    meal_none, later_none = weights(None)
+    meal_same, later_same = weights(0.5)
+    meal_fast, later_fast = weights(2.0)
+    np.testing.assert_array_equal(later_none, later_same)  # None is the learning rate, exactly
+    np.testing.assert_array_equal(meal_none, meal_fast)  # the rewarded tick is untouched by the unlearning rate
+    assert float(later_fast.sum()) < float(later_none.sum()) < float(meal_none.sum())  # faster unlearning, weights still >= 0
+    assert float(later_fast.min()) >= 0.0

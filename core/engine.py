@@ -505,6 +505,11 @@ class Engine:
             self.sr.update(self._sr_prev, phi)
         rate = self.config.place.reward_learning_rate
         if self.config.place.reward_rule == "per_feature":
+            # G41: on a tick that sees no reward the weights fall toward 0 at the active cells at the unlearning rate
+            # (None: the learning rate, the rule as G36 preregistered it).
+            unlearning = self.config.place.reward_unlearning_rate
+            if reward == 0.0 and unlearning is not None:
+                rate = unlearning
             self.sr_weights += rate * phi * (reward - self.sr_weights)  # exploratory (decisions G36)
         else:
             norm = float((phi * phi).sum())

@@ -347,12 +347,21 @@ class PlaceConfig:
     # rings the goal with negative weights: decisions G36) or "per_feature", exploratory (each weight tracks the reward
     # seen while its cell is active, R += reward_learning_rate * phi * (r - R), so R >= 0 when rewards are >= 0).
     reward_rule: str = "nlms"
+    # G41 (docs/prereg/sr_unlearning_rate.md): with the per-feature rule, the rate at which R falls toward 0 at the
+    # active cells on a tick that sees no reward (r == 0). None, the default and the research profile's, uses
+    # reward_learning_rate: the rule exactly as G36 preregistered it. A separate, higher rate is the unlearning the
+    # circling measurement (G40) pointed to: the value at a just-emptied place outlasting the reward. Read by the
+    # per-feature rule only.
+    reward_unlearning_rate: Optional[float] = None
 
     def __post_init__(self) -> None:
         for name in ("spacing", "width", "max_rate", "sr_learning_rate", "reward_learning_rate"):
             value = getattr(self, name)
             if not (math.isfinite(value) and value > 0.0):
                 raise ValueError(f"place.{name} must be a positive finite number, got {value!r}")
+        if self.reward_unlearning_rate is not None:
+            if not (math.isfinite(self.reward_unlearning_rate) and self.reward_unlearning_rate > 0.0):
+                raise ValueError(f"place.reward_unlearning_rate must be a positive finite number or None, got {self.reward_unlearning_rate!r}")
         if self.extent is not None:
             extent = tuple(float(e) for e in self.extent)
             if len(extent) != 2 or not all(math.isfinite(e) and e > 0.0 for e in extent):

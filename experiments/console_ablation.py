@@ -83,19 +83,21 @@ def parse_set(items: Sequence[str]) -> Dict[str, Any]:
     return out
 
 
-def arm_config(scenario_id: str, profile: str, arm: str, overrides: Mapping[str, Any]):
+def arm_config(scenario_id: str, profile: str, arm: str, overrides: Mapping[str, Any],
+               arms: Mapping[str, Mapping[str, Any]] = ARMS):
+    """The scenario on the profile, with the shared overrides and then the arm's own fields applied."""
     scenario = make_scenario(scenario_id)
     cfg, _ = profile_config(scenario, profile)
     for key, value in overrides.items():
         cfg.set_field(key, value)
-    for key, value in ARMS[arm].items():
+    for key, value in arms[arm].items():
         cfg.set_field(key, value)
     return scenario, cfg
 
 
-def run_one(args: Tuple[str, str, str, int, int, Dict[str, Any]]) -> Dict[str, Any]:
-    scenario_id, profile, arm, seed, ticks, overrides = args
-    scenario, cfg = arm_config(scenario_id, profile, arm, overrides)
+def run_one(args: Tuple[str, str, str, int, int, Dict[str, Any], Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+    scenario_id, profile, arm, seed, ticks, overrides, arms = args
+    scenario, cfg = arm_config(scenario_id, profile, arm, overrides, arms)
     eng = Engine(seed=seed, config=cfg)
     scenario.setup(eng)
     bx, by = eng.world.bounds
@@ -135,19 +137,23 @@ def run_one(args: Tuple[str, str, str, int, int, Dict[str, Any]]) -> Dict[str, A
 
 
 def run_all(scenario_id: str, profile: str, seeds: Sequence[int], ticks: int, overrides: Mapping[str, Any],
-            workers: Optional[int]) -> List[Dict[str, Any]]:
-    jobs = [(scenario_id, profile, arm, seed, ticks, dict(overrides)) for arm in ARMS for seed in seeds]
+            workers: Optional[int], arms: Mapping[str, Mapping[str, Any]] = ARMS) -> List[Dict[str, Any]]:
+    """Every arm on every seed (``arms``: name -> the fields that arm sets), in parallel over ``workers``."""
+    arm_dict = {name: dict(fields) for name, fields in arms.items()}
+    jobs = [(scenario_id, profile, arm, seed, ticks, dict(overrides), arm_dict) for arm in arm_dict for seed in seeds]
     if workers == 1 or len(jobs) == 1:
         return [run_one(j) for j in jobs]
     with ProcessPoolExecutor(max_workers=workers) as pool:
         return list(pool.map(run_one, jobs, chunksize=1))
 
 
-def effects(results: Sequence[Mapping[str, Any]], seeds: Sequence[int], n_boot: int) -> Dict[str, Any]:
+def effects(results: Sequence[Mapping[str, Any]], seeds: Sequence[int], n_boot: int, a_arm: str = "no_steer",
+            b_arm: str = "steer") -> Dict[str, Any]:
+    """Per-metric paired effect of arm ``b_arm`` over arm ``a_arm`` (mean of b - a over seeds, BCa interval)."""
     by = {(r["arm"], r["seed"]): r["metrics"] for r in results}
     out: Dict[str, Any] = {}
     for metric in METRICS:
-        pairs = [(by[("no_steer", s)][metric], by[("steer", s)][metric]) for s in seeds]
+        pairs = [(by[(a_arm, s)][metric], by[(b_arm, s)][metric]) for s in seeds]
         pairs = [(a, b) for a, b in pairs if a is not None and b is not None]
         if len(pairs) < 2:
             out[metric] = {"note": "fewer than two seeds with a value in both arms", "n": len(pairs)}
@@ -170,18 +176,18 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def write_outputs(out: Path, scenario_id: str, profile: str, seeds: Sequence[int], ticks: int, overrides: Mapping[str, Any],
-                  results: Sequence[Mapping[str, Any]], eff: Mapping[str, Any], guard: Any, wall_seconds: float,
-                  keep_records: bool) -> None:
+def write_tables(out: Path, scenario_id: str, results: Sequence[Mapping[str, Any]], keep_records: bool = False,
+                 prefix: str = "ablation") -> None:
+    """The per-seed table, the bouts table and (optionally) every run's decision log, under ``out``."""
     out.mkdir(parents=True, exist_ok=True)
-    with open(out / "ablation_per_seed.csv", "w", newline="", encoding="utf-8") as fh:
+    with open(out / f"{prefix}_per_seed.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["condition", "task", "seed", "metric", "value"])
         for r in sorted(results, key=lambda r: (r["arm"], r["seed"])):
             for metric in METRICS:
                 v = r["metrics"][metric]
                 w.writerow([r["arm"], scenario_id, r["seed"], metric, "" if v is None else v])
-    with open(out / "ablation_bouts.csv", "w", newline="", encoding="utf-8") as fh:
+    with open(out / f"{prefix}_bouts.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=BOUT_COLUMNS)
         w.writeheader()
         for r in sorted(results, key=lambda r: (r["arm"], r["seed"])):
@@ -190,8 +196,20 @@ def write_outputs(out: Path, scenario_id: str, profile: str, seeds: Sequence[int
     if keep_records:
         for r in results:
             write_decisions(out / f"decisions_{r['arm']}_s{r['seed']}.jsonl", r["records"])
-    means = {arm: {m: float(np.mean([r["metrics"][m] for r in results if r["arm"] == arm and r["metrics"][m] is not None]))
-                   if any(r["metrics"][m] is not None for r in results if r["arm"] == arm) else None for m in METRICS} for arm in ARMS}
+
+
+def arm_means(results: Sequence[Mapping[str, Any]], arms: Sequence[str]) -> Dict[str, Dict[str, Optional[float]]]:
+    """Per-arm means of every metric over the seeds with a value (None when no seed has one)."""
+    return {arm: {m: float(np.mean([r["metrics"][m] for r in results if r["arm"] == arm and r["metrics"][m] is not None]))
+                  if any(r["metrics"][m] is not None for r in results if r["arm"] == arm) else None for m in METRICS}
+            for arm in arms}
+
+
+def write_outputs(out: Path, scenario_id: str, profile: str, seeds: Sequence[int], ticks: int, overrides: Mapping[str, Any],
+                  results: Sequence[Mapping[str, Any]], eff: Mapping[str, Any], guard: Any, wall_seconds: float,
+                  keep_records: bool) -> None:
+    write_tables(out, scenario_id, results, keep_records)
+    means = arm_means(results, list(ARMS))
     summary = {
         "scenario": scenario_id, "profile": profile, "seeds": list(seeds), "ticks": ticks, "overrides": dict(overrides),
         "arms": ARMS, "guard": guard, "per_arm_means": means, "effects": _jsonable(eff),
