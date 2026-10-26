@@ -90,15 +90,16 @@ def observation_record(tick: int, observation: Any) -> Dict[str, Any]:
     booleans exactly, when two platforms' checksums of the same observation
     differ (docs/determinism.md).
     """
-    from dataclasses import asdict
     def _plain(value: Any) -> Any:
         if isinstance(value, dict):
             return {key: _plain(value[key]) for key in value}
         if isinstance(value, (list, tuple)):
             return [_plain(v) for v in value]
         return value
+    from brain.contracts import observation_fields
+
     record: Dict[str, Any] = {"tick": int(tick)}
-    record.update(_plain(asdict(observation)))
+    record.update(_plain(observation_fields(observation)))  # the optional M2b fields only when present
     return record
 
 

@@ -1,0 +1,19 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,fraction_b_lt_a,bound,verdict,note
+t1_level,error_median_late,,oracle_reset,30,,0.700401,0.700401,0.65412,0.760174,,,,,"< 2.0 units, interval below",passes,
+t3_drop_at_contact,drop_at_contact,,oracle_reset,30,,-0.560114,-0.560114,-0.596378,-0.517976,,,,,"< 0, interval below",passes,
+t4_wrong_wall,wrong_wall_share,,oracle_reset,30,,0,0,0,0,,,,,< 0.01,passes,"degenerate: all values equal, nothing resampled"
+reported_wrong_wall,wrong_wall_share,,integrated_reset,30,,0.0248811,0.0248811,0.00933347,0.0537507,,,,,reported,reported,
+reported_drop_at_contact,drop_at_contact,,integrated_reset,30,,-1.39436,-1.39436,-1.60747,-1.21684,,,,,reported,reported,
+t2_primary_vs_integrated,error_mean_late,integrated,oracle_reset,30,10.1266,0.915433,-9.21121,-10.7979,-7.70122,-1,-1,-1,1,"b < a: delta <= -0.3, interval below 0",passes,all bootstrap replicates equal; interval collapsed to the estimate
+reset_under_oracle,error_mean_late,oracle,oracle_reset,30,8.27704,0.915433,-7.36161,-8.6079,-6.22929,-1,-1,-1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reset_under_integration,error_mean_late,integrated,integrated_reset,30,10.1266,3.56474,-6.5619,-8.32317,-5.16662,-0.848889,-0.937778,-0.670856,1,reported,reported,
+oracle_without_reset,error_mean_late,integrated,oracle,30,10.1266,8.27704,-1.8496,-3.15972,-0.72849,-0.226667,-0.495556,0.08,0.7,reported,reported,
+oracle_under_reset,error_mean_late,integrated_reset,oracle_reset,30,3.56474,0.915433,-2.64931,-3.46083,-2.03086,-1,-1,-1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+sensitivity,error_median_late,,oracle_reset@0,30,,0.645339,0.645339,0.590526,0.700865,,,,,reported,reported,
+sensitivity,wrong_wall_share,,oracle_reset@0,30,,0,0,0,0,,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+sensitivity,error_median_late,,oracle_reset@0.02,30,,0.658522,0.658522,0.604706,0.718604,,,,,reported,reported,
+sensitivity,wrong_wall_share,,oracle_reset@0.02,30,,0,0,0,0,,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+sensitivity,error_median_late,,oracle_reset@0.1,30,,0.810914,0.810914,0.757488,0.875172,,,,,reported,reported,
+sensitivity,wrong_wall_share,,oracle_reset@0.1,30,,0,0,0,0,,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+sensitivity,error_median_late,,oracle_reset@0.2,30,,1.10805,1.10805,1.03567,1.18711,,,,,reported,reported,
+sensitivity,wrong_wall_share,,oracle_reset@0.2,30,,9.78464e-05,9.78464e-05,3.69969e-05,0.000201998,,,,,reported,reported,

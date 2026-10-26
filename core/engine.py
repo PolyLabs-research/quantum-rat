@@ -124,6 +124,7 @@ class Engine:
             # four above exactly as they were; at the legacy defaults (noise
             # parameters 0) neither is ever drawn from.
             "sensors_odometry": self.rng.stream("sensors_odometry"),
+            "sensors_heading": self.rng.stream("sensors_heading"),  # the heading oracle's error (M2b); drawn only when on
             "action_softmax": self.rng.stream("action_softmax"),
         }
         self.world = World(bounds=c.world.bounds)
@@ -187,8 +188,15 @@ class Engine:
             narrow_gain=c.trn.narrow_gain,
             microsleep_enabled=c.trn.microsleep_enabled,
         )
+        if c.spatial.heading_source == "oracle" and not c.sensors.heading_oracle:
+            raise ValueError("spatial.heading_source 'oracle' needs sensors.heading_oracle = True")
+        if c.spatial.wall_reset and not c.sensors.wall_contact_sensing:
+            raise ValueError("spatial.wall_reset needs sensors.wall_contact_sensing = True")
         self.spatial = SpatialSystem(
-            turn_gain=c.spatial.turn_gain, decay=c.spatial.decay, bin_size=c.spatial.bin_size
+            turn_gain=c.spatial.turn_gain, decay=c.spatial.decay, bin_size=c.spatial.bin_size,
+            heading_source=c.spatial.heading_source, wall_reset=c.spatial.wall_reset,
+            # The agent knows the arena's half-extent in its estimate frame (declared, docs/prereg/m2b_estimate.md).
+            reset_bounds=(c.spatial.reset_bounds or tuple(self.world.bounds)) if c.spatial.wall_reset else None,
         )
         self.working_memory = WorkingMemory(capacity=c.working_memory.capacity)
         self.last_action: Action = Action(name="REST", thrust=0.0, turn=0.0)
@@ -239,6 +247,7 @@ class Engine:
             vision_stream=self.streams["sensors_vision"],
             noise_stream=self.streams["sensors_noise"],
             odometry_stream=self.streams["sensors_odometry"],
+            heading_stream=self.streams["sensors_heading"],
         )
         ctx.observation = obs
         ctx.observation_checksum = observation_checksum(obs)

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Tuple
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -36,6 +36,13 @@ class Observation:
     # that the research odometry error is signed and zero-mean (docs/odometry.md).
     forward_delta: float
     turn_delta: float  # egomotion: heading change this tick (radians)
+    # M2b step 1 (docs/prereg/m2b_estimate.md); both None unless the sensor config turns them on, and a None field is
+    # left out of the checksum and the determinism record (``observation_fields``), so every earlier observation
+    # serialises as before. ``heading``: the declared heading oracle, the allocentric heading with a seeded error
+    # (radians, [-pi, pi]). ``wall_contacts``: the egocentric angle of the outward normal of each arena wall the body
+    # touches (radians, [-pi, pi]; empty when none).
+    heading: Optional[float] = None
+    wall_contacts: Optional[Tuple[float, ...]] = None
 
     def validate(self, forward_limit: float = 1.0) -> None:
         """Check the ranges; ``forward_limit`` is the egomotion range in force (``SensorConfig.forward_delta_limit``).
@@ -55,6 +62,28 @@ class Observation:
             raise ValueError(f"turn_delta must be in [-pi, pi], got {self.turn_delta}")
         for ray in self.vision_rays:
             ray.validate()
+        if self.heading is not None and not -3.14159266 <= self.heading <= 3.14159266:
+            raise ValueError(f"heading must be in [-pi, pi], got {self.heading}")
+        if self.wall_contacts is not None:
+            if len(self.wall_contacts) > 2:
+                raise ValueError(f"at most two walls can be touched at once (a corner), got {len(self.wall_contacts)}")
+            for angle in self.wall_contacts:
+                if not -3.14159266 <= angle <= 3.14159266:
+                    raise ValueError(f"wall contact angles must be in [-pi, pi], got {angle}")
+
+
+# The Observation's optional fields (M2b): omitted from the checksum and the determinism record while None.
+OPTIONAL_OBSERVATION_FIELDS: Tuple[str, ...] = ("heading", "wall_contacts")
+
+
+def observation_fields(obs: Observation) -> Dict[str, Any]:
+    """``dataclasses.asdict(obs)`` without the optional fields that are None: what ``observation_checksum`` hashes and
+    ``core.determinism.observation_record`` writes, so an observation that does not use them reads as before M2b."""
+    data = asdict(obs)
+    for name in OPTIONAL_OBSERVATION_FIELDS:
+        if data.get(name) is None:
+            data.pop(name, None)
+    return data
 
 
 @dataclass(frozen=True)

@@ -101,6 +101,9 @@ offline.
    # (about 20 min on 4 cores, writes docs/data/m2a/rq1_step6)
    python -m experiments.linear_track_rq1 --pilot --workers 4
    python -m experiments.linear_track_rq1 --workers 4
+   # M2b step 1 (docs/prereg/m2b_estimate.md): the heading oracle and the wall-contact reset in the
+   # 2 m open field, 8 cells x 30 seeds x 3,000 ticks (writes docs/data/m2b/estimate)
+   python -m experiments.estimate_correction --workers 4
    ```
 
 Stop the server with `Ctrl+C`.

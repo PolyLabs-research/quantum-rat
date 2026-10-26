@@ -301,6 +301,10 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   per pause (`docs/data/m2a/rq1/`).
 * `experiments/odometry_characterisation.py` — the research profile's odometry noise characterised
   (`docs/odometry.md`; tables in `docs/data/m2a/odometry/`, the M1 record in `docs/data/m1/`).
+* `experiments/estimate_correction.py` — M2b step 1: the declared heading oracle and the
+  wall-contact position reset (`sensors.heading_oracle`, `sensors.wall_contact_sensing`,
+  `spatial.heading_source`, `spatial.wall_reset`; all off in both profiles), characterised in the
+  2 m open field over 30 seeds (`docs/prereg/m2b_estimate.md`; `docs/data/m2b/estimate/`).
 
 ### Tournaments
 * **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.

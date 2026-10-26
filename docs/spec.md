@@ -169,6 +169,13 @@ energy_levels: Dict[str, float] # {'atp', 'glycogen'}
 
 egomotion: Tuple[float, float] # [forward_delta, turn_delta]
 
+# M2b (docs/prereg/m2b_estimate.md, decisions G33): two optional fields, None unless the
+# sensor config turns them on, and left out of the checksum while None (brain/contracts.py).
+
+heading: Optional[float] # the declared heading oracle: allocentric heading + seeded error
+
+wall_contacts: Optional[Tuple[float, ...]] # egocentric normals of the walls touched
+
 Output from Brain:
 
 @dataclass(frozen=True)

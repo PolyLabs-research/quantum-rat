@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field, fields, is_dataclass
-from typing import Any, ClassVar, Dict, List, Mapping, Tuple
+from typing import Any, ClassVar, Dict, List, Mapping, Optional, Tuple
 
 from brain.systems.criticality import CriticalityConfig
 
@@ -83,6 +83,9 @@ class UnitsConfig:
         return rad_per_tick * self.ticks_per_second
 
 
+HEADING_SOURCES: Tuple[str, ...] = ("integrated", "oracle")
+
+
 @dataclass
 class WorldConfig:
     bounds: Tuple[float, float] = (10.0, 10.0)
@@ -120,6 +123,23 @@ class SensorConfig:
     # the signed, zero-mean error it draws (a clip at 2.0 needs xi > 20 at sigma
     # 0.05 and never occurs). The body's motion is unchanged by this field.
     forward_delta_limit: float = 1.0
+    # --- M2b step 1 (docs/prereg/m2b_estimate.md): the declared heading oracle and wall-contact sensing ---
+    # heading_oracle: the Observation carries ``heading``, the body's allocentric heading plus a Gaussian error of sd
+    # heading_oracle_noise (radians), drawn per tick from the "sensors_heading" stream (no draw at 0). Off, the
+    # field is None and nothing is drawn. Plan section 2 item 1: heading is given, not inferred from landmarks; a
+    # declared limitation of every result that uses it.
+    heading_oracle: bool = False
+    heading_oracle_noise: float = 0.0
+    # wall_contact_sensing: the Observation carries ``wall_contacts``, the egocentric angle (radians, relative to the
+    # body's heading) of the outward normal of each arena wall the body touches, x walls before y walls; empty when
+    # it touches none. Off, the field is None. Touch is exact: it says which side of the body is against a wall.
+    wall_contact_sensing: bool = False
+
+    def __post_init__(self) -> None:
+        if not (math.isfinite(self.heading_oracle_noise) and self.heading_oracle_noise >= 0.0):
+            raise ValueError("heading_oracle_noise must be a finite non-negative number")
+        if self.heading_oracle_noise > 0.0 and not self.heading_oracle:
+            raise ValueError("heading_oracle_noise > 0 needs heading_oracle = True (nothing would be drawn)")
 
 
 
@@ -272,6 +292,26 @@ class SpatialConfig:
     # gate scaling it, the legacy estimate ends 22.8 units off after 3000
     # barren-world ticks (tools/probes/path_integration_capture).
     gate_scales_egomotion: bool = True
+    # --- M2b step 1 (docs/prereg/m2b_estimate.md) ---
+    # heading_source: "integrated" sums the egomotion turn into the heading estimate (every profile so far);
+    # "oracle" takes the Observation's ``heading`` (needs sensors.heading_oracle).
+    heading_source: str = "integrated"
+    # wall_reset: on every tick the body touches a wall, the estimate's coordinate along that wall's normal is set to
+    # the wall's (Hardcastle, Ganguli & Giocomo 2015, for the reset only); the wall is identified by snapping the
+    # allocentric contact normal (heading estimate + the touch's egocentric angle) to the nearest arena axis; the
+    # along-wall coordinate is untouched. Needs sensors.wall_contact_sensing. reset_bounds is the arena's half-extent
+    # the agent knows, in its estimate frame (which starts at the body's start pose); None means the world's bounds.
+    wall_reset: bool = False
+    reset_bounds: Optional[Tuple[float, float]] = None
+
+    def __post_init__(self) -> None:
+        if self.heading_source not in HEADING_SOURCES:
+            raise ValueError(f"heading_source must be one of {HEADING_SOURCES}, got {self.heading_source!r}")
+        if self.reset_bounds is not None:
+            bounds = tuple(float(b) for b in self.reset_bounds)
+            if len(bounds) != 2 or not all(math.isfinite(b) and b > 0.0 for b in bounds):
+                raise ValueError("reset_bounds must be two positive finite half-extents, or None")
+            object.__setattr__(self, "reset_bounds", bounds)
 
 
 @dataclass
@@ -536,6 +576,10 @@ class EngineConfig:
             value = getattr(getattr(self, section), field_name)
             if value > 0.0:
                 out.append(f"{name}={value!r}")
+        # The heading oracle's error draws only while the oracle is on (M2b step 1), so it is counted only then; it is
+        # not in STOCHASTIC_PARAMETERS, whose entries draw whenever they are > 0.
+        if self.sensors.heading_oracle and self.sensors.heading_oracle_noise > 0.0:
+            out.append(f"sensors.heading_oracle_noise={self.sensors.heading_oracle_noise!r}")
         return out
 
     def get_field(self, key: str) -> Any:
@@ -697,6 +741,7 @@ __all__ = [
     "WorkingMemoryConfig",
     "BasalGangliaConfig",
     "EngineConfig",
+    "HEADING_SOURCES",
     "STOCHASTIC_PARAMETERS",
     "config_diff",
 ]
