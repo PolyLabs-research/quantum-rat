@@ -48,13 +48,20 @@
         </section>
 
         <section class="card" aria-labelledby="h-watch">
-          <h2 id="h-watch" class="card-title">What to watch</h2>
+          <div class="card-head">
+            <h2 id="h-watch" class="card-title">Mechanisms in force</h2>
+            <span class="card-meta">from the effective configuration</span>
+          </div>
+          <ul id="mechanisms" class="mech-list" aria-live="off"></ul>
+          <h3 id="h-notes" class="card-sub">Scenario notes</h3>
           <ul id="scenario-watch" class="watch-list"></ul>
         </section>
 
         <section class="card" aria-labelledby="h-experiment">
           <h2 id="h-experiment" class="card-title">Experiment</h2>
           <dl id="scenario-status" class="kv"></dl>
+          <h3 class="card-sub">Behaviour</h3>
+          <dl id="behaviour" class="kv" title="What the body did since the session was built or reset"></dl>
           <div id="trial-chart" class="trial-chart" hidden></div>
           <div id="scenario-actions" class="action-list"></div>
         </section>
@@ -119,14 +126,16 @@
         <section class="card arena-card" aria-labelledby="h-arena">
           <div class="card-head">
             <h2 id="h-arena" class="card-title">Arena</h2>
+            <span id="arena-scale" class="card-meta"></span>
             <div class="layer-toggles" role="group" aria-label="Arena layers">
-              <label><input type="checkbox" data-layer="value" checked> Value map</label>
+              <label id="layer-value-label"><input type="checkbox" data-layer="value" checked> <span>Value map</span></label>
               <label><input type="checkbox" data-layer="rays" checked> Vision</label>
               <label><input type="checkbox" data-layer="trail" checked> Trail</label>
               <label><input type="checkbox" data-layer="estimate" checked> Estimate</label>
               <label><input type="checkbox" data-layer="replay" checked> Replay events</label>
-              <label data-research hidden><input type="checkbox" data-layer="place" checked> Place cells</label>
               <label data-research hidden><input type="checkbox" data-layer="srValue" checked> SR value</label>
+              <span class="layer-sep" data-research hidden>diagnostics:</span>
+              <label data-research hidden><input type="checkbox" data-layer="place"> Place cells</label>
               <label data-research hidden><input type="checkbox" data-layer="srField"> SR field from here</label>
             </div>
           </div>

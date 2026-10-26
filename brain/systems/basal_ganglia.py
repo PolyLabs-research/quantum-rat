@@ -129,6 +129,96 @@ def _channel_scores(
     return scores
 
 
+def channel_terms(
+    observation: Observation,
+    wm_novelty: float,
+    trn_gain: float,
+    microsleep_active: bool,
+    config: BasalGangliaConfig,
+    modulators: Mapping[str, float],
+    value_ahead: float = 0.0,
+    value_left: float = 0.0,
+    value_right: float = 0.0,
+    criticality_gain: float = 1.0,
+    freeze_habituation: float = 1.0,
+    pacing_rest: float = 0.0,
+) -> Dict[str, Dict[str, float]]:
+    """Each channel's score as its named terms: a readout, not the decision.
+
+    The same arithmetic as :func:`_channel_scores`, term by term, so that for
+    every channel the terms sum to its score (tests/brain/test_decision_terms.py
+    pins this against the engine's own scores). Names: ``bias`` (FORWARD's
+    forward_bias × the TRN gate; a TURN's turn_bias), ``vision``, ``memory``
+    (the value signal × value_gain), ``wall`` (avoidance), ``pain``, ``novelty``
+    (the novelty bit's terms), and REST's ``gate`` (the narrowed TRN gate),
+    ``patience`` (serotonin) and ``pacing``; ``microsleep`` alone while asleep.
+    Nothing in the engine reads it; the console does (decisions G39).
+    """
+    if microsleep_active:
+        return {"REST": {"microsleep": 1.0}}
+    pain = observation.pain_signal
+    c_target, c_wall, l_target, r_target, l_open, r_open = _vision_signals(observation)
+    da = modulators.get("DA", 0.5)
+    ne = modulators.get("NE", 0.0)
+    ach = modulators.get("ACh", 0.0)
+    fiveht = modulators.get("5HT", 0.5)
+    novelty_gain = config.novelty_gain * (1.0 + config.dopamine_explore_gain * (0.5 - da))
+    crit_mod = (1.0 - config.criticality_gain) + config.criticality_gain * criticality_gain
+    vision_gain = config.vision_gain * (1.0 + config.ach_precision_gain * ach) * crit_mod
+    pain_avoidance = config.pain_avoidance * (1.0 + config.ne_threat_gain * ne)
+    rest_pain_gain = config.rest_pain_gain * (1.0 + config.ne_threat_gain * ne)
+    rest_patience = config.fiveht_patience_gain * (fiveht - 0.5)
+    return {
+        "FORWARD": {
+            "bias": config.forward_bias * trn_gain,
+            "pain": -pain_avoidance * pain,
+            "novelty": novelty_gain * wm_novelty,
+            "vision": vision_gain * c_target,
+            "memory": config.value_gain * value_ahead,
+            "wall": -config.wall_avoid_gain * c_wall,
+        },
+        "TURN_LEFT": {
+            "novelty": config.novelty_turn_gain * wm_novelty,
+            "vision": vision_gain * l_target,
+            "memory": config.value_gain * value_left,
+            "bias": max(config.turn_bias, 0.0),
+            "wall": config.wall_avoid_gain * c_wall * (0.5 + l_open),
+        },
+        "TURN_RIGHT": {
+            "novelty": config.novelty_turn_gain * wm_novelty,
+            "vision": vision_gain * r_target,
+            "memory": config.value_gain * value_right,
+            "bias": max(-config.turn_bias, 0.0),
+            "wall": config.wall_avoid_gain * c_wall * (0.5 + r_open),
+        },
+        "REST": {
+            "pain": rest_pain_gain * pain * freeze_habituation,
+            "gate": 0.1 * (1.0 - trn_gain),
+            "patience": rest_patience,
+            "pacing": pacing_rest,
+        },
+    }
+
+
+def selection_probabilities(
+    scores: Mapping[str, float], temperature: float, order: Optional[Sequence[str]] = None
+) -> Dict[str, float]:
+    """The probability each channel is selected from ``scores``: the softmax at ``temperature``
+    (the weights :func:`softmax_sample` draws from), or 1 on the argmax at temperature 0. A
+    readout; no draw is made. ``order`` defaults to ``ACTION_ORDER`` (defined below)."""
+    names = list(order if order is not None else ACTION_ORDER)
+    if temperature <= 0.0:
+        best = argmax_action(scores, names)
+        return {name: (1.0 if name == best else 0.0) for name in names}
+    values = [scores.get(name, float("-inf")) for name in names]
+    top = max(values)
+    if top == float("-inf"):
+        return {name: 0.0 for name in names}
+    weights = [math.exp((v - top) / temperature) for v in values]
+    total = sum(weights)
+    return {name: w / total for name, w in zip(names, weights)}
+
+
 def cue_gate_weight(observation: Observation, gain: float) -> float:
     """Weight on memory steering given what is in view (cue gating).
 

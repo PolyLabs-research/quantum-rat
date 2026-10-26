@@ -236,6 +236,20 @@ noise, and the research profile's odometry noise, oracle noise, softmax temperat
 reward rate) change live. **Record to replay** saves the session as a run; its manifest and
 summary carry the profile.
 
+The view explains what is in force (G39). **Mechanisms in force** lists every mechanism the
+panels describe with its status under the effective configuration, active, readout only (a gain
+of 0) or off, and a one-line detail, recomputed when a slider moves; the scenario notes beneath
+it are written per profile. The **Decision** panel shows each action score as its named terms
+(bias, vision, memory, wall, pain, novelty, the REST drives), the total and the selection
+probability (the softmax at the profile's temperature; 1 on the argmax at 0), and names the
+value source the memory steer reads. The arena's default layers follow that source: the active
+one is on, the other map is a diagnostic, and the colour scale of each map is printed beside
+the title. **Behaviour** readouts (distance walked, wall-contact share, finds, ticks since the
+last find, distance per find, reward) tell useful behaviour from cycling. Memory controls name
+their learner: "Forget the rewards" clears the SR's reward weights as well as the tabular map,
+and the maze's consolidation says when it changes the diagnostic map only; the maze's
+inter-trial rest is physiology updates, frozen with the research profile's energy.
+
 Keys: `Space` play/pause, `→` step. Deep links work, e.g.
 `/live?scenario=memory_maze&seed=7&speed=300&paused=1` or `/live?profile=research&scenario=open_field`.
 

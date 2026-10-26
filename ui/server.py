@@ -127,6 +127,8 @@ def _session_payload(session: SimSession) -> Dict[str, Any]:
         "profile": {"id": session.profile, "overrides": [list(o) for o in session.profile_overrides]},
         # The place population's grid (research profile), once; None without one.
         "place": session.place_info(),
+        # What is in force under the effective configuration (recomputed after a parameter change).
+        "mechanisms": session.mechanisms(),
         "params": session.params(),
         "frame": session.frame(),
         "value_map": session.value_map(),
@@ -225,6 +227,7 @@ def set_param(session_id: str):
                 "key": key,
                 "value": applied,
                 "params": session.params(),
+                "mechanisms": session.mechanisms(),
                 "frame": session.frame(),
                 "events": session.events_since(since),
             }
@@ -248,6 +251,7 @@ def scenario_action(session_id: str):
             {
                 "frame": session.frame(),
                 "value_map": session.value_map(),
+                "mechanisms": session.mechanisms(),
                 "events": session.events_since(since),
             }
         )

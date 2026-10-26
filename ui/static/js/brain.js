@@ -56,12 +56,20 @@ export class DecisionPanel {
       this.pull[key] = { fill, val };
     }
     this.pullNote = el('span', { class: 'muted' });
+    this.steerHead = el('span', { text: 'Memory steer' });
+    // The decision as its terms: every score's named contributions, the total and the probability the
+    // selection gives it (softmax at the profile's temperature; 1 on the argmax at 0). Columns that are
+    // 0 for every channel are left out, so the table stays as wide as the mechanisms in force.
+    this.selectNote = el('span', { class: 'muted' });
+    this.table = el('table', { class: 'terms', 'aria-label': 'Each action score as its terms, the total and the selection probability' });
     // Why memory or pain is (partly) switched off right now; hidden when none is.
     this.mods = el('div', { class: 'crit-line decision-mods' });
     this.gain = el('div', { class: 'crit-line' });
     host.append(
       bars,
-      el('div', { class: 'subhead' }, el('span', { text: 'Memory steer (value map)' }), this.pullNote),
+      el('div', { class: 'subhead' }, el('span', { text: 'What made each score' }), this.selectNote),
+      this.table,
+      el('div', { class: 'subhead' }, this.steerHead, this.pullNote),
       pull,
       this.mods,
       el('div', { class: 'subhead' }, el('span', { text: 'Criticality → vision gain' }), el('span', { class: 'muted', text: 'off at defaults' })),
@@ -71,6 +79,8 @@ export class DecisionPanel {
 
   update(action) {
     const scores = action.scores || {};
+    const probs = action.probs || {};
+    const tau = action.temperature ?? 0;
     const scale = Math.max(0.5, ...Object.values(scores).map((v) => Math.abs(v)));
     for (const [key] of ACTIONS) {
       const r = this.rows[key];
@@ -79,8 +89,13 @@ export class DecisionPanel {
       r.row.dataset.chosen = String(chosen);
       divergingBar(r.fill, v, scale);
       r.val.textContent = fmtSigned(v, 2);
-      r.row.title = chosen ? `${r.label}: chosen (highest score)` : r.label;
+      const p = probs[key];
+      r.row.title = `${r.label}${chosen ? ': chosen' : ''}${p !== undefined ? ` · selection probability ${fmt(100 * p, 0)}%` : ''}`;
     }
+    this._renderTerms(action, scores, probs, tau);
+    const source = action.source ?? 'tabular';
+    const gainText = action.value_gain !== undefined ? ` × ${fmt(action.value_gain, 2)}` : '';
+    this.steerHead.textContent = source === 'sr' ? `Memory steer (SR value${gainText})` : source === 'none' ? 'Memory steer (off: no value source)' : `Memory steer (value map${gainText})`;
     const [ahead, left, right] = action.value || [0, 0, 0];
     const any = Math.abs(ahead) + Math.abs(left) + Math.abs(right) > 1e-6;
     for (const [key, v] of [['ahead', ahead], ['left', left], ['right', right]]) {
@@ -133,6 +148,32 @@ export class DecisionPanel {
       }),
     );
   }
+
+  _renderTerms(action, scores, probs, tau) {
+    const order = ['bias', 'vision', 'memory', 'wall', 'pain', 'novelty', 'gate', 'patience', 'pacing', 'microsleep'];
+    const labels = { bias: 'Bias', vision: 'Vision', memory: 'Memory', wall: 'Wall', pain: 'Pain', novelty: 'Novelty', gate: 'Gate', patience: 'Patience', pacing: 'Pacing', microsleep: 'Sleep' };
+    const terms = action.terms || {};
+    const cols = order.filter((k) => Object.values(terms).some((t) => Math.abs(t[k] ?? 0) > 1e-9));
+    this.selectNote.textContent = tau > 0 ? `softmax τ ${fmt(tau, 2)}: the highest score need not win` : 'argmax: the highest score wins';
+    const head = el('tr', {}, el('th', { text: 'Action' }), ...cols.map((k) => el('th', { text: labels[k] })), el('th', { class: 'total', text: 'Total' }), el('th', { text: 'P' }));
+    const rows = [head];
+    for (const [key, label] of ACTIONS) {
+      if (!(key in scores)) continue; // asleep: only REST is scored
+      const t = terms[key] || {};
+      const cell = (v) => el('td', { class: v < -1e-9 ? 'neg' : '', text: Math.abs(v) < 5e-3 ? '·' : fmtSigned(v, 2) });
+      rows.push(
+        el(
+          'tr',
+          { dataset: { chosen: String(action.name === key) } },
+          el('td', { text: label }),
+          ...cols.map((k) => cell(t[k] ?? 0)),
+          el('td', { class: 'total', text: fmtSigned(scores[key] ?? 0, 2) }),
+          el('td', { text: probs[key] !== undefined ? `${fmt(100 * probs[key], 0)}%` : '—' }),
+        ),
+      );
+    }
+    this.table.replaceChildren(el('tbody', {}, rows));
+  }
 }
 
 // ---------------------------------------------------------- neuromodulators
@@ -160,11 +201,20 @@ export class ModulatorPanel {
       text: 'Four scalar traces, not models of these systems: DA = reward − its running mean; ACh = the novelty bit (1 when the observation checksum changed) and NE = ½ pain + ½ that bit; 5HT = the running mean itself, lagging DA\'s input. Each enters action selection through one small gain.',
     });
     this.note.style.margin = '8px 0 0';
+    // Whether the traces reach the scores under the effective configuration (the mechanisms list).
+    this.status = el('p', { class: 'mod-status', hidden: true });
+    host.prepend(this.status);
     host.append(this.note);
     this.history = {};
   }
 
-  update(mod, history) {
+  update(mod, history, status) {
+    if (status === 'readout') {
+      this.status.textContent = 'Every gain is 0 on this configuration: the four traces are readouts and move no score. The role texts below describe what a gain above 0 would do.';
+      this.status.hidden = false;
+    } else {
+      this.status.hidden = true;
+    }
     for (const r of this.rows) {
       r.dot.style.background = T[r.m.key];
       const v = mod[r.m.mod] ?? 0;

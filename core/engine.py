@@ -522,6 +522,15 @@ class Engine:
         self.value_memory.reset_episode()
         self._sr_prev = None
 
+    def forget_rewards(self) -> None:
+        """Erase what the value learners know about reward: the tabular map's values and, with the SR source, its
+        reward weights R. The SR's transition structure M is kept (the agent's knowledge of the space, not of
+        reward). A console action (decisions G39); nothing in the tick pipeline calls it."""
+        self.value_memory.values.clear()
+        if self.sr_weights is not None:
+            self.sr_weights[:] = 0.0
+            self._sr_u = None
+
     def _value_at(self, x: float, y: float) -> float:
         """The value the steering reads at a position of the estimate frame, from ``value_memory.source``."""
         if self.sr is not None:

@@ -290,3 +290,85 @@ def test_recording_carries_the_profile(tmp_path):
     manifest = json.loads((tmp_path / run_id / "manifest.json").read_text())
     assert manifest["profile"] == "research" and manifest["profile_requested"] == "research"
     assert manifest["config"]["place"]["enabled"] is True
+
+
+# --- the view explains the active mechanisms (docs/decisions.md G39) -----------------------
+
+
+def test_frame_carries_the_decision_terms_and_the_selection_probabilities():
+    for profile in ("legacy", "research"):
+        session = SimSession("hazard_field", seed=4, profile=profile)
+        session.step(120)
+        a = session.frame()["action"]
+        assert set(a["terms"]) == set(a["scores"])
+        for channel, score in a["scores"].items():
+            assert abs(sum(a["terms"][channel].values()) - score) < 2e-3  # the frame rounds to 4 dp
+        assert abs(sum(a["probs"].values()) - 1.0) < 1e-6
+        if profile == "research":
+            assert a["source"] == "sr" and a["temperature"] == 0.1
+        else:
+            assert a["source"] == "tabular" and a["temperature"] == 0.0 and a["probs"][a["name"]] == 1.0
+
+
+def test_mechanisms_follow_the_effective_configuration():
+    legacy = {m["id"]: m for m in SimSession("open_field").mechanisms()}
+    assert legacy["energy"]["status"] == legacy["microsleep"]["status"] == legacy["map"]["status"] == "active"
+    assert legacy["place"]["status"] == "off" and legacy["neuromod"]["status"] == "active" and legacy["crit"]["status"] == "readout"
+    research = SimSession("memory_maze", profile="research")
+    m = {x["id"]: x for x in research.mechanisms()}
+    assert m["energy"]["status"] == "off" and m["microsleep"]["status"] == "off"
+    assert m["steer"]["status"] == "active" and "SR value" in m["steer"]["detail"]
+    assert m["map"]["status"] == "readout" and m["place"]["status"] == "active"
+    assert m["neuromod"]["status"] == m["novelty"]["status"] == m["crit"]["status"] == "readout"
+    assert m["goal"]["status"] == "active" and "own setting" in m["goal"]["detail"]
+    assert m["heading"]["detail"].startswith("the declared heading oracle") and m["reset"]["status"] == "active"
+    assert {x["status"] for x in research.mechanisms()} <= {"active", "readout", "off"}
+    research.set_param("basal_ganglia.ne_threat_gain", 0.5)  # a gain above 0 turns the chip on
+    assert {x["id"]: x for x in research.mechanisms()}["neuromod"]["status"] == "active"
+    json.dumps(research.mechanisms())
+
+
+def test_behaviour_readouts_count_what_the_body_did():
+    session = SimSession("foraging", seed=11)
+    session.step(400)
+    b = session.frame()["behaviour"]
+    assert b["distance"] > 0 and 0.0 <= b["wall_fraction"] <= 1.0
+    assert b["finds"] == session.scenario.collected >= 1  # one contact tick per collection
+    assert b["ticks_since_find"] is not None and b["distance_per_find"] > 0 and b["reward_total"] > 0
+    fresh = SimSession("open_field", seed=1).frame()["behaviour"]
+    assert fresh["finds"] == 0 and fresh["ticks_since_find"] is None and fresh["distance_per_find"] is None
+    # The teleport to the start after a maze trial is not walking: the body moves at most 1 unit per tick.
+    maze = SimSession("memory_maze", seed=3, profile="research")
+    for _ in range(20):
+        maze.step(50)
+        if maze.scenario.history:
+            break
+    assert maze.scenario.history and maze.frame()["behaviour"]["distance"] <= maze.tick + 1
+
+
+def test_maze_rest_respects_frozen_physiology_and_the_memory_controls_name_their_learner():
+    research = SimSession("memory_maze", seed=3, profile="research")
+    for _ in range(20):
+        research.step(50)
+        if any(e["kind"] == "rest" for e in research.events):
+            break
+    rest = [e for e in research.events if e["kind"] == "rest"][-1]
+    assert "frozen" in rest["text"] and research.engine.astrocyte.glycogen == 3.0 and research.engine.astrocyte.atp == 1.0
+    research.do_action("consolidate")
+    assert "the tabular map only" in research.events[-1]["text"]
+    legacy = SimSession("memory_maze", seed=3)
+    for _ in range(20):
+        legacy.step(50)
+        if any(e["kind"] == "rest" for e in legacy.events):
+            break
+    rest = [e for e in legacy.events if e["kind"] == "rest"][-1]
+    assert "physiology updates" in rest["text"] and "frozen" not in rest["text"]
+    legacy.do_action("consolidate")
+    assert "the tabular map only" not in legacy.events[-1]["text"]
+    hidden = SimSession("hidden_food", seed=2, profile="research")
+    hidden.engine.sr_weights[:] = 0.5
+    hidden.engine.value_memory.values[(0, 0)] = 1.0
+    hidden.do_action("forget")
+    assert not hidden.engine.sr_weights.any() and not hidden.engine.value_memory.values
+    assert "SR reward weights erased" in hidden.events[-1]["text"]
+    assert [a["label"] for a in hidden.scenario.actions()] == ["Forget the rewards"]
