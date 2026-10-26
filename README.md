@@ -267,6 +267,12 @@ run) and pairs the arms by seed on finds, unique sites, distance per find, wall 
 orbit measures (`analysis/stats.py`, BCa intervals); its runs on the console scenarios are in
 `docs/data/console_ablation/` and read in G40. The Decision panel shows the counterfactual column
 and influence live; the Behaviour readouts show the turning and closure of the last 300 ticks.
+What the measurement led to (G41, preregistered in `docs/prereg/sr_unlearning_rate.md`): a separate
+**unlearning rate** for the SR's per-feature reward rule (`place.reward_unlearning_rate`; None, the
+default, is the rule as it was). At U = 4 on fresh seeds the memory-category orbits fall from 1,157
+to 67 ticks per run and hidden-food finds rise from 16.3 to 28.4, level with no steering (27.3);
+the "SR reward unlearning rate" slider shows it live. Adopting it as the research default is the
+owner's call (it would not move the baselines).
 
 Keys: `Space` play/pause, `→` step. Deep links work, e.g.
 `/live?scenario=memory_maze&seed=7&speed=300&paused=1` or `/live?profile=research&scenario=open_field`.

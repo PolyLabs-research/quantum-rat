@@ -1578,3 +1578,40 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 - The four ablation directories under `docs/data/console_ablation/` regenerate from the commands in their README (seconds each).
 
 **Impact:** this entry; `metrics/decisions.py` (new), `analysis/orbits.py` (new), `experiments/console_ablation.py` (new); `core/engine.py` (episode counters); `experiments/runner.py` (`--log-decisions`); `ui/sim_session.py` (the log, the counterfactuals, the turning readouts), `ui/static/js/brain.js`, `live.js`, `index.html`; tests `tests/metrics/test_decisions.py`, `tests/analysis/test_orbits.py`, `tests/experiments/test_console_ablation.py` (new) and in `tests/experiments/`, `tests/ui/`, `tests/metrics/`; README, run_instructions.md; `docs/data/console_ablation/` (README now, the data in the following commit).
+
+## G41 — The SR's unlearning rate: the persistence goes and the finds come back (preregistered; the default is the owner's)
+
+**Date:** 2026-10-26  
+**Why:** G40 C2 named the smallest change to a rule already in force as the candidate intervention for the research profile's persistence beside an emptied site, to be tried only as a preregistered A/B measured with the circling instrument; the owner chose it ("go with your recommendations", 2026-10-26). Preregistered in `docs/prereg/sr_unlearning_rate.md` at `72be077`, before any run; the pilot's data at `539b113`, the confirmatory's at `c5101b9`, each from a clean tree.
+
+### A. What landed
+1. **`PlaceConfig.reward_unlearning_rate`**: with the per-feature rule, the rate at which R falls toward 0 at the active cells on a tick that sees no reward. `None`, the default and the research profile's, uses the learning rate: the G36 rule bit for bit (the determinism gates pass unchanged). Read by the per-feature rule only; nothing else in the engine changed.
+2. **`experiments/sr_unlearning.py`**: the arms `no_steer` (`value_gain` 0), `u0.5` (the rule as it stands) and `u<U>` on matched seeds, run and summarised by the G40 instrument (`experiments/console_ablation.py` now takes an arm table; `write_tables`, `arm_means` and `effects` are shared), the pilot's rule for choosing U, the three bounds scored as the preregistration states them, `--prereg` in the manifest.
+3. **A live slider**, "SR reward unlearning rate" under Estimate & sampling (shown as the learning rate when the field is None), so the effect can be watched in the console.
+4. Tests +4 (suite 639).
+
+### B. Measured (hidden food, research profile, 3,000 ticks; `docs/data/console_ablation/sr_unlearning_*`)
+- **Pilot, seeds 1–8 (exploratory; it chose U and nothing else).** Finds 17.6 / 19.6 / 23.4 / 27.3 at U = 0.5 / 1 / 2 / 4 against 26.5 without steering; memory-category orbit ticks per run 1,254 / 574 / 221 / 65; orbit share 0.43 / 0.28 / 0.12 / 0.11; distance per find 66.6 / 65.2 / 57.7 / 54.9; unique sites 5.6–5.9 throughout. A dose curve in the predicted direction; the rule picked **U = 4** (highest mean finds).
+- **Confirmatory, seeds 9–16 (fresh), U = 4: every bound passes.**
+  - **K1, finds against the rule as it stands:** 28.4 against 16.3, **+12.1 [+10.3, +14.3]** (BCa 95%, paired by seed), better on every seed.
+  - **K2, the persistence:** memory-category orbit ticks 66.8 against 1,157, a ratio of **0.06** (bound 0.5); −1,090 [−1,174, −971] per run. Orbits 1.4 against 51.3; orbit share 0.05 against 0.44; mean memory influence 0.14 against 0.41.
+  - **K3, against no steering:** 28.4 against 27.3, **+1.1 [−1.5, +3.9]**; the bound was a lower end above −2.7 (a tenth of the floor). Distance per find 50.7 against 53.2; reward 198 against 201; unique sites 5.88 against 5.88; wall contact 0.36 against 0.44.
+  - **Predictions:** the pilot's direction and the choice of U = 4 held; K1 passed above the predicted 3–8 finds; K2 passed (67 against the predicted "under 600"); **K3 was predicted to fail narrowly and passed**: with U = 4 the steering matches no steering on this task instead of falling short of it. It does not beat it: the interval includes 0.
+- **Adopting U = 4 would not move the research baselines.** The gate's 200-tick open-field run and the 3,000-tick walk at seed 1337 see no reward, so R stays 0 and the unlearning rate never acts: the trace hash is identical with U = 4 (checked at this commit). The field would appear in the profile diff and the manifests, nothing else.
+- **Exploratory, not preregistered: the beacon on the research profile at U = 4** (`experiments/console_ablation.py --set place.reward_unlearning_rate=4`, seeds 1–8, in `runs/`, not committed). Memory-orbit ticks 57 against 884 at U = 0.5: the persistence goes there too. Beacons reached 15.6 against 12.0 at U = 0.5, still below no steering's 21.5 (−5.9 [−9.6, −2.6]), distance per beacon 96.6 against 76.5. Where the reward always moves on, a spatial memory that is not revisited is not unlearned, and the remaining cost is not persistence (memory influence 0.07); the legacy notes already say memory does not help this chase.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **Decision table, first row: K1, K2 and K3 pass.** **G41 recommends `place.reward_unlearning_rate = 4.0` as the research profile's default**; adopting it is the owner's call. It costs no baseline regeneration (B), adds one row to the profile diff and one field to every manifest, and the G36 gate's result stands (the gate rewards at a goal the agent arrives at; an unlearning rate changes nothing on a rewarded tick and the gate's trials are short). Until adopted, the knob is explicit configuration, as the M2b features were before G37.
+2. **What this does and does not show.** It removes the persistence and restores the finds to the no-steer level on hidden food; it does not show the SR steering beating no steering there, and on the beacon the steering still costs. Hidden food on the research profile is a task the perimeter loop solves (27 finds without memory); the value source's benefit was shown where the loop does not solve the task (the gate: 98.7% against 5%). **M3's protocols should be of the second kind**, and the circling instrument runs on every one of them.
+3. **The pilot's seeds 1–8 are now spent for this question**; a later change to the rule is tested on seeds the pilot and the confirmatory did not use (17 onward), as here.
+
+### D. Residuals carried forward
+- U = 4 was the top of the pilot's range; the dose curve had not turned over (finds still rising, memory-orbit ticks 65). A higher rate may be better still or may start to erase value the agent needs; not measured.
+- One task and one profile. The legacy profile does not read the SR, so it is untouched by the knob.
+- The unlearning rate applies to ticks with reward exactly 0; a shaped (approach) reward on the research profile would keep the learning rate in force (hidden food's and the maze's `approach_weight` are 0 under the scenarios' own settings where it matters; a task with shaping should say which rate it wants).
+
+### E. Acceptance, measured at this commit
+- `python3 -m pytest -q`: 639 passed; the determinism baselines unchanged (default None).
+- `docs/data/console_ablation/sr_unlearning_pilot/` and `sr_unlearning_confirmatory/` regenerate from the commands in the preregistration (17 s and 10 s on four workers).
+
+**Impact:** this entry; `docs/prereg/sr_unlearning_rate.md` (new); `core/config.py` (`PlaceConfig.reward_unlearning_rate`), `core/engine.py` (`_sr_learn`); `experiments/sr_unlearning.py` (new), `experiments/console_ablation.py` (arm tables); `ui/sim_session.py` (the slider); tests in `tests/engine/`, `tests/experiments/`; docs/profiles.md (the reward-rule row), `docs/data/console_ablation/README.md`, README. No profile default change: the recommendation is C1.

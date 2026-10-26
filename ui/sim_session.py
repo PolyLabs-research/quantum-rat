@@ -145,6 +145,10 @@ PARAMS: Tuple[Param, ...] = (
     Param("place.reward_learning_rate", "SR reward learning rate", "Estimate & sampling", 0.05, 1.0, 0.05,
           "How fast the successor representation's reward weights track the reward seen at the cells active on "
           "arrival (research 0.5). Nothing without the place population (research profile)."),
+    Param("place.reward_unlearning_rate", "SR reward unlearning rate", "Estimate & sampling", 0.05, 8.0, 0.05,
+          "How fast those weights fall toward 0 at the active cells on a tick that sees no reward (decisions G41: at "
+          "the research default this equals the learning rate, 0.5, and the agent circles a just-emptied site; at 4 "
+          "the circling goes and the finds come back). Per-feature rule only; nothing without the place population."),
 )
 PARAM_INDEX = {p.key: p for p in PARAMS}
 
@@ -736,7 +740,13 @@ class SimSession:
 
     def params(self) -> List[Dict[str, Any]]:
         config = self.engine.config
-        return [{**asdict(p), "value": config.get_field(p.key)} for p in PARAMS]
+        out = []
+        for p in PARAMS:
+            value = config.get_field(p.key)
+            if p.key == "place.reward_unlearning_rate" and value is None:
+                value = config.place.reward_learning_rate  # None means "the learning rate" (core.config.PlaceConfig)
+            out.append({**asdict(p), "value": value})
+        return out
 
     # --------------------------------------------------------------- actions
 

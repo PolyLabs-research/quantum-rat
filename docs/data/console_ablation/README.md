@@ -18,3 +18,14 @@ not committed; `--keep-records` regenerates them.
 
 What they showed is in `docs/decisions.md` G40. Not preregistered: a measurement of what memory
 steering does to the circling and the finds in these scenarios, not a test of a rule.
+
+## The SR's unlearning rate (G41, preregistered: `docs/prereg/sr_unlearning_rate.md`)
+
+`experiments/sr_unlearning.py`, hidden food on the research profile, 3,000 ticks; the files are
+`unlearning_per_seed.csv`, `unlearning_bouts.csv`, `unlearning_summary.json` (the per-arm means, the paired
+effects and the three bounds scored) and `manifest.json`.
+
+| directory | what |
+|---|---|
+| `sr_unlearning_pilot` | seeds 1–8, arms `no_steer`, `u0.5`, `u1`, `u2`, `u4`: exploratory, it chose U = 4 by the preregistered rule |
+| `sr_unlearning_confirmatory` | seeds 9–16, arms `no_steer`, `u0.5`, `u4`: K1, K2 and K3 pass (`python -m experiments.sr_unlearning --phase confirmatory --unlearning 4 --prereg docs/prereg/sr_unlearning_rate.md --out docs/data/console_ablation/sr_unlearning_confirmatory`) |
