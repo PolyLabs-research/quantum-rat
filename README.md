@@ -309,6 +309,9 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   estimate (`EngineConfig.place`, `brain/systems/place_population.py`, off in both profiles), its
   rate maps against true position (`analysis/place_metrics.py`), an exact decoder and the engine's
   throughput with it (`docs/prereg/m2b_place_population.md`; `docs/data/m2b/place/`).
+* `experiments/sr_fields.py` — M2b step 3: successor features over the place code, learned by
+  TD (`brain/systems/successor_features.py`), on forced laps of a 2 m track (one-way and two-way)
+  and on the agent's own walk in the open field (`docs/prereg/m2b_sr_fields.md`; `docs/data/m2b/sr/`).
 
 ### Tournaments
 * **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.
