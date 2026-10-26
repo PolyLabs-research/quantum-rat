@@ -46,6 +46,12 @@ PACE_REST_BONUS = 5.0
 GATE_SAFE_PACE_LOW = 0.6
 MAZE_PACE_LOW = GATE_SAFE_PACE_LOW
 
+# The SR's reward unlearning rate for the scenarios whose reward empties and moves on (hidden food, beacon): the
+# owner's decision on G41/G42 (decisions G43). On the research profile it removes the circling beside an emptied site
+# (G40, G41); the research instrument keeps one rate, because a stable goal wants slow unlearning (G42). Inert on the
+# legacy profile, which has no SR.
+RENEWABLE_REWARD_UNLEARNING_RATE = 4.0
+
 
 def paced_basal_ganglia() -> BasalGangliaConfig:
     return BasalGangliaConfig(pace_rest_bonus=PACE_REST_BONUS)
@@ -218,9 +224,10 @@ class Beacon(Scenario):
     watch_research = (
         "Vision steers toward the beacon as under legacy. Dopamine is logged but its gain is 0, so it moves nothing",
         "Memory steering reads the SR value here (the blue field), not the tabular map. The SR's reward weights grow at "
-        "the cells active on arrival and keep a spot's value until the per-feature rule tracks reward away from it, "
-        "so an old spot out of view can pull the agent while the cue gate is open; a loop around one is that pull "
-        "meeting the turn's 1-unit radius",
+        "the cells active on arrival; this scenario sets their unlearning rate to 4 (decisions G43), eight times the "
+        "learning rate, so a spot's value fades soon after the beacon leaves it. At the instrument's single rate the "
+        "agent looped round old spots (884 orbit ticks a run, G40); at 4 that is 57. Memory still costs beacons against "
+        "no steering (15.6 against 21.5 over eight seeds): the beacon has always moved on",
         "No fatigue: the pacing this scenario sets is inert with ATP frozen",
     )
     SPOTS = ((6.0, 3.0), (-5.0, 5.0), (-6.0, -5.0), (5.0, -6.0), (0.0, 7.5), (-7.5, 0.0))
@@ -234,7 +241,9 @@ class Beacon(Scenario):
         self.target: Optional[WorldObject] = None
 
     def config(self) -> EngineConfig:
-        return EngineConfig(basal_ganglia=paced_basal_ganglia())
+        cfg = EngineConfig(basal_ganglia=paced_basal_ganglia())
+        cfg.place.reward_unlearning_rate = RENEWABLE_REWARD_UNLEARNING_RATE  # the beacon moves on (decisions G43)
+        return cfg
 
     def setup(self, engine: Engine) -> None:
         super().setup(engine)
@@ -620,6 +629,10 @@ class HiddenFood(Scenario):
     watch_research = (
         "A find writes the SR's reward weights at the site's cells; the steering reads the SR value (blue). "
         "\"Forget the rewards\" clears the SR's weights and the tabular map together",
+        "This scenario sets the SR's unlearning rate to 4 (decisions G41, G43): an emptied site's value fades eight times "
+        "faster than it was learned. At the instrument's single rate the agent orbited beside sites it had just emptied "
+        "and found a third less food than without memory; at 4, on fresh seeds, the orbiting fell by 95% and the finds "
+        "came level with no steering (28.4 against 27.3). Drag the SR reward unlearning rate slider down to 0.5 to see it",
         "No fatigue, so the agent never rests, and the estimate holds (oracle heading, wall reset): the map does "
         "not drift here as it does under legacy",
         "Circling a known site is exploitation of regrowing food. The Behaviour readouts (finds, ticks since the "
@@ -647,10 +660,12 @@ class HiddenFood(Scenario):
         self.last_site: Optional[int] = None
 
     def config(self) -> EngineConfig:
-        return EngineConfig(
+        cfg = EngineConfig(
             basal_ganglia=BasalGangliaConfig(pace_rest_bonus=PACE_REST_BONUS, pace_low=self.PACE_LOW),
             value_memory=ValueMemoryConfig(generalization_radius=self.GENERALIZATION_RADIUS),
         )
+        cfg.place.reward_unlearning_rate = RENEWABLE_REWARD_UNLEARNING_RATE  # eaten food empties a site (decisions G43)
+        return cfg
 
     def setup(self, engine: Engine) -> None:
         super().setup(engine)

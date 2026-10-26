@@ -420,7 +420,10 @@ class SimSession:
         else:
             add("map", "Tabular value map", "readout", f"learns every tick; a diagnostic here, nothing reads it{radius}")
         if pl.enabled and self.engine.place is not None:
-            sr = f"; SR reward rule {pl.reward_rule}, γ {pl.sr_discount:g}" if self.engine.sr is not None else "; no SR learner"
+            unlearn = "the learning rate" if pl.reward_unlearning_rate is None else f"{pl.reward_unlearning_rate:g}"
+            unlearn += own if "place.reward_unlearning_rate" in overridden else ""
+            sr = (f"; SR reward rule {pl.reward_rule} (learning {pl.reward_learning_rate:g}, unlearning {unlearn}), γ {pl.sr_discount:g}"
+                  if self.engine.sr is not None else "; no SR learner")
             add("place", "Place population & SR", "active", f"{self.engine.place.size} Gaussian place cells over the estimate{sr}")
         else:
             add("place", "Place population & SR", "off", "no population on this profile")

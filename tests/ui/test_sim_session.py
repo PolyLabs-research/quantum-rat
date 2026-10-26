@@ -389,3 +389,22 @@ def test_recordings_carry_the_decision_log_and_the_frame_its_counterfactuals(tmp
     assert len(records) == len(session.history) == 61 and [r["tick"] for r in records] == [row["tick"] for row in session.history]
     assert json.loads((tmp_path / run_id / "summary.json").read_text())["n_decision_records"] == 61
     assert (tmp_path / run_id / DECISIONS_FILE).exists()
+
+
+def test_renewable_reward_scenarios_carry_the_unlearning_rate_and_the_instrument_keeps_one_rate():
+    """decisions G43: hidden food and beacon set the SR's unlearning rate to 4 as their own setting; the research
+    profile keeps None (one rate: the gate's instrument, G42); on the legacy profile the setting is inert (no SR)."""
+    from ui.scenarios import RENEWABLE_REWARD_UNLEARNING_RATE
+
+    assert RENEWABLE_REWARD_UNLEARNING_RATE == 4.0 and EngineConfig.research().place.reward_unlearning_rate is None
+    for scenario_id in ("hidden_food", "beacon"):
+        research = SimSession(scenario_id, seed=2, profile="research")
+        assert research.engine.config.place.reward_unlearning_rate == 4.0
+        assert ("place.reward_unlearning_rate", None, 4.0) in research.profile_overrides
+        place = {m["id"]: m for m in research.mechanisms()}["place"]
+        assert "unlearning 4 (this scenario's own setting)" in place["detail"]
+        assert {p["key"]: p["value"] for p in research.params()}["place.reward_unlearning_rate"] == 4.0
+        legacy = SimSession(scenario_id, seed=2)
+        assert legacy.engine.sr is None and legacy.engine.place is None  # nothing reads the field there
+    for scenario_id in ("open_field", "foraging", "hazard_field", "memory_maze"):
+        assert SimSession(scenario_id, seed=2, profile="research").engine.config.place.reward_unlearning_rate is None

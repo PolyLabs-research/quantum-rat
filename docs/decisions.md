@@ -1643,3 +1643,23 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 3. **G41 C3, accepted by the owner:** a later change to the SR's reward rule is tested on hidden-food seeds from 17 onward (1–16 are spent on G41), and on gate seeds from 61 onward (1–60 are spent on G36 and on this entry).
 
 **Impact:** this entry; `experiments/rq4a_gate.py` (`31d10d7`); `docs/data/m2b/gate_confirmatory/exploratory_unlearning_u{1,2,4}/`; docs/research_plan.md (row 3).
+
+## G43 — The owner's choice: the instrument keeps one rate; hidden food and beacon carry U = 4 as their own setting
+
+**Date:** 2026-10-26  
+**Why:** G42 measured the tradeoff G41's recommendation had missed (the gate's hidden success at U = 4: 85.8% against 98.7%) and put the default back to the owner with three options: keep the instrument and give the console's renewable-reward scenarios U = 4 (recommended), U = 2 as the research default, or U = 4 as the research default. **The owner chose the first** (2026-10-26).
+
+### A. What landed
+1. **`EngineConfig.research()` is unchanged**: `place.reward_unlearning_rate` stays None (one rate), the instrument the RQ4(a) gate passed with and M3 builds on. The research baselines and every committed result are untouched.
+2. **`ui.scenarios.RENEWABLE_REWARD_UNLEARNING_RATE = 4.0`**, set by `HiddenFood.config()` and `Beacon.config()` as the scenarios' own setting, alongside their pacing and senses. On the research profile `profile_config` carries it over and the switch lists it ("place.reward_unlearning_rate None → 4"); the Mechanisms list's place entry names the learning and unlearning rates and marks the scenario's own setting; the slider starts at 4. On the legacy profile it is inert (no population, no SR): hidden food and beacon at seed 7 walk the same 800 ticks with and without it (checked). The other four scenarios keep the instrument's rate.
+3. **Research notes** for the two scenarios say what the rate does, with the measured numbers, and how to see the difference (drag the slider to 0.5).
+4. `docs/data/console_ablation/README.md` says how to reproduce the G40 numbers at a later commit (`--set place.reward_unlearning_rate=0.5`); G40's own data were made before this setting existed. Tests +1 (suite 640).
+
+### B. Measured
+- Hidden food on the research profile at U = 4: G41's confirmatory (seeds 9–16): 28.4 finds against 27.3 without steering, memory-category orbit ticks 67 against 1,157 at one rate.
+- Beacon on the research profile at U = 4, seeds 1–8 (the G41 exploratory check, committed here as `docs/data/console_ablation/beacon_research_scenario_u4/` and `hidden_food_research_scenario_u4/` from the clean tree after this entry): see that commit.
+
+### C. What follows
+- M3 runs on the instrument (one rate), on protocols of the gate's kind (G42 C2). Whether replay over the place code resolves the persistence that the unlearning rate removes in the console is a question M3 can ask with the G40 instrument, against these scenario settings.
+
+**Impact:** this entry; `ui/scenarios.py` (the constant, two configs, two notes), `ui/sim_session.py` (the mechanisms detail); `tests/ui/test_sim_session.py`; README, docs/profiles.md, `docs/data/console_ablation/README.md`.

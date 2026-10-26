@@ -19,6 +19,13 @@ not committed; `--keep-records` regenerates them.
 What they showed is in `docs/decisions.md` G40. Not preregistered: a measurement of what memory
 steering does to the circling and the finds in these scenarios, not a test of a rule.
 
+**Reproducing them after G43.** These four were made at `f4176d4`, when no scenario set the SR's
+unlearning rate. Since G43 hidden food and beacon set it to 4 as their own setting, so the commands
+above, run at a later commit, measure the scenarios as the console now runs them (the directories
+`*_scenario_u4` below). To reproduce the G40 numbers at a later commit, add
+`--set place.reward_unlearning_rate=0.5` (the learning rate: the same arithmetic as None), or run at
+`f4176d4`.
+
 ## The SR's unlearning rate (G41, preregistered: `docs/prereg/sr_unlearning_rate.md`)
 
 `experiments/sr_unlearning.py`, hidden food on the research profile, 3,000 ticks; the files are
