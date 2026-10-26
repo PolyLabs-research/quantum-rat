@@ -169,10 +169,20 @@ class Condition:
     walk: str = "straight"  # "straight": the research walk; "turning": forward_bias TURNING_FORWARD_BIAS
 
     def config(self) -> EngineConfig:
-        """``EngineConfig.research()`` with this condition's odometry noise, the big box and the walk."""
+        """``EngineConfig.research()`` with this condition's odometry noise, the big box, the walk, and M1's
+        instrument: the integrated estimate (no heading oracle, no wall reset, no place population, the map)."""
         if self.walk not in WALKS:
             raise ValueError(f"unknown walk {self.walk!r}; one of {WALKS}")
         cfg = EngineConfig.research()
+        # M1 characterises the integrated estimate. Since M2b's exit the research profile takes its heading from the
+        # oracle and resets at walls (decisions G37), so the M1 fields are pinned here and the cells mean what they did.
+        cfg.sensors.heading_oracle = False
+        cfg.sensors.heading_oracle_noise = 0.0
+        cfg.sensors.wall_contact_sensing = False
+        cfg.spatial.heading_source = "integrated"
+        cfg.spatial.wall_reset = False
+        cfg.place.enabled = False
+        cfg.value_memory.source = "tabular"
         cfg.sensors.odometry_speed_noise = float(self.speed)
         cfg.sensors.odometry_turn_noise = float(self.turn)
         cfg.world.bounds = BOUNDS

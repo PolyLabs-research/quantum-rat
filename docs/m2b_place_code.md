@@ -360,5 +360,9 @@ Every item of the plan's row 2b acceptance is met, the gate in its amended form:
 - **SR fields skew backward** on one-way laps and **elongate along walls** (step 3).
 - **RQ4(a) passes** on fresh seeds (step 4).
 
-The console panels remain deferred. All of it is opt-in configuration: the profiles and the determinism baselines
-are unchanged.
+The console panels remain deferred. Until the exit all of it was opt-in configuration, the profiles and the
+determinism baselines unchanged. At the exit (decisions G37, 2026-10-26, the owner's decisions) the four branches were
+merged in order into the dev branch and tagged `v1.4-place-code`, and the research profile adopted this configuration
+as its defaults: the heading oracle at σ 0.05, the wall-contact reset, the 400-cell population and the SR source with
+the per-feature reward rule (docs/profiles.md). The research baselines were regenerated once for it; the legacy set is
+untouched.

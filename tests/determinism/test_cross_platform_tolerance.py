@@ -83,7 +83,11 @@ def test_the_committed_sidecar_is_the_committed_traces_observation(profile: str)
         assert record["forward_delta"] == tick["obs_forward_delta"]
         assert record["turn_delta"] == tick["obs_turn_delta"]
         assert record["pain_signal"] == tick["obs_pain"]
-        assert set(record) == {"tick", "vision_rays", "whisker_hits", "pain_signal", "forward_delta", "turn_delta"}
+        expected_keys = {"tick", "vision_rays", "whisker_hits", "pain_signal", "forward_delta", "turn_delta"}
+        if profile == "research":  # the heading oracle and the wall-contact sensing, on since M2b's exit (G37)
+            expected_keys |= {"heading", "wall_contacts"}
+            assert isinstance(record["heading"], float) and isinstance(record["wall_contacts"], list)
+        assert set(record) == expected_keys
         assert len(record["whisker_hits"]) == 2 and all(isinstance(b, bool) for b in record["whisker_hits"])
         assert record["vision_rays"] and all(set(r) == {"dist", "obj_type", "angle"} for r in record["vision_rays"])
 

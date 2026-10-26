@@ -245,6 +245,7 @@ def throughput(ticks: int, repeats: int) -> Dict[str, Any]:
     for rep in range(repeats):
         for enabled in (True, False):
             cfg = place_config("m2b")
+            cfg.value_memory.source = "tabular"  # the population's own cost: the SR source over it is step 4's (the profile's since G37)
             cfg.place.enabled = enabled
             eng = Engine(seed=rep + 1, config=cfg)
             t0 = time.perf_counter()

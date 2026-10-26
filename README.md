@@ -140,10 +140,14 @@ every microsleep replay is an event object (the offline consolidation sweep,
 `ValueMemory.consolidate`, is not yet; G25 D). Since M2a (G26) its Observation's forward range is
 2.0 instead of 1.0, so the odometry speed error is zero-mean (under the legacy range a full-speed
 step's estimate averaged 0.980), and the checksum "novelty" bit no longer enters its action
-selection (still logged); the research baselines were regenerated once for both. It has no place
-population yet and, with microsleep off, its engine produces no replay events; M2a's first replay
-rules run outside the engine on a tabular linear track (below). See `docs/profiles.md` and
-`docs/research_plan.md` (§6).
+selection (still logged); the research baselines were regenerated once for both. Since M2b's exit
+(G37) it carries the declared heading oracle (sd 0.05 rad per tick), the wall-contact position
+reset, a 400-cell place population over the estimate and the successor-feature value V = M·R as
+the steering's source, the instrument RQ4(a) passed with (`docs/m2b_place_code.md`); the research
+baselines were regenerated once more for it (the body's walk at the gate seed is unchanged; the
+estimate is what moved). With microsleep off its engine still produces no replay events; M2a's
+first replay rules run outside the engine on a tabular linear track (below). See
+`docs/profiles.md` and `docs/research_plan.md` (§6).
 
 ### The first replay result (M2a, first pass)
 

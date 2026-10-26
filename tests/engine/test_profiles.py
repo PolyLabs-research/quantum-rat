@@ -132,10 +132,18 @@ EXPECTED_RESEARCH_DIFF = [
     ("sensors.odometry_speed_noise", 0.0, 0.05),
     ("sensors.odometry_turn_noise", 0.0, 0.01),
     ("sensors.forward_delta_limit", 1.0, 2.0),
+    ("sensors.heading_oracle", False, True),
+    ("sensors.heading_oracle_noise", 0.0, 0.05),
+    ("sensors.wall_contact_sensing", False, True),
     ("astrocyte.scales_motion", True, False),
     ("astrocyte.frozen", False, True),
+    ("value_memory.source", "tabular", "sr"),
     ("value_memory.dwell_extinction", 0.02, 0.0),
     ("spatial.gate_scales_egomotion", True, False),
+    ("spatial.heading_source", "integrated", "oracle"),
+    ("spatial.wall_reset", False, True),
+    ("place.enabled", False, True),
+    ("place.reward_rule", "nlms", "per_feature"),
     ("trn.narrow_above_kappa", 1.1, math.inf),
     ("trn.microsleep_enabled", True, False),
     ("basal_ganglia.novelty_gain", 0.2, 0.0),
@@ -170,19 +178,24 @@ def test_research_profile_changes_the_trace_at_the_gate_seed() -> None:
 
 
 def _research_without_stochastic_elements() -> EngineConfig:
-    """``EngineConfig.research()`` with its three seeded elements (M0b item 8) set to 0.
+    """``EngineConfig.research()`` with its four seeded elements (M0b item 8; the heading
+    oracle's error since M2b's exit, G37) set to 0.
 
     The M0a acceptance below is a statement about the deterministic mechanics
     (the gate, the energy model, exact odometry), so it is checked with
-    odometry noise and the softmax temperature at 0: with odometry noise on
-    the estimate is meant to drift away from the body (the next test), and
-    with the softmax on the trajectory is a different one. At 0 nothing is
-    drawn from the two streams they use (tests/engine/test_seeds_as_samples.py),
-    so this run is the research profile as it was at M0a.
+    odometry noise, the oracle's error and the softmax temperature at 0: with
+    odometry noise on the estimate is meant to drift away from the body (the
+    next test), and with the softmax on the trajectory is a different one. At 0
+    nothing is drawn from the three streams they use
+    (tests/engine/test_seeds_as_samples.py). The M2b fields the profile carries
+    since G37 do not move this run: the oracle at sd 0 is the true heading, the
+    body never touches a wall here so the reset never fires, and without reward
+    the SR value is 0 everywhere, so the steering is what it was.
     """
     cfg = EngineConfig.research()
     cfg.sensors.odometry_speed_noise = 0.0
     cfg.sensors.odometry_turn_noise = 0.0
+    cfg.sensors.heading_oracle_noise = 0.0
     cfg.basal_ganglia.softmax_temperature = 0.0
     assert cfg.stochastic_elements() == []
     return cfg
@@ -218,14 +231,20 @@ def test_research_open_field_has_no_microsleep_full_thrust_steps_and_exact_path_
 
 def test_research_defaults_keep_the_energy_acceptance_and_let_the_estimate_drift() -> None:
     """The research profile as shipped (odometry noise 0.05 / 0.01 rad, softmax 0.1; M0b
-    item 8; the forward range 2.0 and the novelty bit decoupled, M2a) at seed 1337 over
-    3000 open-field ticks: the energy acceptance holds on every tick as above, and the
-    path-integration estimate drifts away from the body by more than 0.5 units within
-    the run. Measured at M2a: the error first exceeds 0.5 at tick 20, is 11.8 units at
-    the end and 15.8 at most, with the body clamped at a wall on 1,230 ticks (the softmax
-    wanders it to the walls; the deterministic run above never touches one); before M2a
-    (bit coupled, range 1.0) it was tick 37, 9.2, 11.6 and 753 ticks. Only the direction
-    of the drift is asserted (the temperature is still an uncharacterised placeholder)."""
+    item 8; the forward range 2.0 and the novelty bit decoupled, M2a; the heading oracle
+    at sd 0.05 rad, the wall reset, the place population and the SR value source, M2b's
+    exit G37) at seed 1337 over 3000 open-field ticks: the energy acceptance holds on
+    every tick as above, and the estimate departs from the body by more than 0.5 units
+    within the run. Measured at M2b's exit: the error first exceeds 0.5 at tick 82, is
+    0.88 units at the end and 3.5 at most (median 0.63), with the body clamped at a wall
+    on 1,230 ticks (the softmax wanders it to the walls; the deterministic run above
+    never touches one). The body's walk is the M2a one to the tick (the same 1,230 wall
+    ticks, mean step 0.52, 28 REST ticks): without reward the SR value is 0 everywhere
+    and the oracle draws on its own stream, so the M2b fields move the estimate and not
+    the body. The integrated estimate at M2a read tick 20, 11.8 and 15.8 units; before
+    M2a (bit coupled, range 1.0) tick 37, 9.2, 11.6 and 753 wall ticks. Only the
+    direction is asserted (the temperature is still an uncharacterised placeholder); the
+    heading error asserted below is the oracle's own noise (0.18 rad at most here)."""
     rows, scales, headings, proto = _open_field_run(EngineConfig.research())
     assert proto.summarize()["microsleep_count"] == 0
     assert sum(td.replay_active for td in rows) == 0

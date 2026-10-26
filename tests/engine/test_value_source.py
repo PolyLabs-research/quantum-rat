@@ -26,14 +26,16 @@ def test_the_sources_and_their_requirements() -> None:
         ValueMemoryConfig(source="model")
     with pytest.raises(ValueError):
         Engine(seed=1, config=_cfg("sr", place=False))
-    for profile in (EngineConfig.legacy(), EngineConfig.research()):
-        assert profile.value_memory.source == "tabular"
+    assert EngineConfig.legacy().value_memory.source == "tabular"
+    assert EngineConfig.research().value_memory.source == "sr"  # since M2b's exit (decisions G37)
     eng = Engine(seed=1, config=_cfg("tabular"))
     assert eng.sr is None and eng.sr_weights is None
 
 
 def test_the_sr_source_learns_online_and_reads_v_equals_phi_dot_mt_r() -> None:
-    eng = Engine(seed=2, config=_cfg("sr"))
+    cfg = _cfg("sr")
+    cfg.place.reward_rule = "nlms"  # the rule this test's arithmetic states; per_feature is the default since G37 (tested below)
+    eng = Engine(seed=2, config=cfg)
     eng.run(50, reset=True)
     assert eng.sr.updates == 49 and not np.any(eng.sr_weights)  # no reward yet: R stays 0
     # A rewarded arrival: the reward weights move toward the reward at the arrival's features.

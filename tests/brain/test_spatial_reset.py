@@ -60,28 +60,36 @@ def test_a_heading_error_past_45_degrees_resets_the_wrong_wall() -> None:
 
 
 def test_the_engine_wires_the_oracle_and_the_reset_and_refuses_them_without_their_channels() -> None:
+    # The research profile carries the oracle heading and the reset since M2b's exit (decisions G37); the engine
+    # refuses each of them without its sensor channel.
     cfg = EngineConfig.research()
-    cfg.spatial.heading_source = "oracle"
+    cfg.sensors.heading_oracle_noise = 0.0
+    cfg.sensors.heading_oracle = False  # heading_source is still "oracle"
     with pytest.raises(ValueError):
         Engine(seed=1, config=cfg)
     cfg = EngineConfig.research()
-    cfg.spatial.wall_reset = True
+    cfg.sensors.wall_contact_sensing = False  # wall_reset is still on
     with pytest.raises(ValueError):
         Engine(seed=1, config=cfg)
-    cfg.sensors.wall_contact_sensing = True
-    cfg.sensors.heading_oracle = True
-    cfg.spatial.heading_source = "oracle"
+    cfg = EngineConfig.research()
+    cfg.sensors.heading_oracle_noise = 0.0
     eng = Engine(seed=1, config=cfg)
     assert eng.spatial.reset_bounds == (10.0, 10.0) and eng.spatial.heading_source == "oracle"
     eng.run(400, reset=True)
     # At sigma 0 the oracle heading is the body's; after a reset the touched coordinate equals the body's.
     assert eng.spatial.state.hd_angle == pytest.approx(math.remainder(eng.agent.heading, 2 * math.pi))
-    # The sensing alone changes nothing the research body does: the walk is the same with and without it.
-    plain = Engine(seed=4, config=EngineConfig.research())
+    # The sensing alone changes nothing the research body does: with the estimate integrated and no reset, the walk
+    # is the same with the channels off and on.
+    plain_cfg = EngineConfig.research()
+    plain_cfg.spatial.heading_source = "integrated"
+    plain_cfg.spatial.wall_reset = False
+    plain_cfg.sensors.heading_oracle_noise = 0.0
+    plain_cfg.sensors.heading_oracle = False
+    plain_cfg.sensors.wall_contact_sensing = False
+    plain = Engine(seed=4, config=plain_cfg)
     sensed_cfg = EngineConfig.research()
-    sensed_cfg.sensors.wall_contact_sensing = True
-    sensed_cfg.sensors.heading_oracle = True
-    sensed_cfg.sensors.heading_oracle_noise = 0.05
+    sensed_cfg.spatial.heading_source = "integrated"
+    sensed_cfg.spatial.wall_reset = False
     sensed = Engine(seed=4, config=sensed_cfg)
     a = [td.pos for td in plain.run(600, reset=True)]
     b = [td.pos for td in sensed.run(600, reset=True)]

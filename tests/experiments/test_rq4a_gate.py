@@ -29,10 +29,14 @@ def test_the_protocol() -> None:
     assert len(order) == 40 and all(sorted(order[i:i + 4]) == [0, 1, 2, 3] for i in range(0, 40, 4))
     assert order == rg.start_order(1, 40) and order != rg.start_order(2, 40)
     assert rg.GOAL == (5.0, 5.0) and rg.GOAL_RADIUS == 1.0 and rg.TRIALS == 40 and rg.TIMEOUT == 300
+    # Since M2b's exit (decisions G37) the research profile is the gate's instrument: the SR source with the
+    # per-feature rule differs from it in nothing, and the other cells differ only in the source and the reward rule.
+    assert EngineConfig.research().diff(rg.gate_config("sr", "per_feature")) == []
     for src in rg.SOURCES:
         diff = {d[0] for d in EngineConfig.research().diff(rg.gate_config(src))}
-        assert {"place.enabled", "spatial.wall_reset", "spatial.heading_source"} <= diff
-        assert ("value_memory.source" in diff) == (src != "tabular")
+        assert diff <= {"place.reward_rule", "value_memory.source"}
+        assert "place.reward_rule" in diff  # the default argument is the preregistered NLMS rule
+        assert ("value_memory.source" in diff) == (src != "sr")
     with pytest.raises(ValueError):
         rg.gate_config("model")
     with pytest.raises(ValueError):

@@ -30,10 +30,11 @@ def quick(tmp_path_factory):
 
 def test_the_configs_are_step_ones_with_the_population(quick) -> None:
     assert pp.POPULATIONS == ("reference", "integrated", "m2b") and pp.ESTIMATES == {"integrated": "integrated", "m2b": "oracle_reset"}
+    # Since M2b's exit (decisions G37) the research profile carries the oracle, the reset and the population: the
+    # "m2b" cell is the profile itself and "integrated" differs from it in the estimate alone.
     for name in pp.ESTIMATES:
         diff = {d[0] for d in EngineConfig.research().diff(pp.place_config(name))}
-        assert "place.enabled" in diff and "sensors.heading_oracle" in diff
-        assert ("spatial.wall_reset" in diff) == (name == "m2b")
+        assert diff == ({"spatial.heading_source", "spatial.wall_reset"} if name == "integrated" else set()), name
 
 
 def test_quick_run_writes_its_tables(quick) -> None:

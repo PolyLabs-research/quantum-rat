@@ -28,16 +28,19 @@ def test_the_cells_are_the_preregistered_ones() -> None:
     assert ec.ORACLE_NOISE == 0.05 and ec.SENSITIVITY_NOISES == (0.0, 0.02, 0.1, 0.2) and ec.TICKS == 3000
     assert [r.label for r in ec.runs()] == ["integrated", "integrated_reset", "oracle", "oracle_reset", "oracle_reset@0",
                                             "oracle_reset@0.02", "oracle_reset@0.1", "oracle_reset@0.2"]
+    # Since M2b's exit (decisions G37) the research profile is the oracle_reset cell at ORACLE_NOISE: a cell differs
+    # from it only where its estimate does, and a sensitivity run only in the oracle's sd.
     research = EngineConfig.research()
     for condition, spec in ec.CONDITIONS.items():
         cfg = ec.engine_config(condition)
         diff = {d[0] for d in research.diff(cfg)}
-        expected = {"sensors.heading_oracle", "sensors.heading_oracle_noise", "sensors.wall_contact_sensing"}
-        if spec["heading_source"] == "oracle":
+        expected = set()
+        if spec["heading_source"] != "oracle":
             expected.add("spatial.heading_source")
-        if spec["wall_reset"]:
+        if not spec["wall_reset"]:
             expected.add("spatial.wall_reset")
         assert diff == expected, condition
+    assert {d[0] for d in research.diff(ec.engine_config("oracle_reset", 0.1))} == {"sensors.heading_oracle_noise"}
     with pytest.raises(ValueError):
         ec.engine_config("compass")
 

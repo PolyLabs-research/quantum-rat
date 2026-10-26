@@ -588,10 +588,22 @@ class EngineConfig:
         0.0`` (the criticality coupling to cognition; kappa is still computed
         and logged).
 
-        Nothing else differs. Not yet in this profile: a wall-contact reset
-        for the odometry, a place population and replay as an event stream
-        inside the engine (later milestones; the M2a linear-track experiment
-        runs its replay rules outside the engine, experiments.linear_track_replay).
+        - Milestone 2b's exit (docs/decisions.md G37): the instrument the
+          RQ4(a) gate passed with. ``sensors.heading_oracle = True`` with
+          ``heading_oracle_noise = 0.05`` (the declared heading oracle, sd 0.05
+          rad per tick on its own stream, ``sensors_heading``: the fourth seeded
+          element) and ``spatial.heading_source = "oracle"``;
+          ``sensors.wall_contact_sensing = True`` and ``spatial.wall_reset =
+          True`` (the wall-contact position reset); ``place.enabled = True``
+          (the 400-cell Gaussian population over the estimate) with
+          ``place.reward_rule = "per_feature"`` and ``value_memory.source =
+          "sr"`` (the successor-feature value V = M R steers where the tabular
+          map did; the map still learns). The research baselines were
+          regenerated once for it (docs/profiles.md).
+
+        Nothing else differs. Not yet in this profile: replay as an event
+        stream inside the engine (M3; the M2a linear-track experiments run
+        their replay rules outside the engine, experiments.linear_track_replay).
         """
         cfg = cls(profile="research")
         cfg.sensors.odometry_speed_noise = 0.05
@@ -614,6 +626,15 @@ class EngineConfig:
         bg.ne_threat_gain = 0.0
         bg.fiveht_patience_gain = 0.0
         bg.softmax_temperature = 0.1
+        # Milestone 2b's exit (docs/decisions.md G37): the configuration the RQ4(a) gate passed with.
+        cfg.sensors.heading_oracle = True
+        cfg.sensors.heading_oracle_noise = 0.05
+        cfg.sensors.wall_contact_sensing = True
+        cfg.spatial.heading_source = "oracle"
+        cfg.spatial.wall_reset = True
+        cfg.place.enabled = True
+        cfg.place.reward_rule = "per_feature"
+        cfg.value_memory.source = "sr"
         return cfg
 
     def stochastic_elements(self) -> List[str]:

@@ -115,8 +115,9 @@ def test_validation_and_the_config_rules() -> None:
     assert SpatialConfig(reset_bounds=[10, 5]).reset_bounds == (10.0, 5.0)
     from brain.systems.spatial import HEADING_SOURCES as SPATIAL_SOURCES
     assert HEADING_SOURCES == SPATIAL_SOURCES == ("integrated", "oracle")
-    # The oracle's error counts as a stochastic element only while the oracle is on; the profiles are unchanged.
-    cfg = EngineConfig.research()
+    # The oracle's error counts as a stochastic element only while the oracle is on. The legacy profile has no oracle;
+    # the research profile carries it, the wall-contact sensing and the reset since M2b's exit (decisions G37).
+    cfg = EngineConfig.legacy()
     assert "sensors.heading_oracle_noise=0.05" not in cfg.stochastic_elements()
     cfg.sensors.heading_oracle = True
     cfg.sensors.heading_oracle_noise = 0.05
@@ -124,6 +125,11 @@ def test_validation_and_the_config_rules() -> None:
     cfg.spatial.reset_bounds = (10.0, 10.0)
     again = EngineConfig.from_dict(cfg.to_dict())
     assert again.spatial.reset_bounds == (10.0, 10.0) and again.sensors.heading_oracle and again.sensors.heading_oracle_noise == 0.05
-    for profile in (EngineConfig.legacy(), EngineConfig.research()):
-        assert not profile.sensors.heading_oracle and not profile.sensors.wall_contact_sensing
-        assert profile.spatial.heading_source == "integrated" and not profile.spatial.wall_reset
+    legacy = EngineConfig.legacy()
+    assert not legacy.sensors.heading_oracle and not legacy.sensors.wall_contact_sensing
+    assert legacy.spatial.heading_source == "integrated" and not legacy.spatial.wall_reset
+    research = EngineConfig.research()
+    assert research.sensors.heading_oracle and research.sensors.heading_oracle_noise == 0.05
+    assert research.sensors.wall_contact_sensing and research.spatial.heading_source == "oracle"
+    assert research.spatial.wall_reset and research.spatial.reset_bounds is None  # the arena's own bounds
+    assert research.stochastic_elements()[-1] == "sensors.heading_oracle_noise=0.05"

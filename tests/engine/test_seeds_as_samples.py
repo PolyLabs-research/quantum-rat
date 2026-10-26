@@ -39,11 +39,16 @@ def _states(engine: Engine, names: Sequence[str]) -> Tuple[object, ...]:
 
 
 def _research(speed: float = 0.0, turn: float = 0.0, tau: float = 0.0) -> EngineConfig:
-    """``EngineConfig.research()`` with the three seeded elements set as given (all off by default)."""
+    """``EngineConfig.research()`` with the M0b seeded elements set as given (all off by default), the heading
+    oracle's error at 0 and the integrated estimate without the wall reset: these tests state what odometry noise
+    does to the integrated estimate, which the profile stopped reading at M2b's exit (decisions G37)."""
     cfg = EngineConfig.research()
     cfg.sensors.odometry_speed_noise = speed
     cfg.sensors.odometry_turn_noise = turn
     cfg.basal_ganglia.softmax_temperature = tau
+    cfg.sensors.heading_oracle_noise = 0.0
+    cfg.spatial.heading_source = "integrated"
+    cfg.spatial.wall_reset = False
     return cfg
 
 
@@ -253,6 +258,7 @@ def test_guard_refuses_two_seeds_at_legacy_defaults_and_passes_one_seed_sensor_n
         "sensors.odometry_speed_noise=0.05",
         "sensors.odometry_turn_noise=0.01",
         "basal_ganglia.softmax_temperature=0.1",
+        "sensors.heading_oracle_noise=0.05",
     ]
     # The bypass: one warning line, and the call returns instead of raising.
     out = io.StringIO()
@@ -307,6 +313,7 @@ def test_stochastic_elements_lists_exactly_the_enabled_elements() -> None:
         "sensors.odometry_speed_noise=0.05",
         "sensors.odometry_turn_noise=0.01",
         "basal_ganglia.softmax_temperature=0.1",
+        "sensors.heading_oracle_noise=0.05",
     ]
     values = {"sensors.noise": 0.03, "sensors.odometry_speed_noise": 0.2, "sensors.odometry_turn_noise": 0.01,
               "basal_ganglia.softmax_temperature": 0.5}
@@ -325,4 +332,5 @@ def test_stochastic_elements_lists_exactly_the_enabled_elements() -> None:
     cfg.sensors.odometry_speed_noise = 0.0
     cfg.sensors.odometry_turn_noise = 0.0
     cfg.basal_ganglia.softmax_temperature = 0.0
+    cfg.sensors.heading_oracle_noise = 0.0
     assert cfg.stochastic_elements() == []

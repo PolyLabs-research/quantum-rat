@@ -47,12 +47,14 @@ def test_the_population_is_a_grid_of_gaussians_and_the_decoder_inverts_it() -> N
     with pytest.raises(ValueError):
         PlaceConfig(extent=(10.0,))
     assert PlaceConfig(extent=[10, 5]).extent == (10.0, 5.0)
-    for profile in (EngineConfig.legacy(), EngineConfig.research()):
-        assert not profile.place.enabled
+    assert not EngineConfig.legacy().place.enabled
+    research = EngineConfig.research()  # on since M2b's exit (decisions G37), with the per-feature reward rule
+    assert research.place.enabled and research.place.reward_rule == "per_feature"
 
 
 def test_the_engine_computes_the_rates_at_the_estimate_and_changes_nothing_else() -> None:
     cfg = EngineConfig.research()
+    cfg.value_memory.source = "tabular"  # the map, so that the population can be switched off below
     cfg.place.enabled = True
     eng = Engine(seed=3, config=cfg)
     assert eng.place.size == 400 and eng.place.extent == (10.0, 10.0)
@@ -60,7 +62,10 @@ def test_the_engine_computes_the_rates_at_the_estimate_and_changes_nothing_else(
     st = eng.spatial.state
     np.testing.assert_array_equal(eng.place_rates, eng.place.rates(st.grid_x, st.grid_y))
     assert eng._ctx.place_rates is eng.place_rates
-    plain = Engine(seed=3, config=EngineConfig.research())
+    off = EngineConfig.research()
+    off.value_memory.source = "tabular"
+    off.place.enabled = False
+    plain = Engine(seed=3, config=off)
     assert plain.place is None and plain.place_rates is None
     plain_trace = plain.run(300, reset=True)
     assert [td.pos for td in plain_trace] == [td.pos for td in trace]
