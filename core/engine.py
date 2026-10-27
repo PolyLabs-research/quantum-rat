@@ -563,12 +563,17 @@ class Engine:
             unlearning = self.config.place.reward_unlearning_rate
             if reward == 0.0 and unlearning is not None:
                 rate = unlearning
+            step = rate * phi
+            if self.config.place.reward_step_cap:  # G52: never past the target
+                import numpy as np  # local: importing core.engine must not import numpy (docs/determinism.md)
+
+                step = np.minimum(step, 1.0)
             adjustment = self.history.reward_adjustment() if self.history is not None else None
             if adjustment is None:
-                self.sr_weights += rate * phi * (reward - self.sr_weights)  # exploratory (decisions G36)
+                self.sr_weights += step * (reward - self.sr_weights)  # exploratory (decisions G36)
             else:  # G52: each feature predicts R + what its history adds; R and the schema learn from the same error
                 errors = reward - (self.sr_weights + adjustment)
-                self.sr_weights += rate * phi * errors
+                self.sr_weights += step * errors
                 # The schema learns at the reward learning rate always, not the unlearning rate (which is R's own
                 # answer to stale reward); its step is normalised (History.learn_schema).
                 self.history.learn_schema(phi, errors, self.config.place.reward_learning_rate)

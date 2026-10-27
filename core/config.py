@@ -441,6 +441,12 @@ class PlaceConfig:
     # circling measurement (G40) pointed to: the value at a just-emptied place outlasting the reward. Read by the
     # per-feature rule only.
     reward_unlearning_rate: Optional[float] = None
+    # reward_step_cap (G52): each cell's per-feature step is min(1, rate * phi_i), so a weight moves at most all the way
+    # to its target and never past it. Off, every registered run: with the unlearning rate 4 a step overshoots wherever
+    # one cell carries more than a quarter of phi (near walls in the open arena, a third of hidden food's ticks, |R|
+    # staying below 0.1) and diverges where one carries more than half (the 0.1 m track, where a cell reaches 0.92: G51's
+    # track runs with memory steering were made with weights that blew up).
+    reward_step_cap: bool = False
 
     def __post_init__(self) -> None:
         for name in ("spacing", "width", "max_rate", "sr_learning_rate", "reward_learning_rate"):

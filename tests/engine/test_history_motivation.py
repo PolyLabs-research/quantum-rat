@@ -44,3 +44,22 @@ def test_an_agent_with_nothing_to_move_for_rests_and_the_terms_still_sum() -> No
     for ch, parts in terms.items():
         assert sum(parts.values()) == pytest.approx(ctx.action_scores[ch])
     assert terms["REST"]["idle"] > 0.9
+
+
+def test_the_capped_step_never_passes_its_target_where_the_uncapped_one_diverges() -> None:
+    import numpy as np
+
+    from core.world import WorldObject
+    from experiments import m3_part2 as p2
+
+    def run(cap: bool) -> float:
+        cfg = p2.track_config({})
+        cfg.place.reward_step_cap = cap
+        e = Engine(seed=31, config=cfg)
+        e.world.add_object(WorldObject(9.0, 0.0, 0.5, "hidden"))
+        with np.errstate(over="ignore", invalid="ignore"):
+            e.run(1500)
+        return float(np.max(np.abs(e.sr_weights)))
+
+    assert run(True) <= 1.0 + 1e-9  # rewards are 0 and 1: a weight that never passes its target stays in [0, 1]
+    assert not run(False) <= 1.0  # the 0.1 m track at the unlearning rate 4: the uncapped weights leave [0, 1]

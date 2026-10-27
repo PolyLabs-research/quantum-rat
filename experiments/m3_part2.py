@@ -59,7 +59,10 @@ GATE: Dict[str, Dict[str, Any]] = {
     "open_cues": {"layout": "open", "start_estimate": "carry", "landmarks": True},
     "L_cues": {"layout": "L", "start_estimate": "carry", "landmarks": True},
 }
-TRACK_ARMS = ("learned", "no_steer", "no_reward")  # reward + memory steering; reward, no steering; no reward
+TRACK_ARMS = ("learned", "no_steer", "no_reward")
+# Every configuration's base (G52): the per-feature step capped at the target. Without it the track's unlearning rate
+# (4) diverged the reward weights wherever one place cell carried more than half of phi (G51's first pilot).
+BASE: Dict[str, Any] = {"place.reward_step_cap": True}  # reward + memory steering; reward, no steering; no reward
 BOUNDS = ("track_learned", "track_reflex_no_reward", "track_reflex_no_steer", "open_hidden", "open_visible", "L_hidden",
           "L_visible", "cues_open", "cues_L", "hidden_food", "controls")
 REFLEX_BOUNDS = ("track_reflex_no_reward", "track_reflex_no_steer")
@@ -85,6 +88,7 @@ def track_config(overrides: Mapping[str, Any]) -> EngineConfig:
     cfg = EngineConfig.research()
     cfg.world.bounds = tuple(bc.TRACK_BOUNDS)
     cfg.place.reward_unlearning_rate = TRACK_U
+    cfg.place.reward_step_cap = True  # BASE: never past the target (G52)
     for key, value in overrides.items():
         cfg.set_field(key, value)
     return cfg
@@ -143,7 +147,9 @@ def _pool(fn, jobs, workers):
 
 def run_battery(configs: Mapping[str, Mapping[str, Any]], seeds: Mapping[str, Sequence[int]], trials: int, ticks: int,
                 workers: Optional[int]):
-    """Every configuration (name -> overrides) through the battery: the gate, the track, hidden food, the open field."""
+    """Every configuration (name -> overrides) through the battery: the gate, the track, hidden food, the open field, each
+    on ``BASE`` (the capped per-feature step) with the configuration's own fields on top."""
+    configs = {c: {**BASE, **dict(ov)} for c, ov in configs.items()}
     gate = _pool(_gate_job, [(c, ov, cond, src, ses, s, trials) for c, ov in configs.items() for cond in GATE
                              for src in ("sr", "none") for ses in rg.SESSIONS for s in seeds["gate_seeds"]], workers)
     track = _pool(_track_job, [(c, ov, a, s, ticks) for c, ov in configs.items() for a in TRACK_ARMS for s in seeds["track_seeds"]], workers)
