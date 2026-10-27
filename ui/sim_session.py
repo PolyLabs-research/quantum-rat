@@ -28,7 +28,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
+from brain.systems.basal_ganglia import channel_terms, selection_probabilities
 from brain.systems.replay_events import REPLAY_EVENTS_FILE, write_replay_events
+from metrics.decisions import COUNTERFACTUAL_TERMS, DECISIONS_FILE, counterfactual_probabilities, decision_record, record_line, total_variation
 from core.engine import Engine
 from metrics.logger import _canonical_json
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
@@ -41,6 +43,7 @@ Event = Dict[str, Any]
 
 MAX_STEPS_PER_CALL = 200
 HISTORY_LIMIT = 50_000
+TURNING_WINDOW = 300  # ticks over which the live turning and closure readouts are taken
 EVENT_LIMIT = 300
 # Finished replay events kept for the frame and the recording, drained from the
 # engine's bounded log every tick. At the legacy defaults a microsleep bout
@@ -142,6 +145,10 @@ PARAMS: Tuple[Param, ...] = (
     Param("place.reward_learning_rate", "SR reward learning rate", "Estimate & sampling", 0.05, 1.0, 0.05,
           "How fast the successor representation's reward weights track the reward seen at the cells active on "
           "arrival (research 0.5). Nothing without the place population (research profile)."),
+    Param("place.reward_unlearning_rate", "SR reward unlearning rate", "Estimate & sampling", 0.05, 8.0, 0.05,
+          "How fast those weights fall toward 0 at the active cells on a tick that sees no reward (decisions G41: at "
+          "the research default this equals the learning rate, 0.5, and the agent circles a just-emptied site; at 4 "
+          "the circling goes and the finds come back). Per-feature rule only; nothing without the place population."),
 )
 PARAM_INDEX = {p.key: p for p in PARAMS}
 
@@ -193,6 +200,19 @@ class SimSession:
         self.overrides = {}
         for key, value in params.items():
             self._apply_param(key, value)
+        # Behaviour readouts (decisions G39): distance walked, wall-contact ticks, finds (ticks that touched a
+        # target: the primary contact reward) and reward, so that cycling can be told from useful behaviour.
+        self._distance = 0.0
+        self._last_pos: Optional[Tuple[float, float]] = None
+        self._wall_ticks = 0
+        self._ticks = 0
+        self._finds = 0
+        self._last_find_tick: Optional[int] = None
+        self._reward_total = 0.0
+        self._recent: Deque[Tuple[float, float, float]] = deque(maxlen=TURNING_WINDOW + 1)  # (x, y, heading)
+        # The decision log (metrics.decisions): one canonical line per tick, kept beside the tick history and
+        # written into a recording as decisions.jsonl.
+        self.decisions: Deque[Tuple[int, str]] = deque(maxlen=HISTORY_LIMIT)
         self.history: Deque[Dict[str, Any]] = deque(maxlen=HISTORY_LIMIT)
         self.events: Deque[Event] = deque(maxlen=EVENT_LIMIT)
         self.replay_events: Deque[Dict[str, Any]] = deque(maxlen=REPLAY_EVENT_LIMIT)
@@ -271,6 +291,8 @@ class SimSession:
         td = self.engine.run(1)[0]
         self.tick = td.tick
         self.history.append(td.to_ordered_dict())
+        self.decisions.append((td.tick, record_line(decision_record(self.engine))))  # before the scenario acts
+        self._count_behaviour(td)
         for event in self.scenario.on_tick(self.engine, td.tick) + self._generic_events(td.tick):
             self._emit(event)
         for replay_event in self.engine.replay_log.drain():
@@ -301,6 +323,152 @@ class SimSession:
         n = max(1, min(int(n), MAX_STEPS_PER_CALL))
         return [self._advance() for _ in range(n)]
 
+    # --------------------------------------------------------------- behaviour
+
+    TELEPORT = 1.5  # units per tick; a bigger jump is a scenario's teleport, not walking
+
+    def _count_behaviour(self, td: Any) -> None:
+        x, y = td.pos
+        if self._last_pos is not None:
+            step = math.hypot(x - self._last_pos[0], y - self._last_pos[1])
+            if step <= self.TELEPORT:
+                self._distance += step
+        self._last_pos = (x, y)
+        bx, by = self.engine.world.bounds
+        if abs(x) >= bx - 1e-9 or abs(y) >= by - 1e-9:
+            self._wall_ticks += 1
+        self._ticks += 1
+        ctx = self.engine.context
+        if ctx is not None and ctx.target_contact:
+            self._finds += 1
+            self._last_find_tick = td.tick
+        self._reward_total += float(td.reward)
+        self._recent.append((x, y, self.engine.agent.heading))
+
+    def _turning(self) -> Tuple[float, float]:
+        """Signed turning (revolutions) and closure (net displacement / distance) over the last TURNING_WINDOW ticks."""
+        pts = list(self._recent)
+        if len(pts) < 2:
+            return 0.0, 0.0
+        turning = 0.0
+        dist = 0.0
+        for (x0, y0, h0), (x1, y1, h1) in zip(pts, pts[1:]):
+            step = math.hypot(x1 - x0, y1 - y0)
+            if step > self.TELEPORT:
+                continue
+            turning += (h1 - h0 + math.pi) % (2 * math.pi) - math.pi
+            dist += step
+        net = math.hypot(pts[-1][0] - pts[0][0], pts[-1][1] - pts[0][1])
+        return turning / (2 * math.pi), (net / dist) if dist > 0 else 0.0
+
+    def behaviour(self) -> Dict[str, Any]:
+        """Generic readouts of what the body did since the session was built or reset."""
+        return {
+            "distance": _r(self._distance, 1),
+            "wall_fraction": _r(self._wall_ticks / self._ticks, 3) if self._ticks else 0.0,
+            "finds": self._finds,
+            "ticks_since_find": (self.tick - self._last_find_tick) if self._last_find_tick is not None else None,
+            "distance_per_find": _r(self._distance / self._finds, 1) if self._finds else None,
+            "reward_total": _r(self._reward_total, 2),
+            # Circling, live: signed turning over the last TURNING_WINDOW ticks in revolutions (left positive) and the
+            # closure of that stretch (net displacement over distance: 0 for a closed loop, 1 for a straight line).
+            "turning_window": TURNING_WINDOW,
+            "turning_revolutions": _r(self._turning()[0], 2),
+            "closure": _r(self._turning()[1], 2),
+        }
+
+    # -------------------------------------------------------------- mechanisms
+
+    def mechanisms(self) -> List[Dict[str, str]]:
+        """What is in force, from the effective configuration (decisions G39).
+
+        One entry per mechanism the panels describe, with ``status`` ``"active"``
+        (it reaches behaviour), ``"readout"`` (computed and shown, but with a gain
+        of 0 it moves nothing) or ``"off"`` (not running), and a one-line
+        ``detail``. Recomputed after a parameter change, so a slider that turns a
+        gain up turns its chip on.
+        """
+        cfg = self.engine.config
+        a, bg, vm, se, sp, pl, trn = cfg.astrocyte, cfg.basal_ganglia, cfg.value_memory, cfg.sensors, cfg.spatial, cfg.place, cfg.trn
+        overridden = {name for name, _, _ in self.profile_overrides}
+        own = " (this scenario's own setting)"
+        out: List[Dict[str, str]] = []
+
+        def add(mid: str, name: str, status: str, detail: str) -> None:
+            out.append({"id": mid, "name": name, "status": status, "detail": detail})
+
+        if a.frozen:
+            add("energy", "Energy & fatigue", "off", "ATP is held at 1.0: no fatigue, no pacing, no energy throttle on motion")
+        else:
+            pacing = f"pacing rest {bg.pace_rest_bonus:g} below ATP {bg.pace_low:g}" if bg.pace_rest_bonus > 0 else "no pacing"
+            add("energy", "Energy & fatigue", "active",
+                f"effort drains ATP; {pacing}; motion {'scaled by ATP' if a.scales_motion else 'not scaled by ATP'}")
+        if trn.microsleep_enabled and not a.frozen:
+            add("microsleep", "Microsleep & engine replay", "active", "low ATP triggers a microsleep bout that replays the recent path into the value map")
+        else:
+            add("microsleep", "Microsleep & engine replay", "off",
+                "ATP never falls, so no bout can start" if a.frozen and trn.microsleep_enabled else "microsleep disabled")
+        if vm.source == "none" or bg.value_gain <= 0:
+            add("steer", "Memory steering", "off", "no value signal reaches the scores" if vm.source == "none" else "Memory steering gain is 0")
+        elif vm.source == "sr":
+            add("steer", "Memory steering", "active", f"reads the SR value V = φ·MᵀR (the blue field) × gain {bg.value_gain:g}; cue and wall gating apply")
+        else:
+            add("steer", "Memory steering", "active", f"reads the tabular value map × gain {bg.value_gain:g}; cue and wall gating apply")
+        radius = f"; place-field radius {vm.generalization_radius}" + (own if "value_memory.generalization_radius" in overridden else "") if vm.generalization_radius else ""
+        if vm.source == "tabular":
+            add("map", "Tabular value map", "active", f"learns every tick and is what steers{radius}")
+        else:
+            add("map", "Tabular value map", "readout", f"learns every tick; a diagnostic here, nothing reads it{radius}")
+        if pl.enabled and self.engine.place is not None:
+            unlearn = "the learning rate" if pl.reward_unlearning_rate is None else f"{pl.reward_unlearning_rate:g}"
+            unlearn += own if "place.reward_unlearning_rate" in overridden else ""
+            sr = (f"; SR reward rule {pl.reward_rule} (learning {pl.reward_learning_rate:g}, unlearning {unlearn}), γ {pl.sr_discount:g}"
+                  if self.engine.sr is not None else "; no SR learner")
+            add("place", "Place population & SR", "active", f"{self.engine.place.size} Gaussian place cells over the estimate{sr}")
+        else:
+            add("place", "Place population & SR", "off", "no population on this profile")
+        if vm.oracle_homing:
+            add("goal", "Goal memory (oracle homing)", "active",
+                "turns toward the remembered goal where the value read is flat: an oracle control, not learned navigation"
+                + (own if "value_memory.oracle_homing" in overridden else ""))
+        else:
+            add("goal", "Goal memory (oracle homing)", "off", "no remembered goal")
+        add("vision", "Vision drive", "active" if bg.vision_gain > 0 else "off",
+            f"gain {bg.vision_gain:g}; {se.vision_rays} rays over {se.fov:g} rad, range {se.vision_range:g}; a visible target mutes memory (cue gate {bg.cue_gate_gain:g})")
+        reach = "the whole vision range" if bg.wall_avoid_range == 1.0 else f"{bg.wall_avoid_range * se.vision_range * cfg.units.metres_per_unit:.2g} m"
+        commit = f"; turn commitment {bg.turn_commitment:g}" if bg.turn_commitment > 0 else ""
+        add("wall", "Wall avoidance", "active" if bg.wall_avoid_gain > 0 else "off",
+            f"gain {bg.wall_avoid_gain:g} for a wall ahead within {reach}{commit}; a wall ahead also dims memory's push to go straight (gate {bg.wall_gate_gain:g})")
+        add("pain", "Pain", "active", f"avoidance {bg.pain_avoidance:g} on FORWARD; freeze (pain → REST) {bg.rest_pain_gain:g}, habituating")
+        if bg.softmax_temperature > 0:
+            add("select", "Action selection", "active", f"one seeded softmax draw per tick at τ {bg.softmax_temperature:g}: the highest score need not win")
+        else:
+            add("select", "Action selection", "active", "the highest score wins (argmax, deterministic tie order)")
+        gains = {"DA → exploration": bg.dopamine_explore_gain, "ACh → vision": bg.ach_precision_gain,
+                 "NE → threat": bg.ne_threat_gain, "5HT → patience": bg.fiveht_patience_gain}
+        on = [f"{k} {v:g}" for k, v in gains.items() if v > 0]
+        add("neuromod", "Neuromodulators", "active" if on else "readout",
+            ("reach the scores through " + ", ".join(on)) if on else "the four traces are computed and logged; every gain is 0, so none reaches the scores")
+        if bg.novelty_gain > 0 or bg.novelty_turn_gain > 0:
+            add("novelty", "Novelty bit", "active", f"adds {bg.novelty_gain:g} to FORWARD and {bg.novelty_turn_gain:g} to each TURN when the observation changed")
+        else:
+            add("novelty", "Novelty bit", "readout", "computed and logged (it feeds ACh and NE); gains 0, so it moves no score")
+        add("crit", "Criticality → vision", "active" if bg.criticality_gain > 0 else "readout",
+            f"gain from κ scales vision × {bg.criticality_gain:g}" if bg.criticality_gain > 0 else "κ and avalanches are measured; the gain weight is 0, so vision is not scaled")
+        if se.odometry_speed_noise > 0 or se.odometry_turn_noise > 0:
+            add("odometry", "Odometry noise", "active", f"speed sd {se.odometry_speed_noise:g} (fraction), turn sd {se.odometry_turn_noise:g} rad per tick; moves the estimate, not the body")
+        else:
+            add("odometry", "Odometry noise", "off", "the self-motion estimate is exact")
+        if sp.heading_source == "oracle":
+            add("heading", "Heading estimate", "active", f"the declared heading oracle, sd {se.heading_oracle_noise:g} rad per tick (a declared limitation)")
+        else:
+            add("heading", "Heading estimate", "active", "integrated from the egomotion turns (a random walk under turn noise)")
+        add("reset", "Wall-contact reset", "active" if sp.wall_reset else "off",
+            "a touched wall resets the estimate's coordinate along its normal" if sp.wall_reset else "wall contacts offset the estimate and nothing corrects it")
+        add("sensor_noise", "Sensor noise", "active" if se.noise > 0 else "off",
+            f"sd {se.noise:g} on vision and pain" if se.noise > 0 else "vision and pain are exact")
+        return out
+
     # ------------------------------------------------------------------ views
 
     def frame(self) -> Dict[str, Any]:
@@ -322,6 +490,25 @@ class SimSession:
         if ctx and ctx.replay_active and ctx.replay_cell is not None:
             replay_cell = self._cell_center(*ctx.replay_cell)
         scores = ctx.action_scores if ctx else {}
+        # The decision as its terms and the selection probabilities (decisions G39): the same arithmetic as
+        # the engine's scores, recomputed from what it stored, so the panel can say what drove each score.
+        bg = eng.config.basal_ganglia
+        terms: Dict[str, Dict[str, float]] = {}
+        probs: Dict[str, float] = {}
+        probs_without_memory: Dict[str, float] = {}
+        influence: Dict[str, float] = {}
+        if ctx is not None and obs is not None and scores:
+            pacing_rest = bg.pace_rest_bonus if ctx.pacing_active else 0.0
+            raw = channel_terms(obs, ctx.wm_novelty, ctx.trn_gate_value, ctx.microsleep_active, bg, ctx.neuromodulators,
+                                *ctx.value_signals, ctx.criticality_gain, ctx.freeze_habituation, pacing_rest,
+                         ctx.previous_action)
+            terms = {ch: {k: _r(v) for k, v in t.items()} for ch, t in raw.items()}
+            exact = selection_probabilities(scores, bg.softmax_temperature)
+            probs = {k: _r(v) for k, v in exact.items()}
+            without_memory = counterfactual_probabilities(scores, raw, bg.softmax_temperature, ("memory",))
+            probs_without_memory = {k: _r(v) for k, v in without_memory.items()}
+            influence = {name: _r(total_variation(exact, counterfactual_probabilities(scores, raw, bg.softmax_temperature, (name,))))
+                         for name in COUNTERFACTUAL_TERMS}
         goal_cell = None  # the goal-vector memory, in world coordinates (only with oracle homing on)
         goal = eng.goal_point() if eng.config.value_memory.oracle_homing else None
         if goal is not None:
@@ -340,6 +527,15 @@ class SimSession:
             "action": {
                 "name": ctx.action_name if ctx else "REST",
                 "scores": {k: _r(v) for k, v in scores.items()},
+                "terms": terms,
+                "probs": probs,
+                # Counterfactuals (metrics.decisions): the selection without the memory term, and each term
+                # family's immediate influence as the total-variation shift it makes to the probabilities.
+                "probs_without_memory": probs_without_memory,
+                "influence": influence,
+                "temperature": _r(bg.softmax_temperature),
+                "source": eng.config.value_memory.source,
+                "value_gain": _r(bg.value_gain),
                 "value": [_r(v) for v in (ctx.value_signals if ctx else (0.0, 0.0, 0.0))],
                 "crit_gain": _r(ctx.criticality_gain if ctx else 1.0),
                 "freeze": _r(ctx.freeze_habituation if ctx else 1.0),
@@ -398,6 +594,7 @@ class SimSession:
                 "pain_zone": _r(sensors.pain_zone, 3),
             },
             "profile": self.profile,
+            "behaviour": self.behaviour(),
             # The place code (research profile; None without a population): the population's rates
             # at the estimate and the successor representation's value over the arena (docs/profiles.md).
             "place": self._place_frame(),
@@ -550,7 +747,13 @@ class SimSession:
 
     def params(self) -> List[Dict[str, Any]]:
         config = self.engine.config
-        return [{**asdict(p), "value": config.get_field(p.key)} for p in PARAMS]
+        out = []
+        for p in PARAMS:
+            value = config.get_field(p.key)
+            if p.key == "place.reward_unlearning_rate" and value is None:
+                value = config.place.reward_learning_rate  # None means "the learning rate" (core.config.PlaceConfig)
+            out.append({**asdict(p), "value": value})
+        return out
 
     # --------------------------------------------------------------- actions
 
@@ -592,6 +795,10 @@ class SimSession:
         if recorded_events:
             with open(run_dir / REPLAY_EVENTS_FILE, "w", encoding="utf-8") as fh:
                 n_written = write_replay_events(fh, recorded_events)
+        decision_lines = [line for tick, line in self.decisions if tick >= first_tick]
+        with open(run_dir / DECISIONS_FILE, "w", encoding="utf-8") as fh:
+            for line in decision_lines:
+                fh.write(line + "\n")
         summary = {
             "protocol": self.scenario_id,
             "source": "live console",
@@ -604,6 +811,7 @@ class SimSession:
             "status": self.scenario.status(),
             "n_replay_events": n_written,
             "n_replay_events_total": self.n_replay_events,
+            "n_decision_records": len(decision_lines),
         }
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
         # Objects as they stand now (a beacon shows its latest spot); the start

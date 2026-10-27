@@ -27,9 +27,12 @@ offline.
    scenarios were built for; **Research** is the research instrument (docs/profiles.md), with the
    place population and the successor representation drawn on the arena and in the Place code
    panel. The scenario's own settings ride on top of either profile and are listed under the
-   switch. Play/pause with the button or `Space`; step one tick with `→`. Drag parameters to
-   change the brain while it runs (they survive a reset). **Record to replay** saves the session
-   into the runs directory, with the profile in its summary and manifest.
+   switch, and **Mechanisms in force** lists what the effective configuration actually runs
+   (active, readout only, or off). The Decision panel breaks each score into its terms with the
+   selection probability, and the Behaviour readouts count finds, distance and wall contact.
+   Play/pause with the button or `Space`; step one tick with `→`. Drag parameters to change the
+   brain while it runs (they survive a reset). **Record to replay** saves the session into the
+   runs directory, with the profile in its summary and manifest.
 
 4. **Replay tab.** Pick a run and an episode, then play or drag the scrubber. Click a chart or a
    "key moment" to jump to it. The tick inspector lists every logged field.
@@ -48,6 +51,15 @@ offline.
    # --profile research for the console's Research switch), plus events.jsonl (the event log)
    python -m experiments.runner --protocol console_hidden_food --seed 7 --ticks 3000
    python -m experiments.runner --protocol console_memory_maze --seed 7 --ticks 3000 --profile research
+
+   # also log every tick's decision (decisions.jsonl: scores, terms, probabilities, counterfactuals,
+   # contacts, episode boundaries); a live recording writes the same file. Then summarise the circling
+   python -m experiments.runner --protocol console_hidden_food --seed 7 --ticks 3000 --profile research --log-decisions
+   python -m analysis.orbits runs/console_hidden_food_7
+
+   # memory steering on vs off on matched seeds (legacy needs sensor noise, or every seed is one run)
+   python -m experiments.console_ablation --scenario hidden_food --profile research --seeds 1-8 --out runs/ablation_hf_research
+   python -m experiments.console_ablation --scenario hidden_food --profile legacy --set sensors.noise=0.03 --out runs/ablation_hf_legacy
 
    # a tournament with per-tick logs (without --include-ticks only summaries are saved)
    python -m tournaments.runner --seed 7 --n-agents 2 --ticks 300 \

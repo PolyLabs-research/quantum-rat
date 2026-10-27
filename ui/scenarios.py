@@ -46,6 +46,12 @@ PACE_REST_BONUS = 5.0
 GATE_SAFE_PACE_LOW = 0.6
 MAZE_PACE_LOW = GATE_SAFE_PACE_LOW
 
+# The SR's reward unlearning rate for the scenarios whose reward empties and moves on (hidden food, beacon): the
+# owner's decision on G41/G42 (decisions G43). On the research profile it removes the circling beside an emptied site
+# (G40, G41); the research instrument keeps one rate, because a stable goal wants slow unlearning (G42). Inert on the
+# legacy profile, which has no SR.
+RENEWABLE_REWARD_UNLEARNING_RATE = 4.0
+
 
 def paced_basal_ganglia() -> BasalGangliaConfig:
     return BasalGangliaConfig(pace_rest_bonus=PACE_REST_BONUS)
@@ -123,7 +129,11 @@ class Scenario:
     id = "base"
     title = "Scenario"
     summary = ""
+    # ``watch`` is written for the legacy profile the scenarios were built on; ``watch_research`` says what
+    # changes on the research profile (docs/profiles.md). The console lists the mechanisms actually in force
+    # from the effective configuration (ui.sim_session.SimSession.mechanisms) above either.
     watch: Tuple[str, ...] = ()
+    watch_research: Tuple[str, ...] = ()
 
     def config(self) -> EngineConfig:
         """The scenario's own settings on the legacy base (see ``profile_config`` for another base)."""
@@ -150,6 +160,7 @@ class Scenario:
             "title": self.title,
             "summary": self.summary,
             "watch": list(self.watch),
+            "watch_research": list(self.watch_research),
             "actions": self.actions(),
         }
 
@@ -166,6 +177,17 @@ class OpenField(Scenario):
         "Avalanches spreading on the criticality lattice. It is bond percolation: subcritical at "
         "the default coupling 0.25 (κ settles near 0.91 with the exponent-1.5 estimator), spanning "
         "avalanches from 0.35, critical at 0.5, just above the slider's 0.45",
+    )
+    watch_research = (
+        "ATP is frozen on this profile: no fatigue, no microsleep, no replay. The walk is the forward bias, wall "
+        "avoidance at 12 m range and one softmax draw per tick at τ 0.1 over the channel scores (the Decision "
+        "panel shows each score's terms and the draw's probabilities)",
+        "A TURN moves the body 0.3 units while it rotates 0.3 rad, so a sustained turn is a circle of radius about "
+        "1.0 unit: a run of turns toward one side is an orbit, not a search. With nothing valued, the perimeter "
+        "loop is forward bias meeting wall avoidance",
+        "The estimate (the hollow ghost) reads the heading oracle and resets at wall contact, so it stays within "
+        "centimetres of the body; the place population and the SR follow it. Without reward the SR value is 0 "
+        "everywhere, so memory steers nothing here",
     )
 
     def __init__(self) -> None:
@@ -199,6 +221,15 @@ class Beacon(Scenario):
         "memory steering at 0 scores about the same or slightly better",
         "Turn vision drive down to 0 and the agent can no longer find it",
     )
+    watch_research = (
+        "Vision steers toward the beacon as under legacy. Dopamine is logged but its gain is 0, so it moves nothing",
+        "Memory steering reads the SR value here (the blue field), not the tabular map. The SR's reward weights grow at "
+        "the cells active on arrival; this scenario sets their unlearning rate to 4 (decisions G43), eight times the "
+        "learning rate, so a spot's value fades soon after the beacon leaves it. At the instrument's single rate the "
+        "agent looped round old spots (884 orbit ticks a run, G40); at 4 that is 57. Memory still costs beacons against "
+        "no steering (15.6 against 21.5 over eight seeds): the beacon has always moved on",
+        "No fatigue: the pacing this scenario sets is inert with ATP frozen",
+    )
     SPOTS = ((6.0, 3.0), (-5.0, 5.0), (-6.0, -5.0), (5.0, -6.0), (0.0, 7.5), (-7.5, 0.0))
     RADIUS = 1.2
 
@@ -210,7 +241,9 @@ class Beacon(Scenario):
         self.target: Optional[WorldObject] = None
 
     def config(self) -> EngineConfig:
-        return EngineConfig(basal_ganglia=paced_basal_ganglia())
+        cfg = EngineConfig(basal_ganglia=paced_basal_ganglia())
+        cfg.place.reward_unlearning_rate = RENEWABLE_REWARD_UNLEARNING_RATE  # the beacon moves on (decisions G43)
+        return cfg
 
     def setup(self, engine: Engine) -> None:
         super().setup(engine)
@@ -242,6 +275,11 @@ class Foraging(Scenario):
         "Each collection is a reward: dopamine (reward minus its running mean) hits 1.0 on contact "
         "and sits below 0.5 on most other ticks once the mean is up; the value map builds up",
         "Narrow the field of view and foraging slows down",
+    )
+    watch_research = (
+        "Each collection writes the SR's reward weights at the arrival cells (and the tabular map, a diagnostic "
+        "here); the steering reads the SR value. Dopamine is logged with a gain of 0",
+        "No fatigue or microsleep; one softmax draw per tick at τ 0.1, so the highest score need not win",
     )
     RADIUS = 1.0
 
@@ -296,6 +334,12 @@ class HazardField(Scenario):
         "habituates, so the agent does not stay stuck in the pain zone",
         "Reward goes negative in the pain zone; the value map turns red there",
         "Raise NE → threat sensitivity for a more cautious agent",
+    )
+    watch_research = (
+        "Pain still enters the scores directly (pain avoidance on FORWARD, the freeze on REST). Norepinephrine is "
+        "logged with a gain of 0; raising its gain is what turns it on",
+        "The per-feature rule tracks the reward seen while a cell is active, so pain near a hazard lowers the SR's "
+        "reward weights there and the SR value (what steers) turns negative around it",
     )
     RADIUS = 1.0
     FOOD = ((7.0, 0.0), (0.0, 7.0), (-7.0, -2.0))
@@ -365,6 +409,15 @@ class MemoryMaze(Scenario):
         "a goal that moved stops pulling the agent (the value map can still lead it back there for a "
         "while, until that gradient fades)",
     )
+    watch_research = (
+        "The steering reads the SR value, not the tabular map. \"Sleep & consolidate\" replays the trajectory into "
+        "the tabular map only, so sleep changes nothing the agent does here until replay runs over the place code "
+        "(M3). The SR's reward weights learn at the goal on arrival, online",
+        "The goal memory (oracle homing) is this scenario's own setting and stays on: where the SR value is flat the "
+        "agent turns toward the remembered goal, so a recall does not isolate learned navigation",
+        "Each trial teleports the body to the start and re-anchors the estimate. The inter-trial rest is 40 "
+        "physiology updates, not simulation ticks, and this profile freezes physiology, so it changes nothing",
+    )
     GOAL = (6.0, 3.0)
     RADIUS = 1.5
     TIMEOUT = 300
@@ -404,7 +457,10 @@ class MemoryMaze(Scenario):
         engine.value_memory.consolidate(
             passes=self.CONSOLIDATION_PASSES, dwell_extinction=engine.config.value_memory.dwell_extinction
         )
-        return _event(tick, f"Sleep: replayed a {n}-step trajectory {self.CONSOLIDATION_PASSES}× — value map consolidated", "info", "replay")
+        note = ""
+        if engine.config.value_memory.source != "tabular":
+            note = " (the tabular map only: the steering reads the SR value on this profile, so behaviour is unchanged)"
+        return _event(tick, f"Sleep: replayed a {n}-step trajectory {self.CONSOLIDATION_PASSES}× — value map consolidated{note}", "info", "replay")
 
     def _end_trial(self, engine: Engine, tick: int, reached: bool) -> List[Event]:
         duration = tick - self.trial_start
@@ -431,14 +487,21 @@ class MemoryMaze(Scenario):
     def _rest(self, engine: Engine, tick: int) -> Event:
         """Inter-trial interval: the agent rests in the home cage between trials.
 
-        Runs only the energy model at resting demand (the same physiology the
-        engine uses), as real water-maze protocols rest the animal between
-        trials. No brain ticks happen, so nothing is learned during the rest.
+        Runs only the energy model at resting demand, under the same physiology
+        configuration as an engine step (``Engine._physiology_step``: with
+        ``astrocyte.frozen`` nothing ticks), as real water-maze protocols rest
+        the animal between trials. These are physiology updates, not simulation
+        ticks: no brain tick happens, nothing is learned, and the trial clock
+        does not advance.
         """
         before = engine.astrocyte.atp
+        if engine.config.astrocyte.frozen:
+            return _event(tick, f"Rested in the home cage: {self.REST_TICKS} physiology updates, frozen on this profile "
+                                f"(ATP stays {before:.2f}); no brain ticks", "info", "rest")
         for _ in range(self.REST_TICKS):
             engine.astrocyte.tick(demand=engine.config.astrocyte.rest_demand)
-        return _event(tick, f"Rested {self.REST_TICKS} ticks in the home cage (ATP {before:.2f} → {engine.astrocyte.atp:.2f})", "info", "rest")
+        return _event(tick, f"Rested in the home cage: {self.REST_TICKS} physiology updates (ATP {before:.2f} → "
+                            f"{engine.astrocyte.atp:.2f}); no brain ticks", "info", "rest")
 
     def on_tick(self, engine: Engine, tick: int) -> List[Event]:
         assert self.goal is not None
@@ -466,9 +529,9 @@ class MemoryMaze(Scenario):
     def actions(self) -> List[Dict[str, str]]:
         return [
             {"id": "toggle_replay", "label": "Toggle replay", "help": "Whether the agent sleeps and replays after the visible training trial."},
-            {"id": "consolidate", "label": "Sleep & consolidate now", "help": "Replay the current trajectory into the value map immediately."},
+            {"id": "consolidate", "label": "Sleep & consolidate now", "help": "Replay the current trajectory into the tabular value map now. On the research profile the steering reads the SR value, so this changes the diagnostic map only (replay over the place code is M3)."},
             {"id": "toggle_goal", "label": "Show / hide goal", "help": "Make the goal visible again (or hide it)."},
-            {"id": "toggle_rest", "label": "Toggle rest between trials", "help": "Without rest the agent tires across trials and its path integration degrades."},
+            {"id": "toggle_rest", "label": "Toggle rest between trials", "help": "Legacy profile: without rest the agent tires across trials and its path integration degrades. The rest is 40 physiology updates between trials, not simulation ticks; the research profile freezes physiology, so it changes nothing there."},
         ]
 
     def do_action(self, engine: Engine, action_id: str, tick: int) -> List[Event]:
@@ -563,6 +626,18 @@ class HiddenFood(Scenario):
         "food without memory, and memory steering then costs food, because circling one site beats "
         "touring only when the tour is slow",
     )
+    watch_research = (
+        "A find writes the SR's reward weights at the site's cells; the steering reads the SR value (blue). "
+        "\"Forget the rewards\" clears the SR's weights and the tabular map together",
+        "This scenario sets the SR's unlearning rate to 4 (decisions G41, G43): an emptied site's value fades eight times "
+        "faster than it was learned. At the instrument's single rate the agent orbited beside sites it had just emptied "
+        "and found a third less food than without memory; at 4, on fresh seeds, the orbiting fell by 95% and the finds "
+        "came level with no steering (28.4 against 27.3). Drag the SR reward unlearning rate slider down to 0.5 to see it",
+        "No fatigue, so the agent never rests, and the estimate holds (oracle heading, wall reset): the map does "
+        "not drift here as it does under legacy",
+        "Circling a known site is exploitation of regrowing food. The Behaviour readouts (finds, ticks since the "
+        "last find, distance per find, wall-contact share) tell it from a loop that finds nothing",
+    )
     RADIUS = 1.25
     SITES: Tuple[Tuple[float, float], ...] = (
         (7.5, -2.0),
@@ -585,10 +660,12 @@ class HiddenFood(Scenario):
         self.last_site: Optional[int] = None
 
     def config(self) -> EngineConfig:
-        return EngineConfig(
+        cfg = EngineConfig(
             basal_ganglia=BasalGangliaConfig(pace_rest_bonus=PACE_REST_BONUS, pace_low=self.PACE_LOW),
             value_memory=ValueMemoryConfig(generalization_radius=self.GENERALIZATION_RADIUS),
         )
+        cfg.place.reward_unlearning_rate = RENEWABLE_REWARD_UNLEARNING_RATE  # eaten food empties a site (decisions G43)
+        return cfg
 
     def setup(self, engine: Engine) -> None:
         super().setup(engine)
@@ -670,13 +747,14 @@ class HiddenFood(Scenario):
 
     def actions(self) -> List[Dict[str, str]]:
         return [
-            {"id": "forget", "label": "Forget the map", "help": "Erase the value map: the agent must rediscover every site."},
+            {"id": "forget", "label": "Forget the rewards", "help": "Erase what the agent learned about reward: the tabular value map and, on the research profile, the SR's reward weights (what steers there; the SR's transition structure is kept). The agent must rediscover every site."},
         ]
 
     def do_action(self, engine: Engine, action_id: str, tick: int) -> List[Event]:
         if action_id == "forget":
-            engine.value_memory.values.clear()
-            return [_event(tick, "Value map erased: the agent no longer remembers any site", "warning")]
+            engine.forget_rewards()
+            what = "Value map and SR reward weights erased" if engine.sr is not None else "Value map erased"
+            return [_event(tick, f"{what}: the agent no longer remembers any site", "warning")]
         return super().do_action(engine, action_id, tick)
 
 SCENARIOS = {cls.id: cls for cls in (OpenField, Beacon, Foraging, HazardField, HiddenFood, MemoryMaze)}

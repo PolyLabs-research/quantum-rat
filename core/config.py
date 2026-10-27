@@ -91,6 +91,44 @@ class WorldConfig:
     bounds: Tuple[float, float] = (10.0, 10.0)
 
 
+BODY_MODELS: Tuple[str, ...] = ("discrete", "rodent")
+
+
+@dataclass
+class BodyConfig:
+    """How an action moves the body (M3 step 1, ``docs/prereg/m3_body.md``; decisions G44).
+
+    ``model = "discrete"`` (the default, both profiles) is the body every result up to G43 ran: a FORWARD step of 1.0
+    unit, a TURN of 0.3 rad that also moves 0.3 units, REST still (``core.world.World.step``). ``"rodent"`` is
+    ``core.body.RodentBody``: speed and angular velocity as Ornstein-Uhlenbeck processes drifted toward the chosen
+    action's targets, turns in place, and wall following, after RatInABox (George et al. 2024), whose noise defaults
+    are fitted to Sargolini et al. (2006). Speeds in m/s, rates in rad/s, times in s, distances in m; the engine
+    converts with ``UnitsConfig``. The other fields are read only by the rodent model.
+    """
+
+    model: str = "discrete"
+    run_speed: float = 0.5  # m/s, FORWARD's target: 1 unit per tick, today's FORWARD step
+    turn_speed: float = 0.0  # m/s while turning: 0 turns in place (no turning circle)
+    turn_rate: float = 1.5  # rad/s, a TURN's target: 0.3 rad per tick, today's TURN step
+    speed_coherence_time: float = 0.7  # s (RatInABox)
+    speed_noise: float = 0.0  # m/s, the speed process's sd (RatInABox: 0.08)
+    rotational_coherence_time: float = 0.08  # s (RatInABox)
+    rotational_noise: float = 0.0  # rad/s, the angular velocity process's sd (RatInABox: 120 deg/s = 2.094)
+    wall_align_distance: float = 0.1  # m, within which a heading into a wall turns toward it (RatInABox's repel distance)
+
+    def __post_init__(self) -> None:
+        if self.model not in BODY_MODELS:
+            raise ValueError(f"body.model must be one of {BODY_MODELS}, got {self.model!r}")
+        for name in ("run_speed", "turn_rate", "speed_coherence_time", "rotational_coherence_time", "wall_align_distance"):
+            value = getattr(self, name)
+            if not (math.isfinite(value) and value > 0.0):
+                raise ValueError(f"body.{name} must be a positive finite number, got {value!r}")
+        for name in ("turn_speed", "speed_noise", "rotational_noise"):
+            value = getattr(self, name)
+            if not (math.isfinite(value) and value >= 0.0):
+                raise ValueError(f"body.{name} must be a finite number >= 0, got {value!r}")
+
+
 @dataclass
 class SensorConfig:
     """Vision/whisker/pain sensing of real world geometry."""
@@ -134,6 +172,12 @@ class SensorConfig:
     # body's heading) of the outward normal of each arena wall the body touches, x walls before y walls; empty when
     # it touches none. Off, the field is None. Touch is exact: it says which side of the body is against a wall.
     wall_contact_sensing: bool = False
+    # unseen_block_rays (decisions G46): whether a "hidden" or "collected" object stops a vision ray or a whisker as an
+    # obstacle would. True (the legacy value, every result before G46): the ray stops at the object and reports its
+    # kind, and the action selection's side openness reads it as an obstacle, so the agent senses every hidden food
+    # site and turns away from it (the audit of 2026-10-27). False (the research profile from G46): such an object is
+    # not seen at all, and a ray passes through it to whatever lies behind.
+    unseen_block_rays: bool = True
 
     def __post_init__(self) -> None:
         if not (math.isfinite(self.heading_oracle_noise) and self.heading_oracle_noise >= 0.0):
@@ -184,7 +228,13 @@ class NeuromodConfig:
 
 @dataclass
 class RewardConfig:
-    approach_weight: float = 1.0  # reward per unit distance closed toward the nearest target
+    approach_weight: float = 1.0  # reward per unit distance closed toward the nearest visible target
+    # shape_hidden (decisions G46): whether approach shaping also counts a "hidden" goal. True (the legacy value, every
+    # result before G46): the shaped reward tells the agent, tick by tick, whether it is closing on food it cannot
+    # see (a hot/cold signal that reaches action selection through DA and 5HT on the legacy profile). False (the
+    # research profile from G46): shaping reads the nearest *visible* target only; a hidden goal still rewards on
+    # contact.
+    shape_hidden: bool = True
     contact_bonus: float = 1.0  # reward for touching a target
     pain_weight: float = 1.0  # penalty per unit pain signal
 
@@ -347,12 +397,21 @@ class PlaceConfig:
     # rings the goal with negative weights: decisions G36) or "per_feature", exploratory (each weight tracks the reward
     # seen while its cell is active, R += reward_learning_rate * phi * (r - R), so R >= 0 when rewards are >= 0).
     reward_rule: str = "nlms"
+    # G41 (docs/prereg/sr_unlearning_rate.md): with the per-feature rule, the rate at which R falls toward 0 at the
+    # active cells on a tick that sees no reward (r == 0). None, the default and the research profile's, uses
+    # reward_learning_rate: the rule exactly as G36 preregistered it. A separate, higher rate is the unlearning the
+    # circling measurement (G40) pointed to: the value at a just-emptied place outlasting the reward. Read by the
+    # per-feature rule only.
+    reward_unlearning_rate: Optional[float] = None
 
     def __post_init__(self) -> None:
         for name in ("spacing", "width", "max_rate", "sr_learning_rate", "reward_learning_rate"):
             value = getattr(self, name)
             if not (math.isfinite(value) and value > 0.0):
                 raise ValueError(f"place.{name} must be a positive finite number, got {value!r}")
+        if self.reward_unlearning_rate is not None:
+            if not (math.isfinite(self.reward_unlearning_rate) and self.reward_unlearning_rate > 0.0):
+                raise ValueError(f"place.reward_unlearning_rate must be a positive finite number or None, got {self.reward_unlearning_rate!r}")
         if self.extent is not None:
             extent = tuple(float(e) for e in self.extent)
             if len(extent) != 2 or not all(math.isfinite(e) and e > 0.0 for e in extent):
@@ -415,6 +474,13 @@ class BasalGangliaConfig:
     turn_bias: float = 0.0  # constant bias: >0 favours TURN_LEFT, <0 favours TURN_RIGHT
     vision_gain: float = 0.6  # drive toward a visible target (0 => blind to vision)
     wall_avoid_gain: float = 0.6  # drive to turn away from a close wall ahead
+    # M3 step 1b (docs/prereg/m3_corridor.md, G45). wall_avoid_range: the fraction of sensors.vision_range within which
+    # a wall on the centre ray counts as ahead (closeness max(0, 1 - dist / range)); 1.0, every result to date, reads
+    # a wall up to 1.2 m away, so in a 0.1 m corridor a heading ~5 degrees off the axis already has a "wall ahead".
+    # turn_commitment: added to the previous tick's turn channel while a wall is ahead, so a wall dead ahead does not
+    # leave the two turns tied tick after tick (the agent dithered at a track's ends, G44). 0 is off.
+    wall_avoid_range: float = 1.0
+    turn_commitment: float = 0.0
     dopamine_explore_gain: float = 0.6  # how strongly low dopamine boosts exploration
     # Neuromodulator control couplings (0 disables; defaults are no-ops at baseline
     # modulator levels NE=0, ACh=0, 5HT=0.5, so default behaviour is unchanged).
@@ -523,6 +589,7 @@ class EngineConfig:
     profile: str = "legacy"
     units: UnitsConfig = field(default_factory=UnitsConfig)
     world: WorldConfig = field(default_factory=WorldConfig)
+    body: BodyConfig = field(default_factory=BodyConfig)
     sensors: SensorConfig = field(default_factory=SensorConfig)
     astrocyte: AstrocyteConfig = field(default_factory=AstrocyteConfig)
     neuromod: NeuromodConfig = field(default_factory=NeuromodConfig)
@@ -601,6 +668,13 @@ class EngineConfig:
           map did; the map still learns). The research baselines were
           regenerated once for it (docs/profiles.md).
 
+        - The audit of 2026-10-27 (docs/decisions.md G46): ``sensors.unseen_block_rays
+          = False`` (a hidden or eaten object is not seen: vision rays and whiskers
+          pass through it, where they used to stop at it and report its kind) and
+          ``reward.shape_hidden = False`` (approach shaping reads visible targets
+          only; a hidden goal still rewards on contact). The research baselines
+          contain no hidden object and are unchanged by them.
+
         Nothing else differs. Not yet in this profile: replay as an event
         stream inside the engine (M3; the M2a linear-track experiments run
         their replay rules outside the engine, experiments.linear_track_replay).
@@ -635,6 +709,9 @@ class EngineConfig:
         cfg.place.enabled = True
         cfg.place.reward_rule = "per_feature"
         cfg.value_memory.source = "sr"
+        # The audit of 2026-10-27 (docs/decisions.md G46): nothing hidden is sensed, by vision or by shaping.
+        cfg.sensors.unseen_block_rays = False
+        cfg.reward.shape_hidden = False
         return cfg
 
     def stochastic_elements(self) -> List[str]:
@@ -809,6 +886,8 @@ def config_diff(a: Any, b: Any, prefix: str = "") -> List[Tuple[str, Any, Any]]:
 __all__ = [
     "UnitsConfig",
     "WorldConfig",
+    "BodyConfig",
+    "BODY_MODELS",
     "SensorConfig",
     "AstrocyteConfig",
     "NeuromodConfig",

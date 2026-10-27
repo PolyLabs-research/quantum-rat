@@ -1,0 +1,312 @@
+{
+ "arms": {
+  "no_steer": {
+   "basal_ganglia.value_gain": 0.0
+  },
+  "steer": {}
+ },
+ "effects": {
+  "distance": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.25,
+   "fraction_ties": 0.0,
+   "high": -25.24857712078181,
+   "low": -208.7064009043806,
+   "mean_a": 1574.5551201876574,
+   "mean_b": 1463.0771841854512,
+   "mean_diff": -111.47793600220609,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "distance_per_find": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.875,
+   "fraction_ties": 0.0,
+   "high": 29.601195313238716,
+   "low": 4.818694276175597,
+   "mean_a": 76.48534403802557,
+   "mean_b": 96.61085621635814,
+   "mean_diff": 20.125512178332578,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "finds": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.125,
+   "fraction_ties": 0.0,
+   "high": -2.625,
+   "low": -9.625,
+   "mean_a": 21.5,
+   "mean_b": 15.625,
+   "mean_diff": -5.875,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "loops": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.25,
+   "fraction_ties": 0.0,
+   "high": -0.5,
+   "low": -6.25,
+   "mean_a": 18.5,
+   "mean_b": 15.25,
+   "mean_diff": -3.25,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "mean_memory_influence": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 1.0,
+   "fraction_ties": 0.0,
+   "high": 0.08399262046341795,
+   "low": 0.06357274766177468,
+   "mean_a": 0.0,
+   "mean_b": 0.07181327499999994,
+   "mean_diff": 0.07181327499999994,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbit_fraction": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 0.0,
+   "high": -0.07034091353467314,
+   "low": -0.22520833333333334,
+   "mean_a": 0.38441666666666663,
+   "mean_b": 0.23904166666666668,
+   "mean_diff": -0.145375,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbit_ticks_memory": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.5,
+   "fraction_ties": 0.5,
+   "high": 125.5,
+   "low": 16.25,
+   "mean_a": 0.0,
+   "mean_b": 57.125,
+   "mean_diff": 57.125,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbit_ticks_other": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 1.0,
+   "high": 0.0,
+   "low": 0.0,
+   "mean_a": 0.0,
+   "mean_b": 0.0,
+   "mean_diff": 0.0,
+   "method": "none",
+   "n": 8,
+   "n_boot": 0,
+   "note": "degenerate: all values equal, nothing resampled"
+  },
+  "orbit_ticks_productive": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 0.0,
+   "high": -604.0056714396826,
+   "low": -825.125,
+   "mean_a": 784.125,
+   "mean_b": 72.875,
+   "mean_diff": -711.25,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbit_ticks_wall": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.75,
+   "fraction_ties": 0.0,
+   "high": 393.875,
+   "low": 29.25,
+   "mean_a": 369.125,
+   "mean_b": 587.125,
+   "mean_diff": 218.0,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "orbits": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.0,
+   "fraction_ties": 0.0,
+   "high": -3.625,
+   "low": -8.125,
+   "mean_a": 12.125,
+   "mean_b": 6.25,
+   "mean_diff": -5.875,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "reward": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.125,
+   "fraction_ties": 0.0,
+   "high": -31.333937499999568,
+   "low": -116.1842731173557,
+   "mean_a": 257.6902375000001,
+   "mean_b": 186.23273750000004,
+   "mean_diff": -71.45750000000001,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  },
+  "unique_sites": {
+   "n": 0,
+   "note": "fewer than two seeds with a value in both arms"
+  },
+  "wall_fraction": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.5,
+   "fraction_ties": 0.0,
+   "high": 0.0475,
+   "low": -0.03683333333333336,
+   "mean_a": 0.37983333333333336,
+   "mean_b": 0.3787083333333333,
+   "mean_diff": -0.001125000000000008,
+   "method": "bca",
+   "n": 8,
+   "n_boot": 10000,
+   "note": ""
+  }
+ },
+ "guard": 8,
+ "overrides": {},
+ "per_arm_means": {
+  "no_steer": {
+   "distance": 1574.5551201876574,
+   "distance_per_find": 76.48534403802557,
+   "finds": 21.5,
+   "loops": 18.5,
+   "mean_memory_influence": 0.0,
+   "orbit_fraction": 0.38441666666666663,
+   "orbit_ticks_memory": 0.0,
+   "orbit_ticks_other": 0.0,
+   "orbit_ticks_productive": 784.125,
+   "orbit_ticks_wall": 369.125,
+   "orbits": 12.125,
+   "reward": 257.6902375000001,
+   "unique_sites": null,
+   "wall_fraction": 0.37983333333333336
+  },
+  "steer": {
+   "distance": 1463.0771841854512,
+   "distance_per_find": 96.61085621635814,
+   "finds": 15.625,
+   "loops": 15.25,
+   "mean_memory_influence": 0.07181327499999994,
+   "orbit_fraction": 0.23904166666666668,
+   "orbit_ticks_memory": 57.125,
+   "orbit_ticks_other": 0.0,
+   "orbit_ticks_productive": 72.875,
+   "orbit_ticks_wall": 587.125,
+   "orbits": 6.25,
+   "reward": 186.23273750000004,
+   "unique_sites": null,
+   "wall_fraction": 0.3787083333333333
+  }
+ },
+ "profile": "research",
+ "scenario": "beacon",
+ "seeds": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "status": {
+  "no_steer_s1": {
+   "Beacons reached": 26,
+   "Last time to reach": 167
+  },
+  "no_steer_s2": {
+   "Beacons reached": 18,
+   "Last time to reach": 228
+  },
+  "no_steer_s3": {
+   "Beacons reached": 19,
+   "Last time to reach": 548
+  },
+  "no_steer_s4": {
+   "Beacons reached": 32,
+   "Last time to reach": 21
+  },
+  "no_steer_s5": {
+   "Beacons reached": 23,
+   "Last time to reach": 384
+  },
+  "no_steer_s6": {
+   "Beacons reached": 21,
+   "Last time to reach": 17
+  },
+  "no_steer_s7": {
+   "Beacons reached": 16,
+   "Last time to reach": 16
+  },
+  "no_steer_s8": {
+   "Beacons reached": 17,
+   "Last time to reach": 280
+  },
+  "steer_s1": {
+   "Beacons reached": 18,
+   "Last time to reach": 256
+  },
+  "steer_s2": {
+   "Beacons reached": 13,
+   "Last time to reach": 37
+  },
+  "steer_s3": {
+   "Beacons reached": 22,
+   "Last time to reach": 32
+  },
+  "steer_s4": {
+   "Beacons reached": 16,
+   "Last time to reach": 169
+  },
+  "steer_s5": {
+   "Beacons reached": 14,
+   "Last time to reach": 335
+  },
+  "steer_s6": {
+   "Beacons reached": 16,
+   "Last time to reach": 36
+  },
+  "steer_s7": {
+   "Beacons reached": 14,
+   "Last time to reach": 322
+  },
+  "steer_s8": {
+   "Beacons reached": 12,
+   "Last time to reach": 285
+  }
+ },
+ "ticks": 3000,
+ "wall_seconds": 6.8
+}

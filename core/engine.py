@@ -31,6 +31,7 @@ from brain.systems.spatial import SpatialSystem, wrap_angle
 from brain.systems.trn_microsleep_replay import TRNGate
 from brain.systems.value_memory import Transition, ValueMemory
 from brain.systems.working_memory import WorkingMemory
+from core.body import RodentBody
 from core.config import EngineConfig
 from core.entities import Agent
 from core.neuromodulation import NeuromodulatorSystem
@@ -103,6 +104,7 @@ class EngineContext:
     replay_span: int = 0
     target_contact: bool = False  # touching a target this tick (the primary contact reward)
     goal_vector_active: bool = False  # the value signals came from the goal-vector memory
+    previous_action: str = "REST"  # the action chosen on the tick before this decision (the turn commitment's input)
     tick_data: TickData | None = None
 
 
@@ -128,10 +130,14 @@ class Engine:
             "sensors_odometry": self.rng.stream("sensors_odometry"),
             "sensors_heading": self.rng.stream("sensors_heading"),  # the heading oracle's error (M2b); drawn only when on
             "action_softmax": self.rng.stream("action_softmax"),
+            # The rodent body's speed and rotation noise (M3 step 1, G44); drawn only by that body, only when on.
+            "body_motion": self.rng.stream("body_motion"),
         }
         self.world = World(bounds=c.world.bounds)
         self.agent = Agent(id=agent_offset, pos=(0.0, 0.0))
         self.world.add_agent(self.agent)
+        # The body (M3 step 1, G44): None is the discrete body World.step applies; "rodent" moves this agent instead.
+        self.body = RodentBody(c.body, c.units, self.streams["body_motion"]) if c.body.model == "rodent" else None
         self.astrocyte = Astrocyte(
             atp=c.astrocyte.atp,
             glycogen=c.astrocyte.glycogen,
@@ -169,6 +175,11 @@ class Engine:
         # the backups: nothing here feeds TickData or the trace hash.
         self._replay_event: OpenReplayEvent | None = None
         self.replay_log = ReplayLog()
+        # Episode counters for the decision log (metrics.decisions, G40): ``episode`` counts calls to
+        # ``begin_episode`` (a reset or a scenario's teleport), ``value_episode`` the learners' boundaries
+        # (``reset_value_episode``). Readouts; nothing in the pipeline reads them.
+        self.episode = 0
+        self.value_episode = 0
         # Goal-vector extinction: whether the agent is inside the remembered goal's
         # place cell on this visit, whether it found reward there, and how many
         # visits in a row (to the goal held in _goal_misses_cell) found none.
@@ -261,7 +272,10 @@ class Engine:
         ctx.glycogen = self.astrocyte.glycogen
 
     def _world_step(self, ctx: EngineContext) -> None:
-        self.world.step(action=self.last_action, energy_scale=ctx.energy_scale)
+        if self.body is not None:
+            self.body.step(self.agent, self.last_action.name, self.world.bounds, ctx.energy_scale)
+        else:
+            self.world.step(action=self.last_action, energy_scale=ctx.energy_scale)
         ctx.pos = self.agent.pos
         ctx.heading = self.agent.heading
 
@@ -410,15 +424,17 @@ class Engine:
         ctx.wm_load = wm_state.load
         ctx.wm_novelty = wm_state.novelty
 
-    def _nearest_target(self, pos: Tuple[float, float]) -> Tuple[float, WorldObject] | None:
-        """(surface distance, object) of the nearest rewarding object, if any.
+    def _nearest_target(self, pos: Tuple[float, float],
+                        kinds: Tuple[str, ...] = ("target", "hidden")) -> Tuple[float, WorldObject] | None:
+        """(surface distance, object) of the nearest rewarding object of ``kinds``, if any.
 
         A "hidden" goal still rewards on contact (it is physically present),
-        but it is invisible to vision (see brain.systems.basal_ganglia).
+        but it is invisible to vision (``core.sensors.UNSEEN_KINDS``, decisions G46)
+        and, unless ``reward.shape_hidden``, to approach shaping.
         """
         best: Tuple[float, WorldObject] | None = None
         for o in self.world.objects:
-            if o.kind not in ("target", "hidden"):
+            if o.kind not in kinds:
                 continue
             d = ((pos[0] - o.x) ** 2 + (pos[1] - o.y) ** 2) ** 0.5 - o.radius
             if best is None or d < best[0]:
@@ -455,31 +471,32 @@ class Engine:
         reward = -r.pain_weight * pain
         primary = -r.pain_weight * pain if pain > self.map_pain_floor() else 0.0
         learn_shaping = self.config.value_memory.learn_shaping
+        # Contact reads every rewarding object, a hidden one included; shaping reads only what the agent can see
+        # (decisions G46), unless reward.shape_hidden restores the pre-G46 hot/cold signal toward hidden food.
         nearest = self._nearest_target(ctx.pos)
-        ctx.target_contact = False
-        if nearest is None:
+        shaped = nearest if r.shape_hidden else self._nearest_target(ctx.pos, ("target",))
+        ctx.target_contact = nearest is not None and nearest[0] <= 0.0
+        if shaped is None:
             self._prev_target_dist = None
             self._prev_target = None
-            ctx.map_reward = reward if learn_shaping else primary
-            return reward
-        dist, obj = nearest
-        ctx.target_contact = dist <= 0.0
-        # Approach shaping rewards closing the distance to the *same* target.
-        # When the target set changes under the agent (food eaten, a beacon
-        # moved), the distance jumps for reasons that are not the agent's
-        # doing; charging that jump would punish every successful collection.
-        same = (
-            self._prev_target is not None
-            and self._prev_target[0] is obj
-            and self._prev_target[1:] == (obj.x, obj.y)
-        )
-        if self._prev_target_dist is not None and same:
-            reward += r.approach_weight * (self._prev_target_dist - dist)
-        if dist <= 0.0:
+        else:
+            dist, obj = shaped
+            # Approach shaping rewards closing the distance to the *same* target.
+            # When the target set changes under the agent (food eaten, a beacon
+            # moved), the distance jumps for reasons that are not the agent's
+            # doing; charging that jump would punish every successful collection.
+            same = (
+                self._prev_target is not None
+                and self._prev_target[0] is obj
+                and self._prev_target[1:] == (obj.x, obj.y)
+            )
+            if self._prev_target_dist is not None and same:
+                reward += r.approach_weight * (self._prev_target_dist - dist)
+            self._prev_target_dist = dist
+            self._prev_target = (obj, obj.x, obj.y)
+        if ctx.target_contact:
             reward += r.contact_bonus
             primary += r.contact_bonus
-        self._prev_target_dist = dist
-        self._prev_target = (obj, obj.x, obj.y)
         ctx.map_reward = reward if learn_shaping else primary
         return reward
 
@@ -500,6 +517,11 @@ class Engine:
             self.sr.update(self._sr_prev, phi)
         rate = self.config.place.reward_learning_rate
         if self.config.place.reward_rule == "per_feature":
+            # G41: on a tick that sees no reward the weights fall toward 0 at the active cells at the unlearning rate
+            # (None: the learning rate, the rule as G36 preregistered it).
+            unlearning = self.config.place.reward_unlearning_rate
+            if reward == 0.0 and unlearning is not None:
+                rate = unlearning
             self.sr_weights += rate * phi * (reward - self.sr_weights)  # exploratory (decisions G36)
         else:
             norm = float((phi * phi).sum())
@@ -521,6 +543,16 @@ class Engine:
         """An episode boundary for every value learner (a protocol's trial start, a teleport): nothing links across it."""
         self.value_memory.reset_episode()
         self._sr_prev = None
+        self.value_episode += 1
+
+    def forget_rewards(self) -> None:
+        """Erase what the value learners know about reward: the tabular map's values and, with the SR source, its
+        reward weights R. The SR's transition structure M is kept (the agent's knowledge of the space, not of
+        reward). A console action (decisions G39); nothing in the tick pipeline calls it."""
+        self.value_memory.values.clear()
+        if self.sr_weights is not None:
+            self.sr_weights[:] = 0.0
+            self._sr_u = None
 
     def _value_at(self, x: float, y: float) -> float:
         """The value the steering reads at a position of the estimate frame, from ``value_memory.source``."""
@@ -690,6 +722,7 @@ class Engine:
 
         # Action selection: the deterministic argmax, or at softmax_temperature > 0
         # one seeded softmax draw per tick; dopamine modulates exploration.
+        previous_action = self.last_action.name  # the decision before this one (the turn commitment reads it, G45)
         action, scores = select_action_with_scores(
             observation=ctx.observation,
             wm_novelty=ctx.wm_novelty,
@@ -704,12 +737,14 @@ class Engine:
             freeze_habituation=freeze_h,
             pacing_rest=pacing_rest,
             action_stream=self.streams["action_softmax"],
+            previous_action=previous_action,
         )
         pain = ctx.observation.pain_signal
         if action.name == "REST" and not ctx.microsleep_active and pain > bg.freeze_pain_threshold:
             self._freeze_level += 1.0
         else:
             self._freeze_level *= bg.freeze_decay
+        ctx.previous_action = previous_action
         ctx.action_scores = scores
         ctx.value_signals = (value_ahead, value_left, value_right)
         ctx.criticality_gain = crit_gain
@@ -790,6 +825,9 @@ class Engine:
         self._close_replay_event()
         self.value_memory.reset_episode()
         self._sr_prev = None  # the SR value source's episode boundary too (M2b step 4)
+        if self.body is not None:
+            self.body.reset()  # the animal is put down still (G44)
+        self.episode += 1
 
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:
         """Execute the pipeline for N ticks and return TickData stream."""

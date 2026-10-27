@@ -632,3 +632,25 @@ input[type="checkbox"] { accent-color: var(--ink-1); margin: 0; }
 .heat { width: 120px; height: 120px; border-radius: 4px; }
 .heat-label { font-size: 11px; color: var(--ink-3); }
 .placecode-empty { margin: 0; }
+
+/* ---- Mechanisms in force, behaviour readouts, decision terms (G39) ---- */
+.card-sub { font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 12px 0 6px; }
+.mech-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: 12px; }
+.mech-list li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 2px 7px; align-items: baseline; }
+.mech-icon { font-weight: 800; font-size: 11px; text-align: center; }
+.mech-name { color: var(--ink-1); font-weight: 600; }
+.mech-detail { grid-column: 2; color: var(--ink-3); }
+.mech-list li[data-status="active"] .mech-icon { color: var(--good-text); }
+.mech-list li[data-status="readout"] .mech-icon { color: var(--ink-3); }
+.mech-list li[data-status="off"] .mech-icon { color: var(--ink-3); }
+.mech-list li[data-status="off"] .mech-name { color: var(--ink-3); font-weight: 500; text-decoration: line-through; text-decoration-color: var(--hair); }
+.mech-list li[data-status="readout"] .mech-name::after { content: " · readout"; color: var(--ink-3); font-weight: 400; }
+.layer-sep { color: var(--ink-3); font-size: 11px; }
+.terms { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.terms th, .terms td { padding: 2px 4px; text-align: right; color: var(--ink-2); border-top: 1px solid var(--hair); white-space: nowrap; }
+.terms th { font-weight: 600; color: var(--ink-3); border-top: 0; }
+.terms th:first-child, .terms td:first-child { text-align: left; }
+.terms tr[data-chosen="true"] td { color: var(--ink-1); font-weight: 650; }
+.terms td.total { border-left: 1px solid var(--hair); }
+.terms .neg { color: var(--neg); }
+.mod-status { font-size: 12px; color: var(--ink-2); margin: 0 0 8px; padding: 6px 8px; border: 1px dashed var(--hair); border-radius: var(--radius-sm); }

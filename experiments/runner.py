@@ -40,6 +40,7 @@ from metrics.hash import RunHash
 from metrics.logger import JsonlLogger, _canonical_json
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 from metrics.scene import write_scene
+from metrics.decisions import DecisionLogWriter, decision_record
 from metrics.schema import SCHEMA_VERSION, TickData
 
 
@@ -137,6 +138,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--list", action="store_true", help="List available protocols")
     parser.add_argument("--protocol-config", type=str, help="Path to JSON protocol config")
     parser.add_argument(
+        "--log-decisions",
+        action="store_true",
+        help="Also write decisions.jsonl: one record per tick of the decision and what made it (scores, terms, "
+             "selection probabilities, counterfactuals without memory / vision / wall, target visibility, contacts, "
+             "episode boundaries; metrics.decisions). Readouts only: the run is the same with or without it.",
+    )
+    parser.add_argument(
         "--profile",
         choices=sorted(PROFILES.keys()),
         default=DEFAULT_PROFILE,
@@ -157,6 +165,7 @@ def run(
     protocol_config: dict | None = None,
     *,
     profile: str = DEFAULT_PROFILE,
+    log_decisions: bool = False,
 ) -> None:
     proto_cls = PROTOCOLS[protocol_name]
     protocol = proto_cls(protocol_config)
@@ -177,12 +186,13 @@ def run(
         protocol=protocol_name,
         seeds=[seed],
         ticks_requested=ticks,
-        extra={"profile_requested": profile, "protocol_config": protocol_config or {}},
+        extra={"profile_requested": profile, "protocol_config": protocol_config or {}, "log_decisions": bool(log_decisions)},
     )
 
     logger = JsonlLogger(tick_path)
     rh = RunHash()
     replay_events = ReplayEventWriter(outdir)
+    decisions = DecisionLogWriter(outdir) if log_decisions else None
 
     ticks_run_actual = 0
     started = time.perf_counter()
@@ -190,6 +200,8 @@ def run(
         tickdata_list = engine.run(1)
         tick = tickdata_list[0]
         ticks_run_actual += 1
+        if decisions is not None:
+            decisions.write(decision_record(engine))  # the decision of this tick, before the protocol acts on it
         protocol.on_tick(engine, tick, i)
         replay_events.drain(engine)  # after on_tick, so a protocol may read the log first
         logger.write_tick(tick)
@@ -199,6 +211,8 @@ def run(
     wall_seconds = time.perf_counter() - started
     logger.close()
     replay_events.close()
+    if decisions is not None:
+        decisions.close()
 
     summary = protocol.summarize()
     write_events(outdir, summary)
@@ -212,6 +226,7 @@ def run(
             "run_hash": rh.hexdigest(),
             "protocol_config": protocol_config or {},
             "n_replay_events": replay_events.count,
+            "n_decision_records": decisions.count if decisions is not None else 0,
         }
     )
     summary_path.write_text(json.dumps(summary, sort_keys=True, separators=(",", ":")))
@@ -230,7 +245,8 @@ def main() -> None:
     if args.protocol_config:
         protocol_config = json.loads(Path(args.protocol_config).read_text())
     outdir = Path(args.out) if args.out else Path(f"runs/{args.protocol}_{args.seed}")
-    run(args.protocol, args.seed, args.ticks, outdir, protocol_config=protocol_config, profile=args.profile)
+    run(args.protocol, args.seed, args.ticks, outdir, protocol_config=protocol_config, profile=args.profile,
+        log_decisions=args.log_decisions)
 
 
 if __name__ == "__main__":

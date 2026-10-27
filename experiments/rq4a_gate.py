@@ -38,6 +38,8 @@ import core  # noqa: F401  # pins the BLAS thread counts before numpy loads
 import numpy as np
 
 from analysis.stats import bootstrap_ci, cliffs_delta, paired_effect
+from brain.contracts import Action
+from core.body import BODY_PRESETS, apply_body_preset
 from core.config import EngineConfig
 from core.engine import Engine
 from core.rng import RNG
@@ -65,22 +67,63 @@ QUICK_TRIALS = 8
 # The preregistrations a run can answer to, with the settings each fixes (decisions G36): the gate as first
 # preregistered, and the confirmatory gate on fresh seeds with the per-feature reward rule written after its failure.
 DEFAULT_PREREG = "docs/prereg/m2b_gate.md"
+# Both ran the SR's reward rule with one rate for rewarded and unrewarded ticks (``reward_unlearning_rate`` None): the
+# gate sets that explicitly, so it reproduces as registered whatever the research profile's default (decisions G42).
+# M3 step 1 (docs/prereg/m3_body.md, G44) re-runs the confirmatory settings under the rodent bodies on fresh seeds; its
+# tables go to one directory per body under its "out".
+# Every run registered before the audit of 2026-10-27 (decisions G46) sensed the hidden goal as an obstacle on its rays;
+# "pre_g46" pins that sensing (``gate_config(pre_g46=True)``), so the committed tables regenerate as registered.
 PREREGS: Dict[str, Dict[str, Any]] = {
-    DEFAULT_PREREG: {"seeds": DEFAULT_SEEDS, "reward_rule": "nlms", "out": DEFAULT_OUT},
+    DEFAULT_PREREG: {"seeds": DEFAULT_SEEDS, "reward_rule": "nlms", "reward_unlearning_rate": None, "bodies": ("discrete",),
+                     "out": DEFAULT_OUT, "pre_g46": True},
     "docs/prereg/m2b_gate_confirmatory.md": {"seeds": tuple(range(31, 61)), "reward_rule": "per_feature",
-                                             "out": Path("docs/data/m2b/gate_confirmatory")},
+                                             "reward_unlearning_rate": None, "bodies": ("discrete",),
+                                             "out": Path("docs/data/m2b/gate_confirmatory"), "pre_g46": True},
+    "docs/prereg/m3_body.md": {"seeds": tuple(range(61, 91)), "reward_rule": "per_feature", "reward_unlearning_rate": None,
+                               "bodies": ("rodent", "rodent_quiet"), "out": Path("docs/data/m3/body/gate"), "pre_g46": True},
+    # M3 step 1b (docs/prereg/m3_corridor.md, G45): the corridor options under the discrete and the quiet rodent body.
+    "docs/prereg/m3_corridor.md": {"seeds": tuple(range(91, 121)), "reward_rule": "per_feature", "reward_unlearning_rate": None,
+                                   "bodies": ("discrete", "rodent_quiet"), "corridor": True, "out": Path("docs/data/m3/corridor/gate"),
+                                   "pre_g46": True},
 }
+# What the agent's position estimate is told when it is put down (decisions G46): "anchor", the true start pose (every
+# run before G46: declared, docs/prereg/m2b_gate.md); "centre", the arena's centre (the heading estimate is left as it
+# is); "carry", nothing (the estimate continues from where the last trial ended, as if the agent had not been moved).
+START_ESTIMATES: Tuple[str, ...] = ("anchor", "centre", "carry")
 
 
-def gate_config(source: str, reward_rule: str = "nlms") -> EngineConfig:
+def committed_dir(prereg: str, body: str) -> Path:
+    """Where a full run of ``prereg`` under ``body`` writes its tables (one directory per body for a multi-body one)."""
+    spec = PREREGS[prereg]
+    return spec["out"] if spec["bodies"] == ("discrete",) and not spec.get("corridor") else spec["out"] / body
+
+
+def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None,
+                body: str = "discrete", corridor: bool = False, *, estimate: str = "oracle_reset",
+                pre_g46: bool = False) -> EngineConfig:
     """Step 1's M2b estimate, step 2's population, and the value source that steers (``reward_rule``: the SR's R rule;
-    "nlms" is the preregistered one, "per_feature" the exploratory one of decisions G36)."""
+    "nlms" is the preregistered one, "per_feature" the exploratory one of decisions G36). ``reward_unlearning_rate`` is
+    set explicitly (None: one rate, as both gate runs were registered; decisions G41/G42), so the gate does not
+    inherit a later change to the research profile's default. ``estimate`` is one of
+    ``experiments.estimate_correction.CONDITIONS`` (every registered run: "oracle_reset", the heading oracle and the
+    wall-contact reset; "integrated" is neither). ``pre_g46`` restores the sensing of hidden objects that every run
+    before decisions G46 had (``sensors.unseen_block_rays``, ``reward.shape_hidden``)."""
     if source not in SOURCES:
         raise ValueError(f"source must be one of {SOURCES}, got {source!r}")
-    cfg = engine_config("oracle_reset", ORACLE_NOISE)
+    cfg = engine_config(estimate, ORACLE_NOISE)
+    if pre_g46:
+        cfg.sensors.unseen_block_rays = True
+        cfg.reward.shape_hidden = True
     cfg.place.enabled = True
     cfg.place.reward_rule = reward_rule
+    cfg.place.reward_unlearning_rate = reward_unlearning_rate
     cfg.value_memory.source = source
+    apply_body_preset(cfg, body)  # "discrete", today's body, is the default (M3 step 1, G44)
+    if corridor:  # M3 step 1b's action-selection options (G45)
+        from experiments.body_characterisation import CORRIDOR_OPTIONS
+
+        for key, value in CORRIDOR_OPTIONS.items():
+            cfg.set_field(key, value)
     return cfg
 
 
@@ -100,10 +143,19 @@ def _reached(eng: Engine) -> bool:
     return math.hypot(x - GOAL[0], y - GOAL[1]) <= GOAL_RADIUS
 
 
-def run_session(source: str, session: str, seed: int, trials: int = TRIALS, reward_rule: str = "nlms") -> List[Dict[str, Any]]:
+def run_session(source: str, session: str, seed: int, trials: int = TRIALS, reward_rule: str = "nlms",
+                reward_unlearning_rate: Optional[float] = None, body: str = "discrete", corridor: bool = False, *,
+                estimate: str = "oracle_reset", start_estimate: str = "anchor", still_start: bool = False,
+                pre_g46: bool = False) -> List[Dict[str, Any]]:
+    """One session. ``start_estimate`` (``START_ESTIMATES``) is what the estimate is told at each trial start;
+    ``still_start`` clears the action pending from the last trial, so a trial's first tick does not repeat the last
+    trial's last action from the new start (the body is put down still; every run before G46 carried it over)."""
     if session not in SESSIONS:
         raise ValueError(f"session must be one of {SESSIONS}")
-    eng = Engine(seed=seed, config=gate_config(source, reward_rule))
+    if start_estimate not in START_ESTIMATES:
+        raise ValueError(f"start_estimate must be one of {START_ESTIMATES}")
+    eng = Engine(seed=seed, config=gate_config(source, reward_rule, reward_unlearning_rate, body, corridor,
+                                               estimate=estimate, pre_g46=pre_g46))
     goal = WorldObject(GOAL[0], GOAL[1], GOAL_RADIUS, "hidden" if session == "hidden" else "target")
     eng.world.add_object(goal)
     rows: List[Dict[str, Any]] = []
@@ -114,7 +166,14 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
         a.pos = a.last_pos = (sx, sy)
         a.heading = a.last_heading = sh
         st = eng.spatial.state
-        st.grid_x, st.grid_y, st.hd_angle = sx, sy, sh  # the agent knows where it is put down (declared)
+        if start_estimate == "anchor":
+            st.grid_x, st.grid_y, st.hd_angle = sx, sy, sh  # the agent knows where it is put down (declared)
+        elif start_estimate == "centre":
+            st.grid_x, st.grid_y = 0.0, 0.0  # it knows it was put down, not where (G46)
+        if still_start and not first:
+            eng.last_action = Action(name="REST", thrust=0.0, turn=0.0)
+        if eng.body is not None:
+            eng.body.reset()  # the rodent body is put down still (M3 step 1); the discrete body has no state
         eng.reset_value_episode()
         goal.kind = "hidden" if session == "hidden" else "target"
         latency, guided_latency = None, None
@@ -144,13 +203,17 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
     return rows
 
 
-def _job(args: Tuple[str, str, int, int, str]) -> List[Dict[str, Any]]:
-    return run_session(*args)
+def _job(args: Tuple[Tuple[Any, ...], Dict[str, Any]]) -> List[Dict[str, Any]]:
+    positional, options = args
+    return run_session(*positional, **options)
 
 
 def run_all(seeds: Sequence[int], trials: int, workers: Optional[int], sources: Sequence[str] = SOURCES,
-            reward_rule: str = "nlms") -> List[Dict[str, Any]]:
-    jobs = [(src, ses, s, trials, reward_rule) for src in sources for ses in SESSIONS for s in seeds]
+            reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None,
+            body: str = "discrete", corridor: bool = False, **options: Any) -> List[Dict[str, Any]]:
+    """Every source x session x seed; ``options`` go to ``run_session`` (estimate, start_estimate, still_start, pre_g46)."""
+    jobs = [((src, ses, s, trials, reward_rule, reward_unlearning_rate, body, corridor), dict(options))
+            for src in sources for ses in SESSIONS for s in seeds]
     if workers == 1 or len(jobs) == 1:
         out = [_job(j) for j in jobs]
     else:
@@ -287,6 +350,13 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     parser.add_argument("--sources", default=",".join(SOURCES), help="comma-separated; default all three")
     parser.add_argument("--reward-rule", default="nlms", choices=("nlms", "per_feature"),
                         help="the SR's reward rule: nlms (preregistered) or per_feature (exploratory, decisions G36)")
+    parser.add_argument("--reward-unlearning-rate", type=float, default=None,
+                        help="the SR's per-feature unlearning rate (decisions G41); default: none, one rate, as both gate "
+                             "runs were registered. Any value marks the run exploratory")
+    parser.add_argument("--body", default="discrete", choices=tuple(BODY_PRESETS),
+                        help="the body (M3 step 1, core.body.BODY_PRESETS); default: discrete, today's body")
+    parser.add_argument("--corridor", action="store_true",
+                        help="M3 step 1b's action-selection options: a 0.2 m wall range and a turn commitment of 0.3 (G45)")
     parser.add_argument("--prereg", default=DEFAULT_PREREG,
                         help="the preregistration this run answers to (a run away from its settings is marked exploratory)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
@@ -303,23 +373,30 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
             parser.error(f"unknown source {s!r}")
     spec = PREREGS[args.prereg]
     full = (tuple(seeds) == spec["seeds"] and not args.quick and n_boot >= 1000 and sources == SOURCES
-            and args.reward_rule == spec["reward_rule"])
-    for committed in (p["out"] for p in PREREGS.values()):
-        if args.out.resolve() == Path(committed).resolve() and not (full and Path(committed).resolve() == Path(spec["out"]).resolve()):
+            and args.reward_rule == spec["reward_rule"] and args.reward_unlearning_rate == spec["reward_unlearning_rate"]
+            and args.body in spec["bodies"] and args.corridor == bool(spec.get("corridor")))
+    committed_dirs = [committed_dir(p, b) for p, sp in PREREGS.items() for b in sp["bodies"]]
+    target = committed_dir(args.prereg, args.body) if args.body in spec["bodies"] else None
+    for committed in committed_dirs:
+        if args.out.resolve() == Path(committed).resolve() and not (full and target is not None and Path(committed).resolve() == target.resolve()):
             parser.error(f"a partial run (or another preregistration's) must not overwrite the committed tables in {committed}: give --out")
     started = time.perf_counter()
-    trial_rows = run_all(seeds, trials, args.workers, sources, args.reward_rule)
+    pre_g46 = bool(spec.get("pre_g46"))
+    trial_rows = run_all(seeds, trials, args.workers, sources, args.reward_rule, args.reward_unlearning_rate, args.body, args.corridor,
+                         pre_g46=pre_g46)
     per_seed = per_seed_rows(trial_rows, learning)
     curve = curve_rows(trial_rows, n_boot)
     effects = effect_rows(per_seed, n_boot)
-    cfg = gate_config(sources[0], args.reward_rule)
+    cfg = gate_config(sources[0], args.reward_rule, args.reward_unlearning_rate, args.body, args.corridor, pre_g46=pre_g46)
     manifest = build_manifest(
         cfg, protocol="rq4a_gate", seeds=seeds, ticks_requested=len(seeds) * len(sources) * len(SESSIONS) * trials * (TIMEOUT + GUIDE),
         extra={"goal": list(GOAL), "goal_radius": GOAL_RADIUS, "starts": [list(s) for s in STARTS], "trials": trials,
                "learning_trials": learning, "timeout": TIMEOUT, "guide": GUIDE, "sources": list(sources), "sessions": list(SESSIONS),
-               "reward_rule": args.reward_rule, "exploratory": not full,
+               "reward_rule": args.reward_rule, "reward_unlearning_rate": args.reward_unlearning_rate, "body": args.body,
+               "corridor": args.corridor, "pre_g46": pre_g46,
+               "exploratory": not full,
                "ratio_bound": RATIO_BOUND, "error_bound": ERROR_BOUND, "protocol_stream": PROTOCOL_STREAM,
-               "config_diff_from_research": {src: [list(map(str, d)) for d in EngineConfig.research().diff(gate_config(src, args.reward_rule))] for src in sources},
+               "config_diff_from_research": {src: [list(map(str, d)) for d in EngineConfig.research().diff(gate_config(src, args.reward_rule, args.reward_unlearning_rate, args.body, args.corridor, pre_g46=pre_g46))] for src in sources},
                "n_boot": n_boot, "full_evaluation": full, "quick": args.quick, "prereg": args.prereg,
                "dependencies": _dependency_versions(),
                "command": "python3 -m experiments.rq4a_gate " + " ".join(list(argv) if argv is not None else sys.argv[1:])},

@@ -1,0 +1,30 @@
+profile,test,condition,a,b,n,mean_a,mean_b,estimate,low,high,wins,losses,note
+research,mean_finds,pre_g46,,no_steer,30,,28.8,28.8,27.3,30.4333,,,
+research,mean_finds,pre_g46,,steer_u4,30,,28.1667,28.1667,27,29.4667,,,
+research,mean_finds,pre_g46,,steer_one_rate,30,,17.0333,17.0333,16.2,17.9333,,,
+research,steer_minus_no_steer,pre_g46,no_steer,steer_u4,30,28.8,28.1667,-0.633333,-2.63333,1.01904,12,17,
+research,steer_minus_no_steer,pre_g46,no_steer,steer_one_rate,30,28.8,17.0333,-11.7667,-13.2667,-10.1333,1,29,
+research,mean_finds,g46,,no_steer,30,,52.9667,52.9667,51.2,54.7667,,,
+research,mean_finds,g46,,steer_u4,30,,41.2,41.2,39.4,42.8333,,,
+research,mean_finds,g46,,steer_one_rate,30,,21.3667,21.3667,20.6333,22.0333,,,
+research,steer_minus_no_steer,g46,no_steer,steer_u4,30,52.9667,41.2,-11.7667,-13.7,-9.8,0,30,
+research,steer_minus_no_steer,g46,no_steer,steer_one_rate,30,52.9667,21.3667,-31.6,-33.4667,-29.6,0,30,
+research,fix_effect,g46 - pre_g46,pre_g46,g46,30,28.8,52.9667,24.1667,21.9,26.3333,30,0,no_steer
+research,fix_effect,g46 - pre_g46,pre_g46,g46,30,28.1667,41.2,13.0333,11.1,14.8667,30,0,steer_u4
+research,fix_effect,g46 - pre_g46,pre_g46,g46,30,17.0333,21.3667,4.33333,3.03333,5.6,26,3,steer_one_rate
+legacy,mean_finds,pre_g46,,no_steer,30,,3.76667,3.76667,3.13333,4.46667,,,
+legacy,mean_finds,pre_g46,,steer,30,,10.5667,10.5667,9.03333,11.8,,,
+legacy,steer_minus_no_steer,pre_g46,no_steer,steer,30,3.76667,10.5667,6.8,5.23333,8.23333,28,2,
+legacy,steer_over_no_steer,pre_g46,no_steer,steer,30,3.76667,10.5667,2.80531,2.27273,3.4853,,,
+legacy,mean_finds,rays_fixed,,no_steer,30,,42.1667,42.1667,41.3333,43,,,
+legacy,mean_finds,rays_fixed,,steer,30,,20.1,20.1,19.3,20.8667,,,
+legacy,steer_minus_no_steer,rays_fixed,no_steer,steer,30,42.1667,20.1,-22.0667,-23.2667,-20.9333,0,30,
+legacy,steer_over_no_steer,rays_fixed,no_steer,steer,30,42.1667,20.1,0.47668,0.45419,0.496849,,,
+legacy,mean_finds,g46,,no_steer,30,,40.8333,40.8333,39.9333,41.5333,,,
+legacy,mean_finds,g46,,steer,30,,19.3667,19.3667,18.6667,20.1,,,
+legacy,steer_minus_no_steer,g46,no_steer,steer,30,40.8333,19.3667,-21.4667,-22.5333,-20.4667,0,30,
+legacy,steer_over_no_steer,g46,no_steer,steer,30,40.8333,19.3667,0.474286,0.454495,0.49255,,,
+legacy,fix_effect,rays_fixed - pre_g46,pre_g46,rays_fixed,30,3.76667,42.1667,38.4,37.3,39.5,30,0,no_steer
+legacy,fix_effect,rays_fixed - pre_g46,pre_g46,rays_fixed,30,10.5667,20.1,9.53333,8.2,10.9333,30,0,steer
+legacy,fix_effect,g46 - pre_g46,pre_g46,g46,30,3.76667,40.8333,37.0667,36,37.9597,30,0,no_steer
+legacy,fix_effect,g46 - pre_g46,pre_g46,g46,30,10.5667,19.3667,8.8,7.1,10.5667,29,1,steer

@@ -1,0 +1,143 @@
+{
+ "food": {
+  "guard": {
+   "legacy/g46/no_steer": 30,
+   "legacy/g46/steer": 30,
+   "legacy/pre_g46/no_steer": 30,
+   "legacy/pre_g46/steer": 30,
+   "legacy/rays_fixed/no_steer": 30,
+   "legacy/rays_fixed/steer": 30,
+   "research/g46/no_steer": 30,
+   "research/g46/steer_one_rate": 30,
+   "research/g46/steer_u4": 30,
+   "research/pre_g46/no_steer": 30,
+   "research/pre_g46/steer_one_rate": 30,
+   "research/pre_g46/steer_u4": 30
+  },
+  "predictions": {
+   "H1": {
+    "holds": true,
+    "read": "research pre_g46 steer_u4 - no_steer -0.63 [-2.63, +1.02]"
+   },
+   "H2": {
+    "holds": true,
+    "read": "research g46 no_steer 52.97, steer_u4 41.20, steer_one_rate 21.37; steer_u4 - no_steer -11.77 [-13.70, -9.80]"
+   },
+   "H3": {
+    "holds": true,
+    "read": "legacy pre_g46 steer / no_steer 2.81 [2.27, 3.49]; diff +6.80"
+   },
+   "H4": {
+    "holds": true,
+    "read": "legacy g46 steer - no_steer -21.47 [-22.53, -20.47], steer wins 0/30"
+   },
+   "H5": {
+    "holds": true,
+    "read": "legacy rays_fixed steer - no_steer -22.07 [-23.27, -20.93] (reported)"
+   }
+  },
+  "seeds": [
+   17,
+   18,
+   19,
+   20,
+   21,
+   22,
+   23,
+   24,
+   25,
+   26,
+   27,
+   28,
+   29,
+   30,
+   31,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41,
+   42,
+   43,
+   44,
+   45,
+   46
+  ],
+  "ticks": 3000
+ },
+ "full_evaluation": true,
+ "gate": {
+  "conditions": {
+   "anchor": {
+    "estimate": "oracle_reset",
+    "start_estimate": "anchor"
+   },
+   "carry": {
+    "estimate": "oracle_reset",
+    "start_estimate": "carry"
+   },
+   "centre": {
+    "estimate": "oracle_reset",
+    "start_estimate": "centre"
+   },
+   "embodied": {
+    "estimate": "integrated",
+    "start_estimate": "carry"
+   }
+  },
+  "predictions": {
+   "G1": {
+    "holds": true,
+    "read": "anchor SR hidden 0.998; hidden / visible 0.998 [0.990, 1.000]"
+   },
+   "G2": {
+    "holds": true,
+    "read": "centre SR hidden 0.373, SR - none +0.338 [+0.305, +0.377]; carry SR hidden 0.377, SR - none +0.342 [+0.290, +0.392]"
+   },
+   "G3": {
+    "holds": false,
+    "read": "embodied SR hidden 0.062, none 0.035; SR - none +0.027 [+0.003, +0.055]"
+   }
+  },
+  "seeds": [
+   125,
+   126,
+   127,
+   128,
+   129,
+   130,
+   131,
+   132,
+   133,
+   134,
+   135,
+   136,
+   137,
+   138,
+   139,
+   140,
+   141,
+   142,
+   143,
+   144,
+   145,
+   146,
+   147,
+   148,
+   149,
+   150,
+   151,
+   152,
+   153,
+   154
+  ],
+  "trials": 40
+ },
+ "prereg": "docs/prereg/g46_retest.md",
+ "quick": false
+}

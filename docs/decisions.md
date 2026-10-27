@@ -385,6 +385,9 @@ The held-out dips come from one seed failing non-monotonically in gain. Seed 13 
 **Impact:** `core/config.py`, `core/engine.py`, `brain/systems/basal_ganglia.py`, `brain/systems/value_memory.py`, `ui/scenarios.py`, `ui/sim_session.py`, `ui/static/js/{arena,brain,live}.js`, `experiments/steering_sensitivity.py`.
 
 ## G19 — Hidden food: an open task where place memory pays off
+
+> **Note (G46, 2026-10-27):** measured while the vision rays sensed the hidden sites as obstacles (and, on this profile, with a hot/cold shaping signal toward them). Without that, memory steering finds about half as much food as memory off, on every seed; the benefit below is withdrawn (G46 D1).
+
 **Date:** 2026-10-02  
 **Why:** Under the G16 defaults, memory buys about nothing in foraging and hazard_field and slightly hurts in beacon. Those targets are visible (so the cue gate mutes memory) or they move (so the map is stale). Only the memory maze showed memory doing anything, and it resets the agent to the start every trial. We needed an open task where remembering a place clearly pays.  
 **Change:** a new console scenario, `hidden_food` (`ui.scenarios.HiddenFood`). No engine change.
@@ -526,6 +529,9 @@ vREST is 0.000 in every cell of every block, except hidden_food runs with pacing
 - G18 supersedes the rest-off figures in DEC-3 and G16, and G16's statement that pacing is off in the maze.
 
 ## G21 — Review fixes for G17-G20: goal extinction, phantom hidden-food finds, replay across resets, discriminating tests
+
+> **Note (G46, 2026-10-27):** the hidden-food numbers here were measured with the hidden sites sensed by the rays; the memory benefit is withdrawn (G46 D1).
+
 **Date:** 2026-10-02  
 **Why:** A correctness review and a science review of `fix/three` (G17-G20) reproduced three bugs, found tests that passed by construction or on a knife edge, and found claims that the controls do not support. Everything below is measured on `fix/three-final`. The scripts and data are in the session scratchpad (`fix3/final-round/`).
 
@@ -807,6 +813,9 @@ G14–G21 are results of the legacy profile, measured as single deterministic sa
 **Impact:** `core/config.py`, `core/engine.py`, `brain/systems/trn_microsleep_replay.py`, `tools/update_determinism_baseline.py`, `tests/determinism/`, `tests/engine/test_profiles.py`, `experiments/protocols/`, `regression/`, README, `ui/`, `docs/profiles.md`, `docs/research_plan.md` (status and the §5 / §10 marks), the twelve test docstrings above.
 
 ## G23 — What survives 30 seeds
+
+> **Note (G46, 2026-10-27):** claim 1 (hidden food, × 2.91) was measured with the hidden sites sensed by the rays and a hot/cold shaping signal; without them memory steering scores × 0.47 (G46 C, D1). Claim 3 (the maze) barely moves without the leak (G46 C, exploratory).
+
 **Date:** 2026-10-03  
 **Why:** G22 accepted that G14–G21 are legacy-profile results measured as single deterministic samples, or as eight seeds at sensor noise 0.03, and docs/research_plan.md §1.1 says what they are read to mean. M0b item 15 asks for the first table with a confidence interval in the repository: the three headline numbers of G16 (the steering band), G19 (hidden food) and G18 / G21 (off-axis maze recall), each over thirty seeds, with the seeds made samples through every stochastic element the engine has (M0b item 8) and the statistics of M0b item 10. The script is `experiments/g23_remeasure.py`; every number below is read from `docs/data/g23/` (`summary.csv` has each statistic with its interval, the three tidy tables and `maze_recall_by_heading.csv` have every run).
 
@@ -1511,3 +1520,262 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 - `python3 -m pytest -q`: 614 passed; no engine, profile or baseline change.
 
 **Impact:** this entry; `ui/scenarios.py`, `ui/sim_session.py`, `ui/server.py`, `ui/static/index.html`, `ui/static/js/arena.js`, `live.js`, `brain.js`, `ui/static/css/console.css`; `experiments/protocols/base.py`, `experiments/protocols/console.py`, `experiments/runner.py`; tests in `tests/ui/` and `tests/experiments/test_console_protocols.py`; README (Live tab, console protocols, lab console), run_instructions.md, docs/profiles.md (selecting a profile), docs/research_plan.md (rows 2a and 2b).
+
+## G39 — The console explains the active mechanisms: terms of the decision, mechanisms in force, behaviour readouts, memory controls that name their learner
+
+**Date:** 2026-10-26  
+**Why:** A review of an 81-second recording of the G38 console found the simulation working but harder to read than it need be: scenario text and the neuromodulator roles described the legacy mechanics whatever the profile; the value map and the SR value overlapped in one palette with separate scales while the decision panel named the map; the maze's glycogen fell to zero under frozen physiology; "Forget the map" and the maze's consolidation touched the tabular map while the research profile steers from the SR; and the recurrent circling (a TURN moves the body 0.3 units while it rotates 0.3 rad, a sustained-turn radius of about 1.0 unit) could not be traced to a score. The review cited a commit that does not exist in this repository; its claims were checked against the code and held. All of it is console and scenario work; the engine's decision path is untouched.
+
+### A. What landed
+1. **The decision as its terms.** `brain.systems.basal_ganglia.channel_terms` returns every channel's score as named terms (bias, vision, memory, wall, pain, novelty; REST's gate, patience and pacing; `microsleep` alone when asleep) with the same arithmetic as `_channel_scores`, and `selection_probabilities` the softmax weights at the profile's temperature (1 on the argmax at 0). Readouts only: nothing in the engine reads them. `tests/brain/test_decision_terms.py` pins the terms to the engine's own scores over 2,500 ticks on the legacy, research and paced configurations, asleep and paced ticks included (they agree to the last bit). The frame carries `action.terms`, `action.probs`, `temperature`, `source` and `value_gain`; the Decision panel shows a table of the terms that are non-zero for some channel, the total and the probability, says "softmax τ 0.10: the highest score need not win" or "argmax", and names the value source the memory steer reads ("Memory steer (SR value × 1.50)").
+2. **Mechanisms in force** (`SimSession.mechanisms`): seventeen entries derived from the effective configuration, each `active`, `readout` (computed and shown, gain 0) or `off`, with a one-line detail; sent with the session and again after a parameter change or a scenario action, so a slider that raises a gain turns its entry on. The card replaces "What to watch"; the scenario notes sit beneath it, now written per profile (`Scenario.watch_research`, three notes per scenario on what the research profile changes: no fatigue, the SR as the steering source, the oracle estimate, the turn radius, what the memory controls touch). The neuromodulator panel says when every gain is 0 and its role texts describe a gain above 0.
+3. **The arena's default layers follow the steering source.** With the SR source the SR value is on and the value map is off and labelled "(tabular, diagnostic)"; with the map it is the reverse; the place cells and the successor field sit behind a "diagnostics" label, off by default; the colour scale of each visible map is printed beside the arena title ("colour scale, per map: SR value ±0.077"). A fresh session or a change of source reapplies the defaults; a reset of the same session keeps the user's toggles.
+4. **Behaviour readouts** (`SimSession.behaviour`, in the Experiment card): distance walked (a scenario's teleport is not walking), the wall-contact share of ticks, finds (ticks that touched a target: the primary contact reward; one per collection), ticks since the last find, distance per find and total reward. They are what tells exploitation of a regrowing site from a loop that finds nothing.
+5. **Memory controls name their learner.** `Engine.forget_rewards` clears the tabular map and, with the SR source, the SR's reward weights (M, the agent's knowledge of the space, is kept); hidden food's action is "Forget the rewards" and says what it erased. The maze's consolidation says when it changes the tabular map only ("the steering reads the SR value on this profile, so behaviour is unchanged") and its help says replay over the place code is M3's.
+6. **The maze's inter-trial rest respects the physiology configuration.** `MemoryMaze._rest` ticked the astrocyte 40 times whatever `astrocyte.frozen` said, so on the research profile glycogen fell while ATP read 1.0; it now does nothing when frozen, and its event names the 40 physiology updates as such (no brain ticks, the trial clock does not advance). Legacy behaviour is unchanged.
+7. Tests +7 (suite 621). Checked in a headless Chromium on both profiles: the mechanisms list, the terms table, the behaviour readouts, the layer defaults and the colour scale render; no page errors.
+
+### B. Measured
+- Research hidden food at seed 7 after 1,470 ticks: wall contact 29% of ticks, 10 finds, 51.7 units per find; the terms table has Bias, Memory and Wall columns (nothing else is non-zero there) and the softmax note. Legacy hazard field: Bias, Wall, Novelty, Patience; argmax.
+- The terms agree with the engine's scores to 0.0 on 2,500 ticks (575 of them asleep, 350 paced).
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **The circling is now attributable but not yet explained per scenario.** The terms show which contribution carries a run of turns; whether an orbit is memory (an old reward value pulling from outside the field of view) or geometry (forward bias meeting wall avoidance) is read case by case. **Leave the diagnosis to the reader with the tools in place**; a logged per-tick terms stream would be the next step if a quantitative answer is wanted.
+2. **Scenario notes are now per profile, by hand.** Two texts per scenario is a maintenance cost. **Keep it**: the mechanisms list is the generated part, the notes are the narrative, and M3's protocols will bring their own.
+3. **The replay viewer** shows none of this for a recording. **Defer** to M3's trial structure (G38 C2).
+
+### D. Residuals carried forward
+- The research profile's goal memory in the maze (the scenario's own setting) means a recall there does not isolate learned navigation; the note says so, and the gate experiment, not the console, is where that claim is tested.
+- Browser checks remain a manual step.
+
+### E. Acceptance, measured at this commit
+- `python3 -m pytest -q`: 621 passed; no engine behaviour, profile or baseline change (the determinism gates are untouched).
+
+**Impact:** this entry; `brain/systems/basal_ganglia.py` (`channel_terms`, `selection_probabilities`), `core/engine.py` (`forget_rewards`); `ui/scenarios.py` (research notes, rest, consolidation, forget, action help), `ui/sim_session.py` (terms, probabilities, behaviour, mechanisms), `ui/server.py`; `ui/static/index.html`, `ui/static/js/live.js`, `brain.js`, `ui/static/css/console.css`; tests `tests/brain/test_decision_terms.py` (new), `tests/ui/`; README, run_instructions.md.
+
+## G40 — Measuring the circling: the decision log, orbit summaries, counterfactual readouts and matched-seed ablations
+
+**Date:** 2026-10-26  
+**Why:** The G39 decision breakdown made a turn's contributions visible, but a large memory contribution alone does not establish that memory causes an orbit, and the review of the recording asked for the measurement before any movement rule changes: per-tick logging, orbit summaries, counterfactual probabilities and matched-seed ablations, logged now so recordings made before M3 stay useful. All of it is readouts and analysis; the engine's decision path is untouched and the determinism gates are unchanged.
+
+### A. What landed
+1. **The decision log** (`metrics/decisions.py`): one record per tick, read from the engine after its step and before the scenario acts on it: body position and heading, the estimate, the action, the scores and their terms, the selection probabilities, the **counterfactual** probabilities with the memory, vision or wall term removed from every score (the same softmax, no draw) and each family's **immediate influence** as the total-variation shift it makes, the softmax temperature and value source, target visibility and distance, contacts, reward, the gates, pacing, microsleep, replay, the goal vector, and two **episode counters** (`Engine.episode`, incremented by `begin_episode`: a reset or a teleport; `Engine.value_episode`, by `reset_value_episode`). A live session keeps the records (the newest 50,000, like the tick history) and a recording writes them as `decisions.jsonl`; the headless runner writes the same file with `--log-decisions` (`n_decision_records` in the summary, `log_decisions` in the manifest). A test pins that a headless console run's records equal the live session's line for line. `RECORD_KEYS` is the schema; a test pins it.
+2. **Orbit summaries** (`analysis/orbits.py`): a *loop* is the shortest run of ticks over which the accumulated signed heading change reaches 2π, restarting at an episode boundary or where the running sum crosses zero (a single opposite tick does not break a loop; a net reversal does); an *orbit* is a loop with closure (net displacement over distance) ≤ 0.25; a *bout* is consecutive same-direction orbits, with duration, loops, mean radius, centre, contacts, reward, the share of ticks with a target in view, the mean of each term's contribution to the bout's turn over the turn ticks (the largest is the dominant term), memory's mean immediate influence and the turn's probability with and without memory. Categories, in order: **productive** (a target was touched), **memory** (memory dominant with influence ≥ 0.05), **wall** (wall avoidance dominant), **other**. `python -m analysis.orbits <run>` prints the table. Synthetic tests: a sustained turn is a loop every 21 ticks at radius 1.00 (0.3 / 2 sin 0.15), a straight walk, a meander and a teleport make none, a drifting spiral makes loops that are not orbits.
+3. **Counterfactual readouts in the console**: the Decision table gains a "P −mem" column and a line with the three influences; the Behaviour readouts gain the signed turning (revolutions) and the closure of the last 300 ticks.
+4. **Matched-seed ablations** (`experiments/console_ablation.py`): `steer` against `no_steer` (`value_gain` 0, the learners still running and the RNG streams consumed alike) on the same seeds, each run logged and summarised; finds, unique sites, distance, distance per find, wall-contact share, loops, orbits, orbit share, orbit ticks by category, mean memory influence and reward, paired by seed with `analysis.stats.paired_effect` (BCa) after `pseudo_replication_guard` on the steer arm's trajectories (the legacy profile at sensor noise 0 is refused with the remedy named). `--quick`, `--set`, `--workers`, `--keep-records`.
+5. Tests +14 (suite 635; the manifest test now expects `decisions.jsonl` in a recording). Checked in a headless Chromium: the column, the influence line and the turning readouts render.
+
+### B. Measured (eight seeds × 3,000 ticks; `docs/data/console_ablation/`; steer − no_steer, BCa 95%)
+- **Hidden food on the research profile: memory steering costs a third of the finds.** Finds 17.6 against 26.5 (−8.9 [−11.9, −6.1], worse on every seed), reward 122.7 against 195.2, distance per find 66.6 against 56.4 (+10.2 [+3.2, +17.4]); unique sites the same (5.75 against 5.88). Loops 63.6 against 16.3 and orbits 55.3 against 8.4; orbit ticks by category per run: **memory 1,254 against 0**, productive 38 against 691, wall 10 against 198; mean memory influence 0.44. The 147 memory bouts over the eight runs: median 66 ticks (longest 247), 2.9 loops, mean radius 1.24 units, centre 1.0 unit from the nearest site (median 0.93), the turn taken with probability 0.92 and 0.13 without the memory term (influence 0.79), the target never in view (it is invisible there), and **every one of them starting a median 10 ticks (IQR 5–17) after a contact**, the next contact a median 68 ticks after the bout ends. The agent eats, the SR value peak at the place outlasts the food (regrowth takes 150 ticks), the steering turns toward the peak and the turn's 1-unit radius makes an orbit beside the emptied site: persistence at an obsolete reward, not search and not exploitation.
+- **Beacon on the research profile: the same, as expected where the reward moves.** Beacons reached 12.0 against 21.5 (−9.5 [−13.3, −6.5]), distance per beacon 114.9 against 76.5; memory orbit ticks 884 against 0, productive 161 against 784; 101 memory bouts, median 66 ticks (longest 365), radius 1.30, centre 1.16 from the nearest spot, 100 of 101 starting within 150 ticks of a contact (median 15), the turn at 0.92 against 0.17 without memory; the beacon in view on 7% of bout ticks (the cue gate mutes memory only then).
+- **Hidden food on the legacy profile (sensor noise 0.03): memory steering helps, as G21 found.** Finds 6.75 against 2.38 (+4.4 [+2.4, +9.3], better on every seed), distance per find 108 against 258, memory orbit ticks 137 (20 bouts, median 62 ticks, radius 1.25), productive 932 against 2,095 (the no-steer agent's wall loop brushes sites), orbit share 0.68 against 0.94, mean memory influence 0.12.
+- **Open field on the research profile: the arms are identical** (no reward, so the SR value is 0 everywhere): 15.3 loops, 9.5 orbits, 1,005 orbit ticks per run (33% of ticks), all wall category, wall contact 42% of ticks. The perimeter circuits are wall avoidance meeting the forward bias; memory has no part in them.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **The three circlings are now told apart, and they want different interventions.** Wall-driven perimeter loops are geometry (the body's turn radius against wall avoidance and the forward bias) and cost nothing where the task's sites sit off the loop; productive circling at a regrowing site is exploitation; persistence at an emptied place is the research profile's SR steering reading a value that outlasts the reward, and it is what costs finds. **Make no movement-rule change here**: M3 is next, and this instrument is what any change would be measured with.
+2. **The candidate interventions for the persistence, for a preregistered A/B when one is wanted** (hidden food, research, this ablation's metrics): an unlearning rate for the per-feature rule separate from its learning rate (R falls at the cells the orbit passes through when no reward is seen); an extinction for the SR source akin to the legacy map's `dwell_extinction` (0.02 there, 0 in research by design, G22); or a steering that reads the value's change rather than its level. **Recommended: the first**, as the smallest change to a rule already in force, measured against this baseline (17.6 finds, 1,254 memory-orbit ticks).
+3. **The legacy and research profiles now differ in sign on hidden food** (memory helps on legacy, costs on research). The difference is the value source and its read (a tabular map with dwell extinction on a 0.5-unit grid against the SR over the place code), not the scenario. **Record it, do not reconcile it**: the research profile is the instrument under study.
+4. **The replay viewer** still shows none of this for a recording, but every recording now carries the log. **Defer** to M3's trial structure (G38 C2).
+
+### D. Residuals carried forward
+- The orbit definition (2π of accumulated turning, closure ≤ 0.25, memory influence ≥ 0.05) is a measurement convention, stated in `analysis/orbits.py`; a bout's "centre" is the mean position of its ticks.
+- `target_contact` is the engine's primary contact; a scenario that counts collections differently (the maze's goal radius) reports its own count in `status`.
+- The ablation's `no_steer` arm sets `value_gain` to 0; the learners still write, so the arm is "memory not read", not "no memory".
+
+### E. Acceptance, measured at this commit
+- `python3 -m pytest -q`: 635 passed; no engine behaviour, profile or baseline change.
+- The four ablation directories under `docs/data/console_ablation/` regenerate from the commands in their README (seconds each).
+
+**Impact:** this entry; `metrics/decisions.py` (new), `analysis/orbits.py` (new), `experiments/console_ablation.py` (new); `core/engine.py` (episode counters); `experiments/runner.py` (`--log-decisions`); `ui/sim_session.py` (the log, the counterfactuals, the turning readouts), `ui/static/js/brain.js`, `live.js`, `index.html`; tests `tests/metrics/test_decisions.py`, `tests/analysis/test_orbits.py`, `tests/experiments/test_console_ablation.py` (new) and in `tests/experiments/`, `tests/ui/`, `tests/metrics/`; README, run_instructions.md; `docs/data/console_ablation/` (README now, the data in the following commit).
+
+## G41 — The SR's unlearning rate: the persistence goes and the finds come back (preregistered; the default is the owner's)
+
+> **Note (G46, 2026-10-27):** run with the hidden sites sensed by the rays, which held the no-steering arm down; without that, U = 4 steering is 11.8 finds below no steering (G46 C, D2). D below is wrong that hidden food's `approach_weight` is 0: it is 1.0 (G46 D4).
+
+**Date:** 2026-10-26  
+**Why:** G40 C2 named the smallest change to a rule already in force as the candidate intervention for the research profile's persistence beside an emptied site, to be tried only as a preregistered A/B measured with the circling instrument; the owner chose it ("go with your recommendations", 2026-10-26). Preregistered in `docs/prereg/sr_unlearning_rate.md` at `72be077`, before any run; the pilot's data at `539b113`, the confirmatory's at `c5101b9`, each from a clean tree.
+
+### A. What landed
+1. **`PlaceConfig.reward_unlearning_rate`**: with the per-feature rule, the rate at which R falls toward 0 at the active cells on a tick that sees no reward. `None`, the default and the research profile's, uses the learning rate: the G36 rule bit for bit (the determinism gates pass unchanged). Read by the per-feature rule only; nothing else in the engine changed.
+2. **`experiments/sr_unlearning.py`**: the arms `no_steer` (`value_gain` 0), `u0.5` (the rule as it stands) and `u<U>` on matched seeds, run and summarised by the G40 instrument (`experiments/console_ablation.py` now takes an arm table; `write_tables`, `arm_means` and `effects` are shared), the pilot's rule for choosing U, the three bounds scored as the preregistration states them, `--prereg` in the manifest.
+3. **A live slider**, "SR reward unlearning rate" under Estimate & sampling (shown as the learning rate when the field is None), so the effect can be watched in the console.
+4. Tests +4 (suite 639).
+
+### B. Measured (hidden food, research profile, 3,000 ticks; `docs/data/console_ablation/sr_unlearning_*`)
+- **Pilot, seeds 1–8 (exploratory; it chose U and nothing else).** Finds 17.6 / 19.6 / 23.4 / 27.3 at U = 0.5 / 1 / 2 / 4 against 26.5 without steering; memory-category orbit ticks per run 1,254 / 574 / 221 / 65; orbit share 0.43 / 0.28 / 0.12 / 0.11; distance per find 66.6 / 65.2 / 57.7 / 54.9; unique sites 5.6–5.9 throughout. A dose curve in the predicted direction; the rule picked **U = 4** (highest mean finds).
+- **Confirmatory, seeds 9–16 (fresh), U = 4: every bound passes.**
+  - **K1, finds against the rule as it stands:** 28.4 against 16.3, **+12.1 [+10.3, +14.3]** (BCa 95%, paired by seed), better on every seed.
+  - **K2, the persistence:** memory-category orbit ticks 66.8 against 1,157, a ratio of **0.06** (bound 0.5); −1,090 [−1,174, −971] per run. Orbits 1.4 against 51.3; orbit share 0.05 against 0.44; mean memory influence 0.14 against 0.41.
+  - **K3, against no steering:** 28.4 against 27.3, **+1.1 [−1.5, +3.9]**; the bound was a lower end above −2.7 (a tenth of the floor). Distance per find 50.7 against 53.2; reward 198 against 201; unique sites 5.88 against 5.88; wall contact 0.36 against 0.44.
+  - **Predictions:** the pilot's direction and the choice of U = 4 held; K1 passed above the predicted 3–8 finds; K2 passed (67 against the predicted "under 600"); **K3 was predicted to fail narrowly and passed**: with U = 4 the steering matches no steering on this task instead of falling short of it. It does not beat it: the interval includes 0.
+- **Adopting U = 4 would not move the research baselines.** The gate's 200-tick open-field run and the 3,000-tick walk at seed 1337 see no reward, so R stays 0 and the unlearning rate never acts: the trace hash is identical with U = 4 (checked at this commit). The field would appear in the profile diff and the manifests, nothing else.
+- **Exploratory, not preregistered: the beacon on the research profile at U = 4** (`experiments/console_ablation.py --set place.reward_unlearning_rate=4`, seeds 1–8, in `runs/`, not committed). Memory-orbit ticks 57 against 884 at U = 0.5: the persistence goes there too. Beacons reached 15.6 against 12.0 at U = 0.5, still below no steering's 21.5 (−5.9 [−9.6, −2.6]), distance per beacon 96.6 against 76.5. Where the reward always moves on, a spatial memory that is not revisited is not unlearned, and the remaining cost is not persistence (memory influence 0.07); the legacy notes already say memory does not help this chase.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **Decision table, first row: K1, K2 and K3 pass.** **G41 recommends `place.reward_unlearning_rate = 4.0` as the research profile's default**; adopting it is the owner's call. It costs no baseline regeneration (B), adds one row to the profile diff and one field to every manifest, and the G36 gate's result stands (the gate rewards at a goal the agent arrives at; an unlearning rate changes nothing on a rewarded tick and the gate's trials are short). Until adopted, the knob is explicit configuration, as the M2b features were before G37.
+2. **What this does and does not show.** It removes the persistence and restores the finds to the no-steer level on hidden food; it does not show the SR steering beating no steering there, and on the beacon the steering still costs. Hidden food on the research profile is a task the perimeter loop solves (27 finds without memory); the value source's benefit was shown where the loop does not solve the task (the gate: 98.7% against 5%). **M3's protocols should be of the second kind**, and the circling instrument runs on every one of them.
+3. **The pilot's seeds 1–8 are now spent for this question**; a later change to the rule is tested on seeds the pilot and the confirmatory did not use (17 onward), as here.
+
+### D. Residuals carried forward
+- U = 4 was the top of the pilot's range; the dose curve had not turned over (finds still rising, memory-orbit ticks 65). A higher rate may be better still or may start to erase value the agent needs; not measured.
+- One task and one profile. The legacy profile does not read the SR, so it is untouched by the knob.
+- The unlearning rate applies to ticks with reward exactly 0; a shaped (approach) reward on the research profile would keep the learning rate in force (hidden food's and the maze's `approach_weight` are 0 under the scenarios' own settings where it matters; a task with shaping should say which rate it wants).
+
+### E. Acceptance, measured at this commit
+- `python3 -m pytest -q`: 639 passed; the determinism baselines unchanged (default None).
+- `docs/data/console_ablation/sr_unlearning_pilot/` and `sr_unlearning_confirmatory/` regenerate from the commands in the preregistration (17 s and 10 s on four workers).
+
+**Impact:** this entry; `docs/prereg/sr_unlearning_rate.md` (new); `core/config.py` (`PlaceConfig.reward_unlearning_rate`), `core/engine.py` (`_sr_learn`); `experiments/sr_unlearning.py` (new), `experiments/console_ablation.py` (arm tables); `ui/sim_session.py` (the slider); tests in `tests/engine/`, `tests/experiments/`; docs/profiles.md (the reward-rule row), `docs/data/console_ablation/README.md`, README. No profile default change: the recommendation is C1.
+
+## G42 — Before adopting G41's default: the gate does not stand unchanged; the unlearning rate is a stability–plasticity tradeoff
+
+**Date:** 2026-10-26  
+**Why:** The owner accepted G41's recommendations (2026-10-26). C1, adopting `place.reward_unlearning_rate = 4.0` as the research default, rested on a claim G41 did not measure: that the RQ4(a) gate's result stands under U = 4 because "an unlearning rate changes nothing on a rewarded tick and the gate's trials are short". The gate builds on the research profile, so it was measured first.
+
+### A. What landed
+1. **The gate reproduces as registered whatever the profile's default** (`31d10d7`): `gate_config` sets `reward_unlearning_rate` explicitly (None, one rate, as both gate preregistrations ran), the preregistration table records it, and `--reward-unlearning-rate` runs an exploratory variant (marked exploratory in its manifest). Seed 31's hidden SR session reproduces the committed confirmatory trial by trial.
+2. **The gate at U = 1, 2 and 4** on the confirmatory seeds 31–60, SR source, per-feature rule, exploratory, from the clean tree at `31d10d7`: `docs/data/m2b/gate_confirmatory/exploratory_unlearning_u{1,2,4}/`.
+
+### B. Measured (trials 21–40; paired by seed against the committed confirmatory, BCa 95%)
+
+| U | hidden | visible | hidden ÷ visible | hidden − registered | worse on | learning-half hidden | hidden-food finds (G41 pilot, seeds 1–8) | memory-orbit ticks |
+|---|---|---|---|---|---|---|---|---|
+| 0.5 (registered) | 98.7% | 100% | 0.987 | — | — | 0.91 | 17.6 | 1,254 |
+| 1 | 98.5% | 99.3% | 0.992 | −0.002 [−0.010, +0.007] | 13% | 0.91 | 19.6 | 574 |
+| 2 | 96.7% | 96.7% | 1.000 | −0.020 [−0.042, −0.003] | 27% | 0.89 | 23.4 | 221 |
+| 4 | 85.8% | 93.7% | 0.916 [0.865, 0.967] | −0.128 [−0.167, −0.093] | 83% | 0.76 | 27.3 | 65 |
+
+- **G41 C1's claim was wrong.** At U = 4 the gate still passes its bound (0.916 ≥ 0.8; hidden success also clears the plan's original absolute 80%) and the arrival error is unchanged (0.198 units), but hidden-goal success falls 12.8 points, worse on 25 of 30 seeds, and learning is slower (0.76 against 0.91 over trials 1–20). An unlearning rate acts on every unrewarded tick, and in the gate those are most of the ticks the value has to carry the agent through. Median latency is unchanged (14–15 ticks): the successes are as direct, there are fewer of them. The mechanism is not diagnosed further here.
+- **The rate trades one task against the other, monotonically.** A stable goal (the gate) wants slow unlearning; a reward that empties and regrows (hidden food) wants fast unlearning. U = 1 costs the gate nothing measurable and removes over half of the persistence; U = 2 costs the gate 2 points and removes 82% of it; U = 4 removes 95% of it and costs the gate 13 points.
+
+### C. Decisions
+1. **The research default is not changed by this entry**: the premise the owner accepted it on was wrong, so the choice goes back to the owner with the table above (recorded in the next entry).
+2. **G41 C2, accepted by the owner:** M3's protocols are of the gate's kind (a task the perimeter loop does not solve, with the value source's benefit measurable against no steering), and the circling instrument (G40) runs on every one of them. Recorded in docs/research_plan.md's row 3.
+3. **G41 C3, accepted by the owner:** a later change to the SR's reward rule is tested on hidden-food seeds from 17 onward (1–16 are spent on G41), and on gate seeds from 61 onward (1–60 are spent on G36 and on this entry).
+
+**Impact:** this entry; `experiments/rq4a_gate.py` (`31d10d7`); `docs/data/m2b/gate_confirmatory/exploratory_unlearning_u{1,2,4}/`; docs/research_plan.md (row 3).
+
+## G43 — The owner's choice: the instrument keeps one rate; hidden food and beacon carry U = 4 as their own setting
+
+> **Note (G46, 2026-10-27):** "level with no steering" held only with the hidden sites sensed (G46 D2).
+
+**Date:** 2026-10-26  
+**Why:** G42 measured the tradeoff G41's recommendation had missed (the gate's hidden success at U = 4: 85.8% against 98.7%) and put the default back to the owner with three options: keep the instrument and give the console's renewable-reward scenarios U = 4 (recommended), U = 2 as the research default, or U = 4 as the research default. **The owner chose the first** (2026-10-26).
+
+### A. What landed
+1. **`EngineConfig.research()` is unchanged**: `place.reward_unlearning_rate` stays None (one rate), the instrument the RQ4(a) gate passed with and M3 builds on. The research baselines and every committed result are untouched.
+2. **`ui.scenarios.RENEWABLE_REWARD_UNLEARNING_RATE = 4.0`**, set by `HiddenFood.config()` and `Beacon.config()` as the scenarios' own setting, alongside their pacing and senses. On the research profile `profile_config` carries it over and the switch lists it ("place.reward_unlearning_rate None → 4"); the Mechanisms list's place entry names the learning and unlearning rates and marks the scenario's own setting; the slider starts at 4. On the legacy profile it is inert (no population, no SR): hidden food and beacon at seed 7 walk the same 800 ticks with and without it (checked). The other four scenarios keep the instrument's rate.
+3. **Research notes** for the two scenarios say what the rate does, with the measured numbers, and how to see the difference (drag the slider to 0.5).
+4. `docs/data/console_ablation/README.md` says how to reproduce the G40 numbers at a later commit (`--set place.reward_unlearning_rate=0.5`); G40's own data were made before this setting existed. Tests +1 (suite 640).
+
+### B. Measured
+- Hidden food on the research profile at U = 4: G41's confirmatory (seeds 9–16): 28.4 finds against 27.3 without steering, memory-category orbit ticks 67 against 1,157 at one rate.
+- **The two scenarios as the console now runs them** (seeds 1–8, 3,000 ticks, from the clean tree at `2de623c`; `docs/data/console_ablation/{hidden_food,beacon}_research_scenario_u4/`), steer against no steering, paired, BCa 95%:
+  - Hidden food: finds 27.3 against 26.5, +0.8 [−1.9, +5.3]; memory-category orbit ticks 65 a run (1,254 at one rate, G40); mean memory influence 0.13 (0.44). The same numbers as G41's pilot U = 4 arm on these seeds, as they must be.
+  - Beacon: beacons 15.6 against 21.5, −5.9 [−9.6, −2.6]; memory-category orbit ticks 57 (884 at one rate); influence 0.07 (0.31). The circling goes; the steering still costs where the beacon has always moved on, and that cost is not persistence.
+
+### C. What follows
+- M3 runs on the instrument (one rate), on protocols of the gate's kind (G42 C2). Whether replay over the place code resolves the persistence that the unlearning rate removes in the console is a question M3 can ask with the G40 instrument, against these scenario settings.
+
+**Impact:** this entry; `ui/scenarios.py` (the constant, two configs, two notes), `ui/sim_session.py` (the mechanisms detail); `tests/ui/test_sim_session.py`; README, docs/profiles.md, `docs/data/console_ablation/README.md`.
+
+## G44 — M3 step 1: a rodent-like body; it does not run the corridor, the gate holds under it, and the cause is the brain's wall response
+
+**Date:** 2026-10-27  
+**Why:** M3 started at the owner's request, with the instruction to close the gaps against RatInABox and RL frameworks (`docs/m3_place_replay.md`). RQ1's track needs the agent to run its own laps; a probe found it crawls (74% TURN, 81% against a wall, 97 ticks a lap against 18). Preregistered (`docs/prereg/m3_body.md`, `4a552c1`; Amendment 1, `461a9dd`, before the run), on the branch `m3-body` from the dev branch's `6b89bb7`.
+
+### A. What landed
+1. **`core/body.py`, `BodyConfig`** (`body.model`: `"discrete"`, the default in both profiles, today's body; `"rodent"`): speed and angular velocity as exactly discretised Ornstein–Uhlenbeck processes drifted to the chosen action's targets (RatInABox's coherence times; noise optional, RatInABox's 120°/s and 0.08 m/s in the `rodent` preset), turns in place, wall following, a new `body_motion` stream drawn only when on; `BODY_PRESETS` and `apply_body_preset`. The engine moves its agent with it when set and stills it at `begin_episode`. Both baselines bit-identical (tested).
+2. **`experiments/body_characterisation.py`**: the registered track and open-field measures, T1 with BCa intervals. **`experiments/rq4a_gate.py --body`**, the body put down still at each trial start, one committed directory per body; the registered gates reproduce trial by trial.
+3. Tests +9 (suite 649). A coverage-binning bug (a body on the +x or +y bound counted in a bin outside the arena) was found in the first registered run and fixed (`015c96d`); the run was repeated from the clean tree and only the coverage rows changed (90 of 1,260).
+
+### B. Measured (`docs/m3_place_replay.md`, step 1)
+- **T1 fails for every body**: 101.6 (discrete), 112.9 (rodent_quiet), 150.6 (rodent) ticks per lap against 36. **The registered decision: the body is not adopted.**
+- **The gate holds under both rodent bodies** on fresh seeds 61–90: SR hidden 99.8%, ratio 0.998; but under RatInABox's noise the no-steering control finds the hidden goal on 66.5% of trials (9.3% quiet, 5% discrete): the noise turns the gate's control into a near-pass.
+- **The cause is the brain** (exploratory, seeds 101–104, disclosed): the agent dithers between left and right turns at the track's ends, and reads side walls as ahead out to 1.2 m. A 0.2 m wall range with a turn commitment of 0.3 runs the corridor in 33 ticks a lap with the discrete body.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **Step 1b, before falling back to forced laps**: preregister the two brain-side changes (`basal_ganglia.wall_avoid_range`, `basal_ganglia.turn_commitment`) on fresh seeds, with every body, and the gate under them. The registered row's fallback (forced laps) stays the fallback.
+2. **RatInABox's noise statistics are not a free realism upgrade.** They fit open-field foraging; at this tick length they put about 0.4 rad of heading noise on every tick, which a corridor cannot absorb and which lets an agent without value steering find a hidden goal by coverage. **Keep the `rodent` preset as an option, not a candidate default**, and if noise is wanted, characterise it against running (not foraging) statistics first.
+3. **The quiet rodent body earns its place on its merits only if step 1b shows it**: it removes the turning circle and smooths speed, but on the track it was no better than the discrete body, with or without the brain fix.
+
+**Impact:** this entry; `docs/m3_place_replay.md` (new), `docs/prereg/m3_body.md` (new); `core/body.py` (new), `core/config.py` (`BodyConfig`), `core/engine.py`; `experiments/body_characterisation.py` (new), `experiments/rq4a_gate.py`; tests `tests/engine/test_body.py`, `tests/experiments/test_body_characterisation.py` (new), `tests/experiments/test_rq4a_gate.py`; `docs/data/m3/body/` (new).
+
+## G45 — M3 step 1b: the corridor options run the track and break the approach to a visible target
+
+**Date:** 2026-10-27  
+**Why:** G44 traced the crawl on the track to the action selection (left/right dithering at the ends, a wall signal reaching 1.2 m). Preregistered (`docs/prereg/m3_corridor.md`, `a64bef1`; Amendment 1, `0a41a53`), values from G44's disclosed probe, on fresh seeds.
+
+### A. What landed
+1. **`basal_ganglia.wall_avoid_range`** (the fraction of the vision range within which a wall on the centre ray counts as ahead; 1.0 is every result to date) and **`basal_ganglia.turn_commitment`** (added to the previous tick's turn while a wall is ahead; 0 off), threaded through selection, the engine (`previous_action`), the decision log and the console (a `commit` term; the terms still sum to the scores, pinned on a run where it fires). Both baselines bit-identical.
+2. `body_characterisation --condition-set corridor`; `rq4a_gate --corridor` and its preregistration entry.
+3. **The Observation contract** allowed ±3.14159 for a one-tick turn while the sensor clamps to ±π: aligned to ±π (as the heading), after the first attempt crashed on it. The cause was **a fault in G44's body**: at a corner its wall following takes the walls one after the other, so their turns add (2.6 rad in one tick at seed 54). Not fixed here (the registered conditions run as built); recorded for the next body step.
+4. Tests +2 (suite 651).
+
+### B. Measured (`docs/m3_place_replay.md`, step 1b)
+- **T1 passes**: the discrete body with the options runs the track in 33.3 [32.9, 33.8] ticks a lap, stalls 0.2%. The quiet rodent body misses narrowly (38.3), the noisy one does not come close (62.4).
+- **G1 passes by its letter and fails in substance**: SR hidden 98.2% (discrete) and 100% (quiet rodent), but visible success 11.8% and 26.2% (100% at the registered gate), so the relative ratio (8.3, 3.8) is meaningless. The no-steering control stays under 20% (9.8%, 15.7%).
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **The registered reading is the table's second row**: the options cost navigation; **diagnose before step 2**. The relative gate cannot see a collapse of its own denominator; **a later gate preregistration bounds the visible success as well** (e.g. at least 80% of the registered gate's).
+2. **Where the options belong** is the owner's call after the diagnosis. Candidates: (a) a protocol setting of the track only, declared like a scenario's own settings, with the research profile unchanged for open-field tasks; (b) a fix that keeps the corridor and restores the visible approach, preregistered; (c) forced laps (G35), step 1's fallback.
+3. **The body's corner fault** is fixed before any rodent body is offered as a default.
+
+**Impact:** this entry; `docs/prereg/m3_corridor.md` (new); `brain/systems/basal_ganglia.py`, `brain/contracts.py`, `core/config.py`, `core/engine.py`, `metrics/decisions.py`, `ui/sim_session.py`, `ui/static/js/brain.js`; `experiments/body_characterisation.py`, `experiments/rq4a_gate.py`; tests in `tests/engine/`, `tests/brain/`, `tests/experiments/`; `docs/data/m3/corridor/` (new).
+
+## G46 — The audit: nothing hidden is sensed any more; the hidden-food memory benefit was the leak's; the gate needs its start anchor
+
+**Date:** 2026-10-27  
+**Why:** Before choosing G45's route for step 2, the owner asked whether the agent is allowed to cheat ("I want the behaviours to be emergent, not programmed"). An independent read of the code traced every input of the brain to its source; every finding was re-measured (`tools/g46_audit.py`, exploratory, spent seeds); the fixes and a retest were preregistered (`docs/prereg/g46_retest.md`, `68d5461`) and run on fresh seeds (`docs/data/g46/`).
+
+### A. What the audit found
+1. **Clean.** The brain never reads the true position, the goal's position, the trial number or its phase. On the research profile DA and 5HT reach nothing (hidden-food runs are byte-identical with approach shaping off). The gate's success test is the engine's contact rule. Withholding the trial boundaries from the learners changes nothing (0.988 against 0.979, seeds 31–42).
+2. **Leak 1 (both profiles): hidden food was sensed.** A vision ray stopped at a "hidden" or eaten ("collected") object and reported its kind; the action selection ignores the kind but reads each side's openness from any ray's distance, so a hidden site on a side ray read as an obstacle and the wall-escape turn went away from it. G19 says the rays hit hidden objects and "the policy ignores the kind": true of the label, not of the distance. `experiments/protocols/foraging.py` calls an eaten item "invisible to vision"; it was not.
+3. **Leak 2 (legacy only): a hot/cold signal.** Approach shaping rewarded closing the true distance to hidden food, and on the legacy profile the shaped reward reaches action selection through DA and 5HT. **G41 D is wrong** that hidden food's `approach_weight` is 0 under the scenario's settings: it is 1.0.
+4. **Declared but never weighed: the gate tells the agent where it is put down** (the true start pose is written into the estimate at every trial start; `docs/prereg/m2b_gate.md`, G36 D).
+5. **Built in, task-blind, declared; kept and recorded here.** The approach to anything labelled "target" is a reflex, and the cue gate mutes memory while one is in view, so the gate's visible session measures that reflex, and after a missed hidden trial the goal is shown and the reflex brings the agent in. Vision hands the agent object labels. The place population and the wall reset know the arena's extent (G33, G37). The rodent body's wall following and the corridor options are motor rules (G44, G45). Each gate trial's first tick repeated the previous trial's last action from the new start (one tick; `still_start` from here).
+
+### B. What landed
+1. **`sensors.unseen_block_rays`** (a hidden or eaten object is not seen: rays and whiskers pass through it) and **`reward.shape_hidden`** (shaping reads visible targets only; a hidden goal still rewards on contact): **False on the research profile, True on legacy**, which keeps its recorded behaviour. `docs/profiles.md`, the profile-diff test.
+2. Every registration before G46 pins the old sensing (`rq4a_gate.PREREGS[...]["pre_g46"]`, `sr_unlearning.PRE_G46`): the confirmatory gate's committed rows regenerate exactly (0 of 960 rows differ; 426 differ with the fix). `docs/data/console_ablation/README.md` says how to regenerate its research hidden-food tables.
+3. `rq4a_gate`: `start_estimate` (`anchor`, `centre`, `carry`), `estimate` and `still_start`. `experiments/g46_retest.py`; `tools/g46_audit.py`. Tests +15 (suite 666); both determinism baselines unchanged (they hold no hidden object).
+
+### C. Measured (preregistered, fresh seeds)
+**Hidden food**, seeds 17–46, finds per 3,000 ticks (memory steering on the research profile is the scenario's U = 4; legacy at sensor noise 0.03, G23's setting B):
+
+| profile, sensing | no memory steering | memory steering | steering − none [95% CI] | seeds steering wins |
+|---|---|---|---|---|
+| research, sites sensed (as before) | 28.8 | 28.2 | −0.6 [−2.6, +1.0] | 12 / 30 |
+| **research, G46** | **53.0** | **41.2** | **−11.8 [−13.7, −9.8]** | **0 / 30** |
+| research, G46, one rate | 53.0 | 21.4 | −31.6 [−33.5, −29.6] | 0 / 30 |
+| legacy, as recorded | 3.8 | 10.6 | +6.8 [+5.2, +8.2] (× 2.81 [2.27, 3.49]) | 28 / 30 |
+| legacy, rays fixed | 42.2 | 20.1 | −22.1 [−23.3, −20.9] (× 0.48) | 0 / 30 |
+| **legacy, both fixed** | **40.8** | **19.4** | **−21.5 [−22.5, −20.5] (× 0.47)** | **0 / 30** |
+
+H1–H5 hold. **The leak held the agent away from food**: with nothing sensed, the agent without memory finds 24 (research) and 37 (legacy) more items per run, and memory steering, which takes it back to sites it has just emptied, loses on every seed. The rays carry the reversal; the shaping only added finds to both legacy arms.
+
+**The gate**, seeds 125–154, the confirmatory settings with the sensing fixed and trials started still; success over trials 21–40:
+
+| told at each trial start | SR hidden | SR visible | tabular hidden | no steering, hidden | SR − no steering [95% CI] |
+|---|---|---|---|---|---|
+| **the true start (registered)** | **99.8%** | 100% | 84% | 3.5% | +0.96 [+0.95, +0.97] |
+| the arena's centre | 37.3% | 86% | 70% | 3.5% | +0.34 [+0.30, +0.38] |
+| nothing (carry) | 37.7% | 95% | 63% | 3.5% | +0.34 [+0.29, +0.39] |
+| nothing, no heading oracle, no wall reset | 6.2% | 60% | 5.2% | 3.5% | +0.03 [+0.00, +0.06] |
+
+G1 holds (hidden ÷ visible 0.998 [0.990, 1.0], arrival error 0.18 units). G2 holds. **G3 fails as written**: with no aid at all the SR still beats no steering, by 2.7 points [0.3, 5.5] (predicted: not above), near the floor; the estimate there ends 52 units from the body on arrival (it leaves the arena: the integrated heading drifts and nothing resets it). Without the anchor the tabular map degrades less (84% to 63–70%) than the SR (99.8% to 37%), not analysed here.
+
+**Memory maze, exploratory** (G23's claim 3 at setting B, seeds 1–8, the legacy maze with the hidden goal not sensed, by patching the ray): headings recalling 15.75 to 15.5 (gain 0.8) and 15.75 to 15.4 (gain 1.5) of 16; recall rate 0.999 both ways. The maze's recall does not rest on the leak (it rests on the goal vector, declared, G18).
+
+### D. What this changes in the record
+1. **Withdrawn: the hidden-food memory benefit** (README; G19, G21; G23 claim 1's × 2.91), a product of leak 1 (and, on legacy, leak 2). Replaced by C: **on hidden food, memory steering costs finds on both profiles.**
+2. **Withdrawn: G41 K3 and G43's "at U = 4 steering is level with no steering"**: level only because the leak held no steering down; without it U = 4 steering is 11.8 finds below. The scenario keeps U = 4 for now; re-choosing it is a separate question.
+3. **Qualified: the RQ4(a) gate** (G36, G37, G44, G45) tests the use of a place memory *given the start*. Its 98–100% needs the start anchor (62 points of it); without the anchor and the declared aids the place memory barely helps. From here **every M3 result is reported with and without the anchor**, and something the agent can sense and localise from is the route to removing it.
+4. **Corrected: G41 D's `approach_weight`** (1.0 for hidden food, not 0).
+
+### E. Decisions
+1. **The owner's choice on G45 C2: (b)**, one wall response for every task, preregistered under four rules: one configuration for every task (nothing knows which task it is in); reflex settings fixed before the run from outside the results; all tasks pass together (track, visible goal, hidden goal, open field); a no-learning control in every task, a behaviour counting as emergent only by its margin over it. The audit came first, at the owner's request.
+2. **The legacy profile keeps both leaks** as its recorded behaviour (so every legacy result regenerates); its claims are read through D. Fixing legacy too is the owner's call.
+3. **Next, at the owner's request: obstacles in the arena, then a retest.** The world has no solid object today (the agent walks through every object; only the arena bounds stop it), so obstacles need collision, a sensed solid kind and a task-blind response to it.
+
+**Impact:** this entry; `docs/prereg/g46_retest.md` (new); `core/config.py`, `core/sensors.py`, `core/engine.py`; `experiments/rq4a_gate.py`, `experiments/sr_unlearning.py`, `experiments/g46_retest.py` (new); `tools/g46_audit.py` (new); `docs/profiles.md`, `docs/data/console_ablation/README.md`, `docs/data/g46/` (new), `docs/m3_place_replay.md`, README; notes under G19, G21, G23, G41, G43; tests in `tests/engine/`, `tests/experiments/`.

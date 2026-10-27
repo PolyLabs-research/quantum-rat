@@ -7,7 +7,7 @@ import { ArenaView, buildArenaLegend } from './arena.js';
 import { CompassPanel, CriticalityPanel, DecisionPanel, EnergyPanel, ModulatorPanel, PlaceCodePanel, frameTableGroups, renderTable } from './brain.js';
 import { LineChart } from './charts.js';
 import { MODULATORS, onThemeChange } from './theme.js';
-import { $, $$, clear, debounce, el, fmt, fmtAny, fmtSigned, store, toast } from './util.js';
+import { $, $$, clear, debounce, el, fmt, fmtAny, fmtInt, fmtSigned, store, toast } from './util.js';
 
 const WINDOW = 600; // ticks shown in the time-series charts
 const TRAIL = 1200; // positions kept for the arena trail
@@ -39,6 +39,9 @@ export class LiveController {
     this.profile = 'legacy'; // the engine profile sessions are started on (docs/profiles.md)
     this.profileInfo = null; // {id, overrides} of the running session
     this.placeGrid = null; // the place population's grid (research profile), once per session
+    this.mechanisms = []; // what is in force under the effective configuration (server-derived)
+    this.mechStatus = {}; // id -> status, for the panels that describe a mechanism
+    this.layerSource = null; // the value source the arena's layer defaults were last set for
     this._loop = this._loop.bind(this);
     this._resetBuffers();
 
@@ -135,6 +138,72 @@ export class LiveController {
     this.profile = id;
     store.set('quantum-rat-profile', id);
     this.start(this.scenario?.id || store.get('quantum-rat-scenario') || 'foraging', this.seed ?? this.meta.default_seed);
+  }
+
+  _renderMechanisms() {
+    const host = clear($('#mechanisms'));
+    const icons = { active: '✓', readout: '◦', off: '✕' };
+    this.mechStatus = {};
+    for (const m of this.mechanisms) {
+      this.mechStatus[m.id] = m.status;
+      host.append(
+        el(
+          'li',
+          { dataset: { status: m.status }, title: `${m.status === 'active' ? 'In force' : m.status === 'readout' ? 'Computed and shown, but with a gain of 0 it moves nothing' : 'Not running'}: ${m.detail}` },
+          el('span', { class: 'mech-icon', 'aria-hidden': 'true', text: icons[m.status] || '•' }),
+          el('span', { class: 'mech-name', text: m.name }),
+          el('span', { class: 'mech-detail', text: m.detail }),
+        ),
+      );
+    }
+  }
+
+  _renderNotes() {
+    const sc = this.scenario;
+    if (!sc) return;
+    const research = this.profile !== 'legacy';
+    const notes = research && sc.watch_research?.length ? sc.watch_research : sc.watch;
+    $('#h-notes').textContent = research ? (sc.watch_research?.length ? 'Scenario notes on the research profile' : 'Scenario notes (written for the legacy profile)') : 'Scenario notes';
+    const list = clear($('#scenario-watch'));
+    if (research && !sc.watch_research?.length) {
+      list.append(el('li', { class: 'muted', text: 'These notes describe the legacy mechanics; the list above says what is in force now.' }));
+    }
+    list.append(...notes.map((w) => el('li', { text: w })));
+  }
+
+  // The arena's default layers follow what steers: the active value source is on, the other map is a
+  // diagnostic (off), as are the place cells and the successor field. Reapplied when the source changes
+  // or a fresh session starts; a reset of the same session keeps the user's toggles.
+  _applyLayerDefaults(source, fresh) {
+    if (!fresh && source === this.layerSource) return;
+    this.layerSource = source;
+    const sr = source === 'sr';
+    const defaults = { value: !sr && source !== 'none', srValue: sr, place: false, srField: false, replay: true, rays: true, trail: true, estimate: true };
+    for (const box of $$('[data-layer]')) {
+      const name = box.dataset.layer;
+      if (!(name in defaults)) continue;
+      box.checked = defaults[name];
+      this.arena.setLayer(name, defaults[name]);
+    }
+    const label = $('#layer-value-label span');
+    if (label) label.textContent = sr ? 'Value map (tabular, diagnostic)' : source === 'none' ? 'Value map (nothing steers)' : 'Value map';
+  }
+
+  _renderBehaviour(b) {
+    if (!b) return;
+    const dl = clear($('#behaviour'));
+    const row = (k, v) => dl.append(el('dt', { text: k }), el('dd', { text: v }));
+    row('Distance walked', `${fmt(b.distance, 1)} units`);
+    row('Wall contact', `${fmt(100 * b.wall_fraction, 0)}% of ticks`);
+    row('Finds (target contacts)', fmtInt(b.finds));
+    row('Ticks since last find', b.ticks_since_find === null || b.ticks_since_find === undefined ? '—' : fmtInt(b.ticks_since_find));
+    row('Distance per find', b.distance_per_find === null || b.distance_per_find === undefined ? '—' : `${fmt(b.distance_per_find, 1)} units`);
+    row('Reward total', fmtSigned(b.reward_total, 2));
+    if (b.turning_revolutions !== undefined) {
+      const w = b.turning_window || 300;
+      row(`Turning, last ${w}`, `${fmtSigned(b.turning_revolutions, 2)} rev`);
+      row(`Closure, last ${w}`, fmt(b.closure, 2));
+    }
   }
 
   _renderProfileNote() {
@@ -264,8 +333,11 @@ export class LiveController {
     this._resetBuffers();
     $('#seed').value = String(payload.seed);
     for (const card of $$('.scenario')) card.setAttribute('aria-checked', String(card.dataset.id === payload.scenario.id));
-    clear($('#scenario-watch')).append(...payload.scenario.watch.map((w) => el('li', { text: w })));
+    this.mechanisms = payload.mechanisms || [];
+    this._renderMechanisms();
+    this._renderNotes();
     this._buildActions(payload.scenario.actions);
+    this._applyLayerDefaults(payload.frame.action?.source ?? 'tabular', fresh);
     if (fresh) this._buildParams(payload.params);
     else this._syncParams(payload.params);
     clear($('#event-log'));
@@ -485,6 +557,10 @@ export class LiveController {
       this._events(res.events);
       this.frame = res.frame;
       this.arena.set({ valueMap: res.value_map });
+      if (res.mechanisms) {
+        this.mechanisms = res.mechanisms;
+        this._renderMechanisms();
+      }
       this._render(true);
     } catch (err) {
       this._error(err);
@@ -561,6 +637,10 @@ export class LiveController {
       this._events(res.events);
       this._syncParams(res.params);
       this.frame = res.frame;
+      if (res.mechanisms) {
+        this.mechanisms = res.mechanisms;
+        this._renderMechanisms();
+      }
       if (key === 'criticality.coupling') this.lastHistAt = 0;
       this._render(true);
     } catch (err) {
@@ -626,8 +706,14 @@ export class LiveController {
 
     this.decision.update(f.action);
     this.placeCode.update(f);
+    this._renderBehaviour(f.behaviour);
+    const vmMax = this.arena.s.valueMap?.max ?? 0;
+    const scales = [];
+    if (this.arena.s.layers.value && vmMax > 0) scales.push(`value map ±${fmt(vmMax, 2)}`);
+    if (this.arena.s.layers.srValue && f.sr && f.sr.value_max > 0) scales.push(`SR value ±${fmt(f.sr.value_max, 3)}`);
+    $('#arena-scale').textContent = scales.length ? `colour scale, per map: ${scales.join(' · ')}` : '';
     const spark = Object.fromEntries(MODULATORS.map((m) => [m.key, this.buf[m.key].slice(-SPARK)]));
-    this.mods.update(f.mod, spark);
+    this.mods.update(f.mod, spark, this.mechStatus.neuromod);
     this.energy.update(f);
     this.crit.update(f.crit);
     this.compass.update(f.agent, f.place_id);

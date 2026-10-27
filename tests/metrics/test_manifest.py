@@ -244,5 +244,6 @@ def test_console_recording_writes_a_manifest(tmp_path):
     assert m["timing"]["wall_seconds"] >= 0.0
     assert m["scenario"]["id"] == "foraging"
     # The data files are untouched by the manifest.
-    assert set(p.name for p in run_dir.iterdir()) == {"ticks.jsonl", "summary.json", "scene.json", "manifest.json"}
+    # decisions.jsonl: the per-tick decision log every recording carries since G40 (metrics.decisions)
+    assert set(p.name for p in run_dir.iterdir()) == {"ticks.jsonl", "summary.json", "scene.json", "manifest.json", "decisions.jsonl"}
     assert "created_at" not in json.loads((run_dir / "summary.json").read_text())

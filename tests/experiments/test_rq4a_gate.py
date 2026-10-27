@@ -101,11 +101,73 @@ def test_quick_run_is_identical_across_workers_and_refuses_the_committed_directo
     rg.main(["--quick", "--seeds", "1", "--workers", "1", "--sources", "sr", "--reward-rule", "per_feature", "--out", str(explor)])
     m = json.loads((explor / "gate_manifest.json").read_text())
     assert m["reward_rule"] == "per_feature" and m["exploratory"] is True and m["sources"] == ["sr"] and m["full_evaluation"] is False
-    assert set(rg.PREREGS) == {"docs/prereg/m2b_gate.md", "docs/prereg/m2b_gate_confirmatory.md"}
+    assert set(rg.PREREGS) == {"docs/prereg/m2b_gate.md", "docs/prereg/m2b_gate_confirmatory.md", "docs/prereg/m3_body.md",
+                               "docs/prereg/m3_corridor.md"}
+    assert rg.committed_dir("docs/prereg/m3_corridor.md", "discrete").as_posix() == "docs/data/m3/corridor/gate/discrete"
+    corridor = rg.gate_config("sr", "per_feature", None, "discrete", True)
+    assert corridor.basal_ganglia.turn_commitment == 0.3 and abs(corridor.basal_ganglia.wall_avoid_range - 1 / 6) < 1e-15
     assert rg.PREREGS["docs/prereg/m2b_gate_confirmatory.md"]["seeds"] == tuple(range(31, 61))
+    # M3 step 1 (G44): the rodent bodies on fresh seeds, one committed directory per body.
+    assert rg.PREREGS["docs/prereg/m3_body.md"]["seeds"] == tuple(range(61, 91))
+    assert rg.committed_dir("docs/prereg/m3_body.md", "rodent").as_posix() == "docs/data/m3/body/gate/rodent"
+    assert rg.committed_dir("docs/prereg/m2b_gate.md", "discrete").as_posix() == "docs/data/m2b/gate"
     with pytest.raises(SystemExit):  # the confirmatory directory refuses a run away from its preregistration
         rg.main(["--quick", "--seeds", "1", "--prereg", "docs/prereg/m2b_gate_confirmatory.md", "--out", "docs/data/m2b/gate_confirmatory"])
     with pytest.raises(SystemExit):
         rg.main(["--prereg", "docs/prereg/other.md", "--out", str(tmp_path / "z")])
     assert {r["source"] for r in _read(explor / "gate_trials.csv")} == {"sr"}
     assert not (tmp_path / "docs").exists()
+
+
+# --- the audit of 2026-10-27 (decisions G46) ----------------------------------------------------------------------
+
+
+def test_every_registration_before_g46_pins_the_old_sensing() -> None:
+    assert all(spec.get("pre_g46") for spec in rg.PREREGS.values())
+    old = rg.gate_config("sr", "per_feature", pre_g46=True)
+    new = rg.gate_config("sr", "per_feature")
+    assert old.sensors.unseen_block_rays and old.reward.shape_hidden
+    assert not new.sensors.unseen_block_rays and not new.reward.shape_hidden
+    assert [d[0] for d in new.diff(old)] == ["sensors.unseen_block_rays", "reward.shape_hidden"]
+
+
+def test_the_estimate_conditions() -> None:
+    cfg = rg.gate_config("sr", "per_feature", estimate="integrated")
+    assert cfg.spatial.heading_source == "integrated" and not cfg.spatial.wall_reset
+    with pytest.raises(ValueError):
+        rg.run_session("sr", "hidden", 1, trials=1, start_estimate="nowhere")
+
+
+def _estimates_at_trial_starts(start_estimate: str, monkeypatch) -> list:
+    """The estimate (x, y) the first tick of each of three trials sees, read before that tick runs."""
+    seen = []
+    real_run = rg.Engine.run
+
+    def run(self, ticks, *, reset=False):
+        if self._ctx_tick_seen is not None and self.value_episode != self._ctx_tick_seen:
+            seen.append((self.spatial.state.grid_x, self.spatial.state.grid_y, self.last_action.name))
+        self._ctx_tick_seen = None
+        return real_run(self, ticks, reset=reset)
+
+    real_reset = rg.Engine.reset_value_episode
+
+    def reset_value_episode(self):
+        real_reset(self)
+        self._ctx_tick_seen = -1  # the next run call is a trial's first tick
+
+    monkeypatch.setattr(rg.Engine, "_ctx_tick_seen", None, raising=False)
+    monkeypatch.setattr(rg.Engine, "run", run)
+    monkeypatch.setattr(rg.Engine, "reset_value_episode", reset_value_episode)
+    rg.run_session("sr", "visible", 3, trials=3, reward_rule="per_feature", start_estimate=start_estimate, still_start=True)
+    return seen
+
+
+def test_what_the_estimate_is_told_at_a_trial_start(monkeypatch) -> None:
+    starts = [rg.STARTS[i][:2] for i in rg.start_order(3, 3)]
+    anchor = _estimates_at_trial_starts("anchor", monkeypatch)
+    assert [(x, y) for x, y, _ in anchor] == [tuple(s) for s in starts]
+    centre = _estimates_at_trial_starts("centre", monkeypatch)
+    assert [(x, y) for x, y, _ in centre] == [(0.0, 0.0)] * 3
+    carry = _estimates_at_trial_starts("carry", monkeypatch)
+    assert all((x, y) != tuple(s) for (x, y, _), s in zip(carry[1:], starts[1:]))  # told nothing
+    assert all(a == "REST" for _, _, a in anchor + centre + carry)  # still_start: nothing carried over

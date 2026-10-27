@@ -70,27 +70,49 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   (G18). That place is forgotten after two visits in a row that find nothing, so the stored place
   of a goal that moved stops pulling the agent; the replayed value gradient can still lead it
   back to the old place until that gradient extinguishes (G21). In the hidden-food task, where
-  food is invisible and regrows at fixed sites, memory steering finds 2.8-4.1x as much food as
-  memory off (by searching near recent finds, not by remembering sites; see the next paragraph)
-  and loses no paired run (G19, G21). All of these were measured with the legacy mechanisms on
+  food is meant to be invisible and regrows at fixed sites, memory steering appeared to find
+  2.8-4.1x as much food as memory off (G19, G21), but **that benefit is withdrawn** (G46): the
+  vision rays sensed the hidden sites as obstacles and turned the agent away from them, and memory
+  steering only made up for that. With nothing hidden sensed, memory steering finds about half as
+  much as memory off (19.4 against 40.8 per run on 30 fresh seeds, losing on every seed). All of these were measured with the legacy mechanisms on
   (the TRN gate scaling path integration, energy scaling of motion, the radius-2 value kernel),
   as single deterministic samples or a few seeds, and where a number comes from sensor noise 0,
   different seeds are copies of one run (`tools/probes/seed_pseudoreplication`). G23 re-measured
   the three headline numbers over 30 seeds with BCa confidence intervals (`docs/data/g23/`): the
   steering band survives (0.4-3.0 in both settings, value-induced REST at most 0.001 of ticks,
-  3 ticks of 3,000, in any run); the hidden-food multiplier is 2.91 [2.43, 3.59] under sensor noise 0.03 alone, with
+  3 ticks of 3,000, in any run); the hidden-food multiplier (measured with the sites sensed, withdrawn in G46) is 2.91 [2.43, 3.59] under sensor noise 0.03 alone, with
   one seed of 30 losing, and 1.34 [1.15, 1.52] once action selection has a 0.05 softmax
   temperature, because the exploring agent then finds 9.4 items on its own instead of 3.5; the
   maze recalls in 471 of 480 full-circle runs under sensor noise alone and in 371-380 once
   odometry noise and the softmax are on, the twelve off-axis headings recalling for 60-83% of
   seeds (turn noise 0.01 rad and the softmax temperature each cost about a tenth of the recalls
   on their own, speed noise 0.05 costs two of 471).
+* **Results of the research profile** (M2a and M2b; `docs/research_plan.md` rows 2a and 2b). M2a
+  compared seven replay rules on a tabular linear track over 30 paired seeds and two budget modes
+  under a preregistered RQ1 protocol: every RQ1 bound is met by some rule, but no single rule meets
+  them all, for reasons recorded as structural in G29–G32 (`docs/m2a_linear_track.md`, tag
+  `v1.3-track-replay`). M2b built the embodied instrument: a declared heading oracle and a
+  wall-contact reset hold the open-field estimate to 7 cm, a 400-cell place population sits on
+  it, successor features learned over it skew backward on one-way laps, and steering by the SR's
+  value passes the RQ4(a) gate on fresh seeds (hidden-goal success 98.7% against 100% visible and
+  5% without value steering; `docs/m2b_place_code.md`, tag `v1.4-place-code`). Its limits: the
+  heading is given, not inferred; the gate has one goal and known starts; replay over the place
+  code is M3's. **The gate's success needs its start anchor** (G46): the true start is written into
+  the agent's estimate at every trial. Told nothing, the agent finds the hidden goal on 37.7% of
+  trials (99.8% anchored, 3.5% without value steering, fresh seeds); with neither the anchor nor
+  the heading oracle and wall reset, on 6.2%. So the gate shows the use of a place memory given
+  where the agent starts, not that the agent can work out where it is; M3 reports every result with
+  and without the anchor. In the console's scenarios the SR steering circled sites it had just emptied and
+  cost a third of the hidden-food finds (G40; measured with the hidden sites sensed, G46). A separate unlearning rate removes that (G41) but
+  costs the gate 13 points of hidden-goal success at the rate that does it (G42), so the instrument
+  keeps one rate and the two renewable-reward scenarios carry the faster one (G43).
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the
   memory maze (0 vs ~147 recalls), roughly neutral in foraging and the hazard field (within about
   ±9% of memory off), and 3-11% negative in the beacon chase, where every remembered spot is
-  stale. Hidden food is not accurate site memory: it is memory-driven search near recent finds. A
+  stale. Hidden food is not accurate site memory: it is memory-driven search near recent finds, and
+  without the sensing leak of G46 that search costs food rather than finding more. A
   map read 22° rotated (phantom peaks >= 2.8 m from any site) keeps about half to nearly all of
   the extra finds, depending on the seed block, and with the sites re-drawn at random every 150
   ticks memory still gives x1.1-1.5, so it needs a real map but not precise sites (G21). The agent
@@ -117,14 +139,17 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
 
 So: **this is not a validated model of a real rodent brain.** It's a place to build such
 models one defensible piece at a time, with the engineering guaranteeing that whatever you
-measure is reproducible. See `RECOMMENDATIONS.md` for what's done and what's next, and
-`docs/decisions.md` for the rationale behind each step.
+measure is reproducible. `docs/research_plan.md` is the programme and its status,
+`docs/decisions.md` the rationale behind each step (G1–G43), and `docs/prereg/` the
+preregistrations; `RECOMMENDATIONS.md` is the original review the programme started from, kept as
+a record (it predates most of the work).
 
 ### Profiles
 
 Two configuration profiles exist. The **legacy profile** is `EngineConfig()` as it is today:
-every console scenario runs under it, the G-entries in `docs/decisions.md` were measured under
-it, and its traces are pinned bit-for-bit by the determinism gate. What the gate hashes, the
+the console scenarios were built on it (since G38 the console runs them on either profile), the
+G-entries in `docs/decisions.md` up to G21 were measured under it, and its traces are pinned
+bit-for-bit by the determinism gate. What the gate hashes, the
 baselines per profile and the cross-platform tolerance gate are described in
 `docs/determinism.md`. The **research profile**
 (`EngineConfig.research()`, added in M0a, commit 95667ce) switches the toy mechanisms off for
@@ -146,8 +171,8 @@ reset, a 400-cell place population over the estimate and the successor-feature v
 the steering's source, the instrument RQ4(a) passed with (`docs/m2b_place_code.md`); the research
 baselines were regenerated once more for it (the body's walk at the gate seed is unchanged; the
 estimate is what moved). With microsleep off its engine still produces no replay events; M2a's
-first replay rules run outside the engine on a tabular linear track (below). See
-`docs/profiles.md` and `docs/research_plan.md` (§6).
+replay rules run outside the engine on a tabular linear track (below), and replay over the place
+code is M3's. See `docs/profiles.md` and `docs/research_plan.md` (§6).
 
 ### The first replay result (M2a, first pass)
 
@@ -161,7 +186,9 @@ reverse replay cuts the steps needed for the 40 laps by 2,825 [BCa 95%: 2,147 to
 −224 [−820 to +112], a null. The state is the true cell (an oracle), the budget fixed, four rules
 of the plan's nine: the textbook ordering on a sparse-reward chain, measured with intervals, and
 the instrument for the embodied comparison (M3) rather than a result about rodents. Reproduce with
-`python3 -m experiments.linear_track_replay --workers 4` (7 s).
+`python3 -m experiments.linear_track_replay --workers 4` (7 s). The rest of M2a (G27–G32) took the
+comparison to the preregistered RQ1 protocol with seven rules; its reading is under "Results of the
+research profile" above and in `docs/m2a_linear_track.md`.
 
 ---
 
@@ -206,9 +233,10 @@ scenarios were built for) or on the **research profile** (`docs/profiles.md`: se
 noise and softmax, the declared heading oracle, the wall-contact reset, the 400-cell place
 population and the successor-representation value steering; ATP frozen, so no fatigue or
 microsleep). A scenario keeps its own settings on either base (the maze's value-map radius and
-goal memory, the foraging senses, the pacing) and the switch lists which fields those move away
-from the profile. `python -m experiments.runner --protocol console_<scenario> --profile research`
-reproduces such a session tick for tick.
+goal memory, the foraging senses, the pacing, and on hidden food and beacon the SR's unlearning
+rate, G43) and the switch lists which fields those move away from the profile. `python -m experiments.runner --protocol console_<scenario> --profile research`
+reproduces such a session tick for tick. The table says what each scenario shows on the legacy
+profile; the console's scenario notes say what changes on the research profile.
 
 | Scenario | What it shows |
 |---|---|
@@ -216,12 +244,13 @@ reproduces such a session tick for tick.
 | Beacon chase | Vision-driven pursuit; dopamine hits 1.0 on arrival; the value map's memory of old beacon spots |
 | Foraging patch | Five food items, wide field of view; reward builds the value map |
 | Hazard field | Food behind hazards; pain raises norepinephrine and the value map turns red there |
-| Hidden food | Invisible food at six fixed sites regrows after it is eaten; the value map marks recent finds and the agent searches near them (not site memory, G21) |
+| Hidden food | Invisible food at six fixed sites regrows after it is eaten; the value map marks recent finds and the agent searches near them (not site memory, G21). On the research profile nothing hidden is sensed (G46); the legacy profile keeps the old sensing, which saw the sites as obstacles |
 | Memory maze | Hidden-goal recall: one visible trial, sleep/replay, then navigate to the hidden goal from memory |
 
 Panels: the arena (value map, vision rays coloured by what they hit, whiskers, pain zones, trail,
 and a dashed "ghost" where path integration *thinks* the body is), the basal-ganglia decision
-scores, memory steering from the value map, the four neuromodulator traces, ATP/glycogen and the
+scores, memory steering (from the value map, or from the SR value on the research profile), the
+four neuromodulator traces, ATP/glycogen and the
 sensory gate, the 16×16 criticality lattice with live avalanches, the κ gauge and log-log
 avalanche-size histogram with a reference line of slope −1.5 (a reference, not a fit: the lattice
 is subcritical at the default coupling), path-integration drift, an event log and a full readout
@@ -232,9 +261,52 @@ occupancy) and, on either profile, the latest **replay events** as trails of the
 backed up, in order; a **Place code** panel shows the activity and the successor field on the
 population's own grid with the decode error, the SR value here, the reward weights and the SR
 update count. Parameters (action selection, neuromodulator gains, E/I coupling, senses, sensor
-noise, and the research profile's odometry noise, oracle noise, softmax temperature and SR
-reward rate) change live. **Record to replay** saves the session as a run; its manifest and
+noise, and the research profile's odometry noise, oracle noise, softmax temperature and the SR's
+reward learning and unlearning rates) change live. **Record to replay** saves the session as a run; its manifest and
 summary carry the profile.
+
+The view explains what is in force (G39). **Mechanisms in force** lists every mechanism the
+panels describe with its status under the effective configuration, active, readout only (a gain
+of 0) or off, and a one-line detail, recomputed when a slider moves; the scenario notes beneath
+it are written per profile. The **Decision** panel shows each action score as its named terms
+(bias, vision, memory, wall, pain, novelty, the REST drives), the total and the selection
+probability (the softmax at the profile's temperature; 1 on the argmax at 0), and names the
+value source the memory steer reads. The arena's default layers follow that source: the active
+one is on, the other map is a diagnostic, and the colour scale of each map is printed beside
+the title. **Behaviour** readouts (distance walked, wall-contact share, finds, ticks since the
+last find, distance per find, reward) tell useful behaviour from cycling. Memory controls name
+their learner: "Forget the rewards" clears the SR's reward weights as well as the tabular map,
+and the maze's consolidation says when it changes the diagnostic map only; the maze's
+inter-trial rest is physiology updates, frozen with the research profile's energy.
+
+**Measuring the circling** (G40). Every live session keeps a per-tick **decision log** and a
+recording writes it as `decisions.jsonl` beside `ticks.jsonl` (`metrics/decisions.py`): position,
+heading, the estimate, the action, the scores and their terms, the selection probabilities, the
+probabilities **without** the memory, vision or wall term (the same softmax with the term
+removed: no draw, the run untouched) and each term's immediate influence as the total-variation
+shift it makes, target visibility and distance, contacts, reward and the episode boundaries. The
+headless runner writes the same file with `--log-decisions`. `python -m analysis.orbits <run>`
+cuts a log into loops (one full turn of accumulated heading), orbits (loops that close on
+themselves) and bouts of same-direction orbits, each with its duration, loops, mean radius,
+contacts, the dominant term among the turns that made it and memory's mean immediate influence,
+and sorts the bouts into productive (a target was touched), memory (memory-dominant turns with an
+influence above the bound), wall and other. `python -m experiments.console_ablation` runs a
+scenario on matched seeds with memory steering on and off (`value_gain` 0; the learners still
+run) and pairs the arms by seed on finds, unique sites, distance per find, wall contact and the
+orbit measures (`analysis/stats.py`, BCa intervals); its runs on the console scenarios are in
+`docs/data/console_ablation/` and read in G40. The Decision panel shows the counterfactual column
+and influence live; the Behaviour readouts show the turning and closure of the last 300 ticks.
+What the measurement led to (G41, preregistered in `docs/prereg/sr_unlearning_rate.md`): a separate
+**unlearning rate** for the SR's per-feature reward rule (`place.reward_unlearning_rate`; None, the
+default, is the rule as it was). At U = 4 on fresh seeds the memory-category orbits fall from 1,157
+to 67 ticks per run and hidden-food finds rise from 16.3 to 28.4, level with no steering (27.3),
+though only because the hidden sites were sensed and held no steering down (without that, no
+steering finds 53.0 and U = 4 steering 41.2; G46);
+the "SR reward unlearning rate" slider shows it live. It is not the research default: at U = 4
+the RQ4(a) gate's hidden-goal success falls from 98.7% to 85.8% (G42), because a stable goal wants
+slow unlearning. The owner's decision (G43): the instrument keeps one rate, and the two console
+scenarios whose reward empties and moves on, hidden food and beacon, carry U = 4 as their own
+setting.
 
 Keys: `Space` play/pause, `→` step. Deep links work, e.g.
 `/live?scenario=memory_maze&seed=7&speed=300&paused=1` or `/live?profile=research&scenario=open_field`.
@@ -262,9 +334,12 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 * **Physiology + neuromodulation** logged.
 * **Criticality field** (bond percolation on a torus) + avalanche detection + κ (kappa).
 * **TRN gating**, microsleep + replay gating.
-* **Spatial system** driven purely by egomotion (HD + grid integrator + place id).
-* **Working memory** (bounded; its "novelty" is a checksum-changed bit) + deterministic basal
-  ganglia action selection.
+* **Spatial system** driven by egomotion (HD + grid integrator + place id), with an optional
+  declared heading oracle and wall-contact reset.
+* **Place code** (on in the research profile): a Gaussian place population over the estimate and
+  successor features learned over it by TD, whose value V = φ·MᵀR can steer.
+* **Working memory** (bounded; its "novelty" is a checksum-changed bit) + basal ganglia action
+  selection (the argmax, or a seeded softmax on the research profile).
 * **Action-driven world movement** (no random wandering).
 * **Closed perception loop:** sensors raycast real world geometry (walls + `WorldObject`
   targets/hazards); the brain steers toward visible targets and away from walls.
@@ -290,8 +365,11 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   seeds, platform, Python and numpy versions, BLAS build and `*_NUM_THREADS` settings,
   wall-clock and ticks/s. Provenance only: it enters no hash, and it is the one file in a run
   with wall-clock time in it. Tournaments write one at their root; console recordings too.
-  `--profile legacy|research` picks the base config for protocols that do not supply their own
-  (the `console_*` ones do, and theirs wins; the manifest records both).
+  `--profile legacy|research` picks the base config: a bare protocol runs on it as it is, and a
+  `console_*` protocol puts its scenario's own settings on it, as the console's switch does (G38);
+  the manifest records the profile that ran and the one requested.
+* `--log-decisions` also writes `decisions.jsonl`, one record per tick of the decision and what
+  made it (`metrics/decisions.py`, G40); a live console recording always writes it.
 * A run in which the engine replayed also writes `replay_events.jsonl`, one replay event per line
   (`brain/systems/replay_events.py`: the ticks it ran over, its trigger and rule, the cells it
   backed up in order), and `summary.json` carries `n_replay_events`; the research profile never
@@ -324,10 +402,12 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   (`docs/odometry.md`; tables in `docs/data/m2a/odometry/`, the M1 record in `docs/data/m1/`).
 * `experiments/estimate_correction.py` — M2b step 1: the declared heading oracle and the
   wall-contact position reset (`sensors.heading_oracle`, `sensors.wall_contact_sensing`,
-  `spatial.heading_source`, `spatial.wall_reset`; all off in both profiles), characterised in the
+  `spatial.heading_source`, `spatial.wall_reset`; off on the legacy profile, on in the research
+  profile since G37), characterised in the
   2 m open field over 30 seeds (`docs/prereg/m2b_estimate.md`; `docs/data/m2b/estimate/`).
 * `experiments/place_population.py` — M2b step 2: a 400-cell Gaussian place population over the
-  estimate (`EngineConfig.place`, `brain/systems/place_population.py`, off in both profiles), its
+  estimate (`EngineConfig.place`, `brain/systems/place_population.py`; on in the research profile
+  since G37), its
   rate maps against true position (`analysis/place_metrics.py`), an exact decoder and the engine's
   throughput with it (`docs/prereg/m2b_place_population.md`; `docs/data/m2b/place/`).
 * `experiments/sr_fields.py` — M2b step 3: successor features over the place code, learned by
@@ -335,8 +415,15 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
   and on the agent's own walk in the open field (`docs/prereg/m2b_sr_fields.md`; `docs/data/m2b/sr/`).
 * `experiments/rq4a_gate.py` — M2b step 4: the RQ4(a) gate, relative to the visible-goal ceiling
   (the owner's decision, G36), with the SR's value read-out V = M·R steering
-  (`value_memory.source = "sr"`; `"tabular"`, the default, and `"none"` as ablation and control)
-  (`docs/prereg/m2b_gate.md`; `docs/data/m2b/gate/`).
+  (`value_memory.source = "sr"`, the research profile's since G37; `"tabular"`, the legacy default,
+  and `"none"` as ablation and control) (`docs/prereg/m2b_gate.md` and `m2b_gate_confirmatory.md`;
+  `docs/data/m2b/gate/` and `gate_confirmatory/`). The gate sets the SR's reward rule as registered
+  whatever the profile's default; `--reward-unlearning-rate` runs an exploratory variant (G42).
+* `experiments/console_ablation.py` — a console scenario on matched seeds with memory steering on
+  and off, every tick logged and cut into orbits, paired effects with BCa intervals (G40;
+  `docs/data/console_ablation/`).
+* `experiments/sr_unlearning.py` — the preregistered A/B of the SR's reward unlearning rate on
+  hidden food (`docs/prereg/sr_unlearning_rate.md`, G41; data in `docs/data/console_ablation/`).
 
 ### Tournaments
 * **AgentDNA** + deterministic fingerprinting; genes feed `EngineConfig` so agents differ behaviourally.
@@ -351,14 +438,18 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 * `analysis/stats.py`: BCa bootstrap intervals, paired per-seed effects, Cliff's δ, TOST
   equivalence and the pseudo-replication guard every multi-seed claim goes through
   (`docs/stats.md`).
+* `analysis/orbits.py`: loops, orbits and bouts from a decision log, each attributed to the term
+  that drove its turns (G40). `analysis/place_metrics.py` and `analysis/replay_metrics.py`: rate
+  maps against true position, and replay events by the plan's definition.
 * `tools/compare_traces.py`: the cross-platform tolerance gate, floats within 1e-9 and everything
   else exact; with the reference traces' observation sidecars it tolerates a differing
   `obs_checksum` only when the observation it hashes agrees within tolerance (`docs/determinism.md`).
 
 ### Lab console (`python -m ui`)
 * **Live**: six scenarios run on the real engine, on the legacy or the research profile, with live
-  brain panels (the place code and the successor representation on the research profile) and live
-  parameters.
+  brain panels (the place code and the successor representation on the research profile), the
+  mechanisms in force, each decision's terms and counterfactuals, behaviour readouts and live
+  parameters; every recording carries its decision log.
 * **Replay**: browse runs, play/scrub trajectories with the arena scene, charts and a tick inspector.
 * See "Run the lab console locally" above.
 
@@ -369,7 +460,7 @@ sizes and steps per call. `--host 0.0.0.0` exposes it to your network; it warns 
 ```text
 core/        – Engine, world, sensors, rng, pipeline
 brain/       – Contracts + systems (criticality, TRN, spatial, WM, BG, etc.)
-metrics/     – TickData schema, logger, hash utilities
+metrics/     – TickData schema, logger, hashing, run manifests, the decision log
 experiments/ – Protocol framework + headless runner
 tournaments/ – Tournament manager + runner
 agents/      – AgentDNA and agent container
@@ -377,7 +468,7 @@ analysis/    – Extract → metrics → report + plots
 ui/          – Lab console: server, live sessions, scenarios, static frontend
 tools/       – Characterisation probes (tools/probes) and baseline utilities
 tests/       – Determinism gate + unit/integration tests
-docs/        – Decisions log, research plan, architecture/spec notes
+docs/        – Decisions log, research plan, preregistrations, committed data, spec notes
 artifacts/   – Agent proof artifacts, run evidence, etc.
 ```
 
@@ -390,4 +481,9 @@ decisions log) and the figures are under CC BY 4.0 (`LICENSE-docs`,
 https://creativecommons.org/licenses/by/4.0/). To cite the software, use `CITATION.cff` (GitHub
 renders it as "Cite this repository"). Releases are tagged per milestone (`docs/research_plan.md`
 §7): `v1.0-honest` is Milestone 0a, the legacy/research profile split (G22); `v1.1-base` is
-Milestone 0b, the instrument base (G24).
+Milestone 0b, the instrument base (G24); `v1.2-value` is Milestone 1, the value rule and odometry
+(G25); `v1.3-track-replay` is Milestone 2a, tabular replay on the linear track (G26–G32); and
+`v1.4-place-code` is Milestone 2b, the place code and the RQ4(a) gate (G33–G37). The first three
+were tagged retroactively on 2026-10-27 at the commits the decision log names (each checked against
+the test count and package version the log records). The package version stays 1.2.0
+(`pyproject.toml`, `CITATION.cff`) until the owner bumps it.

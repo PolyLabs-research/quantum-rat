@@ -179,3 +179,12 @@ def test_meta_lists_profiles_and_a_session_can_run_on_the_research_profile(clien
     legacy = post(client, "/api/sim", {"scenario": "open_field"}).get_json()
     assert legacy["profile"] == {"id": "legacy", "overrides": []} and legacy["place"] is None
     assert post(client, "/api/sim", {"scenario": "open_field", "profile": "toy"}).status_code == 400
+
+
+def test_payloads_carry_the_mechanisms_and_a_parameter_change_refreshes_them(client):
+    sim = post(client, "/api/sim", {"scenario": "open_field", "seed": 1, "profile": "research"}).get_json()
+    by_id = {m["id"]: m["status"] for m in sim["mechanisms"]}
+    assert by_id["energy"] == "off" and by_id["neuromod"] == "readout" and by_id["place"] == "active"
+    assert sim["frame"]["behaviour"]["finds"] == 0 and "probs" in sim["frame"]["action"]
+    res = post(client, f"/api/sim/{sim['id']}/param", {"key": "basal_ganglia.dopamine_explore_gain", "value": 0.6}).get_json()
+    assert {m["id"]: m["status"] for m in res["mechanisms"]}["neuromod"] == "active"
