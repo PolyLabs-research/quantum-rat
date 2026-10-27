@@ -11,7 +11,7 @@ from experiments import rq4a_gate as rg
 
 
 def test_the_design() -> None:
-    assert len(g.CONDITIONS) == 8 and g.CONDITIONS["L_carry_on"] == {"layout": "L", "start_estimate": "carry", "landmarks": True}
+    assert len(g.CONDITIONS) == 8 and g.CONDITIONS["L_carry_on"] == {"layout": "L", "start_estimate": "carry", "landmarks": True, "lateral_odometry": True}
     assert not set(g.QUICK_SEEDS) & set(g.PHASES["confirmatory"]["seeds"])
     assert set(g.PHASES["confirmatory"]["seeds"]) == set(range(185, 215))
     cfg = rg.gate_config("sr", "per_feature", landmarks=True)

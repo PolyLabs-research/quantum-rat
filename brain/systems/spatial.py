@@ -112,9 +112,13 @@ class SpatialSystem:
         else:
             self.state.hd_angle = wrap_angle(self.state.hd_angle + turn * self.turn_gain)
 
-        # Grid integration with optional decay
+        # Grid integration with optional decay; the sideways displacement too when it is sensed (G48)
         dx = fwd * math.cos(self.state.hd_angle)
         dy = fwd * math.sin(self.state.hd_angle)
+        if observation.lateral_delta is not None:
+            lat = observation.lateral_delta * sensory_gain
+            dx -= lat * math.sin(self.state.hd_angle)
+            dy += lat * math.cos(self.state.hd_angle)
         self.state.grid_x = (self.state.grid_x * self.decay) + dx
         self.state.grid_y = (self.state.grid_y * self.decay) + dy
 

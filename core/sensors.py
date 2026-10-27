@@ -69,6 +69,17 @@ def _compute_egomotion(
     return _normalize(distance, -limit, limit), _normalize(turn_delta, -math.pi, math.pi)
 
 
+def _lateral_egomotion(agent: Agent, config: SensorConfig, odometry_stream: Optional[RNGStream]) -> float:
+    """The displacement perpendicular to the heading (positive to the left), with the forward odometry's error drawn
+    afresh (decisions G48); clamped to the forward range."""
+    dx = agent.pos[0] - agent.last_pos[0]
+    dy = agent.pos[1] - agent.last_pos[1]
+    lateral = -dx * math.sin(agent.heading) + dy * math.cos(agent.heading)
+    if odometry_stream is not None and config.odometry_speed_noise > 0.0:
+        lateral *= 1.0 + config.odometry_speed_noise * odometry_stream.gauss(0.0, 1.0)
+    return _normalize(lateral, -config.forward_delta_limit, config.forward_delta_limit)
+
+
 
 def _ray_wall_distance(px: float, py: float, dx: float, dy: float, bounds: Tuple[float, float]) -> float:
     """Distance to the bounding box exit for a ray starting inside the box."""
@@ -211,6 +222,7 @@ def gather_observation(
         pain_signal = _normalize(pain_signal + noise_stream.uniform(-config.noise, config.noise), 0.0, 1.0)
 
     forward_delta, turn_delta = _compute_egomotion(agent, config, odometry_stream)
+    lateral_delta = _lateral_egomotion(agent, config, odometry_stream) if config.lateral_odometry else None
     heading: Optional[float] = None
     if config.heading_oracle:
         heading = agent.heading
@@ -228,6 +240,7 @@ def gather_observation(
         heading=heading,
         wall_contacts=contacts,
         landmarks=landmarks,
+        lateral_delta=lateral_delta,
     )
     obs.validate(forward_limit=config.forward_delta_limit)
     return obs

@@ -7,7 +7,7 @@
 The gate's confirmatory settings on the research profile, trials started still, in the ``open`` and ``L`` arenas (G47),
 with the estimate told the true start (``anchor``) or nothing (``carry``), and with the distal cues (``on``: the
 agent sees the four cues of ``rq4a_gate.CUES`` and corrects its estimate from where it has learned they are) or
-without them (``off``: G47's agent). Per start group as in G47 (``blocked``: the west and south starts; ``direct``:
+without them (``off``), the agent feeling its sideways displacement in every condition (``lateral_odometry``). Per start group as in G47 (``blocked``: the west and south starts; ``direct``:
 the east and north), and per trial the mean distance between the estimate and the body.
 """
 
@@ -35,8 +35,11 @@ PHASES: Dict[str, Dict[str, Any]] = {
 }
 QUICK_SEEDS: Tuple[int, ...] = (31, 32)
 N_BOOT = 10_000
+# Every condition has the sideways odometry (sensors.lateral_odometry): the first pilot, without it, found the slide
+# along a barrier that the agent could not feel biasing its learned cue map (docs/data/g48/pilot_without_lateral/,
+# made at 296ae86; disclosed in the preregistration). The cues' effect is on against off on that same base.
 CONDITIONS: Dict[str, Dict[str, Any]] = {
-    f"{layout}_{start}_{cues}": {"layout": layout, "start_estimate": start, "landmarks": cues == "on"}
+    f"{layout}_{start}_{cues}": {"layout": layout, "start_estimate": start, "landmarks": cues == "on", "lateral_odometry": True}
     for layout in ("open", "L") for start in ("anchor", "carry") for cues in ("off", "on")
 }
 GROUPS: Dict[str, Tuple[int, ...]] = {
@@ -155,7 +158,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     eff = cell_means(groups, seeds, n_boot) + effects(groups, seeds, n_boot)
     write_csv(out / "by_start_group.csv", GROUP_COLUMNS, groups)
     write_csv(out / "effects.csv", EFFECT_COLUMNS, eff)
-    cfg = rg.gate_config("sr", "per_feature", landmarks=True)
+    cfg = rg.gate_config("sr", "per_feature", landmarks=True, lateral_odometry=True)
     manifest = build_manifest(cfg, protocol=f"g48_landmark_gate:{args.phase}", seeds=list(seeds), ticks_requested=ticks_run,
                               extra={"prereg": PREREG, "phase": args.phase, "conditions": CONDITIONS,
                                      "cues": [vars(c) for c in rg.CUES], "landmark_gain": rg.LANDMARK_GAIN,

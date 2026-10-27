@@ -132,7 +132,7 @@ def committed_dir(prereg: str, body: str) -> Path:
 
 def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None,
                 body: str = "discrete", corridor: bool = False, *, estimate: str = "oracle_reset",
-                pre_g46: bool = False, landmarks: bool = False) -> EngineConfig:
+                pre_g46: bool = False, landmarks: bool = False, lateral_odometry: bool = False) -> EngineConfig:
     """Step 1's M2b estimate, step 2's population, and the value source that steers (``reward_rule``: the SR's R rule;
     "nlms" is the preregistered one, "per_feature" the exploratory one of decisions G36). ``reward_unlearning_rate`` is
     set explicitly (None: one rate, as both gate runs were registered; decisions G41/G42), so the gate does not
@@ -149,6 +149,8 @@ def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: 
     if landmarks:  # the agent sees the distal cues and corrects its estimate from where it has learned they are (G48)
         cfg.sensors.landmark_sensing = True
         cfg.spatial.landmark_gain = LANDMARK_GAIN
+    if lateral_odometry:  # the agent feels the sideways part of its own displacement (G48)
+        cfg.sensors.lateral_odometry = True
     cfg.place.enabled = True
     cfg.place.reward_rule = reward_rule
     cfg.place.reward_unlearning_rate = reward_unlearning_rate
@@ -181,7 +183,8 @@ def _reached(eng: Engine) -> bool:
 def run_session(source: str, session: str, seed: int, trials: int = TRIALS, reward_rule: str = "nlms",
                 reward_unlearning_rate: Optional[float] = None, body: str = "discrete", corridor: bool = False, *,
                 estimate: str = "oracle_reset", start_estimate: str = "anchor", still_start: bool = False,
-                pre_g46: bool = False, layout: str = "open", landmarks: bool = False) -> List[Dict[str, Any]]:
+                pre_g46: bool = False, layout: str = "open", landmarks: bool = False,
+                lateral_odometry: bool = False) -> List[Dict[str, Any]]:
     """One session. ``layout`` (``LAYOUTS``) puts barriers in the arena (G47); ``landmarks`` puts the distal cues
     (``CUES``) round it and turns on the agent's sight of them and its learned cue map (G48). Each row also carries
     ``estimate_error_mean``, the mean distance between the estimate and the body over the trial's ticks (G48; not one
@@ -194,7 +197,8 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
     if start_estimate not in START_ESTIMATES:
         raise ValueError(f"start_estimate must be one of {START_ESTIMATES}")
     eng = Engine(seed=seed, config=gate_config(source, reward_rule, reward_unlearning_rate, body, corridor,
-                                               estimate=estimate, pre_g46=pre_g46, landmarks=landmarks))
+                                               estimate=estimate, pre_g46=pre_g46, landmarks=landmarks,
+                                               lateral_odometry=lateral_odometry))
     for barrier in LAYOUTS[layout]:
         eng.world.add_barrier(barrier)
     if landmarks:

@@ -129,3 +129,28 @@ def test_in_the_engine_the_estimate_recovers_after_a_teleport() -> None:
     engine.run(40)
     later = math.hypot(engine.spatial.state.grid_x - engine.agent.pos[0], engine.spatial.state.grid_y - engine.agent.pos[1])
     assert first > 3.0 and later < 1.5
+
+
+def test_lateral_odometry_reports_a_slide_and_the_estimate_follows_it() -> None:
+    from core.world import Barrier
+
+    cfg = EngineConfig.research()
+    cfg.sensors.odometry_speed_noise = 0.0
+    cfg.sensors.lateral_odometry = True
+    engine = Engine(seed=2, config=cfg)
+    engine.world.add_barrier(Barrier(1.0, -10.0, 1.5, 10.0))
+    a = engine.agent
+    a.pos = a.last_pos = (0.5, 0.0)
+    a.heading = a.last_heading = math.pi / 4  # into the wall at 45 degrees: the body slides along it
+    engine.spatial.state.grid_x, engine.spatial.state.grid_y = 0.5, 0.0
+    engine.run(1)
+    obs = engine.context.observation
+    dx, dy = a.pos[0] - a.last_pos[0], a.pos[1] - a.last_pos[1]
+    assert obs.lateral_delta == pytest.approx(-dx * math.sin(a.heading) + dy * math.cos(a.heading))
+    off = EngineConfig.research()
+    assert not off.sensors.lateral_odometry
+
+
+def test_off_the_observation_has_no_lateral_field() -> None:
+    agent = Agent(id=0, pos=(0.0, 0.0), heading=0.0)
+    assert gather_observation(agent, _world(), config=SensorConfig()).lateral_delta is None

@@ -185,6 +185,13 @@ class SensorConfig:
     # at 0). The field of view is landmark_fov radians centred on the heading (300 degrees: a rat's visual field is
     # nearly panoramic). What it sees is how a cue looks and where it appears; never where it is.
     landmark_sensing: bool = False
+    # lateral_odometry (decisions G48): the Observation carries ``lateral_delta``, the body's displacement this tick
+    # perpendicular to its heading (units, positive to the left), with the forward odometry's multiplicative error
+    # (its own draw, after the turn draw, from "sensors_odometry"). Off, the egomotion is the displacement projected on
+    # the heading only, so a body sliding along a wall it pushes into feels only the part of the slide along its
+    # heading. A rat feels the rest (vestibular, optic flow); G48's pilot found the unsensed slide biasing a learned
+    # cue map in the L arena.
+    lateral_odometry: bool = False
     landmark_fov: float = 5.235987755982989
     landmark_bearing_noise: float = 0.05
     landmark_distance_noise: float = 0.10
