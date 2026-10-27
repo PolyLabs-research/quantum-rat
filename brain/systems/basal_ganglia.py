@@ -137,7 +137,20 @@ def _channel_scores(
         scores["REST"] += pacing_rest
     if config.turn_commitment > 0.0 and c_wall > 0.0 and previous_action in ("TURN_LEFT", "TURN_RIGHT"):
         scores[previous_action] += config.turn_commitment
+    orient_left, orient_right = _orient(config.orient_gain, c_target, l_target, r_target)
+    if orient_left:
+        scores["TURN_LEFT"] += orient_left
+    if orient_right:
+        scores["TURN_RIGHT"] += orient_right
     return scores
+
+
+def _orient(gain: float, c_target: float, l_target: float, r_target: float) -> Tuple[float, float]:
+    """The orienting response (M3 step 2, Part 2): with a target seen to one side and none ahead, ``gain`` on the turn
+    toward the side where it is closest; (0, 0) when off, when one is ahead, or when none is seen."""
+    if gain <= 0.0 or c_target > 0.0 or l_target == r_target:
+        return 0.0, 0.0
+    return (gain, 0.0) if l_target > r_target else (0.0, gain)
 
 
 def channel_terms(
@@ -162,7 +175,8 @@ def channel_terms(
     pins this against the engine's own scores). Names: ``bias`` (FORWARD's
     forward_bias × the TRN gate; a TURN's turn_bias), ``vision``, ``memory``
     (the value signal × value_gain), ``wall`` (avoidance), ``pain``, ``novelty``
-    (the novelty bit's terms), a TURN's ``commit`` (the turn commitment, G45), and REST's ``gate`` (the narrowed TRN gate),
+    (the novelty bit's terms), a TURN's ``commit`` (the turn commitment, G45) and ``orient`` (the orienting response,
+    M3 step 2), and REST's ``gate`` (the narrowed TRN gate),
     ``patience`` (serotonin) and ``pacing``; ``microsleep`` alone while asleep.
     Nothing in the engine reads it; the console does (decisions G39).
     """
@@ -183,6 +197,7 @@ def channel_terms(
     committed = config.turn_commitment > 0.0 and c_wall > 0.0
     commit_left = config.turn_commitment if committed and previous_action == "TURN_LEFT" else 0.0
     commit_right = config.turn_commitment if committed and previous_action == "TURN_RIGHT" else 0.0
+    orient_left, orient_right = _orient(config.orient_gain, c_target, l_target, r_target)
     return {
         "FORWARD": {
             "bias": config.forward_bias * trn_gain,
@@ -199,6 +214,7 @@ def channel_terms(
             "bias": max(config.turn_bias, 0.0),
             "wall": config.wall_avoid_gain * c_wall * (0.5 + l_open),
             "commit": commit_left,
+            "orient": orient_left,
         },
         "TURN_RIGHT": {
             "novelty": config.novelty_turn_gain * wm_novelty,
@@ -207,6 +223,7 @@ def channel_terms(
             "bias": max(-config.turn_bias, 0.0),
             "wall": config.wall_avoid_gain * c_wall * (0.5 + r_open),
             "commit": commit_right,
+            "orient": orient_right,
         },
         "REST": {
             "pain": rest_pain_gain * pain * freeze_habituation,

@@ -519,6 +519,12 @@ class BasalGangliaConfig:
     # leave the two turns tied tick after tick (the agent dithered at a track's ends, G44). 0 is off.
     wall_avoid_range: float = 1.0
     turn_commitment: float = 0.0
+    # orient_gain (M3 step 2, Part 2; docs/prereg/m3_step2.md): a target seen off to one side and not ahead adds this
+    # to the turn toward it, so the agent turns to face a reward it sees before it approaches (a rat orients to a seen
+    # reward). 1.0 outweighs FORWARD's bias of 0.8, set from that reason before any pilot; the approach's own drive
+    # (vision_gain x closeness) alone was too weak to turn the agent (the visible approach had rested on wall turning).
+    # 0 is off, every run so far.
+    orient_gain: float = 0.0
     dopamine_explore_gain: float = 0.6  # how strongly low dopamine boosts exploration
     # Neuromodulator control couplings (0 disables; defaults are no-ops at baseline
     # modulator levels NE=0, ACh=0, 5HT=0.5, so default behaviour is unchanged).

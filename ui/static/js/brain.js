@@ -154,8 +154,8 @@ export class DecisionPanel {
   }
 
   _renderTerms(action, scores, probs, tau) {
-    const order = ['bias', 'vision', 'memory', 'wall', 'commit', 'pain', 'novelty', 'gate', 'patience', 'pacing', 'microsleep'];
-    const labels = { bias: 'Bias', vision: 'Vision', memory: 'Memory', wall: 'Wall', commit: 'Commit', pain: 'Pain', novelty: 'Novelty', gate: 'Gate', patience: 'Patience', pacing: 'Pacing', microsleep: 'Sleep' };
+    const order = ['bias', 'vision', 'memory', 'wall', 'commit', 'orient', 'pain', 'novelty', 'gate', 'patience', 'pacing', 'microsleep'];
+    const labels = { bias: 'Bias', vision: 'Vision', memory: 'Memory', wall: 'Wall', commit: 'Commit', orient: 'Orient', pain: 'Pain', novelty: 'Novelty', gate: 'Gate', patience: 'Patience', pacing: 'Pacing', microsleep: 'Sleep' };
     const terms = action.terms || {};
     const cols = order.filter((k) => Object.values(terms).some((t) => Math.abs(t[k] ?? 0) > 1e-9));
     const without = action.probs_without_memory || {};

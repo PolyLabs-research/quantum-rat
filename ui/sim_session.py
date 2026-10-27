@@ -434,7 +434,8 @@ class SimSession:
         else:
             add("goal", "Goal memory (oracle homing)", "off", "no remembered goal")
         add("vision", "Vision drive", "active" if bg.vision_gain > 0 else "off",
-            f"gain {bg.vision_gain:g}; {se.vision_rays} rays over {se.fov:g} rad, range {se.vision_range:g}; a visible target mutes memory (cue gate {bg.cue_gate_gain:g})")
+            f"gain {bg.vision_gain:g}; {se.vision_rays} rays over {se.fov:g} rad, range {se.vision_range:g}; a visible target mutes memory (cue gate {bg.cue_gate_gain:g})"
+            + (f"; a target seen to one side turns the agent toward it (orient {bg.orient_gain:g})" if bg.orient_gain > 0 else ""))
         reach = "the whole vision range" if bg.wall_avoid_range == 1.0 else f"{bg.wall_avoid_range * se.vision_range * cfg.units.metres_per_unit:.2g} m"
         commit = f"; turn commitment {bg.turn_commitment:g}" if bg.turn_commitment > 0 else ""
         add("wall", "Wall avoidance", "active" if bg.wall_avoid_gain > 0 else "off",
