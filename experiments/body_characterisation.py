@@ -52,7 +52,23 @@ T1_LAP_BOUND = 2 * STRAIGHT_RUN
 T1_STALL_BOUND = 0.05
 STALL_EPS = 1e-6
 DEFAULT_CONDITIONS: Dict[str, Dict[str, Any]] = {name: dict(fields) for name, fields in BODY_PRESETS.items()}
-PREREGS = {"docs/prereg/m3_body.md": {"seeds": DEFAULT_SEEDS, "conditions": tuple(DEFAULT_CONDITIONS), "out": Path("docs/data/m3/body")}}
+# M3 step 1b (docs/prereg/m3_corridor.md, G45): the wall signal read to 0.2 m (1/6 of the 1.2 m vision range) and a
+# turn commitment of 0.3, with every body.
+CORRIDOR_OPTIONS: Dict[str, Any] = {"basal_ganglia.wall_avoid_range": 1.0 / 6.0, "basal_ganglia.turn_commitment": 0.3}
+CONDITION_SETS: Dict[str, Dict[str, Dict[str, Any]]] = {
+    "body": DEFAULT_CONDITIONS,
+    "corridor": {
+        "discrete": dict(BODY_PRESETS["discrete"]),
+        "discrete_corridor": {**BODY_PRESETS["discrete"], **CORRIDOR_OPTIONS},
+        "rodent_quiet_corridor": {**BODY_PRESETS["rodent_quiet"], **CORRIDOR_OPTIONS},
+        "rodent_corridor": {**BODY_PRESETS["rodent"], **CORRIDOR_OPTIONS},
+    },
+}
+PREREGS = {
+    "docs/prereg/m3_body.md": {"seeds": DEFAULT_SEEDS, "set": "body", "conditions": tuple(DEFAULT_CONDITIONS), "out": Path("docs/data/m3/body")},
+    "docs/prereg/m3_corridor.md": {"seeds": tuple(range(31, 61)), "set": "corridor", "conditions": tuple(CONDITION_SETS["corridor"]),
+                                   "out": Path("docs/data/m3/corridor")},
+}
 OUTPUT_FILES = ("body_per_seed.csv", "body_summary.json", "manifest.json")
 METRICS = {
     "track": ("laps", "ticks_per_lap", "forward_share", "wall_contact_share", "stall_share", "estimate_error_late"),
@@ -200,7 +216,9 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--seeds", default=None, help="e.g. 1-30 (default 1-30; --quick: 1,2)")
     parser.add_argument("--ticks", type=int, default=None)
-    parser.add_argument("--conditions", default=None, help="comma-separated body presets (default: all three)")
+    parser.add_argument("--condition-set", default="body", choices=tuple(CONDITION_SETS),
+                        help="body: the three body presets (step 1); corridor: step 1b's four conditions")
+    parser.add_argument("--conditions", default=None, help="comma-separated names from the condition set (default: all of it)")
     parser.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
                         help="an override applied to every condition (repeatable); a run with any is exploratory")
     parser.add_argument("--workers", type=int, default=None)
@@ -215,12 +233,13 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     else:
         seeds = QUICK_SEEDS if args.quick else DEFAULT_SEEDS
     ticks = args.ticks or (QUICK_TICKS if args.quick else TICKS)
-    names = tuple(args.conditions.split(",")) if args.conditions else tuple(DEFAULT_CONDITIONS)
+    available = CONDITION_SETS[args.condition_set]
+    names = tuple(args.conditions.split(",")) if args.conditions else tuple(available)
     shared = parse_set(args.set)
-    conditions = {name: {**DEFAULT_CONDITIONS[name], **shared} for name in names}
+    conditions = {name: {**available[name], **shared} for name in names}
     spec = PREREGS.get(args.prereg) if args.prereg else None
-    full = bool(spec and seeds == spec["seeds"] and names == spec["conditions"] and not shared and not args.quick
-                and ticks == TICKS and args.n_boot >= 1000)
+    full = bool(spec and seeds == spec["seeds"] and args.condition_set == spec["set"] and names == spec["conditions"]
+                and not shared and not args.quick and ticks == TICKS and args.n_boot >= 1000)
     for committed in (p["out"] for p in PREREGS.values()):
         if args.out.resolve() == committed.resolve() and not full:
             parser.error(f"a partial or exploratory run must not overwrite the committed tables in {committed}: give another --out")
@@ -233,7 +252,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
     write_per_seed(out / OUTPUT_FILES[0], results)
-    payload = {"conditions": conditions, "seeds": list(seeds), "ticks": ticks, "prereg": args.prereg, "exploratory": not full,
+    payload = {"condition_set": args.condition_set, "conditions": conditions, "seeds": list(seeds), "ticks": ticks, "prereg": args.prereg, "exploratory": not full,
                "guard": guard, "t1_bounds": {"ticks_per_lap": T1_LAP_BOUND, "stall_share": T1_STALL_BOUND},
                "summary": summary, "wall_seconds": round(wall, 1)}
     (out / OUTPUT_FILES[1]).write_text(json.dumps(payload, indent=1, sort_keys=True, default=float))

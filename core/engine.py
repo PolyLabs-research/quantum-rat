@@ -104,6 +104,7 @@ class EngineContext:
     replay_span: int = 0
     target_contact: bool = False  # touching a target this tick (the primary contact reward)
     goal_vector_active: bool = False  # the value signals came from the goal-vector memory
+    previous_action: str = "REST"  # the action chosen on the tick before this decision (the turn commitment's input)
     tick_data: TickData | None = None
 
 
@@ -718,6 +719,7 @@ class Engine:
 
         # Action selection: the deterministic argmax, or at softmax_temperature > 0
         # one seeded softmax draw per tick; dopamine modulates exploration.
+        previous_action = self.last_action.name  # the decision before this one (the turn commitment reads it, G45)
         action, scores = select_action_with_scores(
             observation=ctx.observation,
             wm_novelty=ctx.wm_novelty,
@@ -732,12 +734,14 @@ class Engine:
             freeze_habituation=freeze_h,
             pacing_rest=pacing_rest,
             action_stream=self.streams["action_softmax"],
+            previous_action=previous_action,
         )
         pain = ctx.observation.pain_signal
         if action.name == "REST" and not ctx.microsleep_active and pain > bg.freeze_pain_threshold:
             self._freeze_level += 1.0
         else:
             self._freeze_level *= bg.freeze_decay
+        ctx.previous_action = previous_action
         ctx.action_scores = scores
         ctx.value_signals = (value_ahead, value_left, value_right)
         ctx.criticality_gain = crit_gain

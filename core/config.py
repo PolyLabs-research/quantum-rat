@@ -462,6 +462,13 @@ class BasalGangliaConfig:
     turn_bias: float = 0.0  # constant bias: >0 favours TURN_LEFT, <0 favours TURN_RIGHT
     vision_gain: float = 0.6  # drive toward a visible target (0 => blind to vision)
     wall_avoid_gain: float = 0.6  # drive to turn away from a close wall ahead
+    # M3 step 1b (docs/prereg/m3_corridor.md, G45). wall_avoid_range: the fraction of sensors.vision_range within which
+    # a wall on the centre ray counts as ahead (closeness max(0, 1 - dist / range)); 1.0, every result to date, reads
+    # a wall up to 1.2 m away, so in a 0.1 m corridor a heading ~5 degrees off the axis already has a "wall ahead".
+    # turn_commitment: added to the previous tick's turn channel while a wall is ahead, so a wall dead ahead does not
+    # leave the two turns tied tick after tick (the agent dithered at a track's ends, G44). 0 is off.
+    wall_avoid_range: float = 1.0
+    turn_commitment: float = 0.0
     dopamine_explore_gain: float = 0.6  # how strongly low dopamine boosts exploration
     # Neuromodulator control couplings (0 disables; defaults are no-ops at baseline
     # modulator levels NE=0, ACh=0, 5HT=0.5, so default behaviour is unchanged).

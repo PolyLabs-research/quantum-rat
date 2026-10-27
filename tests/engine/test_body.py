@@ -114,3 +114,27 @@ def test_the_engine_runs_the_rodent_body_deterministically_and_the_defaults_are_
 def test_the_body_option_leaves_both_baselines_bit_identical() -> None:
     for profile, cfg in (("legacy", EngineConfig.legacy()), ("research", EngineConfig.research())):
         assert hash_trace(Engine(seed=DEFAULT_SEED, config=cfg).run(DEFAULT_TICKS)) == load_baseline(profile)
+
+
+def test_the_corridor_options_default_off_and_the_commitment_needs_a_wall_ahead() -> None:
+    """M3 step 1b (G45): wall_avoid_range 1.0 and turn_commitment 0 are every result to date; the commitment adds to
+    the previous tick's turn only while a wall is ahead."""
+    from brain.systems.basal_ganglia import _channel_scores
+    from brain.contracts import Observation, VisionRay
+    from core.config import BasalGangliaConfig
+
+    bg = BasalGangliaConfig()
+    assert bg.wall_avoid_range == 1.0 and bg.turn_commitment == 0.0 and EngineConfig.research().basal_ganglia.turn_commitment == 0.0
+    wall_ahead = Observation(vision_rays=(VisionRay(dist=0.05, obj_type="wall", angle=0.0),), whisker_hits=(False, False), pain_signal=0.0,
+                             forward_delta=0.0, turn_delta=0.0)
+    clear = Observation(vision_rays=(VisionRay(dist=0.9, obj_type="wall", angle=0.0),), whisker_hits=(False, False), pain_signal=0.0,
+                        forward_delta=0.0, turn_delta=0.0)
+    on = BasalGangliaConfig(wall_avoid_range=1.0 / 6.0, turn_commitment=0.3)
+    base = _channel_scores(wall_ahead, 0.0, 1.0, False, on, {}, previous_action="FORWARD")
+    committed = _channel_scores(wall_ahead, 0.0, 1.0, False, on, {}, previous_action="TURN_LEFT")
+    assert committed["TURN_LEFT"] == pytest.approx(base["TURN_LEFT"] + 0.3) and committed["TURN_RIGHT"] == base["TURN_RIGHT"]
+    # 0.9 of the vision range away is beyond the 1/6 range: no wall ahead, no commitment, no wall term.
+    far = _channel_scores(clear, 0.0, 1.0, False, on, {}, previous_action="TURN_LEFT")
+    assert far["TURN_LEFT"] == 0.0 and far["FORWARD"] == on.forward_bias
+    # Off (the defaults): the same wall 0.9 of the range away still counts, as it always has.
+    assert _channel_scores(clear, 0.0, 1.0, False, bg, {}, previous_action="TURN_LEFT")["TURN_LEFT"] > 0.0

@@ -101,7 +101,11 @@ def test_quick_run_is_identical_across_workers_and_refuses_the_committed_directo
     rg.main(["--quick", "--seeds", "1", "--workers", "1", "--sources", "sr", "--reward-rule", "per_feature", "--out", str(explor)])
     m = json.loads((explor / "gate_manifest.json").read_text())
     assert m["reward_rule"] == "per_feature" and m["exploratory"] is True and m["sources"] == ["sr"] and m["full_evaluation"] is False
-    assert set(rg.PREREGS) == {"docs/prereg/m2b_gate.md", "docs/prereg/m2b_gate_confirmatory.md", "docs/prereg/m3_body.md"}
+    assert set(rg.PREREGS) == {"docs/prereg/m2b_gate.md", "docs/prereg/m2b_gate_confirmatory.md", "docs/prereg/m3_body.md",
+                               "docs/prereg/m3_corridor.md"}
+    assert rg.committed_dir("docs/prereg/m3_corridor.md", "discrete").as_posix() == "docs/data/m3/corridor/gate/discrete"
+    corridor = rg.gate_config("sr", "per_feature", None, "discrete", True)
+    assert corridor.basal_ganglia.turn_commitment == 0.3 and abs(corridor.basal_ganglia.wall_avoid_range - 1 / 6) < 1e-15
     assert rg.PREREGS["docs/prereg/m2b_gate_confirmatory.md"]["seeds"] == tuple(range(31, 61))
     # M3 step 1 (G44): the rodent bodies on fresh seeds, one committed directory per body.
     assert rg.PREREGS["docs/prereg/m3_body.md"]["seeds"] == tuple(range(61, 91))

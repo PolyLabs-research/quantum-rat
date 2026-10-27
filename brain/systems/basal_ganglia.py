@@ -25,8 +25,12 @@ TURN_THRUST = 0.3  # forward thrust of a TURN action
 TURN_RADIUS = TURN_THRUST / (2.0 * math.sin(TURN_STEP / 2.0))
 
 
-def _vision_signals(observation: Observation):
-    """Extract target/wall closeness ahead, left and right from vision rays."""
+def _vision_signals(observation: Observation, wall_range: float = 1.0):
+    """Extract target/wall closeness ahead, left and right from vision rays.
+
+    ``wall_range`` (``BasalGangliaConfig.wall_avoid_range``) is the fraction of the vision range within which a wall
+    on the centre ray counts as ahead: its closeness is ``max(0, 1 - dist / wall_range)`` (1.0, the default, is
+    ``1 - dist``, every result to date; M3 step 1b, G45)."""
     center_target = center_wall = 0.0
     left_target = right_target = 0.0
     left_open = right_open = 0.0
@@ -36,7 +40,7 @@ def _vision_signals(observation: Observation):
         if fwd.obj_type == "target":
             center_target = 1.0 - fwd.dist
         elif fwd.obj_type == "wall":
-            center_wall = 1.0 - fwd.dist
+            center_wall = 1.0 - fwd.dist if wall_range == 1.0 else max(0.0, 1.0 - fwd.dist / wall_range)
     for ray in rays:
         closeness = 1.0 - ray.dist
         if ray.angle > 1e-6:
@@ -63,8 +67,13 @@ def _channel_scores(
     criticality_gain: float = 1.0,
     freeze_habituation: float = 1.0,
     pacing_rest: float = 0.0,
+    previous_action: Optional[str] = None,
 ) -> Dict[str, float]:
     """Score each action channel. A pure function of its arguments.
+
+    ``previous_action`` (the action chosen on the previous tick) feeds the turn commitment
+    (``config.turn_commitment``, M3 step 1b, G45): while a wall is ahead, the turn in progress gets that much extra, so
+    a wall dead ahead does not leave the left and right turns tied tick after tick.
 
     ``freeze_habituation`` (h in [0, 1]) scales only the pain->REST drive, so a
     freeze habituates; ``pacing_rest`` is an extra REST drive while the agent is
@@ -75,7 +84,7 @@ def _channel_scores(
         return {"REST": 1.0}
 
     pain = observation.pain_signal
-    c_target, c_wall, l_target, r_target, l_open, r_open = _vision_signals(observation)
+    c_target, c_wall, l_target, r_target, l_open, r_open = _vision_signals(observation, config.wall_avoid_range)
 
     # Neuromodulatory control (all no-ops at baseline levels DA=0.5, NE=0, ACh=0, 5HT=0.5):
     da = modulators.get("DA", 0.5)
@@ -126,6 +135,8 @@ def _channel_scores(
     scores["REST"] = rest_pain_gain * pain * freeze_habituation + 0.1 * (1.0 - trn_gain) + rest_patience
     if pacing_rest:
         scores["REST"] += pacing_rest
+    if config.turn_commitment > 0.0 and c_wall > 0.0 and previous_action in ("TURN_LEFT", "TURN_RIGHT"):
+        scores[previous_action] += config.turn_commitment
     return scores
 
 
@@ -142,6 +153,7 @@ def channel_terms(
     criticality_gain: float = 1.0,
     freeze_habituation: float = 1.0,
     pacing_rest: float = 0.0,
+    previous_action: Optional[str] = None,
 ) -> Dict[str, Dict[str, float]]:
     """Each channel's score as its named terms: a readout, not the decision.
 
@@ -150,14 +162,14 @@ def channel_terms(
     pins this against the engine's own scores). Names: ``bias`` (FORWARD's
     forward_bias × the TRN gate; a TURN's turn_bias), ``vision``, ``memory``
     (the value signal × value_gain), ``wall`` (avoidance), ``pain``, ``novelty``
-    (the novelty bit's terms), and REST's ``gate`` (the narrowed TRN gate),
+    (the novelty bit's terms), a TURN's ``commit`` (the turn commitment, G45), and REST's ``gate`` (the narrowed TRN gate),
     ``patience`` (serotonin) and ``pacing``; ``microsleep`` alone while asleep.
     Nothing in the engine reads it; the console does (decisions G39).
     """
     if microsleep_active:
         return {"REST": {"microsleep": 1.0}}
     pain = observation.pain_signal
-    c_target, c_wall, l_target, r_target, l_open, r_open = _vision_signals(observation)
+    c_target, c_wall, l_target, r_target, l_open, r_open = _vision_signals(observation, config.wall_avoid_range)
     da = modulators.get("DA", 0.5)
     ne = modulators.get("NE", 0.0)
     ach = modulators.get("ACh", 0.0)
@@ -168,6 +180,9 @@ def channel_terms(
     pain_avoidance = config.pain_avoidance * (1.0 + config.ne_threat_gain * ne)
     rest_pain_gain = config.rest_pain_gain * (1.0 + config.ne_threat_gain * ne)
     rest_patience = config.fiveht_patience_gain * (fiveht - 0.5)
+    committed = config.turn_commitment > 0.0 and c_wall > 0.0
+    commit_left = config.turn_commitment if committed and previous_action == "TURN_LEFT" else 0.0
+    commit_right = config.turn_commitment if committed and previous_action == "TURN_RIGHT" else 0.0
     return {
         "FORWARD": {
             "bias": config.forward_bias * trn_gain,
@@ -183,6 +198,7 @@ def channel_terms(
             "memory": config.value_gain * value_left,
             "bias": max(config.turn_bias, 0.0),
             "wall": config.wall_avoid_gain * c_wall * (0.5 + l_open),
+            "commit": commit_left,
         },
         "TURN_RIGHT": {
             "novelty": config.novelty_turn_gain * wm_novelty,
@@ -190,6 +206,7 @@ def channel_terms(
             "memory": config.value_gain * value_right,
             "bias": max(-config.turn_bias, 0.0),
             "wall": config.wall_avoid_gain * c_wall * (0.5 + r_open),
+            "commit": commit_right,
         },
         "REST": {
             "pain": rest_pain_gain * pain * freeze_habituation,
@@ -442,6 +459,7 @@ def select_action_with_scores(
     freeze_habituation: float = 1.0,
     pacing_rest: float = 0.0,
     action_stream: Optional[RNGStream] = None,
+    previous_action: Optional[str] = None,
 ) -> Tuple[Action, Dict[str, float]]:
     """Select an action and also return the channel scores that produced it.
 
@@ -467,6 +485,7 @@ def select_action_with_scores(
         criticality_gain,
         freeze_habituation,
         pacing_rest,
+        previous_action,
     )
     if config.softmax_temperature > 0.0:
         if action_stream is None:
@@ -491,6 +510,7 @@ def select_action(
     freeze_habituation: float = 1.0,
     pacing_rest: float = 0.0,
     action_stream: Optional[RNGStream] = None,
+    previous_action: Optional[str] = None,
 ) -> Action:
     action, _ = select_action_with_scores(
         observation,
@@ -506,6 +526,7 @@ def select_action(
         freeze_habituation,
         pacing_rest,
         action_stream,
+        previous_action,
     )
     return action
 

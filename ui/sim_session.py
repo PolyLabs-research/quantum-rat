@@ -435,7 +435,10 @@ class SimSession:
             add("goal", "Goal memory (oracle homing)", "off", "no remembered goal")
         add("vision", "Vision drive", "active" if bg.vision_gain > 0 else "off",
             f"gain {bg.vision_gain:g}; {se.vision_rays} rays over {se.fov:g} rad, range {se.vision_range:g}; a visible target mutes memory (cue gate {bg.cue_gate_gain:g})")
-        add("wall", "Wall avoidance", "active" if bg.wall_avoid_gain > 0 else "off", f"gain {bg.wall_avoid_gain:g}; a wall ahead also dims memory's push to go straight (gate {bg.wall_gate_gain:g})")
+        reach = "the whole vision range" if bg.wall_avoid_range == 1.0 else f"{bg.wall_avoid_range * se.vision_range * cfg.units.metres_per_unit:.2g} m"
+        commit = f"; turn commitment {bg.turn_commitment:g}" if bg.turn_commitment > 0 else ""
+        add("wall", "Wall avoidance", "active" if bg.wall_avoid_gain > 0 else "off",
+            f"gain {bg.wall_avoid_gain:g} for a wall ahead within {reach}{commit}; a wall ahead also dims memory's push to go straight (gate {bg.wall_gate_gain:g})")
         add("pain", "Pain", "active", f"avoidance {bg.pain_avoidance:g} on FORWARD; freeze (pain → REST) {bg.rest_pain_gain:g}, habituating")
         if bg.softmax_temperature > 0:
             add("select", "Action selection", "active", f"one seeded softmax draw per tick at τ {bg.softmax_temperature:g}: the highest score need not win")
@@ -497,7 +500,8 @@ class SimSession:
         if ctx is not None and obs is not None and scores:
             pacing_rest = bg.pace_rest_bonus if ctx.pacing_active else 0.0
             raw = channel_terms(obs, ctx.wm_novelty, ctx.trn_gate_value, ctx.microsleep_active, bg, ctx.neuromodulators,
-                                *ctx.value_signals, ctx.criticality_gain, ctx.freeze_habituation, pacing_rest)
+                                *ctx.value_signals, ctx.criticality_gain, ctx.freeze_habituation, pacing_rest,
+                         ctx.previous_action)
             terms = {ch: {k: _r(v) for k, v in t.items()} for ch, t in raw.items()}
             exact = selection_probabilities(scores, bg.softmax_temperature)
             probs = {k: _r(v) for k, v in exact.items()}
