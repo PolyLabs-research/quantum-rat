@@ -31,6 +31,15 @@ above, run at a later commit, measure the scenarios as the console now runs them
 | `hidden_food_research_scenario_u4` | hidden food on research as the console runs it since G43 (U = 4), seeds 1–8, at `2de623c` |
 | `beacon_research_scenario_u4` | beacon on research as the console runs it since G43 (U = 4), seeds 1–8, at `2de623c` |
 
+**Reproducing them after G46.** Every table here was made while a vision ray still stopped at a hidden (or eaten)
+food site, which the action selection read as an obstacle (the audit of 2026-10-27, `docs/decisions.md` G46). The
+research profile no longer senses such sites, so the `*_research` hidden-food commands above, run at a later commit,
+measure the corrected agent; to reproduce the tables here add `--set sensors.unseen_block_rays=true` (and, for
+exactness, `--set reward.shape_hidden=true`, which changes nothing on research). The legacy profile keeps the old
+sensing, and `experiments/sr_unlearning.py` pins it for its registered runs. The beacon and open-field tables have no
+hidden object and are unaffected. What the hidden-food numbers become without the leak is G46's retest
+(`docs/data/g46/`).
+
 ## The SR's unlearning rate (G41, preregistered: `docs/prereg/sr_unlearning_rate.md`)
 
 `experiments/sr_unlearning.py`, hidden food on the research profile, 3,000 ticks; the files are

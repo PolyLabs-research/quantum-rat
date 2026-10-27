@@ -48,6 +48,10 @@ PILOT_SEEDS = tuple(range(1, 9))
 CONFIRMATORY_SEEDS = tuple(range(9, 17))
 TICKS = 3000
 QUICK_SEEDS = (1, 2)
+# The pilot and the confirmatory ran before the audit of 2026-10-27 (decisions G46), when a vision ray still stopped at a
+# hidden food site (the agent sensed the sites and turned away from them). Pinned so the committed tables regenerate as
+# registered; the research profile no longer senses them, and G46 re-measures the question without it.
+PRE_G46: Dict[str, Any] = {"sensors.unseen_block_rays": True, "reward.shape_hidden": True}
 QUICK_TICKS = 150
 OUTPUT_FILES = ("unlearning_per_seed.csv", "unlearning_bouts.csv", "unlearning_summary.json", "manifest.json")
 
@@ -171,7 +175,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     ticks = args.ticks or (QUICK_TICKS if args.quick else TICKS)
     arms = arms_for(rates)
     started = time.perf_counter()
-    results = ca.run_all(SCENARIO, PROFILE, seeds, ticks, {}, args.workers, arms=arms)
+    results = ca.run_all(SCENARIO, PROFILE, seeds, ticks, PRE_G46, args.workers, arms=arms)
     digests = {r["seed"]: r["digest"] for r in results if r["arm"] == BASELINE}
     try:
         guard: Any = pseudo_replication_guard([digests[s] for s in seeds])
@@ -185,12 +189,12 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     ca.write_tables(out, SCENARIO, results, args.keep_records, prefix="unlearning")
     summary = {
         "phase": args.phase, "scenario": SCENARIO, "profile": PROFILE, "seeds": list(seeds), "ticks": ticks,
-        "rates": list(rates), "arms": arms, "guard": guard, "prereg": args.prereg,
+        "rates": list(rates), "arms": arms, "overrides": PRE_G46, "guard": guard, "prereg": args.prereg,
         "chosen_rate": chosen, "bounds": ca._jsonable(verdict), **analysis,
         "status": {f"{r['arm']}_s{r['seed']}": r["status"] for r in results}, "wall_seconds": round(wall, 1),
     }
     (out / "unlearning_summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True))
-    _, cfg = ca.arm_config(SCENARIO, PROFILE, arm_name(chosen), {}, arms)
+    _, cfg = ca.arm_config(SCENARIO, PROFILE, arm_name(chosen), PRE_G46, arms)
     manifest = build_manifest(cfg, protocol=f"sr_unlearning:{args.phase}", seeds=list(seeds), ticks_requested=ticks,
                               extra={"profile_requested": PROFILE, "arms": arms, "prereg": args.prereg, "phase": args.phase,
                                      "experiment": "experiments.sr_unlearning"})

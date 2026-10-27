@@ -424,15 +424,17 @@ class Engine:
         ctx.wm_load = wm_state.load
         ctx.wm_novelty = wm_state.novelty
 
-    def _nearest_target(self, pos: Tuple[float, float]) -> Tuple[float, WorldObject] | None:
-        """(surface distance, object) of the nearest rewarding object, if any.
+    def _nearest_target(self, pos: Tuple[float, float],
+                        kinds: Tuple[str, ...] = ("target", "hidden")) -> Tuple[float, WorldObject] | None:
+        """(surface distance, object) of the nearest rewarding object of ``kinds``, if any.
 
         A "hidden" goal still rewards on contact (it is physically present),
-        but it is invisible to vision (see brain.systems.basal_ganglia).
+        but it is invisible to vision (``core.sensors.UNSEEN_KINDS``, decisions G46)
+        and, unless ``reward.shape_hidden``, to approach shaping.
         """
         best: Tuple[float, WorldObject] | None = None
         for o in self.world.objects:
-            if o.kind not in ("target", "hidden"):
+            if o.kind not in kinds:
                 continue
             d = ((pos[0] - o.x) ** 2 + (pos[1] - o.y) ** 2) ** 0.5 - o.radius
             if best is None or d < best[0]:
@@ -469,31 +471,32 @@ class Engine:
         reward = -r.pain_weight * pain
         primary = -r.pain_weight * pain if pain > self.map_pain_floor() else 0.0
         learn_shaping = self.config.value_memory.learn_shaping
+        # Contact reads every rewarding object, a hidden one included; shaping reads only what the agent can see
+        # (decisions G46), unless reward.shape_hidden restores the pre-G46 hot/cold signal toward hidden food.
         nearest = self._nearest_target(ctx.pos)
-        ctx.target_contact = False
-        if nearest is None:
+        shaped = nearest if r.shape_hidden else self._nearest_target(ctx.pos, ("target",))
+        ctx.target_contact = nearest is not None and nearest[0] <= 0.0
+        if shaped is None:
             self._prev_target_dist = None
             self._prev_target = None
-            ctx.map_reward = reward if learn_shaping else primary
-            return reward
-        dist, obj = nearest
-        ctx.target_contact = dist <= 0.0
-        # Approach shaping rewards closing the distance to the *same* target.
-        # When the target set changes under the agent (food eaten, a beacon
-        # moved), the distance jumps for reasons that are not the agent's
-        # doing; charging that jump would punish every successful collection.
-        same = (
-            self._prev_target is not None
-            and self._prev_target[0] is obj
-            and self._prev_target[1:] == (obj.x, obj.y)
-        )
-        if self._prev_target_dist is not None and same:
-            reward += r.approach_weight * (self._prev_target_dist - dist)
-        if dist <= 0.0:
+        else:
+            dist, obj = shaped
+            # Approach shaping rewards closing the distance to the *same* target.
+            # When the target set changes under the agent (food eaten, a beacon
+            # moved), the distance jumps for reasons that are not the agent's
+            # doing; charging that jump would punish every successful collection.
+            same = (
+                self._prev_target is not None
+                and self._prev_target[0] is obj
+                and self._prev_target[1:] == (obj.x, obj.y)
+            )
+            if self._prev_target_dist is not None and same:
+                reward += r.approach_weight * (self._prev_target_dist - dist)
+            self._prev_target_dist = dist
+            self._prev_target = (obj, obj.x, obj.y)
+        if ctx.target_contact:
             reward += r.contact_bonus
             primary += r.contact_bonus
-        self._prev_target_dist = dist
-        self._prev_target = (obj, obj.x, obj.y)
         ctx.map_reward = reward if learn_shaping else primary
         return reward
 

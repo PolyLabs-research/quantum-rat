@@ -107,14 +107,23 @@ def _ray_circle_distance(
     return None
 
 
-def _cast_ray(agent: Agent, world: World, rel_angle: float, max_range: float) -> Tuple[float, str]:
-    """Cast one ray; return (normalized distance in [0,1], object kind or "")."""
+UNSEEN_KINDS = ("hidden", "collected")  # objects vision does not see (decisions G46)
+
+
+def _cast_ray(agent: Agent, world: World, rel_angle: float, max_range: float,
+              unseen_block: bool = False) -> Tuple[float, str]:
+    """Cast one ray; return (normalized distance in [0,1], object kind or "").
+
+    An object whose kind is in ``UNSEEN_KINDS`` is passed through unless ``unseen_block``
+    (``SensorConfig.unseen_block_rays``, the pre-G46 behaviour) is set."""
     phi = agent.heading + rel_angle
     dx, dy = math.cos(phi), math.sin(phi)
     px, py = agent.pos
     nearest = _ray_wall_distance(px, py, dx, dy, world.bounds)
     kind = "wall"
     for obj in world.objects:
+        if obj.kind in UNSEEN_KINDS and not unseen_block:
+            continue
         t = _ray_circle_distance(px, py, dx, dy, obj.x, obj.y, obj.radius)
         if t is not None and t < nearest:
             nearest = t
@@ -165,13 +174,13 @@ def gather_observation(
 
     rays = []
     for angle in _ray_angles(config.vision_rays, config.fov):
-        dist, kind = _cast_ray(agent, world, angle, config.vision_range)
+        dist, kind = _cast_ray(agent, world, angle, config.vision_range, config.unseen_block_rays)
         if config.noise > 0.0 and vision_stream is not None:
             dist = _normalize(dist + vision_stream.uniform(-config.noise, config.noise), 0.0, 1.0)
         rays.append(VisionRay(dist=dist, obj_type=kind, angle=_normalize(angle, -math.pi, math.pi)))
 
-    left = _cast_ray(agent, world, config.whisker_angle, config.vision_range)[0] * config.vision_range
-    right = _cast_ray(agent, world, -config.whisker_angle, config.vision_range)[0] * config.vision_range
+    left = _cast_ray(agent, world, config.whisker_angle, config.vision_range, config.unseen_block_rays)[0] * config.vision_range
+    right = _cast_ray(agent, world, -config.whisker_angle, config.vision_range, config.unseen_block_rays)[0] * config.vision_range
     whisker_hits = (left < config.whisker_range, right < config.whisker_range)
 
     pain_signal = _pain_from_hazards(agent, world, config.pain_zone)

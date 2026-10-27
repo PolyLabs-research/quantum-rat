@@ -172,6 +172,12 @@ class SensorConfig:
     # body's heading) of the outward normal of each arena wall the body touches, x walls before y walls; empty when
     # it touches none. Off, the field is None. Touch is exact: it says which side of the body is against a wall.
     wall_contact_sensing: bool = False
+    # unseen_block_rays (decisions G46): whether a "hidden" or "collected" object stops a vision ray or a whisker as an
+    # obstacle would. True (the legacy value, every result before G46): the ray stops at the object and reports its
+    # kind, and the action selection's side openness reads it as an obstacle, so the agent senses every hidden food
+    # site and turns away from it (the audit of 2026-10-27). False (the research profile from G46): such an object is
+    # not seen at all, and a ray passes through it to whatever lies behind.
+    unseen_block_rays: bool = True
 
     def __post_init__(self) -> None:
         if not (math.isfinite(self.heading_oracle_noise) and self.heading_oracle_noise >= 0.0):
@@ -222,7 +228,13 @@ class NeuromodConfig:
 
 @dataclass
 class RewardConfig:
-    approach_weight: float = 1.0  # reward per unit distance closed toward the nearest target
+    approach_weight: float = 1.0  # reward per unit distance closed toward the nearest visible target
+    # shape_hidden (decisions G46): whether approach shaping also counts a "hidden" goal. True (the legacy value, every
+    # result before G46): the shaped reward tells the agent, tick by tick, whether it is closing on food it cannot
+    # see (a hot/cold signal that reaches action selection through DA and 5HT on the legacy profile). False (the
+    # research profile from G46): shaping reads the nearest *visible* target only; a hidden goal still rewards on
+    # contact.
+    shape_hidden: bool = True
     contact_bonus: float = 1.0  # reward for touching a target
     pain_weight: float = 1.0  # penalty per unit pain signal
 
@@ -656,6 +668,13 @@ class EngineConfig:
           map did; the map still learns). The research baselines were
           regenerated once for it (docs/profiles.md).
 
+        - The audit of 2026-10-27 (docs/decisions.md G46): ``sensors.unseen_block_rays
+          = False`` (a hidden or eaten object is not seen: vision rays and whiskers
+          pass through it, where they used to stop at it and report its kind) and
+          ``reward.shape_hidden = False`` (approach shaping reads visible targets
+          only; a hidden goal still rewards on contact). The research baselines
+          contain no hidden object and are unchanged by them.
+
         Nothing else differs. Not yet in this profile: replay as an event
         stream inside the engine (M3; the M2a linear-track experiments run
         their replay rules outside the engine, experiments.linear_track_replay).
@@ -690,6 +709,9 @@ class EngineConfig:
         cfg.place.enabled = True
         cfg.place.reward_rule = "per_feature"
         cfg.value_memory.source = "sr"
+        # The audit of 2026-10-27 (docs/decisions.md G46): nothing hidden is sensed, by vision or by shaping.
+        cfg.sensors.unseen_block_rays = False
+        cfg.reward.shape_hidden = False
         return cfg
 
     def stochastic_elements(self) -> List[str]:
