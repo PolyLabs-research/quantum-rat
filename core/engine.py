@@ -38,7 +38,7 @@ from core.neuromodulation import NeuromodulatorSystem
 from core.physiology import Astrocyte
 from core.pipeline import PIPELINE_ORDER, Pipeline
 from core.rng import RNG, RNGStream
-from core.sensors import gather_observation, observation_checksum
+from core.sensors import FREE_SPACE_ANGLES, gather_observation, observation_checksum
 from core.world import World, WorldObject
 from metrics.schema import TickData
 
@@ -207,6 +207,10 @@ class Engine:
             raise ValueError("spatial.heading_source 'oracle' needs sensors.heading_oracle = True")
         if c.spatial.wall_reset and not c.sensors.wall_contact_sensing:
             raise ValueError("spatial.wall_reset needs sensors.wall_contact_sensing = True")
+        if c.value_memory.reachable_probes and not c.sensors.free_space_sensing:
+            raise ValueError("value_memory.reachable_probes needs sensors.free_space_sensing = True")
+        if FREE_SPACE_ANGLES != (0.0, *self.VALUE_FAN_OFFSETS, *(-o for o in self.VALUE_FAN_OFFSETS)):
+            raise ValueError("core.sensors.FREE_SPACE_ANGLES must be the value fan (ahead, left, right)")
         if c.spatial.landmark_gain > 0.0 and not c.sensors.landmark_sensing:
             raise ValueError("spatial.landmark_gain > 0 needs sensors.landmark_sensing = True")
         self.spatial = SpatialSystem(
@@ -513,6 +517,8 @@ class Engine:
     # fans reach ~80 degrees so a value peak off to the side reads as "turn that
     # way" rather than a false local maximum where every sampled step is downhill.
     VALUE_FAN_OFFSETS = (TURN_STEP, 0.8, 1.4)
+    # How far short of a sensed solid a reachable probe stops (units; value_memory.reachable_probes).
+    PROBE_CLEARANCE = 0.05
     # Largest sampled advantage below which the map counts as locally flat.
     VALUE_FLAT = 1e-3
 
@@ -591,16 +597,20 @@ class Engine:
             return 0.0, 0.0, 0.0  # no value steering (M2b step 4's control)
         look = self.config.value_memory.lookahead
         here = self._value_at(ctx.grid_x, ctx.grid_y)
+        # reachable_probes (M3 step 2, draft): each direction is read only as far as the agent sees it could go.
+        free = ctx.observation.free_space if self.config.value_memory.reachable_probes else None
+        reach = dict(zip(FREE_SPACE_ANGLES, free)) if free is not None else {}
 
-        def advantage(theta: float) -> float:
-            gx = ctx.grid_x + look * math.cos(theta)
-            gy = ctx.grid_y + look * math.sin(theta)
+        def advantage(theta: float, off: float) -> float:
+            dist = min(look, max(0.0, reach[off] - self.PROBE_CLEARANCE)) if reach else look
+            gx = ctx.grid_x + dist * math.cos(theta)
+            gy = ctx.grid_y + dist * math.sin(theta)
             return self._value_at(gx, gy) - here
 
         hd = ctx.hd_angle
-        ahead = advantage(hd)
-        left = [advantage(hd + off) for off in self.VALUE_FAN_OFFSETS]
-        right = [advantage(hd - off) for off in self.VALUE_FAN_OFFSETS]
+        ahead = advantage(hd, 0.0)
+        left = [advantage(hd + off, off) for off in self.VALUE_FAN_OFFSETS]
+        right = [advantage(hd - off, -off) for off in self.VALUE_FAN_OFFSETS]
         scale = max(abs(x) for x in [ahead, *left, *right])
         vm = self.config.value_memory
         ctx.goal_vector_active = False

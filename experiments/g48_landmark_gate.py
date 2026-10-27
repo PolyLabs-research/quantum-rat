@@ -217,7 +217,8 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
             else:
                 parts.append(f"{src} {float(np.mean(_vec(groups, seeds, condition=c, source=src, session='hidden', group='all'))):.3f}")
         err = float(np.mean(_vec(groups, seeds, "estimate_error", condition=c, source="sr", session="hidden", group="all")))
-        spread = float(np.nanmean(_vec(groups, seeds, "frame_spread", condition=c, source="sr", session="hidden", group="all")))
+        sv = _vec(groups, seeds, "frame_spread", condition=c, source="sr", session="hidden", group="all")
+        spread = float(np.nanmean(sv)) if np.isfinite(sv).any() else math.nan  # undefined with no arrival at all
         print(f"  {c:24s} {'  '.join(parts)}   error {err:.2f}  frame spread {spread:.2f}")
     print(f"wrote {out} in {time.perf_counter() - started:.1f} s")
     return {"groups": groups, "effects": eff}
