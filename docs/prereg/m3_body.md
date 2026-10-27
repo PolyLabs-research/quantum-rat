@@ -91,6 +91,28 @@ All on `EngineConfig.research()` (`experiments/body_characterisation.py`), seeds
 | passes | fails | The body runs corridors but breaks navigation: diagnose (most likely the turn-in-place against the value steering's fan) before step 2 |
 | neither passes | any | The body is not adopted; step 2 uses forced laps (G35's protocol) and the gap is recorded |
 
+## Amendment 1 (2026-10-27, after building the body and before the registered run)
+
+**Disclosed: a four-seed smoke of the track measure** (seeds 1–4, which are among the registered seeds 1–30; the three
+conditions; 3,000 ticks; the probe's own counting code, not `experiments/body_characterisation.py`):
+
+| condition | median ticks per lap | stall share as registered | side-wall contact | FORWARD share |
+|---|---|---|---|---|
+| `discrete` | 97 | 37.6% | 66% | 24% |
+| `rodent_quiet` | 114 | 57.7% | 68% | 25% |
+| `rodent` | 152 | 17.6% | 33% | 25% |
+
+It shows two things. **The stall measure as registered is wrong for this body**: it counts every non-REST tick
+without displacement, and a turn in place (the rodent body's TURN, `turn_speed` 0) is exactly that, so it scores a
+turn in place as a stall. **Redefined: the stall share is the share of ticks whose action is FORWARD and whose
+displacement is below 1e-6 units** (a run that does not move: the body pushing into a wall). It is the same measure
+for the discrete body, whose TURN always moves. The smoke also shows T1's lap bound failing for both rodent conditions
+on those seeds, and the reason is not the body alone: the agent still chooses TURN on three ticks in four, because
+the action selection counts a wall as close when the centre vision ray meets it within the vision range (12 units,
+1.2 m), so in a 0.1 m corridor any heading more than about 5° off the axis puts a side wall "ahead". **The bounds,
+the conditions and the seeds are unchanged by this amendment**; the run goes ahead as registered, and a fix to the
+wall signal, if one is tried, is a new preregistered step.
+
 ## What would change this document
 
 Nothing after the first run. A parameter found wanting is a new preregistered step, not an amendment.
