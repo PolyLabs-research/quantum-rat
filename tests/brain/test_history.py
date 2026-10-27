@@ -54,6 +54,17 @@ def test_the_schema_learns_that_a_place_just_eaten_at_is_empty() -> None:
     assert h.schema["taste"][0] < -0.5  # just after eating here, expect little here
 
 
+def test_the_schema_step_is_bounded_even_at_a_large_rate() -> None:
+    h = History(5, HistorySettings(channels=("taste",), taste_timescales=(10.0, 100.0, 1000.0), reward_context=("taste",)))
+    phi = np.full(5, 0.2)
+    weights = np.ones(5)
+    for _ in range(2000):  # eat everywhere at once, then find nothing, at the unlearning rate of 4 (it must not blow up)
+        h.write(_inputs([1.0] * 5, reward=1.0))
+        h.learn_schema(phi, 0.0 - (weights + h.reward_adjustment()), 1.9)
+        h.decay()
+    assert np.all(np.isfinite(h.schema["taste"])) and np.all(np.abs(h.schema["taste"]) < 10.0)
+
+
 def test_unknown_or_inconsistent_channels_are_refused() -> None:
     with pytest.raises(ValueError):
         History(2, HistorySettings(channels=("smell",)))

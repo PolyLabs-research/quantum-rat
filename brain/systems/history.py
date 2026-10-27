@@ -153,9 +153,17 @@ class History:
         return adj
 
     def learn_schema(self, phi: np.ndarray, errors: np.ndarray, rate: float) -> None:
-        """u_ck += rate * sum_i phi_i h_ck,i e_i (phi normalised to sum 1; e_i the per-feature reward prediction error)."""
+        """A normalised LMS step on the schema: what history adds to the prediction here is u . x, with x_ck =
+        sum_i phi_i h_ck,i (phi sums to 1) and the error e = sum_i phi_i e_i; u += rate * e * x / (1 + |x|^2).
+
+        Normalised because x sums over every channel and timescale (a plain LMS step at the reward weights' rates,
+        the unlearning rate of 4 included, diverged in the first probe, G52); the 1 in the denominator keeps a place
+        with almost no history from taking a large step on a tiny signal. Stable for rates below 2."""
+        x = {c: np.sum(self.banks[c].traces * phi[None, :], axis=1) for c in self.schema}
+        norm = 1.0 + sum(float(np.sum(v * v)) for v in x.values())
+        e = float(np.sum(phi * errors))
         for c, u in self.schema.items():
-            u += rate * np.sum(self.banks[c].traces * (phi * errors)[None, :], axis=1)
+            u += rate * e * x[c] / norm
 
     def familiarity(self, phi: np.ndarray) -> float:
         """The familiarity of where the agent is: the visit trace averaged over the active place features (phi sums to 1)."""

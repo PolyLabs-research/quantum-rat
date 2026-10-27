@@ -569,7 +569,9 @@ class Engine:
             else:  # G52: each feature predicts R + what its history adds; R and the schema learn from the same error
                 errors = reward - (self.sr_weights + adjustment)
                 self.sr_weights += rate * phi * errors
-                self.history.learn_schema(phi, errors, rate)
+                # The schema learns at the reward learning rate always, not the unlearning rate (which is R's own
+                # answer to stale reward); its step is normalised (History.learn_schema).
+                self.history.learn_schema(phi, errors, self.config.place.reward_learning_rate)
         else:
             norm = float((phi * phi).sum())
             if norm > 0.0:
