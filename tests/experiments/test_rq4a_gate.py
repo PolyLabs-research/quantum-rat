@@ -171,3 +171,30 @@ def test_what_the_estimate_is_told_at_a_trial_start(monkeypatch) -> None:
     carry = _estimates_at_trial_starts("carry", monkeypatch)
     assert all((x, y) != tuple(s) for (x, y, _), s in zip(carry[1:], starts[1:]))  # told nothing
     assert all(a == "REST" for _, _, a in anchor + centre + carry)  # still_start: nothing carried over
+
+
+# --- barriers (decisions G47) -------------------------------------------------------------------------------------
+
+
+def test_the_l_layout_blocks_the_west_and_south_starts_only() -> None:
+    assert rg.blocked_starts("open") == ()
+    assert rg.blocked_starts("L") == (0, 2)
+    for b in rg.LAYOUTS["L"]:
+        assert not b.contains(*rg.GOAL) and not any(b.contains(x, y) for x, y, _ in rg.STARTS)
+
+
+def test_a_session_in_the_l_layout_never_enters_a_barrier() -> None:
+    real_run = rg.Engine.run
+    seen = []
+
+    def run(self, ticks, *, reset=False):
+        out = real_run(self, ticks, reset=reset)
+        seen.extend(td.pos for td in out)
+        return out
+
+    rg.Engine.run = run
+    try:
+        rg.run_session("none", "visible", 7, trials=4, reward_rule="per_feature", layout="L", still_start=True)
+    finally:
+        rg.Engine.run = real_run
+    assert seen and not any(b.contains(x, y) for x, y in seen for b in rg.LAYOUTS["L"])

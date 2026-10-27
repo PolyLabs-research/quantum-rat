@@ -164,3 +164,9 @@ was the leak's and is withdrawn; the gate's 99.8% needs its start anchor (37.7% 
 3.5% without value steering). **From here every M3 result is reported with and without the anchor.** The owner's next
 step is obstacles in the arena, then a retest; the world has no solid object yet, so that is new physics before it is
 a new task.
+
+**Obstacles, part 1 (G47, 2026-10-27).** Solid barriers exist now (`core.world.Barrier`: they stop the body and every
+ray, are seen as walls, and are not reported by touch). With an L-shaped wall between two starts and the goal, the
+SR's memory gets round it on 82% of trials from the walled-off starts (3% without value steering; 41% told nothing of
+the start), by following the wall (seven times the open arena's latency). Part 2, the agent learning to locate itself
+from what it sees, is next.

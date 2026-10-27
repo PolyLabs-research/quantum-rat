@@ -274,6 +274,8 @@ class Engine:
     def _world_step(self, ctx: EngineContext) -> None:
         if self.body is not None:
             self.body.step(self.agent, self.last_action.name, self.world.bounds, ctx.energy_scale)
+            if self.world.barriers:  # the body's own wall following knows the arena's walls only (G47)
+                self.agent.pos = self.world.constrain(self.agent.last_pos, self.agent.pos)
         else:
             self.world.step(action=self.last_action, energy_scale=ctx.energy_scale)
         ctx.pos = self.agent.pos
