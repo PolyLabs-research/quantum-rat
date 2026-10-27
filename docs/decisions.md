@@ -1860,3 +1860,37 @@ The agent's learned memory gets it to a hidden goal behind a wall nothing in it 
 3. Sideways odometry becomes part of any protocol with barriers.
 
 **Impact:** this entry; a note under G47; `docs/prereg/g48_landmark_gate.md` (new); `core/world.py`, `core/sensors.py`, `core/config.py`, `core/engine.py`, `brain/contracts.py`, `brain/systems/spatial.py`; `experiments/rq4a_gate.py`, `experiments/g48_landmark_gate.py` (new); `docs/data/g48/` (new); README, `docs/m3_place_replay.md`; tests in `tests/engine/test_landmarks.py` (new), `tests/sensors/`, `tests/experiments/`.
+
+## G49 — M3 step 2, Part 1: steering that reads only where the agent could go takes it round a wall nearly directly
+
+**Date:** 2026-10-27  
+**Why:** G48 D2: in the L arena with an accurate estimate the value steering pulled the agent into the wall, even toward a visible goal, because it reads the value of places one unit ahead whatever lies between. The owner's step 2 (one action selection for every task, G46 E1's rules) with this folded in; an exploration on spent seeds (`tools/m3_step2_probes/`, disclosed) split it in two, and the owner had Part 1 registered and run (`docs/prereg/m3_step2.md`, `b3bc4fe`), with Part 2 kept as a design. Fresh seeds 215–244 (`docs/data/m3/reachable/`).
+
+### A. What landed (`cd298c1`)
+1. **`sensors.free_space_sensing`**: the Observation carries `free_space`, the distance to the nearest solid (arena wall or barrier) along each direction of the value fan (`core.sensors.FREE_SPACE_ANGLES`, which the engine checks against `VALUE_FAN_OFFSETS`), exact as the wall rangefinder is.
+2. **`value_memory.reachable_probes`**: each direction's probe point is pulled back to 0.05 units short of what the agent sees in that direction, so a place behind a wall is not read as one step away; against a wall a probe reads the place the agent is in. Task-blind; inert without a solid within a unit and without a value source. Both opt-in; both determinism baselines bit-identical.
+3. `rq4a_gate.gate_config(overrides=...)`; `experiments/m3_reachable.py`; tests +5 (suite 697).
+
+### B. Measured (preregistered; every condition with sideways odometry, G48; probes off / on)
+
+| task | probes off | probes on |
+|---|---|---|
+| L arena, told the start, SR hidden, blocked / direct starts | 0.35 / 0.48 | **1.00 / 1.00** |
+| median ticks from the blocked starts (open arena: 20) | 134.5 | **39.8** |
+| L arena, told the start, SR visible | 0.35 | **1.00** |
+| L arena, told nothing with cues, SR hidden (tabular) | 0.68 (0.46) | **0.97** (0.82) |
+| open arena, told the start / told nothing with cues, SR hidden | 1.00 / 0.95 | 1.00 / 0.96 |
+| hidden food, memory steering / none (finds) | 40.4 / 52.4 | 40.4 / 52.4 |
+| track and open field, the reflex alone | | identical |
+| no steering, hidden, every condition | ≤ 0.032 | unchanged |
+
+- **R1 holds**: +0.65 [+0.60, +0.71] from the blocked starts. **R2 holds**: × 1.99 the open arena's latency (G47's wall following took × 7). **R3 holds**. **R4 holds**: the open arena moves by 0.017 at most; hidden food, the track and the open field are identical. **R5 holds**.
+
+### C. Reading
+The agent's learned memory takes it round a wall nothing in it knows about, nearly directly, from every walled-off start, with no steering at the floor: under G46 E1's rules, an emergent detour. The successor features had learned the way round from experience all along; what the probes change is only that the steering no longer reads the value of a place on the far side of a wall as one step away. Nothing else moved. A shortcut test (the wall removed after learning) is the natural next measurement of whether this is a map or a habit.
+
+### D. Decisions this surfaces
+1. **Adopting the instrument** (G49 B's reading rule; the owner's call): sideways odometry, the free-space sense and reachable probes, and with them G48's landmark sense and cue map (inert without cues), into the research profile; the research baselines regenerate once. With it, the four stacked branches (`g46-leaks`, `g47-barriers`, `g48-landmarks`, `m3-step2-draft`) are ready to merge on the owner's say-so.
+2. **Part 2** (the wall response and the track) proceeds as the draft lays out, under the owner's decisions: the strict track bound (the reflex alone must not run laps) and a 300° field of view as sensing.
+
+**Impact:** this entry; `docs/prereg/m3_step2.md` (new); `core/config.py`, `core/sensors.py`, `core/engine.py`, `brain/contracts.py`; `experiments/rq4a_gate.py`, `experiments/m3_reachable.py` (new); `tools/m3_step2_probes/` (new); `docs/data/m3/reachable/` (new); README, `docs/m3_place_replay.md`; tests in `tests/engine/test_reachable_probes.py` (new), `tests/sensors/`, `tests/experiments/`.

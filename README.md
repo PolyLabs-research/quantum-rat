@@ -110,7 +110,11 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   the agent maps itself** (G48: it sees four cues outside the arena as names, bearings and distances,
   never positions, and learns where they are in its own frame) **give back what the start anchor
   gave**: told nothing of its start, it finds the hidden goal on 95% of trials (29% without the cues,
-  100% told the start), nearly as fast. In the console's scenarios the SR steering circled sites it had just emptied and
+  100% told the start), nearly as fast. **Steering that reads only where the agent could go** (G49:
+  each direction's value read only as far as it sees free space) takes it round the wall from every
+  walled-off start (100%, against 35%; 3% without value steering), in twice an open run's time, with
+  nothing else changed: its successor features had learned the way round; the steering had been
+  reading the far side of the wall as one step away. In the console's scenarios the SR steering circled sites it had just emptied and
   cost a third of the hidden-food finds (G40; measured with the hidden sites sensed, G46). A separate unlearning rate removes that (G41) but
   costs the gate 13 points of hidden-goal success at the rate that does it (G42), so the instrument
   keeps one rate and the two renewable-reward scenarios carry the faster one (G43).
