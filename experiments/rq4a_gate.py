@@ -38,6 +38,7 @@ import core  # noqa: F401  # pins the BLAS thread counts before numpy loads
 import numpy as np
 
 from analysis.stats import bootstrap_ci, cliffs_delta, paired_effect
+from core.body import BODY_PRESETS, apply_body_preset
 from core.config import EngineConfig
 from core.engine import Engine
 from core.rng import RNG
@@ -67,15 +68,27 @@ QUICK_TRIALS = 8
 DEFAULT_PREREG = "docs/prereg/m2b_gate.md"
 # Both ran the SR's reward rule with one rate for rewarded and unrewarded ticks (``reward_unlearning_rate`` None): the
 # gate sets that explicitly, so it reproduces as registered whatever the research profile's default (decisions G42).
+# M3 step 1 (docs/prereg/m3_body.md, G44) re-runs the confirmatory settings under the rodent bodies on fresh seeds; its
+# tables go to one directory per body under its "out".
 PREREGS: Dict[str, Dict[str, Any]] = {
-    DEFAULT_PREREG: {"seeds": DEFAULT_SEEDS, "reward_rule": "nlms", "reward_unlearning_rate": None, "out": DEFAULT_OUT},
+    DEFAULT_PREREG: {"seeds": DEFAULT_SEEDS, "reward_rule": "nlms", "reward_unlearning_rate": None, "bodies": ("discrete",),
+                     "out": DEFAULT_OUT},
     "docs/prereg/m2b_gate_confirmatory.md": {"seeds": tuple(range(31, 61)), "reward_rule": "per_feature",
-                                             "reward_unlearning_rate": None,
+                                             "reward_unlearning_rate": None, "bodies": ("discrete",),
                                              "out": Path("docs/data/m2b/gate_confirmatory")},
+    "docs/prereg/m3_body.md": {"seeds": tuple(range(61, 91)), "reward_rule": "per_feature", "reward_unlearning_rate": None,
+                               "bodies": ("rodent", "rodent_quiet"), "out": Path("docs/data/m3/body/gate")},
 }
 
 
-def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None) -> EngineConfig:
+def committed_dir(prereg: str, body: str) -> Path:
+    """Where a full run of ``prereg`` under ``body`` writes its tables (one directory per body for a multi-body one)."""
+    spec = PREREGS[prereg]
+    return spec["out"] if spec["bodies"] == ("discrete",) else spec["out"] / body
+
+
+def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None,
+                body: str = "discrete") -> EngineConfig:
     """Step 1's M2b estimate, step 2's population, and the value source that steers (``reward_rule``: the SR's R rule;
     "nlms" is the preregistered one, "per_feature" the exploratory one of decisions G36). ``reward_unlearning_rate`` is
     set explicitly (None: one rate, as both gate runs were registered; decisions G41/G42), so the gate does not
@@ -87,6 +100,7 @@ def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: 
     cfg.place.reward_rule = reward_rule
     cfg.place.reward_unlearning_rate = reward_unlearning_rate
     cfg.value_memory.source = source
+    apply_body_preset(cfg, body)  # "discrete", today's body, is the default (M3 step 1, G44)
     return cfg
 
 
@@ -107,10 +121,10 @@ def _reached(eng: Engine) -> bool:
 
 
 def run_session(source: str, session: str, seed: int, trials: int = TRIALS, reward_rule: str = "nlms",
-                reward_unlearning_rate: Optional[float] = None) -> List[Dict[str, Any]]:
+                reward_unlearning_rate: Optional[float] = None, body: str = "discrete") -> List[Dict[str, Any]]:
     if session not in SESSIONS:
         raise ValueError(f"session must be one of {SESSIONS}")
-    eng = Engine(seed=seed, config=gate_config(source, reward_rule, reward_unlearning_rate))
+    eng = Engine(seed=seed, config=gate_config(source, reward_rule, reward_unlearning_rate, body))
     goal = WorldObject(GOAL[0], GOAL[1], GOAL_RADIUS, "hidden" if session == "hidden" else "target")
     eng.world.add_object(goal)
     rows: List[Dict[str, Any]] = []
@@ -122,6 +136,8 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
         a.heading = a.last_heading = sh
         st = eng.spatial.state
         st.grid_x, st.grid_y, st.hd_angle = sx, sy, sh  # the agent knows where it is put down (declared)
+        if eng.body is not None:
+            eng.body.reset()  # the rodent body is put down still (M3 step 1); the discrete body has no state
         eng.reset_value_episode()
         goal.kind = "hidden" if session == "hidden" else "target"
         latency, guided_latency = None, None
@@ -151,13 +167,14 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
     return rows
 
 
-def _job(args: Tuple[str, str, int, int, str, Optional[float]]) -> List[Dict[str, Any]]:
+def _job(args: Tuple[str, str, int, int, str, Optional[float], str]) -> List[Dict[str, Any]]:
     return run_session(*args)
 
 
 def run_all(seeds: Sequence[int], trials: int, workers: Optional[int], sources: Sequence[str] = SOURCES,
-            reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None) -> List[Dict[str, Any]]:
-    jobs = [(src, ses, s, trials, reward_rule, reward_unlearning_rate) for src in sources for ses in SESSIONS for s in seeds]
+            reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None,
+            body: str = "discrete") -> List[Dict[str, Any]]:
+    jobs = [(src, ses, s, trials, reward_rule, reward_unlearning_rate, body) for src in sources for ses in SESSIONS for s in seeds]
     if workers == 1 or len(jobs) == 1:
         out = [_job(j) for j in jobs]
     else:
@@ -297,6 +314,8 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     parser.add_argument("--reward-unlearning-rate", type=float, default=None,
                         help="the SR's per-feature unlearning rate (decisions G41); default: none, one rate, as both gate "
                              "runs were registered. Any value marks the run exploratory")
+    parser.add_argument("--body", default="discrete", choices=tuple(BODY_PRESETS),
+                        help="the body (M3 step 1, core.body.BODY_PRESETS); default: discrete, today's body")
     parser.add_argument("--prereg", default=DEFAULT_PREREG,
                         help="the preregistration this run answers to (a run away from its settings is marked exploratory)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
@@ -313,23 +332,27 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
             parser.error(f"unknown source {s!r}")
     spec = PREREGS[args.prereg]
     full = (tuple(seeds) == spec["seeds"] and not args.quick and n_boot >= 1000 and sources == SOURCES
-            and args.reward_rule == spec["reward_rule"] and args.reward_unlearning_rate == spec["reward_unlearning_rate"])
-    for committed in (p["out"] for p in PREREGS.values()):
-        if args.out.resolve() == Path(committed).resolve() and not (full and Path(committed).resolve() == Path(spec["out"]).resolve()):
+            and args.reward_rule == spec["reward_rule"] and args.reward_unlearning_rate == spec["reward_unlearning_rate"]
+            and args.body in spec["bodies"])
+    committed_dirs = [committed_dir(p, b) for p, sp in PREREGS.items() for b in sp["bodies"]]
+    target = committed_dir(args.prereg, args.body) if args.body in spec["bodies"] else None
+    for committed in committed_dirs:
+        if args.out.resolve() == Path(committed).resolve() and not (full and target is not None and Path(committed).resolve() == target.resolve()):
             parser.error(f"a partial run (or another preregistration's) must not overwrite the committed tables in {committed}: give --out")
     started = time.perf_counter()
-    trial_rows = run_all(seeds, trials, args.workers, sources, args.reward_rule, args.reward_unlearning_rate)
+    trial_rows = run_all(seeds, trials, args.workers, sources, args.reward_rule, args.reward_unlearning_rate, args.body)
     per_seed = per_seed_rows(trial_rows, learning)
     curve = curve_rows(trial_rows, n_boot)
     effects = effect_rows(per_seed, n_boot)
-    cfg = gate_config(sources[0], args.reward_rule, args.reward_unlearning_rate)
+    cfg = gate_config(sources[0], args.reward_rule, args.reward_unlearning_rate, args.body)
     manifest = build_manifest(
         cfg, protocol="rq4a_gate", seeds=seeds, ticks_requested=len(seeds) * len(sources) * len(SESSIONS) * trials * (TIMEOUT + GUIDE),
         extra={"goal": list(GOAL), "goal_radius": GOAL_RADIUS, "starts": [list(s) for s in STARTS], "trials": trials,
                "learning_trials": learning, "timeout": TIMEOUT, "guide": GUIDE, "sources": list(sources), "sessions": list(SESSIONS),
-               "reward_rule": args.reward_rule, "reward_unlearning_rate": args.reward_unlearning_rate, "exploratory": not full,
+               "reward_rule": args.reward_rule, "reward_unlearning_rate": args.reward_unlearning_rate, "body": args.body,
+               "exploratory": not full,
                "ratio_bound": RATIO_BOUND, "error_bound": ERROR_BOUND, "protocol_stream": PROTOCOL_STREAM,
-               "config_diff_from_research": {src: [list(map(str, d)) for d in EngineConfig.research().diff(gate_config(src, args.reward_rule, args.reward_unlearning_rate))] for src in sources},
+               "config_diff_from_research": {src: [list(map(str, d)) for d in EngineConfig.research().diff(gate_config(src, args.reward_rule, args.reward_unlearning_rate, args.body))] for src in sources},
                "n_boot": n_boot, "full_evaluation": full, "quick": args.quick, "prereg": args.prereg,
                "dependencies": _dependency_versions(),
                "command": "python3 -m experiments.rq4a_gate " + " ".join(list(argv) if argv is not None else sys.argv[1:])},

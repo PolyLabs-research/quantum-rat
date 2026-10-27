@@ -101,8 +101,12 @@ def test_quick_run_is_identical_across_workers_and_refuses_the_committed_directo
     rg.main(["--quick", "--seeds", "1", "--workers", "1", "--sources", "sr", "--reward-rule", "per_feature", "--out", str(explor)])
     m = json.loads((explor / "gate_manifest.json").read_text())
     assert m["reward_rule"] == "per_feature" and m["exploratory"] is True and m["sources"] == ["sr"] and m["full_evaluation"] is False
-    assert set(rg.PREREGS) == {"docs/prereg/m2b_gate.md", "docs/prereg/m2b_gate_confirmatory.md"}
+    assert set(rg.PREREGS) == {"docs/prereg/m2b_gate.md", "docs/prereg/m2b_gate_confirmatory.md", "docs/prereg/m3_body.md"}
     assert rg.PREREGS["docs/prereg/m2b_gate_confirmatory.md"]["seeds"] == tuple(range(31, 61))
+    # M3 step 1 (G44): the rodent bodies on fresh seeds, one committed directory per body.
+    assert rg.PREREGS["docs/prereg/m3_body.md"]["seeds"] == tuple(range(61, 91))
+    assert rg.committed_dir("docs/prereg/m3_body.md", "rodent").as_posix() == "docs/data/m3/body/gate/rodent"
+    assert rg.committed_dir("docs/prereg/m2b_gate.md", "discrete").as_posix() == "docs/data/m2b/gate"
     with pytest.raises(SystemExit):  # the confirmatory directory refuses a run away from its preregistration
         rg.main(["--quick", "--seeds", "1", "--prereg", "docs/prereg/m2b_gate_confirmatory.md", "--out", "docs/data/m2b/gate_confirmatory"])
     with pytest.raises(SystemExit):

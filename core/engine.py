@@ -31,6 +31,7 @@ from brain.systems.spatial import SpatialSystem, wrap_angle
 from brain.systems.trn_microsleep_replay import TRNGate
 from brain.systems.value_memory import Transition, ValueMemory
 from brain.systems.working_memory import WorkingMemory
+from core.body import RodentBody
 from core.config import EngineConfig
 from core.entities import Agent
 from core.neuromodulation import NeuromodulatorSystem
@@ -128,10 +129,14 @@ class Engine:
             "sensors_odometry": self.rng.stream("sensors_odometry"),
             "sensors_heading": self.rng.stream("sensors_heading"),  # the heading oracle's error (M2b); drawn only when on
             "action_softmax": self.rng.stream("action_softmax"),
+            # The rodent body's speed and rotation noise (M3 step 1, G44); drawn only by that body, only when on.
+            "body_motion": self.rng.stream("body_motion"),
         }
         self.world = World(bounds=c.world.bounds)
         self.agent = Agent(id=agent_offset, pos=(0.0, 0.0))
         self.world.add_agent(self.agent)
+        # The body (M3 step 1, G44): None is the discrete body World.step applies; "rodent" moves this agent instead.
+        self.body = RodentBody(c.body, c.units, self.streams["body_motion"]) if c.body.model == "rodent" else None
         self.astrocyte = Astrocyte(
             atp=c.astrocyte.atp,
             glycogen=c.astrocyte.glycogen,
@@ -266,7 +271,10 @@ class Engine:
         ctx.glycogen = self.astrocyte.glycogen
 
     def _world_step(self, ctx: EngineContext) -> None:
-        self.world.step(action=self.last_action, energy_scale=ctx.energy_scale)
+        if self.body is not None:
+            self.body.step(self.agent, self.last_action.name, self.world.bounds, ctx.energy_scale)
+        else:
+            self.world.step(action=self.last_action, energy_scale=ctx.energy_scale)
         ctx.pos = self.agent.pos
         ctx.heading = self.agent.heading
 
@@ -810,6 +818,8 @@ class Engine:
         self._close_replay_event()
         self.value_memory.reset_episode()
         self._sr_prev = None  # the SR value source's episode boundary too (M2b step 4)
+        if self.body is not None:
+            self.body.reset()  # the animal is put down still (G44)
         self.episode += 1
 
     def run(self, ticks: int, *, reset: bool = False) -> List[TickData]:

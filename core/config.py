@@ -91,6 +91,44 @@ class WorldConfig:
     bounds: Tuple[float, float] = (10.0, 10.0)
 
 
+BODY_MODELS: Tuple[str, ...] = ("discrete", "rodent")
+
+
+@dataclass
+class BodyConfig:
+    """How an action moves the body (M3 step 1, ``docs/prereg/m3_body.md``; decisions G44).
+
+    ``model = "discrete"`` (the default, both profiles) is the body every result up to G43 ran: a FORWARD step of 1.0
+    unit, a TURN of 0.3 rad that also moves 0.3 units, REST still (``core.world.World.step``). ``"rodent"`` is
+    ``core.body.RodentBody``: speed and angular velocity as Ornstein-Uhlenbeck processes drifted toward the chosen
+    action's targets, turns in place, and wall following, after RatInABox (George et al. 2024), whose noise defaults
+    are fitted to Sargolini et al. (2006). Speeds in m/s, rates in rad/s, times in s, distances in m; the engine
+    converts with ``UnitsConfig``. The other fields are read only by the rodent model.
+    """
+
+    model: str = "discrete"
+    run_speed: float = 0.5  # m/s, FORWARD's target: 1 unit per tick, today's FORWARD step
+    turn_speed: float = 0.0  # m/s while turning: 0 turns in place (no turning circle)
+    turn_rate: float = 1.5  # rad/s, a TURN's target: 0.3 rad per tick, today's TURN step
+    speed_coherence_time: float = 0.7  # s (RatInABox)
+    speed_noise: float = 0.0  # m/s, the speed process's sd (RatInABox: 0.08)
+    rotational_coherence_time: float = 0.08  # s (RatInABox)
+    rotational_noise: float = 0.0  # rad/s, the angular velocity process's sd (RatInABox: 120 deg/s = 2.094)
+    wall_align_distance: float = 0.1  # m, within which a heading into a wall turns toward it (RatInABox's repel distance)
+
+    def __post_init__(self) -> None:
+        if self.model not in BODY_MODELS:
+            raise ValueError(f"body.model must be one of {BODY_MODELS}, got {self.model!r}")
+        for name in ("run_speed", "turn_rate", "speed_coherence_time", "rotational_coherence_time", "wall_align_distance"):
+            value = getattr(self, name)
+            if not (math.isfinite(value) and value > 0.0):
+                raise ValueError(f"body.{name} must be a positive finite number, got {value!r}")
+        for name in ("turn_speed", "speed_noise", "rotational_noise"):
+            value = getattr(self, name)
+            if not (math.isfinite(value) and value >= 0.0):
+                raise ValueError(f"body.{name} must be a finite number >= 0, got {value!r}")
+
+
 @dataclass
 class SensorConfig:
     """Vision/whisker/pain sensing of real world geometry."""
@@ -532,6 +570,7 @@ class EngineConfig:
     profile: str = "legacy"
     units: UnitsConfig = field(default_factory=UnitsConfig)
     world: WorldConfig = field(default_factory=WorldConfig)
+    body: BodyConfig = field(default_factory=BodyConfig)
     sensors: SensorConfig = field(default_factory=SensorConfig)
     astrocyte: AstrocyteConfig = field(default_factory=AstrocyteConfig)
     neuromod: NeuromodConfig = field(default_factory=NeuromodConfig)
@@ -818,6 +857,8 @@ def config_diff(a: Any, b: Any, prefix: str = "") -> List[Tuple[str, Any, Any]]:
 __all__ = [
     "UnitsConfig",
     "WorldConfig",
+    "BodyConfig",
+    "BODY_MODELS",
     "SensorConfig",
     "AstrocyteConfig",
     "NeuromodConfig",
