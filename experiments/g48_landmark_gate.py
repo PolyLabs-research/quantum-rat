@@ -71,12 +71,13 @@ def group_rows(condition: str, trials: Sequence[Mapping[str, Any]], learning: in
                     rows = [r for r in trials if r["source"] == src and r["session"] == ses and int(r["seed"]) == seed
                             and r["trial"] > learning and int(r["start"]) in starts]
                     hits = [r for r in rows if r["reached"]]
-                    # frame_spread: how far each read trial's mean offset (estimate - body) lies from the session's mean
-                    # offset; a map consistent across trials but shifted as a whole (a frame of its own) scores near 0.
-                    if rows:
-                        ox = float(np.mean([r["estimate_offset_x"] for r in rows]))
-                        oy = float(np.mean([r["estimate_offset_y"] for r in rows]))
-                        spread = float(np.mean([math.hypot(r["estimate_offset_x"] - ox, r["estimate_offset_y"] - oy) for r in rows]))
+                    # frame_spread: how far the estimate's offset from the body on each arrival (estimate - body) lies
+                    # from the mean of those offsets over the group's read arrivals: an estimate in a frame of its own,
+                    # shifted as a whole but consistent from trial to trial, scores near 0 however large the shift.
+                    if hits:
+                        ox = float(np.mean([r["arrival_offset_x"] for r in hits]))
+                        oy = float(np.mean([r["arrival_offset_y"] for r in hits]))
+                        spread = float(np.mean([math.hypot(r["arrival_offset_x"] - ox, r["arrival_offset_y"] - oy) for r in hits]))
                     else:
                         spread = math.nan
                     out.append({"condition": condition, "source": src, "session": ses, "seed": seed, "group": g, "trials": len(rows),
@@ -93,7 +94,12 @@ def _vec(rows: Sequence[Mapping[str, Any]], seeds: Sequence[int], stat: str = "s
 
 
 def _effect(test: str, statistic: str, a_name: str, a: np.ndarray, b_name: str, b: np.ndarray, n_boot: int) -> Dict[str, Any]:
-    """b - a, paired by seed."""
+    """b - a, paired by seed, over the seeds where both are defined (frame_spread is undefined without an arrival)."""
+    keep = np.isfinite(a) & np.isfinite(b)
+    a, b = a[keep], b[keep]
+    if a.size < 2:
+        return {"test": test, "statistic": statistic, "a": a_name, "b": b_name, "n": int(a.size), "estimate": math.nan,
+                "note": "fewer than two seeds with both defined"}
     eff = paired_effect(a, b, n_boot=n_boot, seed=_stat_seed("g48", test, a_name, b_name))
     return {"test": test, "statistic": statistic, "a": a_name, "b": b_name, "n": int(a.size), "mean_a": eff["mean_a"],
             "mean_b": eff["mean_b"], "estimate": eff["mean_diff"], "low": eff["low"], "high": eff["high"],
@@ -143,6 +149,9 @@ def cell_means(groups: Sequence[Mapping[str, Any]], seeds: Sequence[int], n_boot
                 for g in GROUPS:
                     for stat in ("success", "estimate_error", "frame_spread"):
                         v = _vec(groups, seeds, stat, condition=c, source=src, session=ses, group=g)
+                        v = v[np.isfinite(v)]
+                        if v.size < 2:
+                            continue
                         ci = bootstrap_ci(v, np.mean, n_boot=n_boot, seed=_stat_seed("g48_mean", c, src, ses, g, stat))
                         out.append({"test": f"mean_{stat}", "statistic": f"{ses} {stat}, {g} starts", "b": f"{c}/{src}/{ses}/{g}",
                                     "n": ci.n, "mean_b": ci.estimate, "estimate": ci.estimate, "low": ci.low, "high": ci.high, "note": ci.note})
@@ -174,7 +183,8 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     for c, rows in trial_rows.items():
         d = out / c
         per_seed = rg.per_seed_rows(rows, learning)
-        write_csv(d / "gate_trials.csv", rg.TRIAL_COLUMNS + ("estimate_error_mean", "estimate_offset_x", "estimate_offset_y"), rows)
+        write_csv(d / "gate_trials.csv", rg.TRIAL_COLUMNS + ("estimate_error_mean", "estimate_offset_x", "estimate_offset_y",
+                                                            "arrival_offset_x", "arrival_offset_y"), rows)
         write_csv(d / "gate_per_seed.csv", rg.PER_SEED_COLUMNS, per_seed)
         write_csv(d / "gate_effects.csv", rg.EFFECT_COLUMNS, rg.effect_rows(per_seed, n_boot))
         groups += group_rows(c, rows, learning)
@@ -207,7 +217,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
             else:
                 parts.append(f"{src} {float(np.mean(_vec(groups, seeds, condition=c, source=src, session='hidden', group='all'))):.3f}")
         err = float(np.mean(_vec(groups, seeds, "estimate_error", condition=c, source="sr", session="hidden", group="all")))
-        spread = float(np.mean(_vec(groups, seeds, "frame_spread", condition=c, source="sr", session="hidden", group="all")))
+        spread = float(np.nanmean(_vec(groups, seeds, "frame_spread", condition=c, source="sr", session="hidden", group="all")))
         print(f"  {c:24s} {'  '.join(parts)}   error {err:.2f}  frame spread {spread:.2f}")
     print(f"wrote {out} in {time.perf_counter() - started:.1f} s")
     return {"groups": groups, "effects": eff}

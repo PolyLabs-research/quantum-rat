@@ -188,8 +188,8 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
     """One session. ``layout`` (``LAYOUTS``) puts barriers in the arena (G47); ``landmarks`` puts the distal cues
     (``CUES``) round it and turns on the agent's sight of them and its learned cue map (G48). Each row also carries
     ``estimate_error_mean``, the mean distance between the estimate and the body over the trial's ticks, and
-    ``estimate_offset_x`` / ``_y``, the mean of estimate minus body (G48; not ``TRIAL_COLUMNS``, so the registered
-    tables are unchanged).
+    ``estimate_offset_x`` / ``_y``, the mean of estimate minus body, and ``arrival_offset_x`` / ``_y``, estimate minus
+    body on arrival (G48; not ``TRIAL_COLUMNS``, so the registered tables are unchanged).
     ``start_estimate`` (``START_ESTIMATES``) is what the estimate is told at each trial start;
     ``still_start`` clears the action pending from the last trial, so a trial's first tick does not repeat the last
     trial's last action from the new start (the body is put down still; every run before G46 carried it over)."""
@@ -237,9 +237,10 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
             if _reached(eng):
                 latency = t + 1
                 break
-        arrival_error = math.nan
+        arrival_error = arrival_dx = arrival_dy = math.nan
         if latency is not None:
             arrival_error = math.hypot(eng.spatial.state.grid_x - a.pos[0], eng.spatial.state.grid_y - a.pos[1])
+            arrival_dx, arrival_dy = eng.spatial.state.grid_x - a.pos[0], eng.spatial.state.grid_y - a.pos[1]
         elif session == "hidden":
             goal.kind = "target"  # guidance: the goal shows itself after a miss
             for t in range(GUIDE):
@@ -254,7 +255,8 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
                      "arrival_error": arrival_error, "ticks": ticks,
                      "estimate_error_mean": error_sum / (latency if latency is not None else TIMEOUT),
                      "estimate_offset_x": offset_x / (latency if latency is not None else TIMEOUT),
-                     "estimate_offset_y": offset_y / (latency if latency is not None else TIMEOUT)})
+                     "estimate_offset_y": offset_y / (latency if latency is not None else TIMEOUT),
+                     "arrival_offset_x": arrival_dx, "arrival_offset_y": arrival_dy})
     return rows
 
 
