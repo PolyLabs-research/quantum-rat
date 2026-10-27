@@ -1,7 +1,8 @@
-# DRAFT — Preregistration: M3 step 2, one action selection for every task
+# Preregistration: M3 step 2, one action selection for every task
 
-> **STATUS: DRAFT for the owner's review, 2026-10-27. Not registered; nothing below has run on its seeds.** The
-> commit that turns the status line into "REGISTERED" is the registration, as before.
+> **STATUS: Part 1 REGISTERED 2026-10-27, at the owner's instruction ("Register and run"), after the draft was put to
+> the owner; nothing has run on its seeds (the commit that changes this line is the registration). Part 2 remains a
+> design; the owner's decisions on it are recorded at the end.**
 
 **Scope.** The owner's route for step 2 (G45 C2 (b), G46 E1): one action selection for every task, under the four
 rules: one configuration for every task (nothing knows which task it is in); reflex settings fixed before the run
@@ -78,7 +79,9 @@ sees. Task-blind; inert where no solid is within one unit of a direction; inert 
 **The configuration** (every condition): the research profile + sideways odometry (G48) + reachable probes, against the
 same without reachable probes. Nothing else changes.
 
-**The battery, fresh seeds 215–244 (30), every task, paired:**
+**The battery, fresh seeds 215–244 (30), every task, paired** (`python3 -m experiments.m3_reachable --workers 28`,
+`docs/data/m3/reachable/`; the gate as G48 ran it: per-feature rule, one rate, 40 trials read 21–40, trials started
+still; told nothing means `carry` with G48's cues; hidden food and the reflex measures 3,000 ticks):
 
 | task | conditions | read |
 |---|---|---|
@@ -139,10 +142,9 @@ reflex bound is chosen (a reflex lap runner is not a result). (c) The chosen con
 fresh seeds. If none passes, the record says so, and RQ1's track uses forced laps (G35's protocol) with the gap
 recorded, as step 1's decision table already allows.
 
-## Decisions for the owner
+## The owner's decisions (2026-10-27)
 
-1. **Register and run Part 1 now** (recommended): ready, and independent of Part 2.
-2. **Part 2's bounds**, especially the strict reading of the four rules on the track: the reflex alone must *not* run
-   laps; laps must come from reward and memory. This may mean no candidate passes.
-3. **Whether a 300° field of view counts as sensing** (it does for a rat), knowing it turns the visible session into
-   the reflex alone.
+1. **Part 1: registered and run** (above).
+2. **Part 2's track bound is the strict one**: the reflex alone must not run laps; laps must come from reward and
+   memory. If no candidate passes, RQ1's track uses forced laps with the gap recorded.
+3. **A 300° field of view counts as sensing** (a rat's), knowing it turns the visible session into the reflex alone.
