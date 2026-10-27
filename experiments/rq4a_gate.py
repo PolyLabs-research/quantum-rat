@@ -43,7 +43,7 @@ from core.body import BODY_PRESETS, apply_body_preset
 from core.config import EngineConfig
 from core.engine import Engine
 from core.rng import RNG
-from core.world import WorldObject
+from core.world import Barrier, WorldObject
 from experiments.estimate_correction import ORACLE_NOISE, engine_config
 from experiments.linear_track_replay import _dependency_versions, _stat_seed, write_csv
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
@@ -90,6 +90,32 @@ PREREGS: Dict[str, Dict[str, Any]] = {
 # run before G46: declared, docs/prereg/m2b_gate.md); "centre", the arena's centre (the heading estimate is left as it
 # is); "carry", nothing (the estimate continues from where the last trial ended, as if the agent had not been moved).
 START_ESTIMATES: Tuple[str, ...] = ("anchor", "centre", "carry")
+# Barriers in the arena (decisions G47): "open", none (every run before G47); "L", two walls 0.4 units thick, joined at
+# (0.8, 2.0), shielding the goal's south and west sides: a straight run from the west or the south start meets one
+# (those starts need a detour), from the east or the north start it passes a gap (3 units wide each).
+LAYOUTS: Dict[str, Tuple[Barrier, ...]] = {
+    "open": (),
+    "L": (Barrier(0.6, 1.8, 7.0, 2.2), Barrier(0.6, 1.8, 1.0, 7.0)),
+}
+
+
+def blocked_starts(layout: str) -> Tuple[int, ...]:
+    """The start indices whose straight line to the goal's centre meets a barrier of ``layout`` (they need a detour)."""
+    out = []
+    for i, (sx, sy, _) in enumerate(STARTS):
+        for b in LAYOUTS[layout]:
+            t0, t1 = 0.0, 1.0
+            ok = True
+            for p, d, lo, hi in ((sx, GOAL[0] - sx, b.x0, b.x1), (sy, GOAL[1] - sy, b.y0, b.y1)):
+                if abs(d) < 1e-12:
+                    ok = ok and lo <= p <= hi
+                    continue
+                a, c = sorted(((lo - p) / d, (hi - p) / d))
+                t0, t1 = max(t0, a), min(t1, c)
+            if ok and t0 <= t1:
+                out.append(i)
+                break
+    return tuple(out)
 
 
 def committed_dir(prereg: str, body: str) -> Path:
@@ -146,8 +172,9 @@ def _reached(eng: Engine) -> bool:
 def run_session(source: str, session: str, seed: int, trials: int = TRIALS, reward_rule: str = "nlms",
                 reward_unlearning_rate: Optional[float] = None, body: str = "discrete", corridor: bool = False, *,
                 estimate: str = "oracle_reset", start_estimate: str = "anchor", still_start: bool = False,
-                pre_g46: bool = False) -> List[Dict[str, Any]]:
-    """One session. ``start_estimate`` (``START_ESTIMATES``) is what the estimate is told at each trial start;
+                pre_g46: bool = False, layout: str = "open") -> List[Dict[str, Any]]:
+    """One session. ``layout`` (``LAYOUTS``) puts barriers in the arena (G47).
+    ``start_estimate`` (``START_ESTIMATES``) is what the estimate is told at each trial start;
     ``still_start`` clears the action pending from the last trial, so a trial's first tick does not repeat the last
     trial's last action from the new start (the body is put down still; every run before G46 carried it over)."""
     if session not in SESSIONS:
@@ -156,6 +183,8 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
         raise ValueError(f"start_estimate must be one of {START_ESTIMATES}")
     eng = Engine(seed=seed, config=gate_config(source, reward_rule, reward_unlearning_rate, body, corridor,
                                                estimate=estimate, pre_g46=pre_g46))
+    for barrier in LAYOUTS[layout]:
+        eng.world.add_barrier(barrier)
     goal = WorldObject(GOAL[0], GOAL[1], GOAL_RADIUS, "hidden" if session == "hidden" else "target")
     eng.world.add_object(goal)
     rows: List[Dict[str, Any]] = []
@@ -211,7 +240,8 @@ def _job(args: Tuple[Tuple[Any, ...], Dict[str, Any]]) -> List[Dict[str, Any]]:
 def run_all(seeds: Sequence[int], trials: int, workers: Optional[int], sources: Sequence[str] = SOURCES,
             reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None,
             body: str = "discrete", corridor: bool = False, **options: Any) -> List[Dict[str, Any]]:
-    """Every source x session x seed; ``options`` go to ``run_session`` (estimate, start_estimate, still_start, pre_g46)."""
+    """Every source x session x seed; ``options`` go to ``run_session`` (estimate, start_estimate, still_start, pre_g46,
+    layout)."""
     jobs = [((src, ses, s, trials, reward_rule, reward_unlearning_rate, body, corridor), dict(options))
             for src in sources for ses in SESSIONS for s in seeds]
     if workers == 1 or len(jobs) == 1:

@@ -107,6 +107,24 @@ def _ray_circle_distance(
     return None
 
 
+def _ray_box_distance(px: float, py: float, dx: float, dy: float, box) -> Optional[float]:
+    """Distance along the ray (px, py) + t (dx, dy), t >= 0, to an axis-aligned box (``core.world.Barrier``), or None.
+    The slab method; a ray starting inside the box hits it at 0."""
+    t_lo, t_hi = 0.0, math.inf
+    for p, d, lo, hi in ((px, dx, box.x0, box.x1), (py, dy, box.y0, box.y1)):
+        if abs(d) < 1e-12:
+            if p < lo or p > hi:
+                return None
+            continue
+        a, b = (lo - p) / d, (hi - p) / d
+        if a > b:
+            a, b = b, a
+        t_lo, t_hi = max(t_lo, a), min(t_hi, b)
+        if t_lo > t_hi:
+            return None
+    return t_lo
+
+
 UNSEEN_KINDS = ("hidden", "collected")  # objects vision does not see (decisions G46)
 
 
@@ -121,6 +139,10 @@ def _cast_ray(agent: Agent, world: World, rel_angle: float, max_range: float,
     px, py = agent.pos
     nearest = _ray_wall_distance(px, py, dx, dy, world.bounds)
     kind = "wall"
+    for barrier in world.barriers:  # an interior wall looks like a wall (decisions G47)
+        t = _ray_box_distance(px, py, dx, dy, barrier)
+        if t is not None and t < nearest:
+            nearest = t
     for obj in world.objects:
         if obj.kind in UNSEEN_KINDS and not unseen_block:
             continue
@@ -221,7 +243,11 @@ def _wrap(angle: float) -> float:
 
 def _wall_contacts(agent: Agent, world: World) -> Tuple[float, ...]:
     """The egocentric angle of the outward normal of each wall the body touches: x walls (normal 0 at +x, pi at -x)
-    before y walls (pi/2 at +y, -pi/2 at -y), each relative to the body's heading. Empty when it touches none."""
+    before y walls (pi/2 at +y, -pi/2 at -y), each relative to the body's heading. Empty when it touches none.
+
+    The arena's walls only: a barrier (G47) is not reported, so the wall-contact reset, which sets the estimate to the
+    arena's extent, never fires against one. That the touch tells the arena's wall from an interior one is part of the
+    declared aid (it already knows the arena's extent, G33)."""
     bx, by = world.bounds
     x, y = agent.pos
     out: List[float] = []
