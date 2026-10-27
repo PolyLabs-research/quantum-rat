@@ -103,7 +103,8 @@ def run_world(world: str, overrides: Mapping[str, Any], seed: int, ticks: int) -
         if t >= (LATE_FROM if ticks >= 2 * LATE_FROM else ticks // 3):  # a short (quick) run reads its last two thirds
             st = eng.spatial.state
             errors.append(math.hypot(st.grid_x - x, st.grid_y - y))
-        visited.add((math.floor(x), math.floor(y)))
+        # A body on the +x or +y bound is in the last bin, not a bin outside the arena (the first run counted it outside).
+        visited.add((math.floor(min(x, bx - 1e-9)), math.floor(min(y, by - 1e-9))))
         if world == "track":
             end = -1 if x <= -bx + END_ZONE else (1 if x >= bx - END_ZONE else None)
             if end is not None and end != last_end:

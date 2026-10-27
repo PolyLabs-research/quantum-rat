@@ -18,6 +18,7 @@ def test_quick_run_writes_its_files_and_scores_t1(quick) -> None:
     assert set(bc.OUTPUT_FILES) <= {p.name for p in out.iterdir()}
     assert set(payload["summary"]) == {"discrete", "rodent_quiet", "rodent"} and payload["exploratory"] is True
     for entry in payload["summary"].values():
+        assert 0.0 < entry["open"]["coverage"]["mean"] <= 1.0  # a body on the bound counts in the last bin (G44)
         assert set(entry["track"]) == set(bc.METRICS["track"]) and set(entry["open"]) == set(bc.METRICS["open"])
         assert isinstance(entry["T1"]["passes"], bool) and entry["T1"]["lap_bound"] == 36
     manifest = json.loads((out / "manifest.json").read_text())
