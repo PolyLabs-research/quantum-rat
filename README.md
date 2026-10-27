@@ -70,15 +70,17 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   (G18). That place is forgotten after two visits in a row that find nothing, so the stored place
   of a goal that moved stops pulling the agent; the replayed value gradient can still lead it
   back to the old place until that gradient extinguishes (G21). In the hidden-food task, where
-  food is invisible and regrows at fixed sites, memory steering finds 2.8-4.1x as much food as
-  memory off (by searching near recent finds, not by remembering sites; see the next paragraph)
-  and loses no paired run (G19, G21). All of these were measured with the legacy mechanisms on
+  food is meant to be invisible and regrows at fixed sites, memory steering appeared to find
+  2.8-4.1x as much food as memory off (G19, G21), but **that benefit is withdrawn** (G46): the
+  vision rays sensed the hidden sites as obstacles and turned the agent away from them, and memory
+  steering only made up for that. With nothing hidden sensed, memory steering finds about half as
+  much as memory off (19.4 against 40.8 per run on 30 fresh seeds, losing on every seed). All of these were measured with the legacy mechanisms on
   (the TRN gate scaling path integration, energy scaling of motion, the radius-2 value kernel),
   as single deterministic samples or a few seeds, and where a number comes from sensor noise 0,
   different seeds are copies of one run (`tools/probes/seed_pseudoreplication`). G23 re-measured
   the three headline numbers over 30 seeds with BCa confidence intervals (`docs/data/g23/`): the
   steering band survives (0.4-3.0 in both settings, value-induced REST at most 0.001 of ticks,
-  3 ticks of 3,000, in any run); the hidden-food multiplier is 2.91 [2.43, 3.59] under sensor noise 0.03 alone, with
+  3 ticks of 3,000, in any run); the hidden-food multiplier (measured with the sites sensed, withdrawn in G46) is 2.91 [2.43, 3.59] under sensor noise 0.03 alone, with
   one seed of 30 losing, and 1.34 [1.15, 1.52] once action selection has a 0.05 softmax
   temperature, because the exploring agent then finds 9.4 items on its own instead of 3.5; the
   maze recalls in 471 of 480 full-circle runs under sensor noise alone and in 371-380 once
@@ -95,8 +97,13 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   value passes the RQ4(a) gate on fresh seeds (hidden-goal success 98.7% against 100% visible and
   5% without value steering; `docs/m2b_place_code.md`, tag `v1.4-place-code`). Its limits: the
   heading is given, not inferred; the gate has one goal and known starts; replay over the place
-  code is M3's. In the console's scenarios the SR steering circled sites it had just emptied and
-  cost a third of the hidden-food finds (G40). A separate unlearning rate removes that (G41) but
+  code is M3's. **The gate's success needs its start anchor** (G46): the true start is written into
+  the agent's estimate at every trial. Told nothing, the agent finds the hidden goal on 37.7% of
+  trials (99.8% anchored, 3.5% without value steering, fresh seeds); with neither the anchor nor
+  the heading oracle and wall reset, on 6.2%. So the gate shows the use of a place memory given
+  where the agent starts, not that the agent can work out where it is; M3 reports every result with
+  and without the anchor. In the console's scenarios the SR steering circled sites it had just emptied and
+  cost a third of the hidden-food finds (G40; measured with the hidden sites sensed, G46). A separate unlearning rate removes that (G41) but
   costs the gate 13 points of hidden-goal success at the rate that does it (G42), so the instrument
   keeps one rate and the two renewable-reward scenarios carry the faster one (G43).
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
@@ -104,7 +111,8 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   Memory steering earns its keep only where the task needs memory: it is everything in the
   memory maze (0 vs ~147 recalls), roughly neutral in foraging and the hazard field (within about
   ±9% of memory off), and 3-11% negative in the beacon chase, where every remembered spot is
-  stale. Hidden food is not accurate site memory: it is memory-driven search near recent finds. A
+  stale. Hidden food is not accurate site memory: it is memory-driven search near recent finds, and
+  without the sensing leak of G46 that search costs food rather than finding more. A
   map read 22° rotated (phantom peaks >= 2.8 m from any site) keeps about half to nearly all of
   the extra finds, depending on the seed block, and with the sites re-drawn at random every 150
   ticks memory still gives x1.1-1.5, so it needs a real map but not precise sites (G21). The agent
@@ -236,7 +244,7 @@ profile; the console's scenario notes say what changes on the research profile.
 | Beacon chase | Vision-driven pursuit; dopamine hits 1.0 on arrival; the value map's memory of old beacon spots |
 | Foraging patch | Five food items, wide field of view; reward builds the value map |
 | Hazard field | Food behind hazards; pain raises norepinephrine and the value map turns red there |
-| Hidden food | Invisible food at six fixed sites regrows after it is eaten; the value map marks recent finds and the agent searches near them (not site memory, G21) |
+| Hidden food | Invisible food at six fixed sites regrows after it is eaten; the value map marks recent finds and the agent searches near them (not site memory, G21). On the research profile nothing hidden is sensed (G46); the legacy profile keeps the old sensing, which saw the sites as obstacles |
 | Memory maze | Hidden-goal recall: one visible trial, sleep/replay, then navigate to the hidden goal from memory |
 
 Panels: the arena (value map, vision rays coloured by what they hit, whiskers, pain zones, trail,
@@ -291,7 +299,9 @@ and influence live; the Behaviour readouts show the turning and closure of the l
 What the measurement led to (G41, preregistered in `docs/prereg/sr_unlearning_rate.md`): a separate
 **unlearning rate** for the SR's per-feature reward rule (`place.reward_unlearning_rate`; None, the
 default, is the rule as it was). At U = 4 on fresh seeds the memory-category orbits fall from 1,157
-to 67 ticks per run and hidden-food finds rise from 16.3 to 28.4, level with no steering (27.3);
+to 67 ticks per run and hidden-food finds rise from 16.3 to 28.4, level with no steering (27.3),
+though only because the hidden sites were sensed and held no steering down (without that, no
+steering finds 53.0 and U = 4 steering 41.2; G46);
 the "SR reward unlearning rate" slider shows it live. It is not the research default: at U = 4
 the RQ4(a) gate's hidden-goal success falls from 98.7% to 85.8% (G42), because a stable goal wants
 slow unlearning. The owner's decision (G43): the instrument keeps one rate, and the two console

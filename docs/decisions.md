@@ -385,6 +385,9 @@ The held-out dips come from one seed failing non-monotonically in gain. Seed 13 
 **Impact:** `core/config.py`, `core/engine.py`, `brain/systems/basal_ganglia.py`, `brain/systems/value_memory.py`, `ui/scenarios.py`, `ui/sim_session.py`, `ui/static/js/{arena,brain,live}.js`, `experiments/steering_sensitivity.py`.
 
 ## G19 — Hidden food: an open task where place memory pays off
+
+> **Note (G46, 2026-10-27):** measured while the vision rays sensed the hidden sites as obstacles (and, on this profile, with a hot/cold shaping signal toward them). Without that, memory steering finds about half as much food as memory off, on every seed; the benefit below is withdrawn (G46 D1).
+
 **Date:** 2026-10-02  
 **Why:** Under the G16 defaults, memory buys about nothing in foraging and hazard_field and slightly hurts in beacon. Those targets are visible (so the cue gate mutes memory) or they move (so the map is stale). Only the memory maze showed memory doing anything, and it resets the agent to the start every trial. We needed an open task where remembering a place clearly pays.  
 **Change:** a new console scenario, `hidden_food` (`ui.scenarios.HiddenFood`). No engine change.
@@ -526,6 +529,9 @@ vREST is 0.000 in every cell of every block, except hidden_food runs with pacing
 - G18 supersedes the rest-off figures in DEC-3 and G16, and G16's statement that pacing is off in the maze.
 
 ## G21 — Review fixes for G17-G20: goal extinction, phantom hidden-food finds, replay across resets, discriminating tests
+
+> **Note (G46, 2026-10-27):** the hidden-food numbers here were measured with the hidden sites sensed by the rays; the memory benefit is withdrawn (G46 D1).
+
 **Date:** 2026-10-02  
 **Why:** A correctness review and a science review of `fix/three` (G17-G20) reproduced three bugs, found tests that passed by construction or on a knife edge, and found claims that the controls do not support. Everything below is measured on `fix/three-final`. The scripts and data are in the session scratchpad (`fix3/final-round/`).
 
@@ -807,6 +813,9 @@ G14–G21 are results of the legacy profile, measured as single deterministic sa
 **Impact:** `core/config.py`, `core/engine.py`, `brain/systems/trn_microsleep_replay.py`, `tools/update_determinism_baseline.py`, `tests/determinism/`, `tests/engine/test_profiles.py`, `experiments/protocols/`, `regression/`, README, `ui/`, `docs/profiles.md`, `docs/research_plan.md` (status and the §5 / §10 marks), the twelve test docstrings above.
 
 ## G23 — What survives 30 seeds
+
+> **Note (G46, 2026-10-27):** claim 1 (hidden food, × 2.91) was measured with the hidden sites sensed by the rays and a hot/cold shaping signal; without them memory steering scores × 0.47 (G46 C, D1). Claim 3 (the maze) barely moves without the leak (G46 C, exploratory).
+
 **Date:** 2026-10-03  
 **Why:** G22 accepted that G14–G21 are legacy-profile results measured as single deterministic samples, or as eight seeds at sensor noise 0.03, and docs/research_plan.md §1.1 says what they are read to mean. M0b item 15 asks for the first table with a confidence interval in the repository: the three headline numbers of G16 (the steering band), G19 (hidden food) and G18 / G21 (off-axis maze recall), each over thirty seeds, with the seeds made samples through every stochastic element the engine has (M0b item 8) and the statistics of M0b item 10. The script is `experiments/g23_remeasure.py`; every number below is read from `docs/data/g23/` (`summary.csv` has each statistic with its interval, the three tidy tables and `maze_recall_by_heading.csv` have every run).
 
@@ -1581,6 +1590,8 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 
 ## G41 — The SR's unlearning rate: the persistence goes and the finds come back (preregistered; the default is the owner's)
 
+> **Note (G46, 2026-10-27):** run with the hidden sites sensed by the rays, which held the no-steering arm down; without that, U = 4 steering is 11.8 finds below no steering (G46 C, D2). D below is wrong that hidden food's `approach_weight` is 0: it is 1.0 (G46 D4).
+
 **Date:** 2026-10-26  
 **Why:** G40 C2 named the smallest change to a rule already in force as the candidate intervention for the research profile's persistence beside an emptied site, to be tried only as a preregistered A/B measured with the circling instrument; the owner chose it ("go with your recommendations", 2026-10-26). Preregistered in `docs/prereg/sr_unlearning_rate.md` at `72be077`, before any run; the pilot's data at `539b113`, the confirmatory's at `c5101b9`, each from a clean tree.
 
@@ -1646,6 +1657,8 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 
 ## G43 — The owner's choice: the instrument keeps one rate; hidden food and beacon carry U = 4 as their own setting
 
+> **Note (G46, 2026-10-27):** "level with no steering" held only with the hidden sites sensed (G46 D2).
+
 **Date:** 2026-10-26  
 **Why:** G42 measured the tradeoff G41's recommendation had missed (the gate's hidden success at U = 4: 85.8% against 98.7%) and put the default back to the owner with three options: keep the instrument and give the console's renewable-reward scenarios U = 4 (recommended), U = 2 as the research default, or U = 4 as the research default. **The owner chose the first** (2026-10-26).
 
@@ -1709,3 +1722,60 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 3. **The body's corner fault** is fixed before any rodent body is offered as a default.
 
 **Impact:** this entry; `docs/prereg/m3_corridor.md` (new); `brain/systems/basal_ganglia.py`, `brain/contracts.py`, `core/config.py`, `core/engine.py`, `metrics/decisions.py`, `ui/sim_session.py`, `ui/static/js/brain.js`; `experiments/body_characterisation.py`, `experiments/rq4a_gate.py`; tests in `tests/engine/`, `tests/brain/`, `tests/experiments/`; `docs/data/m3/corridor/` (new).
+
+## G46 — The audit: nothing hidden is sensed any more; the hidden-food memory benefit was the leak's; the gate needs its start anchor
+
+**Date:** 2026-10-27  
+**Why:** Before choosing G45's route for step 2, the owner asked whether the agent is allowed to cheat ("I want the behaviours to be emergent, not programmed"). An independent read of the code traced every input of the brain to its source; every finding was re-measured (`tools/g46_audit.py`, exploratory, spent seeds); the fixes and a retest were preregistered (`docs/prereg/g46_retest.md`, `68d5461`) and run on fresh seeds (`docs/data/g46/`).
+
+### A. What the audit found
+1. **Clean.** The brain never reads the true position, the goal's position, the trial number or its phase. On the research profile DA and 5HT reach nothing (hidden-food runs are byte-identical with approach shaping off). The gate's success test is the engine's contact rule. Withholding the trial boundaries from the learners changes nothing (0.988 against 0.979, seeds 31–42).
+2. **Leak 1 (both profiles): hidden food was sensed.** A vision ray stopped at a "hidden" or eaten ("collected") object and reported its kind; the action selection ignores the kind but reads each side's openness from any ray's distance, so a hidden site on a side ray read as an obstacle and the wall-escape turn went away from it. G19 says the rays hit hidden objects and "the policy ignores the kind": true of the label, not of the distance. `experiments/protocols/foraging.py` calls an eaten item "invisible to vision"; it was not.
+3. **Leak 2 (legacy only): a hot/cold signal.** Approach shaping rewarded closing the true distance to hidden food, and on the legacy profile the shaped reward reaches action selection through DA and 5HT. **G41 D is wrong** that hidden food's `approach_weight` is 0 under the scenario's settings: it is 1.0.
+4. **Declared but never weighed: the gate tells the agent where it is put down** (the true start pose is written into the estimate at every trial start; `docs/prereg/m2b_gate.md`, G36 D).
+5. **Built in, task-blind, declared; kept and recorded here.** The approach to anything labelled "target" is a reflex, and the cue gate mutes memory while one is in view, so the gate's visible session measures that reflex, and after a missed hidden trial the goal is shown and the reflex brings the agent in. Vision hands the agent object labels. The place population and the wall reset know the arena's extent (G33, G37). The rodent body's wall following and the corridor options are motor rules (G44, G45). Each gate trial's first tick repeated the previous trial's last action from the new start (one tick; `still_start` from here).
+
+### B. What landed
+1. **`sensors.unseen_block_rays`** (a hidden or eaten object is not seen: rays and whiskers pass through it) and **`reward.shape_hidden`** (shaping reads visible targets only; a hidden goal still rewards on contact): **False on the research profile, True on legacy**, which keeps its recorded behaviour. `docs/profiles.md`, the profile-diff test.
+2. Every registration before G46 pins the old sensing (`rq4a_gate.PREREGS[...]["pre_g46"]`, `sr_unlearning.PRE_G46`): the confirmatory gate's committed rows regenerate exactly (0 of 960 rows differ; 426 differ with the fix). `docs/data/console_ablation/README.md` says how to regenerate its research hidden-food tables.
+3. `rq4a_gate`: `start_estimate` (`anchor`, `centre`, `carry`), `estimate` and `still_start`. `experiments/g46_retest.py`; `tools/g46_audit.py`. Tests +15 (suite 666); both determinism baselines unchanged (they hold no hidden object).
+
+### C. Measured (preregistered, fresh seeds)
+**Hidden food**, seeds 17–46, finds per 3,000 ticks (memory steering on the research profile is the scenario's U = 4; legacy at sensor noise 0.03, G23's setting B):
+
+| profile, sensing | no memory steering | memory steering | steering − none [95% CI] | seeds steering wins |
+|---|---|---|---|---|
+| research, sites sensed (as before) | 28.8 | 28.2 | −0.6 [−2.6, +1.0] | 12 / 30 |
+| **research, G46** | **53.0** | **41.2** | **−11.8 [−13.7, −9.8]** | **0 / 30** |
+| research, G46, one rate | 53.0 | 21.4 | −31.6 [−33.5, −29.6] | 0 / 30 |
+| legacy, as recorded | 3.8 | 10.6 | +6.8 [+5.2, +8.2] (× 2.81 [2.27, 3.49]) | 28 / 30 |
+| legacy, rays fixed | 42.2 | 20.1 | −22.1 [−23.3, −20.9] (× 0.48) | 0 / 30 |
+| **legacy, both fixed** | **40.8** | **19.4** | **−21.5 [−22.5, −20.5] (× 0.47)** | **0 / 30** |
+
+H1–H5 hold. **The leak held the agent away from food**: with nothing sensed, the agent without memory finds 24 (research) and 37 (legacy) more items per run, and memory steering, which takes it back to sites it has just emptied, loses on every seed. The rays carry the reversal; the shaping only added finds to both legacy arms.
+
+**The gate**, seeds 125–154, the confirmatory settings with the sensing fixed and trials started still; success over trials 21–40:
+
+| told at each trial start | SR hidden | SR visible | tabular hidden | no steering, hidden | SR − no steering [95% CI] |
+|---|---|---|---|---|---|
+| **the true start (registered)** | **99.8%** | 100% | 84% | 3.5% | +0.96 [+0.95, +0.97] |
+| the arena's centre | 37.3% | 86% | 70% | 3.5% | +0.34 [+0.30, +0.38] |
+| nothing (carry) | 37.7% | 95% | 63% | 3.5% | +0.34 [+0.29, +0.39] |
+| nothing, no heading oracle, no wall reset | 6.2% | 60% | 5.2% | 3.5% | +0.03 [+0.00, +0.06] |
+
+G1 holds (hidden ÷ visible 0.998 [0.990, 1.0], arrival error 0.18 units). G2 holds. **G3 fails as written**: with no aid at all the SR still beats no steering, by 2.7 points [0.3, 5.5] (predicted: not above), near the floor; the estimate there ends 52 units from the body on arrival (it leaves the arena: the integrated heading drifts and nothing resets it). Without the anchor the tabular map degrades less (84% to 63–70%) than the SR (99.8% to 37%), not analysed here.
+
+**Memory maze, exploratory** (G23's claim 3 at setting B, seeds 1–8, the legacy maze with the hidden goal not sensed, by patching the ray): headings recalling 15.75 to 15.5 (gain 0.8) and 15.75 to 15.4 (gain 1.5) of 16; recall rate 0.999 both ways. The maze's recall does not rest on the leak (it rests on the goal vector, declared, G18).
+
+### D. What this changes in the record
+1. **Withdrawn: the hidden-food memory benefit** (README; G19, G21; G23 claim 1's × 2.91), a product of leak 1 (and, on legacy, leak 2). Replaced by C: **on hidden food, memory steering costs finds on both profiles.**
+2. **Withdrawn: G41 K3 and G43's "at U = 4 steering is level with no steering"**: level only because the leak held no steering down; without it U = 4 steering is 11.8 finds below. The scenario keeps U = 4 for now; re-choosing it is a separate question.
+3. **Qualified: the RQ4(a) gate** (G36, G37, G44, G45) tests the use of a place memory *given the start*. Its 98–100% needs the start anchor (62 points of it); without the anchor and the declared aids the place memory barely helps. From here **every M3 result is reported with and without the anchor**, and something the agent can sense and localise from is the route to removing it.
+4. **Corrected: G41 D's `approach_weight`** (1.0 for hidden food, not 0).
+
+### E. Decisions
+1. **The owner's choice on G45 C2: (b)**, one wall response for every task, preregistered under four rules: one configuration for every task (nothing knows which task it is in); reflex settings fixed before the run from outside the results; all tasks pass together (track, visible goal, hidden goal, open field); a no-learning control in every task, a behaviour counting as emergent only by its margin over it. The audit came first, at the owner's request.
+2. **The legacy profile keeps both leaks** as its recorded behaviour (so every legacy result regenerates); its claims are read through D. Fixing legacy too is the owner's call.
+3. **Next, at the owner's request: obstacles in the arena, then a retest.** The world has no solid object today (the agent walks through every object; only the arena bounds stop it), so obstacles need collision, a sensed solid kind and a task-blind response to it.
+
+**Impact:** this entry; `docs/prereg/g46_retest.md` (new); `core/config.py`, `core/sensors.py`, `core/engine.py`; `experiments/rq4a_gate.py`, `experiments/sr_unlearning.py`, `experiments/g46_retest.py` (new); `tools/g46_audit.py` (new); `docs/profiles.md`, `docs/data/console_ablation/README.md`, `docs/data/g46/` (new), `docs/m3_place_replay.md`, README; notes under G19, G21, G23, G41, G43; tests in `tests/engine/`, `tests/experiments/`.

@@ -147,3 +147,20 @@ the prediction did not anticipate the visible collapse; the wall-zone share rose
 
 **Reading: the decision table's second row**: the options run corridors but cost navigation, so the cause is diagnosed
 before step 2.
+
+## Note, 2026-10-27: the owner's route for step 2, and the audit before it (G46)
+
+**The route (G45 C2): (b), one wall response for every task**, chosen so that behaviour is emergent rather than set per
+task. Its preregistration carries four rules: one configuration for every task (nothing knows which task it is in);
+reflex settings fixed before the run from outside the results; every task passes together (the track, the visible
+goal, the hidden goal, the open field), so a fix cannot buy laps with navigation as step 1b's options did; and a
+no-learning control in every task, a behaviour counting as emergent only by its margin over it. On the track that is
+laps with reward against laps without: step 1b's options ran a lap every 33 ticks on a track with no reward at all, a
+reflex shuttle, which is why the track-only setting was not taken.
+
+**The audit first, at the owner's request** (G46; `docs/prereg/g46_retest.md`; `docs/data/g46/`). Nothing hidden is
+sensed on the research profile any more (the rays had seen hidden food as obstacles); the hidden-food memory benefit
+was the leak's and is withdrawn; the gate's 99.8% needs its start anchor (37.7% told nothing, 6.2% with no aid at all,
+3.5% without value steering). **From here every M3 result is reported with and without the anchor.** The owner's next
+step is obstacles in the arena, then a retest; the world has no solid object yet, so that is new physics before it is
+a new task.
