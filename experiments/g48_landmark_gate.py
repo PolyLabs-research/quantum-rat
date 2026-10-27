@@ -42,12 +42,17 @@ CONDITIONS: Dict[str, Dict[str, Any]] = {
     f"{layout}_{start}_{cues}": {"layout": layout, "start_estimate": start, "landmarks": cues == "on", "lateral_odometry": True}
     for layout in ("open", "L") for start in ("anchor", "carry") for cues in ("off", "on")
 }
+# G47's agent (no sideways odometry, no cues) in the L arena, paired with the rest: the second pilot found G47's way
+# round the wall leaning on the slide the agent could not feel, which carried its estimate through the wall.
+CONDITIONS.update({f"L_{start}_off_nolateral": {"layout": "L", "start_estimate": start, "landmarks": False, "lateral_odometry": False}
+                   for start in ("anchor", "carry")})
 GROUPS: Dict[str, Tuple[int, ...]] = {
     "all": tuple(range(len(rg.STARTS))),
     "blocked": rg.blocked_starts("L"),
     "direct": tuple(i for i in range(len(rg.STARTS)) if i not in rg.blocked_starts("L")),
 }
-GROUP_COLUMNS = ("condition", "source", "session", "seed", "group", "trials", "success", "latency_median", "estimate_error")
+GROUP_COLUMNS = ("condition", "source", "session", "seed", "group", "trials", "success", "latency_median", "estimate_error",
+                 "frame_spread")
 EFFECT_COLUMNS = ("test", "statistic", "a", "b", "n", "mean_a", "mean_b", "estimate", "low", "high", "wins", "losses", "note")
 
 
@@ -66,10 +71,19 @@ def group_rows(condition: str, trials: Sequence[Mapping[str, Any]], learning: in
                     rows = [r for r in trials if r["source"] == src and r["session"] == ses and int(r["seed"]) == seed
                             and r["trial"] > learning and int(r["start"]) in starts]
                     hits = [r for r in rows if r["reached"]]
+                    # frame_spread: how far each read trial's mean offset (estimate - body) lies from the session's mean
+                    # offset; a map consistent across trials but shifted as a whole (a frame of its own) scores near 0.
+                    if rows:
+                        ox = float(np.mean([r["estimate_offset_x"] for r in rows]))
+                        oy = float(np.mean([r["estimate_offset_y"] for r in rows]))
+                        spread = float(np.mean([math.hypot(r["estimate_offset_x"] - ox, r["estimate_offset_y"] - oy) for r in rows]))
+                    else:
+                        spread = math.nan
                     out.append({"condition": condition, "source": src, "session": ses, "seed": seed, "group": g, "trials": len(rows),
                                 "success": sum(r["reached"] for r in rows) / len(rows) if rows else math.nan,
                                 "latency_median": float(np.median([r["latency"] for r in hits])) if hits else math.nan,
-                                "estimate_error": float(np.mean([r["estimate_error_mean"] for r in rows])) if rows else math.nan})
+                                "estimate_error": float(np.mean([r["estimate_error_mean"] for r in rows])) if rows else math.nan,
+                                "frame_spread": spread})
     return out
 
 
@@ -96,14 +110,24 @@ def effects(groups: Sequence[Mapping[str, Any]], seeds: Sequence[int], n_boot: i
                 out.append(_effect(f"cues_{layout}_{start}", f"hidden success, {group} starts, cues on - off",
                                    f"{off}/{src}/{group}", _vec(groups, seeds, condition=off, source=src, session="hidden", group=group),
                                    f"{on}/{src}/{group}", _vec(groups, seeds, condition=on, source=src, session="hidden", group=group), n_boot))
-            # the mechanism: the estimate's error over the read trials, on - off (SR, hidden)
-            out.append(_effect(f"estimate_error_{layout}_{start}", f"mean estimate error (units), {group} starts, cues on - off",
-                               f"{off}/sr/{group}", _vec(groups, seeds, "estimate_error", condition=off, source="sr", session="hidden", group=group),
-                               f"{on}/sr/{group}", _vec(groups, seeds, "estimate_error", condition=on, source="sr", session="hidden", group=group), n_boot))
+            # the mechanism: the estimate's error over the read trials, and its frame's spread across them, on - off
+            for stat in ("estimate_error", "frame_spread"):
+                out.append(_effect(f"{stat}_{layout}_{start}", f"{stat} (units), {group} starts, sr hidden, cues on - off",
+                                   f"{off}/sr/{group}", _vec(groups, seeds, stat, condition=off, source="sr", session="hidden", group=group),
+                                   f"{on}/sr/{group}", _vec(groups, seeds, stat, condition=on, source="sr", session="hidden", group=group), n_boot))
         # with the cues, told nothing against told the start: what is left of the anchor's weight
         out.append(_effect(f"anchor_left_{layout}", f"hidden success, {group} starts, sr: carry with cues - anchor without",
                            f"{layout}_anchor_off/sr/{group}", _vec(groups, seeds, condition=f"{layout}_anchor_off", source="sr", session="hidden", group=group),
                            f"{layout}_carry_on/sr/{group}", _vec(groups, seeds, condition=f"{layout}_carry_on", source="sr", session="hidden", group=group), n_boot))
+        # G47's agent against the same with the sideways odometry (L only): what the unfelt slide did
+        if layout == "L":
+            for start in ("anchor", "carry"):
+                for stat in ("success", "estimate_error"):
+                    out.append(_effect(f"lateral_{start}_{stat}", f"{stat}, {group} starts, sr hidden, sideways odometry on - off (no cues)",
+                                       f"L_{start}_off_nolateral/sr/{group}",
+                                       _vec(groups, seeds, stat, condition=f"L_{start}_off_nolateral", source="sr", session="hidden", group=group),
+                                       f"L_{start}_off/sr/{group}",
+                                       _vec(groups, seeds, stat, condition=f"L_{start}_off", source="sr", session="hidden", group=group), n_boot))
         # the learned memory against no steering, told nothing, with the cues
         out.append(_effect(f"memory_{layout}_carry_on", f"hidden success, {group} starts, sr - none, carry with cues",
                            f"{layout}_carry_on/none/{group}", _vec(groups, seeds, condition=f"{layout}_carry_on", source="none", session="hidden", group=group),
@@ -117,7 +141,7 @@ def cell_means(groups: Sequence[Mapping[str, Any]], seeds: Sequence[int], n_boot
         for src in rg.SOURCES:
             for ses in rg.SESSIONS:
                 for g in GROUPS:
-                    for stat in ("success", "estimate_error"):
+                    for stat in ("success", "estimate_error", "frame_spread"):
                         v = _vec(groups, seeds, stat, condition=c, source=src, session=ses, group=g)
                         ci = bootstrap_ci(v, np.mean, n_boot=n_boot, seed=_stat_seed("g48_mean", c, src, ses, g, stat))
                         out.append({"test": f"mean_{stat}", "statistic": f"{ses} {stat}, {g} starts", "b": f"{c}/{src}/{ses}/{g}",
@@ -150,7 +174,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     for c, rows in trial_rows.items():
         d = out / c
         per_seed = rg.per_seed_rows(rows, learning)
-        write_csv(d / "gate_trials.csv", rg.TRIAL_COLUMNS + ("estimate_error_mean",), rows)
+        write_csv(d / "gate_trials.csv", rg.TRIAL_COLUMNS + ("estimate_error_mean", "estimate_offset_x", "estimate_offset_y"), rows)
         write_csv(d / "gate_per_seed.csv", rg.PER_SEED_COLUMNS, per_seed)
         write_csv(d / "gate_effects.csv", rg.EFFECT_COLUMNS, rg.effect_rows(per_seed, n_boot))
         groups += group_rows(c, rows, learning)
@@ -183,7 +207,8 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
             else:
                 parts.append(f"{src} {float(np.mean(_vec(groups, seeds, condition=c, source=src, session='hidden', group='all'))):.3f}")
         err = float(np.mean(_vec(groups, seeds, "estimate_error", condition=c, source="sr", session="hidden", group="all")))
-        print(f"  {c:16s} {'  '.join(parts)}   error {err:.2f}")
+        spread = float(np.mean(_vec(groups, seeds, "frame_spread", condition=c, source="sr", session="hidden", group="all")))
+        print(f"  {c:24s} {'  '.join(parts)}   error {err:.2f}  frame spread {spread:.2f}")
     print(f"wrote {out} in {time.perf_counter() - started:.1f} s")
     return {"groups": groups, "effects": eff}
 

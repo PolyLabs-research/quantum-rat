@@ -187,8 +187,9 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
                 lateral_odometry: bool = False) -> List[Dict[str, Any]]:
     """One session. ``layout`` (``LAYOUTS``) puts barriers in the arena (G47); ``landmarks`` puts the distal cues
     (``CUES``) round it and turns on the agent's sight of them and its learned cue map (G48). Each row also carries
-    ``estimate_error_mean``, the mean distance between the estimate and the body over the trial's ticks (G48; not one
-    of ``TRIAL_COLUMNS``, so the registered tables are unchanged).
+    ``estimate_error_mean``, the mean distance between the estimate and the body over the trial's ticks, and
+    ``estimate_offset_x`` / ``_y``, the mean of estimate minus body (G48; not ``TRIAL_COLUMNS``, so the registered
+    tables are unchanged).
     ``start_estimate`` (``START_ESTIMATES``) is what the estimate is told at each trial start;
     ``still_start`` clears the action pending from the last trial, so a trial's first tick does not repeat the last
     trial's last action from the new start (the body is put down still; every run before G46 carried it over)."""
@@ -225,12 +226,14 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
         goal.kind = "hidden" if session == "hidden" else "target"
         latency, guided_latency = None, None
         ticks = 0
-        error_sum = 0.0
+        error_sum = offset_x = offset_y = 0.0
         for t in range(TIMEOUT):
             ticks += 1
             eng.run(1, reset=first)
             first = False
             error_sum += math.hypot(st.grid_x - a.pos[0], st.grid_y - a.pos[1])
+            offset_x += st.grid_x - a.pos[0]
+            offset_y += st.grid_y - a.pos[1]
             if _reached(eng):
                 latency = t + 1
                 break
@@ -249,7 +252,9 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
                      "reached": latency is not None, "latency": latency if latency is not None else "",
                      "guided": latency is None and session == "hidden", "guided_reached": guided_latency is not None,
                      "arrival_error": arrival_error, "ticks": ticks,
-                     "estimate_error_mean": error_sum / (latency if latency is not None else TIMEOUT)})
+                     "estimate_error_mean": error_sum / (latency if latency is not None else TIMEOUT),
+                     "estimate_offset_x": offset_x / (latency if latency is not None else TIMEOUT),
+                     "estimate_offset_y": offset_y / (latency if latency is not None else TIMEOUT)})
     return rows
 
 
