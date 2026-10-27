@@ -1,0 +1,14 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+g1_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,1,1,1,1,1,,,,>= 0.8,passes,sr; all bootstrap replicates equal; interval collapsed to the estimate
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.845833,0.854167,1.00985,0.916667,1.10309,,,,reported,reported,tabular
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.629167,0.0291667,0.0463576,0.0208333,0.0833333,,,,reported,reported,none
+g2_arrival_error,"per-seed median estimate error at arrival, hidden, trials 21-40",,sr,12,,0.261471,0.261471,0.244072,0.279026,,,,"< 2.0 units, interval below",passes,seeds without an arrival: 0
+reported_absolute_success,"success, trials 21-40",,sr/hidden,12,,,1,1,1,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+reported_absolute_success,"success, trials 21-40",,sr/visible,12,,,1,1,1,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+reported_absolute_success,"success, trials 21-40",,tabular/hidden,12,,,0.854167,0.775,0.904167,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/visible,12,,,0.845833,0.783333,0.895833,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/hidden,12,,,0.0291667,0.0125,0.05,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/visible,12,,,0.629167,0.570833,0.7125,,,,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,sr,12,0.0291667,1,0.970833,0.95,0.9875,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reported_paired_hidden,"success, trials 21-40, hidden",tabular,sr,12,0.854167,1,0.145833,0.0958333,0.225,0.916667,0.583333,1,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,tabular,12,0.0291667,0.854167,0.825,0.758333,0.883333,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
