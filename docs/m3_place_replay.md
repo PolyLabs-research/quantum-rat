@@ -112,3 +112,38 @@ the axis already reads as a wall ahead. A probe of the two brain-side changes, t
 Either change alone does little (commitment with the long range makes it worse: walls are always "ahead"). Together
 they make the discrete body run the corridor. RatInABox's heading noise (about 0.4 rad per tick at this tick length)
 is too much for a 0.1 m corridor whatever the brain does. Step 1b preregisters the two changes on fresh seeds.
+
+## Step 1b: the corridor options (G45; `docs/prereg/m3_corridor.md`; data `docs/data/m3/corridor/`)
+
+A wall range of 0.2 m (`basal_ganglia.wall_avoid_range` 1/6) and a turn commitment of 0.3, on fresh seeds 31–60
+(track, open field) and 91–120 (gate). Amendment 1 (before any result was read): the first attempt crashed on a
+contract mismatch (a one-tick turn of exactly π, reachable only through a fault in the body's wall following at a
+corner, disclosed there); the contract was aligned and the run repeated; the gate tables of both attempts are
+byte-identical.
+
+| condition | ticks per lap (bound 36) | stalls | FORWARD | near a wall, open field | coverage | orbit share |
+|---|---|---|---|---|---|---|
+| discrete | 105.3 | 6.0% | 23% | 59% | 59% | 31% |
+| **discrete_corridor** | **33.3 [32.9, 33.8]: T1 passes** | 0.2% | 51% | 75% | 48% | 9% |
+| rodent_quiet_corridor | 38.3 [38.1, 38.6]: T1′ fails | 0.4% | 55% | 58% | 64% | 52% |
+| rodent_corridor | 62.4 | 1.4% | 43% | 44% | 99% | 17% |
+
+**The gate, with the options** (SR source; trials 21–40):
+
+| body | hidden | visible | hidden ÷ visible | no steering, hidden | tabular, hidden |
+|---|---|---|---|---|---|
+| discrete | 98.2% | **11.8%** | 8.3 | 9.8% | 23.5% |
+| rodent_quiet | 100% | **26.2%** | 3.8 | 15.7% | 88.7% |
+
+**G1 passes by the letter and fails in substance.** Its ratio divides by the visible success, which collapsed (100% at
+the registered gate). Under the options the agent learns the hidden goal (16% → 98% over the session) but never
+improves on a visible one (7% → 13%), and only 14 of 242 guided misses reach the goal once it is shown (50 of 62 at
+the registered gate). A visible target mutes memory steering (the cue gate), so the visible approach rests on vision
+drive alone, and with the options vision drive no longer brings the agent in; in the open field it spends 75% of
+ticks within 0.1 m of a wall. Predictions: T1 held (33.3, predicted about 33); T1′ failed narrowly (predicted narrowly
+either way); `rodent_corridor` about 60 (held); G1 "above 95% hidden" held and the control stayed below 20% (held), but
+the prediction did not anticipate the visible collapse; the wall-zone share rose and orbits fell for the discrete body
+(held), not for the quiet rodent body.
+
+**Reading: the decision table's second row**: the options run corridors but cost navigation, so the cause is diagnosed
+before step 2.

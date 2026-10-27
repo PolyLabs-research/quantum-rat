@@ -1,0 +1,14 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+g1_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,0.118333,0.981667,8.29577,6.33858,10.963,,,,>= 0.8,passes,sr
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,0.106667,0.235,2.20312,1.5493,3.29628,,,,reported,reported,tabular
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,0.105,0.0983333,0.936508,0.727273,1.19643,,,,reported,reported,none
+g2_arrival_error,"per-seed median estimate error at arrival, hidden, trials 21-40",,sr,30,,0.192654,0.192654,0.179176,0.203144,,,,"< 2.0 units, interval below",passes,seeds without an arrival: 0
+reported_absolute_success,"success, trials 21-40",,sr/hidden,30,,,0.981667,0.956667,0.993333,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,sr/visible,30,,,0.118333,0.0883333,0.153333,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/hidden,30,,,0.235,0.171667,0.316667,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/visible,30,,,0.106667,0.0883333,0.128333,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/hidden,30,,,0.0983333,0.0783333,0.118333,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/visible,30,,,0.105,0.0833333,0.125,,,,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,sr,30,0.0983333,0.981667,0.883333,0.855,0.906667,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reported_paired_hidden,"success, trials 21-40, hidden",tabular,sr,30,0.235,0.981667,0.746667,0.666667,0.806667,0.998889,0.98,1,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,tabular,30,0.0983333,0.235,0.136667,0.0733333,0.23,0.413333,0.115556,0.648889,reported,reported,

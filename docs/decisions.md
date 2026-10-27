@@ -1687,3 +1687,25 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 3. **The quiet rodent body earns its place on its merits only if step 1b shows it**: it removes the turning circle and smooths speed, but on the track it was no better than the discrete body, with or without the brain fix.
 
 **Impact:** this entry; `docs/m3_place_replay.md` (new), `docs/prereg/m3_body.md` (new); `core/body.py` (new), `core/config.py` (`BodyConfig`), `core/engine.py`; `experiments/body_characterisation.py` (new), `experiments/rq4a_gate.py`; tests `tests/engine/test_body.py`, `tests/experiments/test_body_characterisation.py` (new), `tests/experiments/test_rq4a_gate.py`; `docs/data/m3/body/` (new).
+
+## G45 — M3 step 1b: the corridor options run the track and break the approach to a visible target
+
+**Date:** 2026-10-27  
+**Why:** G44 traced the crawl on the track to the action selection (left/right dithering at the ends, a wall signal reaching 1.2 m). Preregistered (`docs/prereg/m3_corridor.md`, `a64bef1`; Amendment 1, `0a41a53`), values from G44's disclosed probe, on fresh seeds.
+
+### A. What landed
+1. **`basal_ganglia.wall_avoid_range`** (the fraction of the vision range within which a wall on the centre ray counts as ahead; 1.0 is every result to date) and **`basal_ganglia.turn_commitment`** (added to the previous tick's turn while a wall is ahead; 0 off), threaded through selection, the engine (`previous_action`), the decision log and the console (a `commit` term; the terms still sum to the scores, pinned on a run where it fires). Both baselines bit-identical.
+2. `body_characterisation --condition-set corridor`; `rq4a_gate --corridor` and its preregistration entry.
+3. **The Observation contract** allowed ±3.14159 for a one-tick turn while the sensor clamps to ±π: aligned to ±π (as the heading), after the first attempt crashed on it. The cause was **a fault in G44's body**: at a corner its wall following takes the walls one after the other, so their turns add (2.6 rad in one tick at seed 54). Not fixed here (the registered conditions run as built); recorded for the next body step.
+4. Tests +2 (suite 651).
+
+### B. Measured (`docs/m3_place_replay.md`, step 1b)
+- **T1 passes**: the discrete body with the options runs the track in 33.3 [32.9, 33.8] ticks a lap, stalls 0.2%. The quiet rodent body misses narrowly (38.3), the noisy one does not come close (62.4).
+- **G1 passes by its letter and fails in substance**: SR hidden 98.2% (discrete) and 100% (quiet rodent), but visible success 11.8% and 26.2% (100% at the registered gate), so the relative ratio (8.3, 3.8) is meaningless. The no-steering control stays under 20% (9.8%, 15.7%).
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **The registered reading is the table's second row**: the options cost navigation; **diagnose before step 2**. The relative gate cannot see a collapse of its own denominator; **a later gate preregistration bounds the visible success as well** (e.g. at least 80% of the registered gate's).
+2. **Where the options belong** is the owner's call after the diagnosis. Candidates: (a) a protocol setting of the track only, declared like a scenario's own settings, with the research profile unchanged for open-field tasks; (b) a fix that keeps the corridor and restores the visible approach, preregistered; (c) forced laps (G35), step 1's fallback.
+3. **The body's corner fault** is fixed before any rodent body is offered as a default.
+
+**Impact:** this entry; `docs/prereg/m3_corridor.md` (new); `brain/systems/basal_ganglia.py`, `brain/contracts.py`, `core/config.py`, `core/engine.py`, `metrics/decisions.py`, `ui/sim_session.py`, `ui/static/js/brain.js`; `experiments/body_characterisation.py`, `experiments/rq4a_gate.py`; tests in `tests/engine/`, `tests/brain/`, `tests/experiments/`; `docs/data/m3/corridor/` (new).
