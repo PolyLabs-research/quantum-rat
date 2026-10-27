@@ -17,7 +17,7 @@ class VisionRay:
     def validate(self) -> None:
         if not 0.0 <= self.dist <= 1.0:
             raise ValueError(f"dist must be in [0,1], got {self.dist}")
-        if not -3.14159 <= self.angle <= 3.14159:
+        if not -3.14159266 <= self.angle <= 3.14159266:  # pi rounded up, as heading (pi itself is in range; G45)
             raise ValueError(f"angle must be in [-pi, pi], got {self.angle}")
 
 
@@ -58,7 +58,9 @@ class Observation:
             raise ValueError(
                 f"forward_delta must be within [-{forward_limit}, {forward_limit}], got {self.forward_delta}"
             )
-        if not -3.14159 <= self.turn_delta <= 3.14159:
+        # pi rounded up, as heading and wall_contacts: the egomotion clamp yields exactly +-pi for a one-tick turn of pi
+        # or more, which 3.14159 (pi rounded down) rejected; reachable only with the rodent body at a corner (G45).
+        if not -3.14159266 <= self.turn_delta <= 3.14159266:
             raise ValueError(f"turn_delta must be in [-pi, pi], got {self.turn_delta}")
         for ray in self.vision_rays:
             ray.validate()

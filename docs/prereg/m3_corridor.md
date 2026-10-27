@@ -63,6 +63,22 @@ settings otherwise) with the corridor options, under the discrete body and under
 | passes | fails | They run corridors but cost navigation: diagnose before step 2 |
 | fails | any | Step 2 uses forced laps (G35's protocol), as step 1's table says |
 
+## Amendment 1 (2026-10-27, after the first attempt crashed and before any result was read)
+
+The first attempt (at `648bc37`, from the clean tree) stopped with no output: in `rodent_corridor` on the track at
+seed 54, tick 1874, the egomotion reported a one-tick turn of exactly π, which the Observation contract rejected
+(it allowed ±3.14159, π rounded down, while the sensor clamps to ±π and the contract allows a heading of π rounded
+up). To find it, every condition × world × seed of this step was run once more with only crashes printed; no measure
+was read. **The contract now allows ±π for the turn and for ray angles, as it does for the heading**; nothing else
+changes, and no earlier run could have produced such a value without crashing.
+
+**Disclosed: a flaw in the body's wall following.** The turn came from the rule this step registered, not from noise
+alone: at a corner, heading into both walls, the west wall turned the heading to face south (straight into the south
+wall), and the south wall then turned it to face east, 2.6 rad of wall following in one 0.2 s tick (plus 0.54 rad of
+rotation noise). The walls are taken one after another, so at a corner their turns add. It reaches the corners mostly
+in the noisy body and is a fault in the body, recorded for the next body step; **the registered conditions run as
+they are**, and `rodent_corridor` has no bound in this step.
+
 ## What would change this document
 
 Nothing after the first run.

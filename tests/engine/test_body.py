@@ -138,3 +138,17 @@ def test_the_corridor_options_default_off_and_the_commitment_needs_a_wall_ahead(
     assert far["TURN_LEFT"] == 0.0 and far["FORWARD"] == on.forward_bias
     # Off (the defaults): the same wall 0.9 of the range away still counts, as it always has.
     assert _channel_scores(clear, 0.0, 1.0, False, bg, {}, previous_action="TURN_LEFT")["TURN_LEFT"] > 0.0
+
+
+def test_a_one_tick_turn_of_pi_is_a_valid_observation() -> None:
+    """G45: the egomotion clamp gives exactly +-pi for a one-tick turn of pi or more; the contract accepts it, as it
+    accepts a heading of pi (it rejected 3.141592653589793 against a bound of 3.14159 until then)."""
+    import math
+
+    from brain.contracts import Observation, VisionRay
+
+    for turn in (math.pi, -math.pi):
+        Observation(vision_rays=(VisionRay(dist=0.5, obj_type="wall", angle=math.pi),), whisker_hits=(False, False),
+                    pain_signal=0.0, forward_delta=0.0, turn_delta=turn).validate()
+    with pytest.raises(ValueError):
+        Observation(vision_rays=(), whisker_hits=(False, False), pain_signal=0.0, forward_delta=0.0, turn_delta=3.2).validate()
