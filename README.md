@@ -470,8 +470,10 @@ The code is under the MIT licence (`LICENSE`). The documentation in `docs/` (inc
 decisions log) and the figures are under CC BY 4.0 (`LICENSE-docs`,
 https://creativecommons.org/licenses/by/4.0/). To cite the software, use `CITATION.cff` (GitHub
 renders it as "Cite this repository"). Releases are tagged per milestone (`docs/research_plan.md`
-§7): `v1.3-track-replay` is Milestone 2a, tabular replay on the linear track (G26–G32), and
-`v1.4-place-code` is Milestone 2b, the place code and the RQ4(a) gate (G33–G37). The decision log
-also names `v1.0-honest` (Milestone 0a, G22) and `v1.1-base` (Milestone 0b, G24, commit
-`48c5817`), but those two tags are not in the repository. The package version stays 1.2.0
+§7): `v1.0-honest` is Milestone 0a, the legacy/research profile split (G22); `v1.1-base` is
+Milestone 0b, the instrument base (G24); `v1.2-value` is Milestone 1, the value rule and odometry
+(G25); `v1.3-track-replay` is Milestone 2a, tabular replay on the linear track (G26–G32); and
+`v1.4-place-code` is Milestone 2b, the place code and the RQ4(a) gate (G33–G37). The first three
+were tagged retroactively on 2026-10-27 at the commits the decision log names (each checked against
+the test count and package version the log records). The package version stays 1.2.0
 (`pyproject.toml`, `CITATION.cff`) until the owner bumps it.
