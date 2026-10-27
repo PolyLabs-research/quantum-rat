@@ -1665,3 +1665,25 @@ Suite: 549 tests (541 at step 2), about 2 min with the gain rules' tests.
 - M3 runs on the instrument (one rate), on protocols of the gate's kind (G42 C2). Whether replay over the place code resolves the persistence that the unlearning rate removes in the console is a question M3 can ask with the G40 instrument, against these scenario settings.
 
 **Impact:** this entry; `ui/scenarios.py` (the constant, two configs, two notes), `ui/sim_session.py` (the mechanisms detail); `tests/ui/test_sim_session.py`; README, docs/profiles.md, `docs/data/console_ablation/README.md`.
+
+## G44 — M3 step 1: a rodent-like body; it does not run the corridor, the gate holds under it, and the cause is the brain's wall response
+
+**Date:** 2026-10-27  
+**Why:** M3 started at the owner's request, with the instruction to close the gaps against RatInABox and RL frameworks (`docs/m3_place_replay.md`). RQ1's track needs the agent to run its own laps; a probe found it crawls (74% TURN, 81% against a wall, 97 ticks a lap against 18). Preregistered (`docs/prereg/m3_body.md`, `4a552c1`; Amendment 1, `461a9dd`, before the run), on the branch `m3-body` from the dev branch's `6b89bb7`.
+
+### A. What landed
+1. **`core/body.py`, `BodyConfig`** (`body.model`: `"discrete"`, the default in both profiles, today's body; `"rodent"`): speed and angular velocity as exactly discretised Ornstein–Uhlenbeck processes drifted to the chosen action's targets (RatInABox's coherence times; noise optional, RatInABox's 120°/s and 0.08 m/s in the `rodent` preset), turns in place, wall following, a new `body_motion` stream drawn only when on; `BODY_PRESETS` and `apply_body_preset`. The engine moves its agent with it when set and stills it at `begin_episode`. Both baselines bit-identical (tested).
+2. **`experiments/body_characterisation.py`**: the registered track and open-field measures, T1 with BCa intervals. **`experiments/rq4a_gate.py --body`**, the body put down still at each trial start, one committed directory per body; the registered gates reproduce trial by trial.
+3. Tests +9 (suite 649). A coverage-binning bug (a body on the +x or +y bound counted in a bin outside the arena) was found in the first registered run and fixed (`015c96d`); the run was repeated from the clean tree and only the coverage rows changed (90 of 1,260).
+
+### B. Measured (`docs/m3_place_replay.md`, step 1)
+- **T1 fails for every body**: 101.6 (discrete), 112.9 (rodent_quiet), 150.6 (rodent) ticks per lap against 36. **The registered decision: the body is not adopted.**
+- **The gate holds under both rodent bodies** on fresh seeds 61–90: SR hidden 99.8%, ratio 0.998; but under RatInABox's noise the no-steering control finds the hidden goal on 66.5% of trials (9.3% quiet, 5% discrete): the noise turns the gate's control into a near-pass.
+- **The cause is the brain** (exploratory, seeds 101–104, disclosed): the agent dithers between left and right turns at the track's ends, and reads side walls as ahead out to 1.2 m. A 0.2 m wall range with a turn commitment of 0.3 runs the corridor in 33 ticks a lap with the discrete body.
+
+### C. Decisions this surfaces (recommended default in bold)
+1. **Step 1b, before falling back to forced laps**: preregister the two brain-side changes (`basal_ganglia.wall_avoid_range`, `basal_ganglia.turn_commitment`) on fresh seeds, with every body, and the gate under them. The registered row's fallback (forced laps) stays the fallback.
+2. **RatInABox's noise statistics are not a free realism upgrade.** They fit open-field foraging; at this tick length they put about 0.4 rad of heading noise on every tick, which a corridor cannot absorb and which lets an agent without value steering find a hidden goal by coverage. **Keep the `rodent` preset as an option, not a candidate default**, and if noise is wanted, characterise it against running (not foraging) statistics first.
+3. **The quiet rodent body earns its place on its merits only if step 1b shows it**: it removes the turning circle and smooths speed, but on the track it was no better than the discrete body, with or without the brain fix.
+
+**Impact:** this entry; `docs/m3_place_replay.md` (new), `docs/prereg/m3_body.md` (new); `core/body.py` (new), `core/config.py` (`BodyConfig`), `core/engine.py`; `experiments/body_characterisation.py` (new), `experiments/rq4a_gate.py`; tests `tests/engine/test_body.py`, `tests/experiments/test_body_characterisation.py` (new), `tests/experiments/test_rq4a_gate.py`; `docs/data/m3/body/` (new).

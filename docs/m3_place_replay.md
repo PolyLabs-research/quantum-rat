@@ -68,3 +68,47 @@ last, preregistered before its run, merged on the owner's say-so, as in M2a and 
 2. **The learner M3's replay updates** (step 3): the plan's linear value over place features read by the SR's need,
    or the action value G32 recommends carrying. Step 3's preregistration will put a recommendation.
 3. **Whether A and B are taken up in M3 or after it.**
+
+## Step 1: a rodent-like body (G44; `docs/prereg/m3_body.md`; data `docs/data/m3/body/`)
+
+**The registered result: T1 fails for every body; the gate holds under both rodent bodies.** Seeds 1–30, 3,000 ticks,
+research profile (Amendment 1 redefined the stall share before the run, and disclosed a four-seed smoke):
+
+| body | ticks per lap (bound 36) | stall share (bound 5%) | FORWARD | wall contact | track estimate error |
+|---|---|---|---|---|---|
+| discrete | 101.6 [96.9, 106.9] | 6.1% | 24% | 82% | 0.11 |
+| rodent_quiet | 112.9 [105.9, 121.1] | 8.9% | 27% | 78% | 0.00 |
+| rodent | 150.6 [136.8, 169.2] | 3.5% | 25% | 41% | 0.22 |
+
+In the open field (2 m × 2 m): mean speed 0.25 / 0.25 / 0.32 m/s; angular velocity sd 1.08 / 0.94 / 2.26 rad/s;
+within 0.1 m of a wall 60% / 53% / 29% of ticks; coverage 59% / 64% / 99%; orbit share 33% / 40% / 17%; late
+estimate error 0.70 / 0.26 / 0.41 units (discrete / rodent_quiet / rodent).
+
+The gate (seeds 61–90, the confirmatory settings): SR hidden ÷ visible **0.998 [0.992, 1.0] under both rodent
+bodies** (hidden 99.8%, visible 100%), arrival error 0.18 and 0.17 units; median latency 33 ticks (rodent) and 17
+(rodent_quiet). **The control moved**: with no value steering the agent finds the hidden goal on 66.5% of trials under
+the noisy body (9.3% under the quiet body, 5% under the discrete one), because the noise makes it cover the arena (99%
+coverage): under RatInABox's noise the gate no longer separates a navigating agent from a wandering one.
+
+Predictions: T1 for both rodent bodies failed (the smoke had shown it); T2 held; G1 held, and the noisy body was the
+slower, as predicted; in the open field the rodent bodies spent *less* time near walls, not more (predicted more), the
+noisy body stalled less and orbited less (predicted), the quiet body orbited more (turning in place counts as a loop).
+
+**Why the body was not the fix (exploratory, seeds 101–104, disclosed; not preregistered).** The decision log named the
+cause. With the quiet body every chosen turn on the track happens within 0.2 m of an end: the agent spends about 70% of
+its time trying to turn round. A wall dead ahead scores the left and right turns almost equally, so at the softmax
+temperature the choice flips tick to tick and the heading random-walks instead of completing the U-turn; and the wall
+signal counts a wall as ahead out to the vision range (1.2 m), so in a 0.1 m corridor a heading more than about 5° off
+the axis already reads as a wall ahead. A probe of the two brain-side changes, the wall signal limited to 0.2 m and a
+**turn commitment** (the turn in progress gets +0.3 while a wall is ahead):
+
+| body | wall range | commitment | ticks per lap | stalls | FORWARD |
+|---|---|---|---|---|---|
+| discrete | 1.2 m | 0 | 96.6 | 6.1% | 24% |
+| discrete | 0.2 m | 0.3 | 33.2 | 0.2% | 51% |
+| rodent_quiet | 0.2 m | 0.3 | 38.8 | 0.4% | 55% |
+| rodent | 0.2 m | 0.3 | 62.5 | 1.4% | 42% |
+
+Either change alone does little (commitment with the long range makes it worse: walls are always "ahead"). Together
+they make the discrete body run the corridor. RatInABox's heading noise (about 0.4 rad per tick at this tick length)
+is too much for a 0.1 m corridor whatever the brain does. Step 1b preregisters the two changes on fresh seeds.
