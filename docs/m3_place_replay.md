@@ -176,3 +176,8 @@ give back what the start anchor gave in the open arena (95% told nothing, 100% t
 G47's way round the wall leaned on a slide the agent could not feel; with sideways odometry it gets round on 33%, and
 its value steering, which reads places across walls, pulls it into the wall even when the goal is visible. Steering
 that respects walls is the next candidate; sideways odometry belongs to any protocol with barriers.
+
+**Step 2, Part 1 (G49, 2026-10-27).** Reachable value probes (each direction read only as far as the agent sees it
+could go) take the agent round the L arena's wall from every walled-off start (100% against 35%), in twice an open
+run's time, and change nothing else. Part 2 (one wall response for every task; the track with alternating reward,
+strict: the reflex alone must not run laps) is the design in `docs/prereg/m3_step2.md`.

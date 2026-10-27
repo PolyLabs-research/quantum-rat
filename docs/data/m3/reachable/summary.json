@@ -1,0 +1,58 @@
+{
+ "full_evaluation": true,
+ "predictions": {
+  "R1": {
+   "holds": true,
+   "read": "L told the start, SR hidden, blocked: on 1.000; on - off +0.647 [+0.597, +0.707]"
+  },
+  "R2": {
+   "holds": true,
+   "read": "median latency, blocked starts, probes on: L 39.8 against open 20.0 (x1.99)"
+  },
+  "R3": {
+   "holds": true,
+   "read": "L told the start SR visible 1.000; L told nothing with cues SR hidden 0.973"
+  },
+  "R4": {
+   "holds": true,
+   "read": "open arena largest |on - off| 0.017; hidden food |on - off| 0.00 finds; reflex measures largest |diff| 0"
+  },
+  "R5": {
+   "holds": true,
+   "read": "no steering hidden, largest 0.032; largest change with the probes 0"
+  }
+ },
+ "prereg": "docs/prereg/m3_step2.md",
+ "seeds": [
+  215,
+  216,
+  217,
+  218,
+  219,
+  220,
+  221,
+  222,
+  223,
+  224,
+  225,
+  226,
+  227,
+  228,
+  229,
+  230,
+  231,
+  232,
+  233,
+  234,
+  235,
+  236,
+  237,
+  238,
+  239,
+  240,
+  241,
+  242,
+  243,
+  244
+ ]
+}

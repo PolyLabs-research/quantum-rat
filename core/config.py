@@ -192,6 +192,11 @@ class SensorConfig:
     # heading. A rat feels the rest (vestibular, optic flow); G48's pilot found the unsensed slide biasing a learned
     # cue map in the L arena.
     lateral_odometry: bool = False
+    # free_space_sensing (M3 step 2, draft): the Observation carries ``free_space``, the distance (units, capped at
+    # vision_range) to the nearest solid (an arena wall or a barrier) along each of ``core.sensors.FREE_SPACE_ANGLES``
+    # (relative to the heading): how far the agent can see it could move in each direction of the value fan. Exact
+    # (the wall reflex's rangefinder is too). Off: None.
+    free_space_sensing: bool = False
     landmark_fov: float = 5.235987755982989
     landmark_bearing_noise: float = 0.05
     landmark_distance_noise: float = 0.10
@@ -266,6 +271,10 @@ class ValueMemoryConfig:
     discount: float = 0.9
     capacity: int = 200  # trajectory length retained for replay
     lookahead: float = 1.0  # distance projected ahead to read neighbouring place values
+    # reachable_probes (M3 step 2, draft): each direction's value is read only as far as the agent can see it could go
+    # (the Observation's free_space, needs sensors.free_space_sensing): the probe point is pulled back to just short of
+    # the nearest solid in that direction, so a place behind a wall is not read as one step away. False: every run so far.
+    reachable_probes: bool = False
     generalization_radius: int = 0  # place-field spread in cells (0 = exact, no generalization)
     generalization_falloff: float = 0.5  # per-cell weight decay for generalization
     # Extinction of self-made value peaks: a dwelling transition on a positively

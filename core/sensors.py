@@ -136,7 +136,23 @@ def _ray_box_distance(px: float, py: float, dx: float, dy: float, box) -> Option
     return t_lo
 
 
-UNSEEN_KINDS = ("hidden", "collected")  # objects vision does not see (decisions G46)
+UNSEEN_KINDS = ("hidden", "collected")
+# The directions free space is sensed in (radians from the heading): the value fan's, ahead then left then right
+# (``Engine.VALUE_FAN_OFFSETS``; the engine checks they agree).
+FREE_SPACE_ANGLES: Tuple[float, ...] = (0.0, 0.3, 0.8, 1.4, -0.3, -0.8, -1.4)
+
+
+def _free_distance(agent: Agent, world: World, rel_angle: float, max_range: float) -> float:
+    """Distance (units, capped at ``max_range``) along a direction to the nearest solid: an arena wall or a barrier."""
+    phi = agent.heading + rel_angle
+    dx, dy = math.cos(phi), math.sin(phi)
+    px, py = agent.pos
+    nearest = _ray_wall_distance(px, py, dx, dy, world.bounds)
+    for barrier in world.barriers:
+        t = _ray_box_distance(px, py, dx, dy, barrier)
+        if t is not None and t < nearest:
+            nearest = t
+    return min(max(nearest, 0.0), max_range)  # objects vision does not see (decisions G46)
 
 
 def _cast_ray(agent: Agent, world: World, rel_angle: float, max_range: float,
@@ -223,6 +239,8 @@ def gather_observation(
 
     forward_delta, turn_delta = _compute_egomotion(agent, config, odometry_stream)
     lateral_delta = _lateral_egomotion(agent, config, odometry_stream) if config.lateral_odometry else None
+    free_space = (tuple(_free_distance(agent, world, a, config.vision_range) for a in FREE_SPACE_ANGLES)
+                  if config.free_space_sensing else None)
     heading: Optional[float] = None
     if config.heading_oracle:
         heading = agent.heading
@@ -241,6 +259,7 @@ def gather_observation(
         wall_contacts=contacts,
         landmarks=landmarks,
         lateral_delta=lateral_delta,
+        free_space=free_space,
     )
     obs.validate(forward_limit=config.forward_delta_limit)
     return obs

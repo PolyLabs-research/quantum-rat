@@ -49,6 +49,9 @@ class Observation:
     # G48: the displacement perpendicular to the heading (units, positive to the left), within the forward range; None
     # unless sensors.lateral_odometry.
     lateral_delta: Optional[float] = None
+    # M3 step 2 (draft): the distance to the nearest solid along each of core.sensors.FREE_SPACE_ANGLES; None unless
+    # sensors.free_space_sensing.
+    free_space: Optional[Tuple[float, ...]] = None
 
     def validate(self, forward_limit: float = 1.0) -> None:
         """Check the ranges; ``forward_limit`` is the egomotion range in force (``SensorConfig.forward_delta_limit``).
@@ -87,7 +90,7 @@ class Observation:
 
 
 # The Observation's optional fields (M2b): omitted from the checksum and the determinism record while None.
-OPTIONAL_OBSERVATION_FIELDS: Tuple[str, ...] = ("heading", "wall_contacts", "landmarks", "lateral_delta")
+OPTIONAL_OBSERVATION_FIELDS: Tuple[str, ...] = ("heading", "wall_contacts", "landmarks", "lateral_delta", "free_space")
 
 
 def observation_fields(obs: Observation) -> Dict[str, Any]:

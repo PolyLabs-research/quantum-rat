@@ -1,0 +1,14 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+g1_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,1,1,1,1,1,,,,>= 0.8,passes,sr; all bootstrap replicates equal; interval collapsed to the estimate
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,0.83,0.853333,1.02811,0.978474,1.07505,,,,reported,reported,tabular
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,0.603333,0.03,0.0497238,0.0321716,0.0714071,,,,reported,reported,none
+g2_arrival_error,"per-seed median estimate error at arrival, hidden, trials 21-40",,sr,30,,0.169589,0.169589,0.159194,0.179451,,,,"< 2.0 units, interval below",passes,seeds without an arrival: 0
+reported_absolute_success,"success, trials 21-40",,sr/hidden,30,,,1,1,1,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+reported_absolute_success,"success, trials 21-40",,sr/visible,30,,,1,1,1,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+reported_absolute_success,"success, trials 21-40",,tabular/hidden,30,,,0.853333,0.815,0.881667,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/visible,30,,,0.83,0.801667,0.861667,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/hidden,30,,,0.03,0.02,0.045,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/visible,30,,,0.603333,0.57,0.635,,,,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,sr,30,0.03,1,0.97,0.956667,0.98,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reported_paired_hidden,"success, trials 21-40, hidden",tabular,sr,30,0.853333,1,0.146667,0.118333,0.185,0.966667,0.816295,1,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,tabular,30,0.03,0.853333,0.823333,0.786667,0.856667,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
