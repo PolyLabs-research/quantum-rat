@@ -40,6 +40,12 @@ sensing, and `experiments/sr_unlearning.py` pins it for its registered runs. The
 hidden object and are unaffected. What the hidden-food numbers become without the leak is G46's retest
 (`docs/data/g46/`).
 
+**Reproducing them after G50.** The research profile has since adopted sideways odometry, the cue map, the
+free-space sense and reachable probes (`docs/decisions.md` G50). To reproduce a `*_research` table here at a later
+commit, add also `--set sensors.lateral_odometry=false --set sensors.landmark_sensing=false --set
+spatial.landmark_gain=0 --set sensors.free_space_sensing=false --set value_memory.reachable_probes=false`, or run at the
+commit its `manifest.json` records.
+
 ## The SR's unlearning rate (G41, preregistered: `docs/prereg/sr_unlearning_rate.md`)
 
 `experiments/sr_unlearning.py`, hidden food on the research profile, 3,000 ticks; the files are

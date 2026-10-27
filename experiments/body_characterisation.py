@@ -36,7 +36,7 @@ import numpy as np
 from analysis.orbits import summarise as orbit_summary
 from analysis.stats import bootstrap_ci, pseudo_replication_guard
 from core.body import BODY_PRESETS
-from core.config import EngineConfig
+from core.config import PRE_G50, EngineConfig
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 TRACK_BOUNDS = (10.0, 0.5)
@@ -78,7 +78,11 @@ METRICS = {
 
 
 def condition_config(overrides: Mapping[str, Any], bounds: Tuple[float, float]) -> EngineConfig:
+    """The research profile as M3 step 1 registered it (``PRE_G50``: before G50's adoptions), in ``bounds``, with the
+    condition's fields on top."""
     cfg = EngineConfig.research()
+    for key, value in PRE_G50.items():
+        cfg.set_field(key, value)
     cfg.world.bounds = tuple(bounds)
     for key, value in overrides.items():
         cfg.set_field(key, value)

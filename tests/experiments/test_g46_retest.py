@@ -13,7 +13,9 @@ from experiments import g46_retest as g
 def test_the_registration() -> None:
     assert g.FOOD_SEEDS == tuple(range(17, 47)) and g.GATE_SEEDS == tuple(range(125, 155))
     assert not set(g.QUICK_FOOD_SEEDS) & set(g.FOOD_SEEDS) and not set(g.QUICK_GATE_SEEDS) & set(g.GATE_SEEDS)
-    assert g.food_overrides("research", "pre_g46") == g.LEAKS and g.food_overrides("research", "g46") == {}
+    from core.config import PRE_G50
+
+    assert g.food_overrides("research", "pre_g46") == {**PRE_G50, **g.LEAKS} and g.food_overrides("research", "g46") == PRE_G50
     assert g.food_overrides("legacy", "g46") == {"sensors.noise": 0.03, **g.FIXED}
     assert g.GATE_CONDITIONS["embodied"] == {"start_estimate": "carry", "estimate": "integrated"}
 

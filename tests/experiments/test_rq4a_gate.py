@@ -125,10 +125,14 @@ def test_quick_run_is_identical_across_workers_and_refuses_the_committed_directo
 def test_every_registration_before_g46_pins_the_old_sensing() -> None:
     assert all(spec.get("pre_g46") for spec in rg.PREREGS.values())
     old = rg.gate_config("sr", "per_feature", pre_g46=True)
-    new = rg.gate_config("sr", "per_feature")
+    new = rg.gate_config("sr", "per_feature", pre_g50=True)  # after G46, before G50's adoptions
     assert old.sensors.unseen_block_rays and old.reward.shape_hidden
     assert not new.sensors.unseen_block_rays and not new.reward.shape_hidden
     assert [d[0] for d in new.diff(old)] == ["sensors.unseen_block_rays", "reward.shape_hidden"]
+    from core.config import RESEARCH_G50
+
+    now = rg.gate_config("sr", "per_feature")
+    assert sorted(d[0] for d in now.diff(new)) == sorted(RESEARCH_G50)  # G50's adoptions, and nothing else
 
 
 def test_the_estimate_conditions() -> None:

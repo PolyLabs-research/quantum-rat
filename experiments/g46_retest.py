@@ -31,6 +31,7 @@ from analysis.stats import bootstrap_ci, paired_effect, pseudo_replication_guard
 from experiments import console_ablation as ca
 from experiments import rq4a_gate as rg
 from experiments.linear_track_replay import _dependency_versions, _stat_seed, write_csv
+from core.config import PRE_G50
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 PREREG = "docs/prereg/g46_retest.md"
@@ -54,7 +55,8 @@ FOOD_CONDITIONS: Dict[str, Dict[str, Dict[str, Any]]] = {
     "research": {"pre_g46": LEAKS, "g46": {}},
     "legacy": {"pre_g46": {}, "rays_fixed": {"sensors.unseen_block_rays": False}, "g46": FIXED},
 }
-PROFILE_OVERRIDES: Dict[str, Dict[str, Any]] = {"research": {}, "legacy": {"sensors.noise": 0.03}}
+# Registered before the research profile adopted G48-G49's instrument (G50): pinned, so the design means what it said.
+PROFILE_OVERRIDES: Dict[str, Dict[str, Any]] = {"research": dict(PRE_G50), "legacy": {"sensors.noise": 0.03}}
 GATE_CONDITIONS: Dict[str, Dict[str, Any]] = {
     "anchor": {"start_estimate": "anchor", "estimate": "oracle_reset"},
     "centre": {"start_estimate": "centre", "estimate": "oracle_reset"},
@@ -174,7 +176,7 @@ def food_predictions(effects: Sequence[Mapping[str, Any]]) -> Dict[str, Dict[str
 
 def run_gate(seeds: Sequence[int], trials: int, workers: Optional[int]) -> Dict[str, List[Dict[str, Any]]]:
     return {c: rg.run_all(seeds, trials, workers, rg.SOURCES, "per_feature", None, "discrete", False,
-                          still_start=True, pre_g46=False, **opts)
+                          still_start=True, pre_g46=False, pre_g50=True, **opts)
             for c, opts in GATE_CONDITIONS.items()}
 
 

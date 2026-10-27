@@ -54,7 +54,8 @@ def test_off_by_default_and_out_of_the_checksum_while_off() -> None:
     assert off.landmarks is None and "landmarks" not in observation_record(0, off)
     on = gather_observation(agent, _world(), config=SensorConfig(landmark_sensing=True))
     assert observation_checksum(on) != observation_checksum(off)
-    assert EngineConfig.research().spatial.landmark_gain == 0.0 and not EngineConfig.research().sensors.landmark_sensing
+    assert EngineConfig.legacy().spatial.landmark_gain == 0.0 and not EngineConfig.legacy().sensors.landmark_sensing
+    assert EngineConfig.research().spatial.landmark_gain == 0.1 and EngineConfig.research().sensors.landmark_sensing  # G50
 
 
 def _observe(spatial: SpatialSystem, true_pos, heading, config=None) -> None:
@@ -108,6 +109,7 @@ def test_off_the_map_stays_empty() -> None:
 
 def test_the_engine_refuses_a_gain_without_the_sense() -> None:
     cfg = EngineConfig.research()
+    cfg.sensors.landmark_sensing = False
     cfg.spatial.landmark_gain = 0.1
     with pytest.raises(ValueError):
         Engine(seed=1, config=cfg)
@@ -147,8 +149,7 @@ def test_lateral_odometry_reports_a_slide_and_the_estimate_follows_it() -> None:
     obs = engine.context.observation
     dx, dy = a.pos[0] - a.last_pos[0], a.pos[1] - a.last_pos[1]
     assert obs.lateral_delta == pytest.approx(-dx * math.sin(a.heading) + dy * math.cos(a.heading))
-    off = EngineConfig.research()
-    assert not off.sensors.lateral_odometry
+    assert not EngineConfig.legacy().sensors.lateral_odometry and EngineConfig.research().sensors.lateral_odometry  # G50
 
 
 def test_off_the_observation_has_no_lateral_field() -> None:

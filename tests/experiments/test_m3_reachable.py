@@ -11,7 +11,9 @@ from experiments import m3_reachable as m
 
 def test_the_design() -> None:
     assert m.SEEDS == tuple(range(215, 245)) and not set(m.QUICK_SEEDS) & set(m.SEEDS)
-    assert m._overrides("off") == {"sensors.lateral_odometry": True}
+    from core.config import PRE_G50
+
+    assert m._overrides("off") == {**PRE_G50, "sensors.lateral_odometry": True}  # registered before G50: pinned
     assert m._overrides("on")["value_memory.reachable_probes"] and m._overrides("on")["sensors.free_space_sensing"]
 
 

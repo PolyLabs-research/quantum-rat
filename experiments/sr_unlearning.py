@@ -36,6 +36,7 @@ from core.engine import Engine  # noqa: F401,I001  (core before numpy: docs/dete
 import numpy as np
 
 from analysis.stats import PseudoReplicationError, pseudo_replication_guard
+from core.config import PRE_G50
 from experiments import console_ablation as ca
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
@@ -51,7 +52,7 @@ QUICK_SEEDS = (1, 2)
 # The pilot and the confirmatory ran before the audit of 2026-10-27 (decisions G46), when a vision ray still stopped at a
 # hidden food site (the agent sensed the sites and turned away from them). Pinned so the committed tables regenerate as
 # registered; the research profile no longer senses them, and G46 re-measures the question without it.
-PRE_G46: Dict[str, Any] = {"sensors.unseen_block_rays": True, "reward.shape_hidden": True}
+PRE_G46: Dict[str, Any] = {"sensors.unseen_block_rays": True, "reward.shape_hidden": True, **PRE_G50}  # and G50's
 QUICK_TICKS = 150
 OUTPUT_FILES = ("unlearning_per_seed.csv", "unlearning_bouts.csv", "unlearning_summary.json", "manifest.json")
 

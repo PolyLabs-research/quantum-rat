@@ -598,7 +598,8 @@ class Engine:
         look = self.config.value_memory.lookahead
         here = self._value_at(ctx.grid_x, ctx.grid_y)
         # reachable_probes (M3 step 2, draft): each direction is read only as far as the agent sees it could go.
-        free = ctx.observation.free_space if self.config.value_memory.reachable_probes else None
+        obs = ctx.observation
+        free = obs.free_space if (self.config.value_memory.reachable_probes and obs is not None) else None
         reach = dict(zip(FREE_SPACE_ANGLES, free)) if free is not None else {}
 
         def advantage(theta: float, off: float) -> float:

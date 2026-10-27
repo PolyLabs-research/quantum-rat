@@ -87,6 +87,9 @@ def test_the_committed_sidecar_is_the_committed_traces_observation(profile: str)
         if profile == "research":  # the heading oracle and the wall-contact sensing, on since M2b's exit (G37)
             expected_keys |= {"heading", "wall_contacts"}
             assert isinstance(record["heading"], float) and isinstance(record["wall_contacts"], list)
+            # and since G50 the sideways odometry, the distal cues in view (none in this arena) and the free space
+            expected_keys |= {"lateral_delta", "landmarks", "free_space"}
+            assert isinstance(record["lateral_delta"], float) and record["landmarks"] == [] and len(record["free_space"]) == 7
         assert set(record) == expected_keys
         assert len(record["whisker_hits"]) == 2 and all(isinstance(b, bool) for b in record["whisker_hits"])
         assert record["vision_rays"] and all(set(r) == {"dist", "obj_type", "angle"} for r in record["vision_rays"])

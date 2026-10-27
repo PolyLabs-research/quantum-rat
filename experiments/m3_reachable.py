@@ -30,6 +30,7 @@ from experiments import body_characterisation as bc
 from experiments import console_ablation as ca
 from experiments import rq4a_gate as rg
 from experiments.linear_track_replay import _dependency_versions, _stat_seed, write_csv
+from core.config import PRE_G50
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 PREREG = "docs/prereg/m3_step2.md"
@@ -62,12 +63,13 @@ EFFECT_COLUMNS = ("test", "statistic", "a", "b", "n", "mean_a", "mean_b", "estim
 
 
 def _overrides(probes: str) -> Dict[str, Any]:
-    return {**BASE, **PROBES[probes]}
+    """Registered before the research profile adopted these (G50): the old profile, then the design's own fields."""
+    return {**PRE_G50, **BASE, **PROBES[probes]}
 
 
 def run_gate(seeds: Sequence[int], trials: int, workers: Optional[int]) -> Dict[Tuple[str, str], List[Dict[str, Any]]]:
     return {(c, p): rg.run_all(seeds, trials, workers, rg.SOURCES, "per_feature", None, "discrete", False,
-                               still_start=True, pre_g46=False, overrides=_overrides(p), **opts)
+                               still_start=True, pre_g46=False, pre_g50=True, overrides=_overrides(p), **opts)
             for c, opts in GATE.items() for p in PROBES}
 
 

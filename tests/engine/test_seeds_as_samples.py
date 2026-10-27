@@ -95,15 +95,15 @@ def test_research_defaults_give_four_seeds_four_trajectories_and_the_same_seed_t
     again = Engine(seed=1, config=EngineConfig.research()).run(TICKS)
     assert hash_trace(again) == hash_trace(traces[1])
     assert _positions(again) == positions[1]
-    # One random() per tick on the softmax stream and two gauss() per tick on the
-    # odometry stream (forward first, then turn), whatever the trajectory does.
+    # One random() per tick on the softmax stream and three gauss() per tick on the
+    # odometry stream (forward, turn, then the sideways odometry of G50), whatever the trajectory does.
     engine = Engine(seed=1, config=EngineConfig.research())
     engine.run(TICKS)
     softmax_ref = RNG(1).stream("action_softmax")
     for _ in range(TICKS):
         softmax_ref.random()
     odometry_ref = RNG(1).stream("sensors_odometry")
-    for _ in range(2 * TICKS):
+    for _ in range(3 * TICKS):
         odometry_ref.gauss(0.0, 1.0)
     assert engine.streams["action_softmax"].getstate() == softmax_ref.getstate()
     assert engine.streams["sensors_odometry"].getstate() == odometry_ref.getstate()

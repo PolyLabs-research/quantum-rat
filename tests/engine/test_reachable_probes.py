@@ -53,6 +53,7 @@ def test_off_every_probe_reads_one_lookahead_away() -> None:
 def test_the_sensed_directions_are_the_value_fan_and_the_option_needs_the_sense() -> None:
     assert FREE_SPACE_ANGLES == (0.0, *Engine.VALUE_FAN_OFFSETS, *(-o for o in Engine.VALUE_FAN_OFFSETS))
     cfg = EngineConfig.research()
+    cfg.sensors.free_space_sensing = False
     cfg.value_memory.reachable_probes = True
     with pytest.raises(ValueError):
         Engine(seed=1, config=cfg)
