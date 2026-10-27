@@ -178,6 +178,16 @@ class SensorConfig:
     # site and turns away from it (the audit of 2026-10-27). False (the research profile from G46): such an object is
     # not seen at all, and a ray passes through it to whatever lies behind.
     unseen_block_rays: bool = True
+    # --- decisions G48: the agent sees distal cues (``core.world.Cue``) ---
+    # landmark_sensing: the Observation carries ``landmarks``, one (name, bearing, distance) per cue within the field
+    # of view: the cue's egocentric bearing (radians, [-pi, pi]) with a Gaussian error of sd landmark_bearing_noise and
+    # its distance (units) times (1 + landmark_distance_noise * xi), drawn from the "sensors_landmarks" stream (no draw
+    # at 0). The field of view is landmark_fov radians centred on the heading (300 degrees: a rat's visual field is
+    # nearly panoramic). What it sees is how a cue looks and where it appears; never where it is.
+    landmark_sensing: bool = False
+    landmark_fov: float = 5.235987755982989
+    landmark_bearing_noise: float = 0.05
+    landmark_distance_noise: float = 0.10
 
     def __post_init__(self) -> None:
         if not (math.isfinite(self.heading_oracle_noise) and self.heading_oracle_noise >= 0.0):
@@ -361,8 +371,20 @@ class SpatialConfig:
     # the agent knows, in its estimate frame (which starts at the body's start pose); None means the world's bounds.
     wall_reset: bool = False
     reset_bounds: Optional[Tuple[float, float]] = None
+    # --- decisions G48: the estimate learns where the cues are and corrects itself from them ---
+    # landmark_gain (0: off, every run before G48): each tick, the estimate moves this fraction of the way toward the
+    # position the cues it sees imply, from where it has learned they are (the mean over the seen cues it has seen at
+    # least landmark_min_sightings times). landmark_learning_rate: each sighting moves a cue's learned position this
+    # fraction toward where the (corrected) estimate puts it (the plain mean of its sightings until 1/n falls below
+    # the rate). The map is learned slowly and the self corrected fast, because the cues stay put and the estimate
+    # drifts; set from that reason before any run, not tuned. Needs sensors.landmark_sensing.
+    landmark_gain: float = 0.0
+    landmark_learning_rate: float = 0.01
+    landmark_min_sightings: int = 20
 
     def __post_init__(self) -> None:
+        if not (0.0 <= self.landmark_gain <= 1.0 and 0.0 < self.landmark_learning_rate <= 1.0 and self.landmark_min_sightings >= 1):
+            raise ValueError("landmark_gain must be in [0, 1], landmark_learning_rate in (0, 1], landmark_min_sightings >= 1")
         if self.heading_source not in HEADING_SOURCES:
             raise ValueError(f"heading_source must be one of {HEADING_SOURCES}, got {self.heading_source!r}")
         if self.reset_bounds is not None:

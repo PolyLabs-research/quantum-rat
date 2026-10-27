@@ -183,6 +183,7 @@ def gather_observation(
     noise_stream: Optional[RNGStream] = None,
     odometry_stream: Optional[RNGStream] = None,
     heading_stream: Optional[RNGStream] = None,
+    landmark_stream: Optional[RNGStream] = None,
 ) -> Observation:
     """Collect normalized sensor outputs for the agent from world geometry.
 
@@ -217,6 +218,7 @@ def gather_observation(
             heading += heading_stream.gauss(0.0, config.heading_oracle_noise)
         heading = _wrap(heading)
     contacts = _wall_contacts(agent, world) if config.wall_contact_sensing else None
+    landmarks = _landmark_sightings(agent, world, config, landmark_stream) if config.landmark_sensing else None
     obs = Observation(
         vision_rays=tuple(rays),
         whisker_hits=whisker_hits,
@@ -225,6 +227,7 @@ def gather_observation(
         turn_delta=turn_delta,
         heading=heading,
         wall_contacts=contacts,
+        landmarks=landmarks,
     )
     obs.validate(forward_limit=config.forward_delta_limit)
     return obs
@@ -239,6 +242,27 @@ WALL_CONTACT_TOLERANCE = 1e-9
 def _wrap(angle: float) -> float:
     """``angle`` wrapped to [-pi, pi)."""
     return (angle + math.pi) % (2.0 * math.pi) - math.pi
+
+
+def _landmark_sightings(agent: Agent, world: World, config: SensorConfig,
+                        stream: Optional[RNGStream]) -> Tuple[Tuple[str, float, float], ...]:
+    """(name, bearing, distance) of each cue within the field of view, in the world's cue order (decisions G48): the
+    true egocentric bearing plus a Gaussian error, then the true distance times (1 + sd * xi), each drawn only when its
+    sd is above 0 (bearing first, then distance, per cue in view)."""
+    px, py = agent.pos
+    out: List[Tuple[str, float, float]] = []
+    for cue in world.cues:
+        dx, dy = cue.x - px, cue.y - py
+        bearing = _wrap(math.atan2(dy, dx) - agent.heading)
+        if abs(bearing) > config.landmark_fov / 2.0:
+            continue
+        distance = math.hypot(dx, dy)
+        if stream is not None and config.landmark_bearing_noise > 0.0:
+            bearing = _wrap(bearing + stream.gauss(0.0, config.landmark_bearing_noise))
+        if stream is not None and config.landmark_distance_noise > 0.0:
+            distance = max(0.0, distance * (1.0 + config.landmark_distance_noise * stream.gauss(0.0, 1.0)))
+        out.append((cue.name, bearing, distance))
+    return tuple(out)
 
 
 def _wall_contacts(agent: Agent, world: World) -> Tuple[float, ...]:

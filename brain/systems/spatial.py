@@ -5,13 +5,23 @@ M2b step 1 (docs/prereg/m2b_estimate.md) adds two options, both off by default s
 summing the egomotion turn, and ``wall_reset`` resets the estimate's coordinate along a touched wall's normal to the
 wall's (Hardcastle, Ganguli & Giocomo 2015, for the reset only), identifying the wall by snapping the allocentric
 contact normal (heading estimate + the touch's egocentric angle) to the nearest arena axis.
+
+Decisions G48 adds a third, off by default (``landmark_gain`` 0): a **learned cue map**. Each distal cue the agent
+sees (``Observation.landmarks``: a name, a bearing, a distance; never a position) is placed in the estimate's frame
+where the estimate says it is, and its learned position is the running mean of those placements (an exponential one
+once 1/n falls below ``landmark_learning_rate``). Once a cue has been seen ``landmark_min_sightings`` times, each
+sighting also says where the agent must be for the cue to appear where it does, and the estimate moves
+``landmark_gain`` of the way toward the mean of those positions. Nothing is given: the map starts empty and is built
+from the agent's own estimate, so its frame is the estimate's. After a displacement the estimate was not told of, the
+map co-moves a little toward the wrong estimate while the estimate is pulled back (about rate / (gain + rate) of the
+displacement, 9% at 0.01 and 0.1), and wall contacts (the declared reset) bring both back to the arena's frame.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from brain.contracts import Observation
 
@@ -42,6 +52,18 @@ class SpatialState:
     place_id: int = 0
     # The walls the reset wrote this tick ("+x", "-x", "+y", "-y"; empty when none); diagnostics (M2b step 1).
     resets: Tuple[str, ...] = field(default_factory=tuple)
+    # The cues that corrected the estimate this tick and the length of the correction (G48); diagnostics.
+    landmarks_used: int = 0
+    landmark_correction: float = 0.0
+
+
+@dataclass
+class LearnedCue:
+    """Where the agent has placed a cue in its own estimate frame, from ``sightings`` sightings (G48)."""
+
+    x: float
+    y: float
+    sightings: int = 1
 
 
 class SpatialSystem:
@@ -49,7 +71,8 @@ class SpatialSystem:
 
     def __init__(self, turn_gain: float = 1.0, decay: float = 1.0, bin_size: float = 0.5, *,
                  heading_source: str = "integrated", wall_reset: bool = False,
-                 reset_bounds: Optional[Tuple[float, float]] = None) -> None:
+                 reset_bounds: Optional[Tuple[float, float]] = None, landmark_gain: float = 0.0,
+                 landmark_learning_rate: float = 0.01, landmark_min_sightings: int = 20) -> None:
         if heading_source not in HEADING_SOURCES:
             raise ValueError(f"heading_source must be one of {HEADING_SOURCES}, got {heading_source!r}")
         if wall_reset and reset_bounds is None:
@@ -61,6 +84,10 @@ class SpatialSystem:
         self.heading_source = heading_source
         self.wall_reset = bool(wall_reset)
         self.reset_bounds = (float(reset_bounds[0]), float(reset_bounds[1])) if reset_bounds is not None else None
+        self.landmark_gain = float(landmark_gain)
+        self.landmark_learning_rate = float(landmark_learning_rate)
+        self.landmark_min_sightings = int(landmark_min_sightings)
+        self.cue_map: Dict[str, LearnedCue] = {}
 
     def bins_at(self, grid_x: float, grid_y: float) -> Tuple[int, int]:
         """Integer place-cell bin coordinates for a grid coordinate."""
@@ -98,8 +125,41 @@ class SpatialSystem:
             resets = self._reset(observation.wall_contacts)
         self.state.resets = resets
 
+        self.state.landmarks_used, self.state.landmark_correction = 0, 0.0
+        if self.landmark_gain > 0.0:
+            if observation.landmarks is None:
+                raise ValueError("landmark_gain > 0 needs an Observation with landmarks (sensors.landmark_sensing)")
+            self._landmarks(observation.landmarks)
+
         self.state.place_id = self.place_id_at(self.state.grid_x, self.state.grid_y)
         return self.state
+
+    def _landmarks(self, sightings: Tuple[Tuple[str, float, float], ...]) -> None:
+        """Correct the estimate from the cues it has learned, then learn from this tick's sightings (G48)."""
+        h = self.state.hd_angle
+        offsets = [(name, d * math.cos(h + b), d * math.sin(h + b)) for name, b, d in sightings]
+        implied: List[Tuple[float, float]] = []
+        for name, ox, oy in offsets:
+            cue = self.cue_map.get(name)
+            if cue is not None and cue.sightings >= self.landmark_min_sightings:
+                implied.append((cue.x - ox, cue.y - oy))
+        if implied:
+            mx = sum(p[0] for p in implied) / len(implied)
+            my = sum(p[1] for p in implied) / len(implied)
+            cx, cy = self.landmark_gain * (mx - self.state.grid_x), self.landmark_gain * (my - self.state.grid_y)
+            self.state.grid_x += cx
+            self.state.grid_y += cy
+            self.state.landmarks_used, self.state.landmark_correction = len(implied), math.hypot(cx, cy)
+        for name, ox, oy in offsets:
+            px, py = self.state.grid_x + ox, self.state.grid_y + oy
+            cue = self.cue_map.get(name)
+            if cue is None:
+                self.cue_map[name] = LearnedCue(px, py)
+                continue
+            cue.sightings += 1
+            rate = max(1.0 / cue.sightings, self.landmark_learning_rate)
+            cue.x += rate * (px - cue.x)
+            cue.y += rate * (py - cue.y)
 
     def _reset(self, contacts: Tuple[float, ...]) -> Tuple[str, ...]:
         """Write the wall coordinate of each touched wall into the estimate; returns the walls written, in order."""
@@ -120,4 +180,4 @@ class SpatialSystem:
         return tuple(written)
 
 
-__all__ = ["HEADING_SOURCES", "SpatialSystem", "SpatialState", "WALL_LABELS", "wall_of_normal", "wrap_angle"]
+__all__ = ["HEADING_SOURCES", "LearnedCue", "SpatialSystem", "SpatialState", "WALL_LABELS", "wall_of_normal", "wrap_angle"]
