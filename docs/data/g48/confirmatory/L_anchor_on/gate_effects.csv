@@ -1,0 +1,14 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+g1_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,0.383333,0.423333,1.10435,0.967347,1.2451,,,,>= 0.8,passes,sr
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,0.878333,0.905,1.03036,0.97619,1.10952,,,,reported,reported,tabular
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,30,0.543333,0.0116667,0.0214724,0.00914634,0.0384615,,,,reported,reported,none
+g2_arrival_error,"per-seed median estimate error at arrival, hidden, trials 21-40",,sr,30,,0.28487,0.28487,0.26479,0.30606,,,,"< 2.0 units, interval below",passes,seeds without an arrival: 0
+reported_absolute_success,"success, trials 21-40",,sr/hidden,30,,,0.423333,0.39,0.451667,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,sr/visible,30,,,0.383333,0.35,0.43,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/hidden,30,,,0.905,0.881667,0.928333,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/visible,30,,,0.878333,0.82,0.908333,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/hidden,30,,,0.0116667,0.005,0.02,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/visible,30,,,0.543333,0.5,0.581667,,,,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,sr,30,0.0116667,0.423333,0.411667,0.378333,0.44,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reported_paired_hidden,"success, trials 21-40, hidden",tabular,sr,30,0.905,0.423333,-0.481667,-0.526667,-0.438333,-1,-1,-1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reported_paired_hidden,"success, trials 21-40, hidden",none,tabular,30,0.0116667,0.905,0.893333,0.868333,0.918333,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
