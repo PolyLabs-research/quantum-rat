@@ -1779,3 +1779,38 @@ G1 holds (hidden ÷ visible 0.998 [0.990, 1.0], arrival error 0.18 units). G2 ho
 3. **Next, at the owner's request: obstacles in the arena, then a retest.** The world has no solid object today (the agent walks through every object; only the arena bounds stop it), so obstacles need collision, a sensed solid kind and a task-blind response to it.
 
 **Impact:** this entry; `docs/prereg/g46_retest.md` (new); `core/config.py`, `core/sensors.py`, `core/engine.py`; `experiments/rq4a_gate.py`, `experiments/sr_unlearning.py`, `experiments/g46_retest.py` (new); `tools/g46_audit.py` (new); `docs/profiles.md`, `docs/data/console_ablation/README.md`, `docs/data/g46/` (new), `docs/m3_place_replay.md`, README; notes under G19, G21, G23, G41, G43; tests in `tests/engine/`, `tests/experiments/`.
+
+## G47 — Obstacles, part 1: solid barriers; the learned memory gets round a wall it was never told about, by following it
+
+**Date:** 2026-10-27  
+**Why:** The owner's next step after G46, "bring in obstacles and retest", scoped with the owner as barriers first, then the agent learning to locate itself from what it sees. The world had no solid object (the agent walked through every object; only the arena bounds stopped it). Preregistered (`docs/prereg/g47_barrier_gate.md`, `95eb7c9`) after a disclosed pilot on spent seeds (`docs/data/g47/pilot/`); run on fresh seeds 155–184 (`docs/data/g47/confirmatory/`).
+
+### A. What landed (`fb6589f`)
+1. **`core.world.Barrier`**, a solid axis-aligned rectangle: a move stops just short of the first face it would cross, x leg then y leg, so a move at an angle slides along it and no step tunnels through (`World.constrain`, applied after either body). **Rays and whiskers see it as `"wall"`**: by sight an interior wall is a wall. **The touch sense reports the arena's walls only**, so the declared wall-contact reset never fires against a barrier; that touch tells the two apart is part of that declared aid (G33). Odometry is the true displacement, so a blocked body feels it did not move. With no barrier nothing changes (both determinism baselines bit-identical).
+2. `rq4a_gate`: `LAYOUTS` (`open`; `L`, two walls shielding the goal's south and west sides with a 3-unit gap at each free end), `blocked_starts` (the west and south starts' straight lines meet a wall), `run_session(layout=...)`. `experiments/g47_barrier_gate.py` (pilot and confirmatory phases). Tests +12 (suite 677).
+3. Nothing in the agent was changed or tuned for the task: the research profile as G46 left it, its wall reflex treating a barrier as any wall (G46 E1's rules).
+
+### B. Measured (preregistered, fresh seeds; hidden success over trials 21–40, blocked / direct starts)
+
+| arena, start estimate | SR | tabular | no steering | visible, SR | visible, no steering |
+|---|---|---|---|---|---|
+| open, told the start | 1.00 / 1.00 | 0.87 / 0.81 | 0.03 / 0.02 | 1.00 / 1.00 | 0.55 / 0.68 |
+| **L, told the start** | **0.82 / 0.89** | 0.81 / 0.85 | 0.03 / 0.02 | 0.94 / 0.94 | 0.52 / 0.64 |
+| open, told nothing | 0.39 / 0.25 | 0.66 / 0.60 | 0.03 / 0.02 | 0.92 / 0.99 | 0.55 / 0.68 |
+| L, told nothing | 0.41 / 0.09 | 0.54 / 0.61 | 0.03 / 0.02 | 0.82 / 0.86 | 0.52 / 0.64 |
+
+- **B1 holds**: the gaps are passable; the reflex alone reaches a visible goal from blocked starts on 52% of trials.
+- **B2 holds (primary)**: with the start given, the SR gets round the wall from the blocked starts on 82.3% of trials; SR − no steering **+0.79 [+0.72, +0.85]**, 30 of 30 seeds.
+- **B3 holds**: the wall costs 17.7 points [−24.0, −12.3] from blocked starts (and 10.7 from direct ones, which pass close to its ends). **The median latency from blocked starts is 139.5 ticks against 20 in the open arena (× 7)**: the way round is found by following the wall, not planned (a straight detour is about 20 ticks).
+- **B4 holds**: told nothing, the SR still gets round from blocked starts on 41.3% (+0.38 [+0.32, +0.44] over no steering). From direct starts it reaches only 9.3% (in the open arena told nothing, 25%): without the anchor the starts differ, which the open arena shows too (39% / 25%).
+- **B5 (reported)**: the tabular map is barely hurt by the wall (−0.06 [−0.11, 0.00] blocked, +0.04 direct) and, as in G46, holds up better without the anchor (0.54 / 0.61). The wall costs the visible approach 6 points with the anchor and 10–13 without.
+
+### C. Reading
+The agent's learned memory gets it to a hidden goal behind a wall nothing in it knows about, with the control at the floor: under G46 E1's rules that way round is the agent's own. It is found by following the wall (latency × 7), the wall reflex doing the turning and the memory the pulling; a route planned round the wall would show in a path-efficiency measure and in a shortcut test (the wall removed after learning), neither run here. The anchor still carries most of the success (41% told nothing, 82% told the start).
+
+### D. Decisions this surfaces
+1. **Next, the owner's second part: the agent locating itself from what it sees**, learned, not given (a preregistered step), measured against this table's "told nothing" rows.
+2. A path-efficiency measure and a shortcut test are candidates after it.
+3. The console does not draw barriers yet (they are an experiment's arena only).
+
+**Impact:** this entry; `docs/prereg/g47_barrier_gate.md` (new); `core/world.py`, `core/sensors.py`, `core/engine.py`; `experiments/rq4a_gate.py`, `experiments/g47_barrier_gate.py` (new); `docs/data/g47/` (new); README, `docs/m3_place_replay.md`; tests in `tests/engine/test_barriers.py` (new), `tests/experiments/`.

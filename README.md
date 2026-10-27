@@ -102,7 +102,10 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   trials (99.8% anchored, 3.5% without value steering, fresh seeds); with neither the anchor nor
   the heading oracle and wall reset, on 6.2%. So the gate shows the use of a place memory given
   where the agent starts, not that the agent can work out where it is; M3 reports every result with
-  and without the anchor. In the console's scenarios the SR steering circled sites it had just emptied and
+  and without the anchor. **With a wall in the way** (G47: solid barriers, seen as walls, nothing in
+  the agent told of them), the SR still gets to the hidden goal from starts walled off from it on
+  82% of trials against 3% without value steering (41% told nothing of its start), by following the
+  wall: those trials take seven times as long as in the open arena. In the console's scenarios the SR steering circled sites it had just emptied and
   cost a third of the hidden-food finds (G40; measured with the hidden sites sensed, G46). A separate unlearning rate removes that (G41) but
   costs the gate 13 points of hidden-goal success at the rate that does it (G42), so the instrument
   keeps one rate and the two renewable-reward scenarios carry the faster one (G43).
