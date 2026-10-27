@@ -1914,3 +1914,38 @@ The M2b instrument (the heading oracle, the wall reset, the place population, SR
 M3 step 2, Part 2 (`docs/prereg/m3_step2.md`): build the orienting response, then the pilot over at most eight configurations under the selection rule written there, with the owner's strict track bound and a 300° field of view; then its preregistration.
 
 **Impact:** this entry; `core/config.py` (`RESEARCH_G50`, `PRE_G50`, `research()`), `core/engine.py`; `tests/determinism/` (the research set); `experiments/rq4a_gate.py`, `g46_retest.py`, `g47_barrier_gate.py`, `g48_landmark_gate.py`, `m3_reachable.py`, `sr_unlearning.py`, `body_characterisation.py`; tests in `tests/engine/`, `tests/determinism/`, `tests/experiments/`; `docs/profiles.md`, `docs/data/console_ablation/README.md`, README, `docs/m3_place_replay.md`.
+
+## G51 — M3 step 2, Part 2's pilot: no configuration passes; the binding constraint is learning, not the reflex
+
+**Date:** 2026-10-27  
+**Why:** `docs/prereg/m3_step2.md` Part 2: build the orienting response, then pilot the candidates over the whole battery and choose by a rule written before the pilot, under the owner's strict track bound and a 300° field of view. Exploratory, spent seeds (gate 31–42, track 31–42, hidden food 1–8; `docs/data/m3/part2/pilot/`, `experiments/m3_part2.py`, at `8dcd7eb`).
+
+### A. What landed (`8dcd7eb`)
+`basal_ganglia.orient_gain` (0 off): a target seen to one side and none ahead adds the gain to the turn toward it (1.0 outweighs FORWARD's bias of 0.8; a rat orients to a seen reward), with an `orient` decision term the console lists. Opt-in; both baselines bit-identical. `experiments/m3_part2.py`: eight configurations (orient off/on × a narrow or a 300° field × the long-range or G45's wall response) on the research profile as G50 left it, scored against the draft's eleven bounds. Tests +5 (suite 702).
+
+### B. Measured (the draft's bounds; + passes, − fails)
+
+| configuration | track, learned (≤ 36) | track, reflex (≥ 72) | gate: open / L hidden | open / L visible | cues: open / L | hidden food (≥ 37.1) | bounds |
+|---|---|---|---|---|---|---|---|
+| **research profile (o0_n_L)** | 124.5 − | 101.3 + | 1.00 / 1.00 | 1.00 / 1.00 | 0.97 / 0.96 | 41.8 + | **10** |
+| orient (o1_n_L) | 124.5 − | 101.3 + | 1.00 / 1.00 | 1.00 / 1.00 | 0.97 / 0.97 | 41.8 + | 10 |
+| G45's wall response (o0_n_S) | 69.3 − | 33.3 − | 0.79 / 0.71 | **0.03 / 0.03** | 0.68 / 0.71 | 34.5 − | 1 |
+| **orient + G45's (o1_n_S)** | 69.3 − | 33.3 − | 1.00 / 1.00 | **1.00 / 1.00** | 0.97 / 0.98 | 34.5 − | 7 |
+| 300° field (o0_w_L) | 55.8 − | 43.5 − | 1.00 / 1.00 | 1.00 / 1.00 | 0.86 / 0.85 | 61.5 + | 8 |
+| 300° + G45's (o0_w_S) | 45.0 − | 32.0 − | 0.97 / 1.00 | 0.16 / 0.12 | 0.90 / 0.72 | 35.5 − | 4 |
+| orient + 300° (o1_w_L) | 55.8 − | 43.5 − | 1.00 / 1.00 | 1.00 / 1.00 | 0.87 / 0.92 | 61.5 + | 8 |
+| all three (o1_w_S) | 45.0 − | 32.0 − | 1.00 / 1.00 | 1.00 / 1.00 | 0.95 / 0.98 | 35.5 − | 7 |
+
+No-steering controls ≤ 0.03 everywhere. **The rule chooses the research profile unchanged** (eligible: its reflex does not run laps; ten bounds; no changes). **No configuration passes every bound: every one fails the learned track bound.**
+
+### C. Reading
+1. **The orienting response does what it was built for.** With G45's wall response the visible approach collapses (0.03); with the orienting response it is 1.00, and every gate bound passes: one wall response that runs a corridor *and* approaches a visible goal exists (o1_n_S). It is excluded by the strict rule because its reflex alone shuttles the track at 33 ticks a traversal, reward or none.
+2. **The binding constraint is learning.** In every configuration, reward with memory steering makes the track *slower* than the reflex alone (research profile 124.5 against 101.3 ticks a traversal; 9.2 rewards against 15.2 without steering; G45's response 69 against 33), at the renewable-reward unlearning rate. The SR's value points to where reward was, and on a track whose reward alternates that is the end just emptied: the same failure as hidden food (G46: memory steering loses there too). No reflex change can make laps come from reward and memory while the learner points backward.
+3. A 300° field with the long-range wall response turns the open-field walk into near-constant orbiting (orbit share 0.89, near-wall 8%) and raises hidden-food finds to 61.5: a reflex effect, not memory's, not pursued.
+
+### D. Decisions this surfaces (the owner's)
+1. **Per the draft**, with none passing, RQ1's track can use forced laps (G35's protocol) with the gap recorded.
+2. **Recommended instead: take M3 step 3's learner first** (the plan's "learned action value over place features that both replay and experience update and that the steering reads"), with this pilot's track test (laps from reward and memory, the reflex alone not running them) as its acceptance criterion, and forced laps only if that learner fails too. The strict standard stays; the order of steps 2 and 3 changes.
+3. The orienting response stays available (opt-in), the candidate for the wall response once laps can be learned.
+
+**Impact:** this entry; `basal_ganglia.py`, `core/config.py`, `ui/static/js/brain.js`, `ui/sim_session.py`; `experiments/m3_part2.py` (new); `docs/data/m3/part2/pilot/` (new); tests in `tests/brain/test_orienting.py` (new), `tests/experiments/test_m3_part2.py` (new).
