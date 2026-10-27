@@ -43,7 +43,7 @@ from core.body import BODY_PRESETS, apply_body_preset
 from core.config import EngineConfig
 from core.engine import Engine
 from core.rng import RNG
-from core.world import Barrier, WorldObject
+from core.world import Barrier, Cue, WorldObject
 from experiments.estimate_correction import ORACLE_NOISE, engine_config
 from experiments.linear_track_replay import _dependency_versions, _stat_seed, write_csv
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
@@ -99,6 +99,12 @@ LAYOUTS: Dict[str, Tuple[Barrier, ...]] = {
 }
 
 
+# Distal cues (decisions G48): four named cues outside the arena (half-extent 10), placed without symmetry, which the
+# agent sees with sensors.landmark_sensing and learns the positions of (spatial.landmark_gain, LANDMARK_GAIN).
+CUES: Tuple[Cue, ...] = (Cue(-15.0, 12.0, "A"), Cue(14.0, 15.0, "B"), Cue(16.0, -10.0, "C"), Cue(-13.0, -16.0, "D"))
+LANDMARK_GAIN = 0.1  # the estimate's correction per tick toward where the cues put it (set before any run, G48)
+
+
 def blocked_starts(layout: str) -> Tuple[int, ...]:
     """The start indices whose straight line to the goal's centre meets a barrier of ``layout`` (they need a detour)."""
     out = []
@@ -126,7 +132,7 @@ def committed_dir(prereg: str, body: str) -> Path:
 
 def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None,
                 body: str = "discrete", corridor: bool = False, *, estimate: str = "oracle_reset",
-                pre_g46: bool = False) -> EngineConfig:
+                pre_g46: bool = False, landmarks: bool = False, lateral_odometry: bool = False) -> EngineConfig:
     """Step 1's M2b estimate, step 2's population, and the value source that steers (``reward_rule``: the SR's R rule;
     "nlms" is the preregistered one, "per_feature" the exploratory one of decisions G36). ``reward_unlearning_rate`` is
     set explicitly (None: one rate, as both gate runs were registered; decisions G41/G42), so the gate does not
@@ -140,6 +146,11 @@ def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: 
     if pre_g46:
         cfg.sensors.unseen_block_rays = True
         cfg.reward.shape_hidden = True
+    if landmarks:  # the agent sees the distal cues and corrects its estimate from where it has learned they are (G48)
+        cfg.sensors.landmark_sensing = True
+        cfg.spatial.landmark_gain = LANDMARK_GAIN
+    if lateral_odometry:  # the agent feels the sideways part of its own displacement (G48)
+        cfg.sensors.lateral_odometry = True
     cfg.place.enabled = True
     cfg.place.reward_rule = reward_rule
     cfg.place.reward_unlearning_rate = reward_unlearning_rate
@@ -172,8 +183,13 @@ def _reached(eng: Engine) -> bool:
 def run_session(source: str, session: str, seed: int, trials: int = TRIALS, reward_rule: str = "nlms",
                 reward_unlearning_rate: Optional[float] = None, body: str = "discrete", corridor: bool = False, *,
                 estimate: str = "oracle_reset", start_estimate: str = "anchor", still_start: bool = False,
-                pre_g46: bool = False, layout: str = "open") -> List[Dict[str, Any]]:
-    """One session. ``layout`` (``LAYOUTS``) puts barriers in the arena (G47).
+                pre_g46: bool = False, layout: str = "open", landmarks: bool = False,
+                lateral_odometry: bool = False) -> List[Dict[str, Any]]:
+    """One session. ``layout`` (``LAYOUTS``) puts barriers in the arena (G47); ``landmarks`` puts the distal cues
+    (``CUES``) round it and turns on the agent's sight of them and its learned cue map (G48). Each row also carries
+    ``estimate_error_mean``, the mean distance between the estimate and the body over the trial's ticks, and
+    ``estimate_offset_x`` / ``_y``, the mean of estimate minus body, and ``arrival_offset_x`` / ``_y``, estimate minus
+    body on arrival (G48; not ``TRIAL_COLUMNS``, so the registered tables are unchanged).
     ``start_estimate`` (``START_ESTIMATES``) is what the estimate is told at each trial start;
     ``still_start`` clears the action pending from the last trial, so a trial's first tick does not repeat the last
     trial's last action from the new start (the body is put down still; every run before G46 carried it over)."""
@@ -182,9 +198,12 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
     if start_estimate not in START_ESTIMATES:
         raise ValueError(f"start_estimate must be one of {START_ESTIMATES}")
     eng = Engine(seed=seed, config=gate_config(source, reward_rule, reward_unlearning_rate, body, corridor,
-                                               estimate=estimate, pre_g46=pre_g46))
+                                               estimate=estimate, pre_g46=pre_g46, landmarks=landmarks,
+                                               lateral_odometry=lateral_odometry))
     for barrier in LAYOUTS[layout]:
         eng.world.add_barrier(barrier)
+    if landmarks:
+        eng.world.cues.extend(CUES)
     goal = WorldObject(GOAL[0], GOAL[1], GOAL_RADIUS, "hidden" if session == "hidden" else "target")
     eng.world.add_object(goal)
     rows: List[Dict[str, Any]] = []
@@ -207,16 +226,21 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
         goal.kind = "hidden" if session == "hidden" else "target"
         latency, guided_latency = None, None
         ticks = 0
+        error_sum = offset_x = offset_y = 0.0
         for t in range(TIMEOUT):
             ticks += 1
             eng.run(1, reset=first)
             first = False
+            error_sum += math.hypot(st.grid_x - a.pos[0], st.grid_y - a.pos[1])
+            offset_x += st.grid_x - a.pos[0]
+            offset_y += st.grid_y - a.pos[1]
             if _reached(eng):
                 latency = t + 1
                 break
-        arrival_error = math.nan
+        arrival_error = arrival_dx = arrival_dy = math.nan
         if latency is not None:
             arrival_error = math.hypot(eng.spatial.state.grid_x - a.pos[0], eng.spatial.state.grid_y - a.pos[1])
+            arrival_dx, arrival_dy = eng.spatial.state.grid_x - a.pos[0], eng.spatial.state.grid_y - a.pos[1]
         elif session == "hidden":
             goal.kind = "target"  # guidance: the goal shows itself after a miss
             for t in range(GUIDE):
@@ -228,7 +252,11 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
         rows.append({"source": source, "session": session, "seed": seed, "trial": trial, "start": start,
                      "reached": latency is not None, "latency": latency if latency is not None else "",
                      "guided": latency is None and session == "hidden", "guided_reached": guided_latency is not None,
-                     "arrival_error": arrival_error, "ticks": ticks})
+                     "arrival_error": arrival_error, "ticks": ticks,
+                     "estimate_error_mean": error_sum / (latency if latency is not None else TIMEOUT),
+                     "estimate_offset_x": offset_x / (latency if latency is not None else TIMEOUT),
+                     "estimate_offset_y": offset_y / (latency if latency is not None else TIMEOUT),
+                     "arrival_offset_x": arrival_dx, "arrival_offset_y": arrival_dy})
     return rows
 
 

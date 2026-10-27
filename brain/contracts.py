@@ -43,6 +43,12 @@ class Observation:
     # touches (radians, [-pi, pi]; empty when none).
     heading: Optional[float] = None
     wall_contacts: Optional[Tuple[float, ...]] = None
+    # G48: the distal cues in view, (name, egocentric bearing in [-pi, pi], distance in units), each with its seeded
+    # error; None unless sensors.landmark_sensing (then left out of the checksum, as the M2b fields).
+    landmarks: Optional[Tuple[Tuple[str, float, float], ...]] = None
+    # G48: the displacement perpendicular to the heading (units, positive to the left), within the forward range; None
+    # unless sensors.lateral_odometry.
+    lateral_delta: Optional[float] = None
 
     def validate(self, forward_limit: float = 1.0) -> None:
         """Check the ranges; ``forward_limit`` is the egomotion range in force (``SensorConfig.forward_delta_limit``).
@@ -72,10 +78,16 @@ class Observation:
             for angle in self.wall_contacts:
                 if not -3.14159266 <= angle <= 3.14159266:
                     raise ValueError(f"wall contact angles must be in [-pi, pi], got {angle}")
+        if self.lateral_delta is not None and not -forward_limit <= self.lateral_delta <= forward_limit:
+            raise ValueError(f"lateral_delta must be within [-{forward_limit}, {forward_limit}], got {self.lateral_delta}")
+        if self.landmarks is not None:
+            for name, bearing, distance in self.landmarks:
+                if not isinstance(name, str) or not -3.14159266 <= bearing <= 3.14159266 or not distance >= 0.0:
+                    raise ValueError(f"a landmark is (name, bearing in [-pi, pi], distance >= 0), got {(name, bearing, distance)}")
 
 
 # The Observation's optional fields (M2b): omitted from the checksum and the determinism record while None.
-OPTIONAL_OBSERVATION_FIELDS: Tuple[str, ...] = ("heading", "wall_contacts")
+OPTIONAL_OBSERVATION_FIELDS: Tuple[str, ...] = ("heading", "wall_contacts", "landmarks", "lateral_delta")
 
 
 def observation_fields(obs: Observation) -> Dict[str, Any]:

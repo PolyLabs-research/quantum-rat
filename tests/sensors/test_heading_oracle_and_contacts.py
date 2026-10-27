@@ -45,8 +45,8 @@ def _obs(agent: Agent, config: SensorConfig, world: World = None, seed: int = 1)
 def test_absent_fields_leave_the_checksum_and_the_record_as_they_were() -> None:
     agent = Agent(id=0, pos=(1.0, 2.0), heading=0.3)
     obs = _obs(agent, SensorConfig())
-    assert obs.heading is None and obs.wall_contacts is None
-    assert OPTIONAL_OBSERVATION_FIELDS == ("heading", "wall_contacts")
+    assert obs.heading is None and obs.wall_contacts is None and obs.landmarks is None
+    assert OPTIONAL_OBSERVATION_FIELDS == ("heading", "wall_contacts", "landmarks", "lateral_delta")  # the last two: G48
     assert observation_checksum(obs) == _legacy_checksum(obs)
     assert set(observation_fields(obs)) == set(asdict(obs)) - set(OPTIONAL_OBSERVATION_FIELDS)
     assert "heading" not in observation_record(0, obs) and "wall_contacts" not in observation_record(0, obs)

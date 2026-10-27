@@ -132,6 +132,8 @@ class Engine:
             "action_softmax": self.rng.stream("action_softmax"),
             # The rodent body's speed and rotation noise (M3 step 1, G44); drawn only by that body, only when on.
             "body_motion": self.rng.stream("body_motion"),
+            # The distal cues' bearing and distance errors (G48); drawn only when landmark sensing is on.
+            "sensors_landmarks": self.rng.stream("sensors_landmarks"),
         }
         self.world = World(bounds=c.world.bounds)
         self.agent = Agent(id=agent_offset, pos=(0.0, 0.0))
@@ -205,11 +207,15 @@ class Engine:
             raise ValueError("spatial.heading_source 'oracle' needs sensors.heading_oracle = True")
         if c.spatial.wall_reset and not c.sensors.wall_contact_sensing:
             raise ValueError("spatial.wall_reset needs sensors.wall_contact_sensing = True")
+        if c.spatial.landmark_gain > 0.0 and not c.sensors.landmark_sensing:
+            raise ValueError("spatial.landmark_gain > 0 needs sensors.landmark_sensing = True")
         self.spatial = SpatialSystem(
             turn_gain=c.spatial.turn_gain, decay=c.spatial.decay, bin_size=c.spatial.bin_size,
             heading_source=c.spatial.heading_source, wall_reset=c.spatial.wall_reset,
             # The agent knows the arena's half-extent in its estimate frame (declared, docs/prereg/m2b_estimate.md).
             reset_bounds=(c.spatial.reset_bounds or tuple(self.world.bounds)) if c.spatial.wall_reset else None,
+            landmark_gain=c.spatial.landmark_gain, landmark_learning_rate=c.spatial.landmark_learning_rate,
+            landmark_min_sightings=c.spatial.landmark_min_sightings,
         )
         # The place population (M2b step 2), off by default. Imported here, not at the top: it needs numpy, and
         # importing core.engine must not import numpy (docs/determinism.md, numpy rule 2).
@@ -290,6 +296,7 @@ class Engine:
             noise_stream=self.streams["sensors_noise"],
             odometry_stream=self.streams["sensors_odometry"],
             heading_stream=self.streams["sensors_heading"],
+            landmark_stream=self.streams["sensors_landmarks"],
         )
         ctx.observation = obs
         ctx.observation_checksum = observation_checksum(obs)

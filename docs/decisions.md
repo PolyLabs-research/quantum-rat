@@ -1782,6 +1782,8 @@ G1 holds (hidden ÷ visible 0.998 [0.990, 1.0], arrival error 0.18 units). G2 ho
 
 ## G47 — Obstacles, part 1: solid barriers; the learned memory gets round a wall it was never told about, by following it
 
+> **Note (G48, 2026-10-27):** the 82% below leaned on a slide the agent could not feel, which carried its estimate through the wall toward the goal; with sideways odometry the same agent gets round from the blocked starts on 33% (G48 C4). The headline is withdrawn as stated.
+
 **Date:** 2026-10-27  
 **Why:** The owner's next step after G46, "bring in obstacles and retest", scoped with the owner as barriers first, then the agent learning to locate itself from what it sees. The world had no solid object (the agent walked through every object; only the arena bounds stopped it). Preregistered (`docs/prereg/g47_barrier_gate.md`, `95eb7c9`) after a disclosed pilot on spent seeds (`docs/data/g47/pilot/`); run on fresh seeds 155–184 (`docs/data/g47/confirmatory/`).
 
@@ -1814,3 +1816,47 @@ The agent's learned memory gets it to a hidden goal behind a wall nothing in it 
 3. The console does not draw barriers yet (they are an experiment's arena only).
 
 **Impact:** this entry; `docs/prereg/g47_barrier_gate.md` (new); `core/world.py`, `core/sensors.py`, `core/engine.py`; `experiments/rq4a_gate.py`, `experiments/g47_barrier_gate.py` (new); `docs/data/g47/` (new); README, `docs/m3_place_replay.md`; tests in `tests/engine/test_barriers.py` (new), `tests/experiments/`.
+
+## G48 — Obstacles, part 2: a cue map the agent builds itself gives back what the start anchor gave; G47's way round the wall leaned on a slide it could not feel
+
+**Date:** 2026-10-27  
+**Why:** The owner's second part, scoped with the owner as *position from cues* (the heading oracle stays declared): can a map of distal cues the agent learns replace the start anchor G46 found the gate leaning on? Preregistered (`docs/prereg/g48_landmark_gate.md`, `7fd3160`) after three disclosed pilots on spent seeds; run on fresh seeds 185–214 (`docs/data/g48/confirmatory/`).
+
+### A. What landed
+1. **Distal cues** (`core.world.Cue`; four in `rq4a_gate.CUES`, outside the arena, placed without symmetry), **seen** as a name, a bearing and a distance with seeded errors (`sensors.landmark_sensing`: 300° field, sd 0.05 rad, sd 10%; never a position), and **a learned cue map** in the spatial system (`spatial.landmark_gain` 0.1, `landmark_learning_rate` 0.01, `landmark_min_sightings` 20): each sighting places the cue where the estimate says it is; a learned cue pulls the estimate toward where it puts the agent. The map starts empty; learn it slowly and correct the self fast (cues stay put, the estimate drifts), set from that reason before any run.
+2. **Sideways odometry** (`sensors.lateral_odometry`): the displacement perpendicular to the heading. The first pilot found the cue map drifting in the L arena (0.2 to 2.7 units over a session): a body sliding along a barrier it pushes into moves partly sideways, the egomotion carried only the part along the heading, and the estimate, and from it the map, took a bias it could not see. A rat feels its sideways motion; a missing sense, added and disclosed, not a setting tuned.
+3. All opt-in; the Observation's new fields are out of the checksum while None; both determinism baselines bit-identical. `rq4a_gate`: `gate_config`/`run_session(landmarks=, lateral_odometry=)`, trial rows carry the estimate's error and offsets. `experiments/g48_landmark_gate.py`. Tests +15 (suite 692).
+
+### B. Measured (preregistered, fresh seeds; SR hidden success over trials 21–40)
+
+| condition | all starts | blocked / direct | median ticks, blocked | visible, SR |
+|---|---|---|---|---|
+| open, told the start, cues off / on | 1.00 / 1.00 | | 20 / 20 | 1.00 / 1.00 |
+| open, told nothing, cues off | 0.29 | | 121 | 0.91 |
+| **open, told nothing, cues on** | **0.95** | | **26** | 0.96 |
+| L, told the start, cues off | 0.42 | 0.33 / 0.50 | 141 | **0.33** |
+| L, told the start, cues on | 0.42 | 0.32 / 0.53 | 135 | 0.38 |
+| L, told nothing, cues off | 0.22 | 0.34 / 0.09 | 121 | 0.82 |
+| **L, told nothing, cues on** | **0.71** | 0.55 / 0.87 | 125 | 0.75 |
+| L, told the start, G47's agent | 0.87 | 0.82 / 0.93 | 134 | 0.95 |
+| L, told nothing, G47's agent | 0.24 | 0.38 / 0.10 | 117 | 0.85 |
+
+- **C1 holds (primary)**: told nothing in the open arena, the cues lift SR hidden success from 0.29 to 0.95, **+0.66 [+0.62, +0.69], 30 of 30 seeds**, and the latency from 121 ticks to 26 (20 told the start).
+- **C2 holds**: told nothing with the cues against told the start without them, −0.05 [−0.07, −0.04].
+- **C3 holds**: in the L arena told nothing, the cues add +0.50 [+0.44, +0.55] (blocked starts +0.21, direct +0.79).
+- **C4 holds**: in the L arena told the start, the agent that feels its sideways slide gets round the wall from the blocked starts on 0.33 against G47's agent's 0.82, **−0.48 [−0.55, −0.40]** (direct starts −0.42), its estimate error falling from 1.15 to 0.17 units.
+- **C5 (reported)**: with the start told, the cues change nothing in either arena (they agree with an estimate already right). They hurt the tabular source in the L arena told nothing (blocked 0.62 to 0.28) and help it in the open (+0.15).
+- **C6 (reported)**: told nothing, the cue map is built in the estimate's frame, which starts shifted by the first start's offset, so the error against the body rises with the cues (+2.8 units) while the frame holds better from trial to trial (spread −0.41 open, −0.60 in L): the agent navigates in a frame of its own.
+- **Controls**: no steering at or below 0.04 in every condition.
+
+### C. Reading
+1. **In the open arena a cue map the agent builds from nothing gives back what the start anchor gave** (95% against 100%, nearly as fast). Nothing about the cues' positions is given; the map's frame is the agent's own.
+2. **G47's headline is withdrawn as stated.** Its 82% round the wall leaned on a slide the agent could not feel, which carried its estimate through the wall toward the goal. With the slide felt, 33%.
+3. **What remains is in the steering, and it is now plain**: with an accurate estimate in the L arena the agent fails even when it can see the goal (visible 33%, against 95% for G47's agent and 82% told nothing). The value steering reads the value of places ahead of the estimate without regard to walls, so a goal behind a wall pulls the agent into the wall. The tabular source (84% with the start told) does not show it to the same degree; why is not analysed here.
+
+### D. Decisions this surfaces
+1. **The start anchor can give way to cues in open-arena protocols** (the owner's call; the anchored rows stay as the reference).
+2. **Next candidate: steering that respects walls**, e.g. reading value only where the agent can see it could go, or the successor representation's own transition structure instead of raw value across a wall; preregistered, under G46 E1's rules.
+3. Sideways odometry becomes part of any protocol with barriers.
+
+**Impact:** this entry; a note under G47; `docs/prereg/g48_landmark_gate.md` (new); `core/world.py`, `core/sensors.py`, `core/config.py`, `core/engine.py`, `brain/contracts.py`, `brain/systems/spatial.py`; `experiments/rq4a_gate.py`, `experiments/g48_landmark_gate.py` (new); `docs/data/g48/` (new); README, `docs/m3_place_replay.md`; tests in `tests/engine/test_landmarks.py` (new), `tests/sensors/`, `tests/experiments/`.

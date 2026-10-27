@@ -170,3 +170,9 @@ ray, are seen as walls, and are not reported by touch). With an L-shaped wall be
 SR's memory gets round it on 82% of trials from the walled-off starts (3% without value steering; 41% told nothing of
 the start), by following the wall (seven times the open arena's latency). Part 2, the agent learning to locate itself
 from what it sees, is next.
+
+**Obstacles, part 2 (G48, 2026-10-27).** Four distal cues the agent sees (names, bearings, distances) and maps itself
+give back what the start anchor gave in the open arena (95% told nothing, 100% told the start, 29% without cues).
+G47's way round the wall leaned on a slide the agent could not feel; with sideways odometry it gets round on 33%, and
+its value steering, which reads places across walls, pulls it into the wall even when the goal is visible. Steering
+that respects walls is the next candidate; sideways odometry belongs to any protocol with barriers.

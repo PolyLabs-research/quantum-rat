@@ -1,0 +1,14 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+g1_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.920833,0.85,0.923077,0.821739,1.04785,,,,>= 0.8,passes,sr
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.866667,0.829167,0.956731,0.901284,1.00498,,,,reported,reported,tabular
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.558333,0,0,0,0,,,,reported,reported,none; all bootstrap replicates equal; interval collapsed to the estimate
+g2_arrival_error,"per-seed median estimate error at arrival, hidden, trials 21-40",,sr,12,,0.629226,0.629226,0.438315,0.863347,,,,"< 2.0 units, interval below",passes,seeds without an arrival: 0
+reported_absolute_success,"success, trials 21-40",,sr/hidden,12,,,0.85,0.7625,0.925,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,sr/visible,12,,,0.920833,0.854167,0.958333,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/hidden,12,,,0.829167,0.8,0.870833,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/visible,12,,,0.866667,0.825,0.904167,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/hidden,12,,,0,0,0,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+reported_absolute_success,"success, trials 21-40",,none/visible,12,,,0.558333,0.508333,0.625,,,,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,sr,12,0,0.85,0.85,0.7625,0.929167,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reported_paired_hidden,"success, trials 21-40, hidden",tabular,sr,12,0.829167,0.85,0.0208333,-0.0791667,0.116667,0.0763889,-0.458333,0.593588,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,tabular,12,0,0.829167,0.829167,0.795833,0.870833,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate

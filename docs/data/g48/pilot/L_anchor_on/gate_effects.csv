@@ -1,0 +1,14 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+g1_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.3375,0.475,1.40741,1.13793,1.71622,,,,>= 0.8,passes,sr
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.908333,0.895833,0.986239,0.913242,1.03827,,,,reported,reported,tabular
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.558333,0,0,0,0,,,,reported,reported,none; all bootstrap replicates equal; interval collapsed to the estimate
+g2_arrival_error,"per-seed median estimate error at arrival, hidden, trials 21-40",,sr,12,,0.284275,0.284275,0.245346,0.32181,,,,"< 2.0 units, interval below",passes,seeds without an arrival: 0
+reported_absolute_success,"success, trials 21-40",,sr/hidden,12,,,0.475,0.425,0.5375,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,sr/visible,12,,,0.3375,0.295833,0.375,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/hidden,12,,,0.895833,0.841667,0.9375,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/visible,12,,,0.908333,0.866667,0.941667,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/hidden,12,,,0,0,0,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+reported_absolute_success,"success, trials 21-40",,none/visible,12,,,0.558333,0.508333,0.625,,,,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,sr,12,0,0.475,0.475,0.420833,0.541667,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reported_paired_hidden,"success, trials 21-40, hidden",tabular,sr,12,0.895833,0.475,-0.420833,-0.4875,-0.35,-0.993056,-1,-0.895696,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,tabular,12,0,0.895833,0.895833,0.8375,0.9375,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate

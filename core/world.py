@@ -67,6 +67,18 @@ def _limit_axis(start: float, target: float, other: float, faces: List[Tuple[flo
 
 
 @dataclass
+class Cue:
+    """A distal visual cue (decisions G48): a named thing the agent can see from anywhere in the arena (above its walls
+    and barriers, as a rat sees the room's cues above a maze), placed outside the arena. It is not an object: nothing
+    collides with it and no ray stops at it. Only ``SensorConfig.landmark_sensing`` sees it, as a name, a bearing and a
+    distance; where it is, the agent has to learn."""
+
+    x: float
+    y: float
+    name: str
+
+
+@dataclass
 class World:
     """World applies actions deterministically to agents and holds features."""
 
@@ -74,6 +86,7 @@ class World:
     agents: List[Agent] = field(default_factory=list)
     objects: List[WorldObject] = field(default_factory=list)
     barriers: List[Barrier] = field(default_factory=list)
+    cues: List[Cue] = field(default_factory=list)
 
     def add_agent(self, agent: Agent) -> None:
         self.agents.append(agent)
@@ -108,4 +121,4 @@ class World:
                 agent.pos = self.constrain(agent.last_pos, agent.pos)
 
 
-__all__ = ["Barrier", "World", "WorldObject"]
+__all__ = ["Barrier", "Cue", "World", "WorldObject"]

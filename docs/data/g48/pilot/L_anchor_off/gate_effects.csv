@@ -1,0 +1,14 @@
+test,statistic,a,b,n,mean_a,mean_b,estimate,low,high,cliffs_delta,cliffs_low,cliffs_high,bound,verdict,note
+g1_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.35,0.3625,1.03571,0.939759,1.12821,,,,>= 0.8,passes,sr
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.845833,0.8875,1.04926,0.976303,1.11931,,,,reported,reported,tabular
+reported_relative_success,"hidden / visible, trials 21-40",visible,hidden,12,0.558333,0,0,0,0,,,,reported,reported,none; all bootstrap replicates equal; interval collapsed to the estimate
+g2_arrival_error,"per-seed median estimate error at arrival, hidden, trials 21-40",,sr,12,,0.182082,0.182082,0.155245,0.220252,,,,"< 2.0 units, interval below",passes,seeds without an arrival: 0
+reported_absolute_success,"success, trials 21-40",,sr/hidden,12,,,0.3625,0.316667,0.4,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,sr/visible,12,,,0.35,0.320833,0.383333,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/hidden,12,,,0.8875,0.85,0.925,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,tabular/visible,12,,,0.845833,0.804167,0.883333,,,,reported,reported,
+reported_absolute_success,"success, trials 21-40",,none/hidden,12,,,0,0,0,,,,reported,reported,"degenerate: all values equal, nothing resampled"
+reported_absolute_success,"success, trials 21-40",,none/visible,12,,,0.558333,0.508333,0.625,,,,reported,reported,
+reported_paired_hidden,"success, trials 21-40, hidden",none,sr,12,0,0.3625,0.3625,0.316667,0.4,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reported_paired_hidden,"success, trials 21-40, hidden",tabular,sr,12,0.8875,0.3625,-0.525,-0.570833,-0.483333,-1,-1,-1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
+reported_paired_hidden,"success, trials 21-40, hidden",none,tabular,12,0,0.8875,0.8875,0.85,0.925,1,1,1,reported,reported,all bootstrap replicates equal; interval collapsed to the estimate
