@@ -181,3 +181,6 @@ that respects walls is the next candidate; sideways odometry belongs to any prot
 could go) take the agent round the L arena's wall from every walled-off start (100% against 35%), in twice an open
 run's time, and change nothing else. Part 2 (one wall response for every task; the track with alternating reward,
 strict: the reflex alone must not run laps) is the design in `docs/prereg/m3_step2.md`.
+
+**The instrument adopted (G50, 2026-10-27).** The research profile now has sideways odometry, the cue map, the
+free-space sense and reachable probes; the branches through step 2's Part 1 are merged into `main`. Part 2 next.

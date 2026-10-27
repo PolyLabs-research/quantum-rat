@@ -610,6 +610,24 @@ STOCHASTIC_PARAMETERS: Tuple[str, ...] = (
 )
 
 
+# The obstacles work's instrument, adopted by the research profile at the owner's decision (docs/decisions.md G50),
+# and the values every experiment registered before it pins so it still means what it said.
+RESEARCH_G50: Dict[str, Any] = {
+    "sensors.lateral_odometry": True,
+    "sensors.landmark_sensing": True,
+    "spatial.landmark_gain": 0.1,
+    "sensors.free_space_sensing": True,
+    "value_memory.reachable_probes": True,
+}
+PRE_G50: Dict[str, Any] = {
+    "sensors.lateral_odometry": False,
+    "sensors.landmark_sensing": False,
+    "spatial.landmark_gain": 0.0,
+    "sensors.free_space_sensing": False,
+    "value_memory.reachable_probes": False,
+}
+
+
 @dataclass
 class EngineConfig:
     """Aggregate of every subsystem's configuration.
@@ -706,6 +724,10 @@ class EngineConfig:
           map did; the map still learns). The research baselines were
           regenerated once for it (docs/profiles.md).
 
+        - The obstacles work (docs/decisions.md G48-G50; ``RESEARCH_G50``): ``sensors.lateral_odometry``,
+          ``sensors.landmark_sensing`` with ``spatial.landmark_gain = 0.1``, ``sensors.free_space_sensing`` and
+          ``value_memory.reachable_probes``. Every experiment registered before G50 pins the old values
+          (``PRE_G50``); its recorded runs also reproduce at their recorded commits.
         - The audit of 2026-10-27 (docs/decisions.md G46): ``sensors.unseen_block_rays
           = False`` (a hidden or eaten object is not seen: vision rays and whiskers
           pass through it, where they used to stop at it and report its kind) and
@@ -750,6 +772,11 @@ class EngineConfig:
         # The audit of 2026-10-27 (docs/decisions.md G46): nothing hidden is sensed, by vision or by shaping.
         cfg.sensors.unseen_block_rays = False
         cfg.reward.shape_hidden = False
+        # The obstacles work's instrument (docs/decisions.md G48-G50): the agent feels its sideways displacement, sees
+        # distal cues and corrects its estimate from a map of them it learns (inert where there are no cues), senses
+        # the free space along its value fan and reads value only where it could go (inert without a solid near).
+        for key, value in RESEARCH_G50.items():
+            cfg.set_field(key, value)
         return cfg
 
     def stochastic_elements(self) -> List[str]:

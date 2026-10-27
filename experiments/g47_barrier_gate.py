@@ -49,7 +49,7 @@ EFFECT_COLUMNS = ("test", "statistic", "a", "b", "n", "mean_a", "mean_b", "estim
 
 def run_conditions(seeds: Sequence[int], trials: int, workers: Optional[int]) -> Dict[str, List[Dict[str, Any]]]:
     return {c: rg.run_all(seeds, trials, workers, rg.SOURCES, "per_feature", None, "discrete", False,
-                          still_start=True, pre_g46=False, **opts)
+                          still_start=True, pre_g46=False, pre_g50=True, **opts)  # registered before G50
             for c, opts in CONDITIONS.items()}
 
 

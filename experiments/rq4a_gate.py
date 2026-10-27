@@ -40,7 +40,7 @@ import numpy as np
 from analysis.stats import bootstrap_ci, cliffs_delta, paired_effect
 from brain.contracts import Action
 from core.body import BODY_PRESETS, apply_body_preset
-from core.config import EngineConfig
+from core.config import PRE_G50, EngineConfig
 from core.engine import Engine
 from core.rng import RNG
 from core.world import Barrier, Cue, WorldObject
@@ -133,17 +133,22 @@ def committed_dir(prereg: str, body: str) -> Path:
 def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: Optional[float] = None,
                 body: str = "discrete", corridor: bool = False, *, estimate: str = "oracle_reset",
                 pre_g46: bool = False, landmarks: bool = False, lateral_odometry: bool = False,
-                overrides: Optional[Mapping[str, Any]] = None) -> EngineConfig:
+                overrides: Optional[Mapping[str, Any]] = None, pre_g50: bool = False) -> EngineConfig:
     """Step 1's M2b estimate, step 2's population, and the value source that steers (``reward_rule``: the SR's R rule;
     "nlms" is the preregistered one, "per_feature" the exploratory one of decisions G36). ``reward_unlearning_rate`` is
     set explicitly (None: one rate, as both gate runs were registered; decisions G41/G42), so the gate does not
     inherit a later change to the research profile's default. ``estimate`` is one of
     ``experiments.estimate_correction.CONDITIONS`` (every registered run: "oracle_reset", the heading oracle and the
     wall-contact reset; "integrated" is neither). ``pre_g46`` restores the sensing of hidden objects that every run
-    before decisions G46 had (``sensors.unseen_block_rays``, ``reward.shape_hidden``)."""
+    before decisions G46 had (``sensors.unseen_block_rays``, ``reward.shape_hidden``); it and ``pre_g50`` both pin
+    ``core.config.PRE_G50`` (the research profile before it adopted G48-G49's instrument), which ``landmarks``,
+    ``lateral_odometry`` and ``overrides`` then switch back on where a design asks for them."""
     if source not in SOURCES:
         raise ValueError(f"source must be one of {SOURCES}, got {source!r}")
     cfg = engine_config(estimate, ORACLE_NOISE)
+    if pre_g46 or pre_g50:  # registered before the research profile adopted G48-G49's instrument (G50)
+        for key, value in PRE_G50.items():
+            cfg.set_field(key, value)
     if pre_g46:
         cfg.sensors.unseen_block_rays = True
         cfg.reward.shape_hidden = True
@@ -187,7 +192,8 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
                 reward_unlearning_rate: Optional[float] = None, body: str = "discrete", corridor: bool = False, *,
                 estimate: str = "oracle_reset", start_estimate: str = "anchor", still_start: bool = False,
                 pre_g46: bool = False, layout: str = "open", landmarks: bool = False,
-                lateral_odometry: bool = False, overrides: Optional[Mapping[str, Any]] = None) -> List[Dict[str, Any]]:
+                lateral_odometry: bool = False, overrides: Optional[Mapping[str, Any]] = None,
+                pre_g50: bool = False) -> List[Dict[str, Any]]:
     """One session. ``layout`` (``LAYOUTS``) puts barriers in the arena (G47); ``landmarks`` puts the distal cues
     (``CUES``) round it and turns on the agent's sight of them and its learned cue map (G48). Each row also carries
     ``estimate_error_mean``, the mean distance between the estimate and the body over the trial's ticks, and
@@ -202,7 +208,7 @@ def run_session(source: str, session: str, seed: int, trials: int = TRIALS, rewa
         raise ValueError(f"start_estimate must be one of {START_ESTIMATES}")
     eng = Engine(seed=seed, config=gate_config(source, reward_rule, reward_unlearning_rate, body, corridor,
                                                estimate=estimate, pre_g46=pre_g46, landmarks=landmarks,
-                                               lateral_odometry=lateral_odometry, overrides=overrides))
+                                               lateral_odometry=lateral_odometry, overrides=overrides, pre_g50=pre_g50))
     for barrier in LAYOUTS[layout]:
         eng.world.add_barrier(barrier)
     if landmarks:

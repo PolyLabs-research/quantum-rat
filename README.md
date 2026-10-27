@@ -114,7 +114,9 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   each direction's value read only as far as it sees free space) takes it round the wall from every
   walled-off start (100%, against 35%; 3% without value steering), in twice an open run's time, with
   nothing else changed: its successor features had learned the way round; the steering had been
-  reading the far side of the wall as one step away. In the console's scenarios the SR steering circled sites it had just emptied and
+  reading the far side of the wall as one step away. **The research profile has adopted all of this**
+  (G50): sideways odometry, the cue map (inert without cues), the free-space sense and reachable
+  probes; every experiment registered before it pins the old values, and its tables regenerate. In the console's scenarios the SR steering circled sites it had just emptied and
   cost a third of the hidden-food finds (G40; measured with the hidden sites sensed, G46). A separate unlearning rate removes that (G41) but
   costs the gate 13 points of hidden-goal success at the rate that does it (G42), so the instrument
   keeps one rate and the two renewable-reward scenarios carry the faster one (G43).

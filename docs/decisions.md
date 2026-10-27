@@ -1894,3 +1894,23 @@ The agent's learned memory takes it round a wall nothing in it knows about, near
 2. **Part 2** (the wall response and the track) proceeds as the draft lays out, under the owner's decisions: the strict track bound (the reflex alone must not run laps) and a 300° field of view as sensing.
 
 **Impact:** this entry; `docs/prereg/m3_step2.md` (new); `core/config.py`, `core/sensors.py`, `core/engine.py`, `brain/contracts.py`; `experiments/rq4a_gate.py`, `experiments/m3_reachable.py` (new); `tools/m3_step2_probes/` (new); `docs/data/m3/reachable/` (new); README, `docs/m3_place_replay.md`; tests in `tests/engine/test_reachable_probes.py` (new), `tests/sensors/`, `tests/experiments/`.
+
+## G50 — The owner's decisions after G49: the research profile adopts the obstacles work's instrument; the branches are merged
+
+**Date:** 2026-10-27  
+**Why:** G49 D1 put adoption and the merge to the owner. **The owner's decision: "Adopt and merge".** Meanwhile the owner had merged `g46-leaks` (PR #4) and `g47-barriers` (PR #5, with `m3-body` beneath them) into `main`.
+
+### A. What landed
+1. **The merges**: `g48-landmarks` (`c35be26`) and `m3-step2-draft` (`2927942`) into `main`, in order, `--no-ff`; 697 tests passed on the merge.
+2. **`EngineConfig.research()` adopts `core.config.RESEARCH_G50`**: `sensors.lateral_odometry`, `sensors.landmark_sensing` with `spatial.landmark_gain` 0.1, `sensors.free_space_sensing` and `value_memory.reachable_probes`. The profile diff gains five rows (32 in all, the label included; `docs/profiles.md`, `tests/engine/test_profiles.py`). The legacy profile is untouched.
+3. **The research determinism set regenerated once** (`tools/update_determinism_baseline.py --profile research`): the behaviour and full hashes, the reference trace, its observation sidecar (which now carries `lateral_delta`, `landmarks` and `free_space`) and the meta file moved; **the physics hash did not**: the body's walk at the gate seed is unchanged. The legacy files are unchanged. The odometry stream now draws three values a tick (forward, turn, sideways).
+4. **Registered experiments keep their meaning.** As at G37, every recorded run reproduces at its recorded commit (each manifest carries the full config and the git sha). Beyond that, every experiment registered before G50 pins the old values (`core.config.PRE_G50`): `rq4a_gate` with `pre_g46` (every earlier gate registration) or `pre_g50` (G46–G49's), `g46_retest`, `g47_barrier_gate`, `g48_landmark_gate`, `m3_reachable` (whose probe arms then switch the probes on or off explicitly), `sr_unlearning` and `body_characterisation`; checked by regenerating trial rows against the committed tables: the M2b confirmatory gate, G48's `L_carry_on` and both arms of G49's `L_anchor`, 480 rows each, **0 differ**. Experiments that inherit the profile without a pin (`estimate_correction`, `place_population`, `sr_fields`, `odometry_characterisation`, which pins M1's instrument itself, and the console ablations, whose README says how to reproduce them) reproduce at their recorded commits, as G37 recorded.
+5. The engine's value probes no longer assume an observation exists (a direct `_value_signals` call before the first tick). Tests: eleven updated for the new defaults (suite 697).
+
+### B. What the research profile is now
+The M2b instrument (the heading oracle, the wall reset, the place population, SR steering, G37), nothing hidden sensed (G46), and the obstacles work's: sideways odometry, a learned cue map (inert without cues), the free-space sense and reachable probes (inert without a solid near). Every console scenario runs it as before except near the arena walls, where the probes now stop at the wall and the estimate follows a slide along it.
+
+### C. Next
+M3 step 2, Part 2 (`docs/prereg/m3_step2.md`): build the orienting response, then the pilot over at most eight configurations under the selection rule written there, with the owner's strict track bound and a 300° field of view; then its preregistration.
+
+**Impact:** this entry; `core/config.py` (`RESEARCH_G50`, `PRE_G50`, `research()`), `core/engine.py`; `tests/determinism/` (the research set); `experiments/rq4a_gate.py`, `g46_retest.py`, `g47_barrier_gate.py`, `g48_landmark_gate.py`, `m3_reachable.py`, `sr_unlearning.py`, `body_characterisation.py`; tests in `tests/engine/`, `tests/determinism/`, `tests/experiments/`; `docs/profiles.md`, `docs/data/console_ablation/README.md`, README, `docs/m3_place_replay.md`.
