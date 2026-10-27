@@ -92,6 +92,11 @@ class EngineContext:
     # real pain) unless value_memory.learn_shaping is on. ctx.reward (dopamine's
     # input and the logged reward) is unchanged by this.
     map_reward: float = 0.0
+    # G52: the drive to move (1 without motivation), the motivation loops' levels, and the familiarity of where the
+    # agent is (history's visit channel; 0 without it).
+    motivation: float = 1.0
+    motivation_levels: Dict[str, float] = field(default_factory=dict)
+    familiarity: float = 0.0
     cue_gate: float = 1.0  # weight on memory steering (0 = muted by a visible target)
     wall_gate: float = 1.0  # weight on memory's hold-course push (0 = muted by a wall close ahead)
     freeze_habituation: float = 1.0  # scale on the pain->REST drive (1 = not habituated)
@@ -245,6 +250,27 @@ class Engine:
 
             self.sr = SuccessorFeatures(self.place.size, c.place.sr_learning_rate, c.place.sr_discount)
             self.sr_weights = np.zeros(self.place.size, dtype=np.float64)
+        # History and motivation (G52), off by default: decaying place-tagged traces fed by the senses, whose meaning
+        # for the SR's expected reward is learned; and loops that give the agent a reason to move.
+        self.history = None
+        self.motivation = None
+        if c.history.enabled:
+            if self.place is None:
+                raise ValueError("history.enabled needs place.enabled = True (its traces are over the place features)")
+            if c.history.reward_context and self.sr is not None and c.place.reward_rule != "per_feature":
+                raise ValueError("history.reward_context conditions the per-feature reward rule only")
+            from brain.systems.history import History, HistorySettings
+
+            self.history = History(self.place.size, HistorySettings(
+                channels=tuple(c.history.channels), taste_timescales=tuple(c.history.taste_timescales),
+                sight_timescales=tuple(c.history.sight_timescales), visit_familiarisation=c.history.visit_familiarisation,
+                visit_forgetting=c.history.visit_forgetting, reward_context=tuple(c.history.reward_context)))
+        if c.motivation.enabled:
+            if self.history is None or "visit" not in c.history.channels:
+                raise ValueError("motivation.enabled needs history.enabled with the 'visit' channel (novelty)")
+            from brain.systems.motivation import Motivation, default_loops
+
+            self.motivation = Motivation(default_loops(c.motivation), c.motivation.hunger_initial, tuple(c.motivation.reasons))
         self.working_memory = WorkingMemory(capacity=c.working_memory.capacity)
         self.last_action: Action = Action(name="REST", thrust=0.0, turn=0.0)
         self.pipeline = Pipeline(
@@ -537,7 +563,13 @@ class Engine:
             unlearning = self.config.place.reward_unlearning_rate
             if reward == 0.0 and unlearning is not None:
                 rate = unlearning
-            self.sr_weights += rate * phi * (reward - self.sr_weights)  # exploratory (decisions G36)
+            adjustment = self.history.reward_adjustment() if self.history is not None else None
+            if adjustment is None:
+                self.sr_weights += rate * phi * (reward - self.sr_weights)  # exploratory (decisions G36)
+            else:  # G52: each feature predicts R + what its history adds; R and the schema learn from the same error
+                errors = reward - (self.sr_weights + adjustment)
+                self.sr_weights += rate * phi * errors
+                self.history.learn_schema(phi, errors, rate)
         else:
             norm = float((phi * phi).sum())
             if norm > 0.0:
@@ -551,8 +583,25 @@ class Engine:
         from brain.systems.successor_features import normalised
 
         if self._sr_u is None:
-            self._sr_u = (self.sr.M * self.sr_weights[:, None]).sum(axis=0)  # element-wise, no BLAS (numpy rule 6 kept)
+            weights = self.sr_weights
+            if self.history is not None:
+                adjustment = self.history.reward_adjustment()
+                if adjustment is not None:
+                    weights = weights + adjustment  # the expected reward at each place given its history now (G52)
+            self._sr_u = (self.sr.M * weights[:, None]).sum(axis=0)  # element-wise, no BLAS (numpy rule 6 kept)
         return float((normalised(self.place.rates(x, y)) * self._sr_u).sum())
+
+    def _history_inputs(self, ctx: EngineContext):
+        """What the history channels read this tick, in the agent's own estimate frame (G52)."""
+        from brain.systems.history import HistoryInputs, unit_peak
+
+        vr = self.config.sensors.vision_range
+        return HistoryInputs(
+            here=unit_peak(self.place_rates), primary_reward=ctx.map_reward,
+            vision=[(ray.angle, ray.obj_type, ray.dist * vr) for ray in ctx.observation.vision_rays],
+            estimate=(ctx.grid_x, ctx.grid_y, ctx.hd_angle),
+            rates_at=lambda x, y: unit_peak(self.place.rates(x, y)),
+        )
 
     def reset_value_episode(self) -> None:
         """An episode boundary for every value learner (a protocol's trial start, a teleport): nothing links across it."""
@@ -704,8 +753,22 @@ class Engine:
             ctx.map_reward,
             dwell_extinction=self.config.value_memory.dwell_extinction,
         )
+        if self.history is not None:
+            self.history.decay()
         if self.sr is not None:
             self._sr_learn(ctx.map_reward)
+        drive = 1.0
+        if self.history is not None:
+            self.history.write(self._history_inputs(ctx))
+            self._sr_u = None  # the traces moved: the expected reward with them
+            from brain.systems.successor_features import normalised
+
+            ctx.familiarity = self.history.familiarity(normalised(self.place_rates))
+            if self.motivation is not None:
+                ate = 1.0 if ctx.map_reward > 0.0 else 0.0
+                drive = self.motivation.step({"novelty": 1.0 - ctx.familiarity, "meal": ate, "reward": ate})
+                ctx.motivation_levels = dict(self.motivation.levels)
+        ctx.motivation = drive
         if self.config.value_memory.oracle_homing:
             self._update_goal_memory(ctx)
 
@@ -758,6 +821,7 @@ class Engine:
             pacing_rest=pacing_rest,
             action_stream=self.streams["action_softmax"],
             previous_action=previous_action,
+            motivation=drive,
         )
         pain = ctx.observation.pain_signal
         if action.name == "REST" and not ctx.microsleep_active and pain > bg.freeze_pain_threshold:

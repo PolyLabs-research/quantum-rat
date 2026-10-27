@@ -72,10 +72,10 @@ def changes(name: str) -> int:
     return sum(part not in ("o0", "n", "L") for part in name.split("_"))
 
 
-def _gate_job(job: Tuple[str, str, str, str, int, int]) -> Dict[str, Any]:
-    cfg, cond, src, ses, seed, trials = job
+def _gate_job(job: Tuple[str, Mapping[str, Any], str, str, str, int, int]) -> Dict[str, Any]:
+    cfg, overrides, cond, src, ses, seed, trials = job
     rows = rg.run_session(src, ses, seed, trials=trials, reward_rule="per_feature", still_start=True,
-                          overrides=CONFIGS[cfg], **GATE[cond])
+                          overrides=dict(overrides), **GATE[cond])
     test = [r for r in rows if r["trial"] > trials // 2]
     return {"config": cfg, "condition": cond, "source": src, "session": ses, "seed": seed,
             "success": sum(r["reached"] for r in test) / len(test)}
@@ -90,9 +90,9 @@ def track_config(overrides: Mapping[str, Any]) -> EngineConfig:
     return cfg
 
 
-def _track_job(job: Tuple[str, str, int, int]) -> Dict[str, Any]:
-    cfg_name, arm, seed, ticks = job
-    ov = dict(CONFIGS[cfg_name])
+def _track_job(job: Tuple[str, Mapping[str, Any], str, int, int]) -> Dict[str, Any]:
+    cfg_name, overrides, arm, seed, ticks = job
+    ov = dict(overrides)
     if arm == "no_steer":
         ov["basal_ganglia.value_gain"] = 0.0
     eng = Engine(seed=seed, config=track_config(ov))
@@ -103,9 +103,9 @@ def _track_job(job: Tuple[str, str, int, int]) -> Dict[str, Any]:
     if arm != "no_reward":
         sites[active].kind = "hidden"
     eng.run(1, reset=True)
-    rewards, prev_end, arrivals = 0, None, []
+    rewards, prev_end, arrivals, rests = 0, None, [], 0
     for t in range(ticks):
-        eng.run(1)
+        rests += eng.run(1)[0].action_name == "REST"
         x, y = eng.agent.pos
         if arm != "no_reward" and math.hypot(x - sites[active].x, y - sites[active].y) <= sites[active].radius:
             sites[active].kind = "collected"
@@ -118,18 +118,19 @@ def _track_job(job: Tuple[str, str, int, int]) -> Dict[str, Any]:
             prev_end = end
     gaps = [b - a for a, b in zip(arrivals, arrivals[1:])]
     return {"config": cfg_name, "arm": arm, "seed": seed, "rewards": rewards, "traversals": len(gaps),
-            "ticks_per_traversal": float(statistics.median(gaps)) if gaps else float(ticks)}
+            "ticks_per_traversal": float(statistics.median(gaps)) if gaps else float(ticks),
+            "traversals_late": sum(1 for a in arrivals[1:] if a >= ticks // 2), "rest_share": rests / ticks}
 
 
-def _food_job(job: Tuple[str, str, int, int]) -> Dict[str, Any]:
-    cfg_name, arm, seed, ticks = job
-    r = ca.run_one(("hidden_food", "research", arm, seed, ticks, dict(CONFIGS[cfg_name]), ca.ARMS))
+def _food_job(job: Tuple[str, Mapping[str, Any], str, int, int]) -> Dict[str, Any]:
+    cfg_name, overrides, arm, seed, ticks = job
+    r = ca.run_one(("hidden_food", "research", arm, seed, ticks, dict(overrides), ca.ARMS))
     return {"config": cfg_name, "arm": arm, "seed": seed, "finds": r["metrics"]["finds"]}
 
 
-def _open_job(job: Tuple[str, int, int]) -> Dict[str, Any]:
-    cfg_name, seed, ticks = job
-    r = bc.run_world("open", {**RESEARCH_G50, **CONFIGS[cfg_name]}, seed, ticks)  # undo bc's PRE_G50 pin: today's profile
+def _open_job(job: Tuple[str, Mapping[str, Any], int, int]) -> Dict[str, Any]:
+    cfg_name, overrides, seed, ticks = job
+    r = bc.run_world("open", {**RESEARCH_G50, **dict(overrides)}, seed, ticks)  # undo bc's PRE_G50 pin: today's profile
     return {"config": cfg_name, "seed": seed, **{k: r[k] for k in ("wall_zone_share", "coverage", "orbit_share", "stall_share")}}
 
 
@@ -138,6 +139,17 @@ def _pool(fn, jobs, workers):
         return [fn(j) for j in jobs]
     with ProcessPoolExecutor(max_workers=workers) as pool:
         return list(pool.map(fn, jobs, chunksize=1))
+
+
+def run_battery(configs: Mapping[str, Mapping[str, Any]], seeds: Mapping[str, Sequence[int]], trials: int, ticks: int,
+                workers: Optional[int]):
+    """Every configuration (name -> overrides) through the battery: the gate, the track, hidden food, the open field."""
+    gate = _pool(_gate_job, [(c, ov, cond, src, ses, s, trials) for c, ov in configs.items() for cond in GATE
+                             for src in ("sr", "none") for ses in rg.SESSIONS for s in seeds["gate_seeds"]], workers)
+    track = _pool(_track_job, [(c, ov, a, s, ticks) for c, ov in configs.items() for a in TRACK_ARMS for s in seeds["track_seeds"]], workers)
+    food = _pool(_food_job, [(c, ov, a, s, ticks) for c, ov in configs.items() for a in ca.ARMS for s in seeds["food_seeds"]], workers)
+    open_field = _pool(_open_job, [(c, ov, s, ticks) for c, ov in configs.items() for s in seeds["track_seeds"]], workers)
+    return gate, track, food, open_field
 
 
 def score(cfg: str, gate, track, food) -> Dict[str, Any]:
@@ -189,11 +201,7 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     trials = rg.QUICK_TRIALS if args.quick else rg.TRIALS
     ticks = 300 if args.quick else TICKS
     started = time.perf_counter()
-    gate = _pool(_gate_job, [(c, cond, src, ses, s, trials) for c in CONFIGS for cond in GATE for src in ("sr", "none")
-                             for ses in rg.SESSIONS for s in seeds["gate_seeds"]], args.workers)
-    track = _pool(_track_job, [(c, a, s, ticks) for c in CONFIGS for a in TRACK_ARMS for s in seeds["track_seeds"]], args.workers)
-    food = _pool(_food_job, [(c, a, s, ticks) for c in CONFIGS for a in ca.ARMS for s in seeds["food_seeds"]], args.workers)
-    open_field = _pool(_open_job, [(c, s, ticks) for c in CONFIGS for s in seeds["track_seeds"]], args.workers)
+    gate, track, food, open_field = run_battery(CONFIGS, seeds, trials, ticks, args.workers)
     scores = [score(c, gate, track, food) for c in CONFIGS]
     chosen = select(scores)
     write_csv(out / "gate.csv", ("config", "condition", "source", "session", "seed", "success"), gate)

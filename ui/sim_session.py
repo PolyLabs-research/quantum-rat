@@ -502,7 +502,7 @@ class SimSession:
             pacing_rest = bg.pace_rest_bonus if ctx.pacing_active else 0.0
             raw = channel_terms(obs, ctx.wm_novelty, ctx.trn_gate_value, ctx.microsleep_active, bg, ctx.neuromodulators,
                                 *ctx.value_signals, ctx.criticality_gain, ctx.freeze_habituation, pacing_rest,
-                         ctx.previous_action)
+                         ctx.previous_action, getattr(ctx, "motivation", 1.0))
             terms = {ch: {k: _r(v) for k, v in t.items()} for ch, t in raw.items()}
             exact = selection_probabilities(scores, bg.softmax_temperature)
             probs = {k: _r(v) for k, v in exact.items()}

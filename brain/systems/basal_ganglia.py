@@ -68,6 +68,7 @@ def _channel_scores(
     freeze_habituation: float = 1.0,
     pacing_rest: float = 0.0,
     previous_action: Optional[str] = None,
+    motivation: float = 1.0,
 ) -> Dict[str, float]:
     """Score each action channel. A pure function of its arguments.
 
@@ -109,7 +110,7 @@ def _channel_scores(
 
     scores: Dict[str, float] = {}
     scores["FORWARD"] = (
-        config.forward_bias * trn_gain
+        config.forward_bias * trn_gain * motivation
         - pain_avoidance * pain
         + novelty_gain * wm_novelty
         + vision_gain * c_target
@@ -135,6 +136,8 @@ def _channel_scores(
     scores["REST"] = rest_pain_gain * pain * freeze_habituation + 0.1 * (1.0 - trn_gain) + rest_patience
     if pacing_rest:
         scores["REST"] += pacing_rest
+    if motivation < 1.0:  # G52: with no reason to move, the agent rests
+        scores["REST"] += config.unmotivated_rest * (1.0 - motivation)
     if config.turn_commitment > 0.0 and c_wall > 0.0 and previous_action in ("TURN_LEFT", "TURN_RIGHT"):
         scores[previous_action] += config.turn_commitment
     orient_left, orient_right = _orient(config.orient_gain, c_target, l_target, r_target)
@@ -167,6 +170,7 @@ def channel_terms(
     freeze_habituation: float = 1.0,
     pacing_rest: float = 0.0,
     previous_action: Optional[str] = None,
+    motivation: float = 1.0,
 ) -> Dict[str, Dict[str, float]]:
     """Each channel's score as its named terms: a readout, not the decision.
 
@@ -176,7 +180,7 @@ def channel_terms(
     forward_bias × the TRN gate; a TURN's turn_bias), ``vision``, ``memory``
     (the value signal × value_gain), ``wall`` (avoidance), ``pain``, ``novelty``
     (the novelty bit's terms), a TURN's ``commit`` (the turn commitment, G45) and ``orient`` (the orienting response,
-    M3 step 2), and REST's ``gate`` (the narrowed TRN gate),
+    M3 step 2), and REST's ``gate`` (the narrowed TRN gate), ``idle`` (no reason to move, G52),
     ``patience`` (serotonin) and ``pacing``; ``microsleep`` alone while asleep.
     Nothing in the engine reads it; the console does (decisions G39).
     """
@@ -200,7 +204,7 @@ def channel_terms(
     orient_left, orient_right = _orient(config.orient_gain, c_target, l_target, r_target)
     return {
         "FORWARD": {
-            "bias": config.forward_bias * trn_gain,
+            "bias": config.forward_bias * trn_gain * motivation,
             "pain": -pain_avoidance * pain,
             "novelty": novelty_gain * wm_novelty,
             "vision": vision_gain * c_target,
@@ -230,6 +234,7 @@ def channel_terms(
             "gate": 0.1 * (1.0 - trn_gain),
             "patience": rest_patience,
             "pacing": pacing_rest,
+            "idle": config.unmotivated_rest * (1.0 - motivation) if motivation < 1.0 else 0.0,
         },
     }
 
@@ -477,6 +482,7 @@ def select_action_with_scores(
     pacing_rest: float = 0.0,
     action_stream: Optional[RNGStream] = None,
     previous_action: Optional[str] = None,
+    motivation: float = 1.0,
 ) -> Tuple[Action, Dict[str, float]]:
     """Select an action and also return the channel scores that produced it.
 
@@ -503,6 +509,7 @@ def select_action_with_scores(
         freeze_habituation,
         pacing_rest,
         previous_action,
+        motivation,
     )
     if config.softmax_temperature > 0.0:
         if action_stream is None:

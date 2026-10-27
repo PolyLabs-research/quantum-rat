@@ -525,6 +525,10 @@ class BasalGangliaConfig:
     # (vision_gain x closeness) alone was too weak to turn the agent (the visible approach had rested on wall turning).
     # 0 is off, every run so far.
     orient_gain: float = 0.0
+    # unmotivated_rest (G52): REST's drive when the agent has no reason to move (motivation.enabled; the "idle" term is
+    # this times 1 - the drive). 1.0 outweighs FORWARD's bias (0.8) and a wall's pull to turn (at most 0.9), set from
+    # that reason: an agent with nothing to move for stops. Inert at a drive of 1 (motivation off: every run so far).
+    unmotivated_rest: float = 1.0
     dopamine_explore_gain: float = 0.6  # how strongly low dopamine boosts exploration
     # Neuromodulator control couplings (0 disables; defaults are no-ops at baseline
     # modulator levels NE=0, ACh=0, 5HT=0.5, so default behaviour is unchanged).
@@ -616,6 +620,49 @@ STOCHASTIC_PARAMETERS: Tuple[str, ...] = (
 )
 
 
+@dataclass
+class HistoryConfig:
+    """What the agent has sensed and done, and where (``brain.systems.history``; G52). Off by default.
+
+    ``channels``: the senses that write history (registered in ``brain.systems.history.CHANNELS``: "taste", "visit",
+    "sight"; more are added there). ``*_timescales``: each channel's trace timescales, in ticks (0.2 s): 2 s, 20 s and
+    200 s, a log-spaced basis spanning a lap, a trial and a regrowth, set before any run. ``visit_familiarisation``:
+    ticks spent at a place for it to become familiar (about ten seconds); ``visit_forgetting``: ticks for that to fade
+    (an hour: not within a session). ``reward_context``: the channels whose traces condition the SR's expected reward,
+    through weights learned from its prediction errors (what history means is learned). Needs place.enabled."""
+
+    enabled: bool = False
+    channels: Tuple[str, ...] = ("taste", "visit")
+    taste_timescales: Tuple[float, ...] = (10.0, 100.0, 1000.0)
+    sight_timescales: Tuple[float, ...] = (10.0, 100.0, 1000.0)
+    visit_familiarisation: float = 50.0
+    visit_forgetting: float = 18000.0
+    reward_context: Tuple[str, ...] = ("taste",)
+
+
+@dataclass
+class MotivationConfig:
+    """Loops that give the agent a reason to move (``brain.systems.motivation``; G52). Off by default (a drive of 1).
+
+    Each value set from a stated reason before any run, in ticks (0.2 s): curiosity rises within 2 s of novelty and
+    fades over 30 s after it; a meal registers after 30 s (``satiety_delay``) and is digested over 2 h; a rat sates on
+    about 150 pellets (``satiety_per_meal``); it starts food-restricted, as rats in such experiments are
+    (``hunger_initial`` 1); a reward lifts its expectation at once and the expectation fades over 2 min of none.
+    ``reasons``: the motives the drive composes (``brain.systems.motivation.REASONS``). Needs history's visit channel
+    (novelty)."""
+
+    enabled: bool = False
+    curiosity_rise: float = 10.0
+    curiosity_fall: float = 150.0
+    satiety_per_meal: float = 1.0 / 150.0
+    satiety_delay: int = 150
+    satiety_digestion: float = 36000.0
+    hunger_initial: float = 1.0
+    reward_trace_rise: float = 1.0
+    reward_trace_fall: float = 600.0
+    reasons: Tuple[str, ...] = ("explore", "forage")
+
+
 # The obstacles work's instrument, adopted by the research profile at the owner's decision (docs/decisions.md G50),
 # and the values every experiment registered before it pins so it still means what it said.
 RESEARCH_G50: Dict[str, Any] = {
@@ -663,6 +710,8 @@ class EngineConfig:
     trn: TRNConfig = field(default_factory=TRNConfig)
     working_memory: WorkingMemoryConfig = field(default_factory=WorkingMemoryConfig)
     basal_ganglia: BasalGangliaConfig = field(default_factory=BasalGangliaConfig)
+    history: HistoryConfig = field(default_factory=HistoryConfig)
+    motivation: MotivationConfig = field(default_factory=MotivationConfig)
 
     @classmethod
     def legacy(cls) -> "EngineConfig":
