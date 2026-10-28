@@ -151,6 +151,7 @@ EXPECTED_RESEARCH_DIFF = [
     ("spatial.landmark_gain", 0.0, 0.1),
     ("place.enabled", False, True),
     ("place.reward_rule", "nlms", "per_feature"),
+    ("place.reward_step_cap", False, True),  # G53: each cell's step at most all the way to its target
     ("trn.narrow_above_kappa", 1.1, math.inf),
     ("trn.microsleep_enabled", True, False),
     ("basal_ganglia.novelty_gain", 0.2, 0.0),

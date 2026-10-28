@@ -202,3 +202,14 @@ renewable-reward rate (the weights diverged on the track); capped (`place.reward
 research body's track faster than the reflex alone (74 against 101 ticks a traversal), not slower. The owner holds:
 the cap as a default, the track statistic under motivation, the fixed-schema probe for history, the forage correction
 and the controls bound for motivation; step 3's learner stays the recommended structural step.
+
+**The owner's decisions after G52, enacted (G53, 2026-10-28).** The cap is the research default; the track is scored by
+traversals per run (the learned arm at least 42, each reflex arm at most half of it) and the gate's control as a margin
+of 0.5. History with a fixed two-second "the place I am eating at is empty" schema is the first that costs nothing: 11%
+more hidden-food finds on both bodies, 13% more laps on the research body, the gate unchanged; the learned schema's slow
+positive term was what had hurt. Hunger as a reason removes the resting, lifts finds 13% with steering and 31% without,
+and makes a learning-free agent a strong explorer (the no-steering control finds the hidden goal on up to 58% of open
+trials, halving the margin memory shows); the hungry corridor body shuttles without food, as its reflex always did. The
+strict track bound is unmet on both bodies for a structural reason: memory multiplies the research body's laps by 1.3
+where the bound asks 2, and the corridor body laps at full speed by reflex. Next, at the owner's choice: a registered
+confirmation of the fast schema, and step 3's learner.

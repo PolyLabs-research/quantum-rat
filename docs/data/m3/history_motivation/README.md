@@ -11,3 +11,11 @@ and the track arms' means; `manifest.json`. No selection, no registration.
 
 The three checks behind the reading (the cap outside the track, the control without the explore reason, the learned
 taste schema) are `tools/m3_hm_probes/diagnostics.py`, output in `tools/m3_hm_probes/diagnostics_out/`.
+
+`fixed_schema/` and `forage/` (G53): `python3 -m experiments.m3_g53_probes --phase schema|forage --workers 28`, at
+`1abdaf9` (clean tree, warnings as errors), the same seeds and battery; read in `docs/decisions.md` G53. `fixed_schema/`:
+history on with the taste schema fixed to one of three sets of weights stated before the run (`learned`, `fast`, `lap`),
+R keeping G36's rule, for both bodies. `forage/`: motivation on with G53's composition (hunger a reason on its own; the
+reward trace setting vigour) for both bodies. Both scored by G53's statistics (traversals per run; the gate's control
+as a margin: `docs/prereg/m3_step2.md`, amendment of 2026-10-28); `probe/` and `docs/data/m3/part2/pilot/` keep their
+earlier scores, re-read under the same statistics in `tools/m3_hm_probes/diagnostics_out/rescored_g53.txt`.

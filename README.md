@@ -131,7 +131,13 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   reason leaves a hungry agent resting; the track is still unmet. The same work found the per-feature
   reward step passing its target at the renewable-reward rate, so the weights diverged on the track; a cap
   (`place.reward_step_cap`, opt-in) fixes it, and with it memory steering runs the track faster than the
-  reflex alone (74 against 101 ticks a traversal), not slower as G51 had read.
+  reflex alone (74 against 101 ticks a traversal), not slower as G51 had read. **The owner's decisions after
+  that** (G53): the cap is the research default; the track is scored by laps per run and the gate's control as
+  a margin; history with a fixed two-second "the place I am eating at is empty" schema is the first that costs
+  nothing (11% more hidden-food finds on both bodies, the gate unchanged); hunger as a reason removes the
+  resting and makes a learning-free agent a strong explorer (up to 58% of hidden goals without any value
+  learning). The strict track bound is still unmet: memory multiplies the research body's laps by 1.3 where
+  the bound asks 2, and the corridor body laps by reflex. Step 3's learner is the recommended next step.
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the
