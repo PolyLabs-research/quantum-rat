@@ -184,3 +184,21 @@ strict: the reflex alone must not run laps) is the design in `docs/prereg/m3_ste
 
 **The instrument adopted (G50, 2026-10-27).** The research profile now has sideways odometry, the cue map, the
 free-space sense and reachable probes; the branches through step 2's Part 1 are merged into `main`. Part 2 next.
+
+**Step 2, Part 2's pilot (G51, 2026-10-27; its track column corrected by G52).** The orienting response to a seen
+target exists (opt-in); with G45's wall response it runs a corridor and approaches a visible goal, where that response
+alone had collapsed the approach. Eight reflex configurations over the whole battery: none passes the strict track
+bound, and the rule keeps the research profile unchanged. Its reading that memory made laps slower than the reflex
+rested on an artefact (below) and is withdrawn.
+
+**History and motivation (G52, 2026-10-28).** Two variables the mammal has and the agent did not, built opt-in, each
+fed through pluggable inputs: *history* (what it sensed and did, and where, as decaying place-tagged traces per sense,
+with what they mean for reward learned as a schema) and *motivation* (loops of curiosity, satiety and a reward trace,
+composed by registered reasons into the drive to move). Probed over Part 2's battery: history as built costs every
+memory task; motivation's curiosity gives exploration without value learning (the no-steering control finds the hidden
+goal on 16–32% of trials against 3%, and 0% with the explore reason removed) but its forage reason leaves a hungry
+agent resting, so the track is still unmet. The same work found the per-feature reward step passing its target at the
+renewable-reward rate (the weights diverged on the track); capped (`place.reward_step_cap`), memory steering runs the
+research body's track faster than the reflex alone (74 against 101 ticks a traversal), not slower. The owner holds:
+the cap as a default, the track statistic under motivation, the fixed-schema probe for history, the forage correction
+and the controls bound for motivation; step 3's learner stays the recommended structural step.
