@@ -1,0 +1,498 @@
+{
+ "configs": {
+  "B0_H0M0": {},
+  "B0_H0M1": {
+   "history.channels": [
+    "visit"
+   ],
+   "history.enabled": true,
+   "history.reward_context": [],
+   "motivation.enabled": true
+  },
+  "B0_H1M0": {
+   "history.channels": [
+    "taste",
+    "visit"
+   ],
+   "history.enabled": true,
+   "history.reward_context": [
+    "taste"
+   ]
+  },
+  "B0_H1M1": {
+   "history.channels": [
+    "taste",
+    "visit"
+   ],
+   "history.enabled": true,
+   "history.reward_context": [
+    "taste"
+   ],
+   "motivation.enabled": true
+  },
+  "B1_H0M0": {
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.turn_commitment": 0.3,
+   "basal_ganglia.wall_avoid_range": 0.16666666666666666
+  },
+  "B1_H0M1": {
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.turn_commitment": 0.3,
+   "basal_ganglia.wall_avoid_range": 0.16666666666666666,
+   "history.channels": [
+    "visit"
+   ],
+   "history.enabled": true,
+   "history.reward_context": [],
+   "motivation.enabled": true
+  },
+  "B1_H1M0": {
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.turn_commitment": 0.3,
+   "basal_ganglia.wall_avoid_range": 0.16666666666666666,
+   "history.channels": [
+    "taste",
+    "visit"
+   ],
+   "history.enabled": true,
+   "history.reward_context": [
+    "taste"
+   ]
+  },
+  "B1_H1M1": {
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.turn_commitment": 0.3,
+   "basal_ganglia.wall_avoid_range": 0.16666666666666666,
+   "history.channels": [
+    "taste",
+    "visit"
+   ],
+   "history.enabled": true,
+   "history.reward_context": [
+    "taste"
+   ],
+   "motivation.enabled": true
+  }
+ },
+ "quick": false,
+ "scores": [
+  {
+   "changes": 2,
+   "config": "B0_H0M0",
+   "eligible": true,
+   "passed": 10,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": true,
+    "track_reflex_no_steer": true
+   },
+   "values": {
+    "L_hidden": 1.0,
+    "L_visible": 1.0,
+    "controls": 0.029166666666666664,
+    "cues_L": 0.9624999999999999,
+    "cues_open": 0.975,
+    "hidden_food": 41.75,
+    "open_hidden": 1.0,
+    "open_visible": 1.0,
+    "track_learned": 74.0,
+    "track_reflex_no_reward": 101.25,
+    "track_reflex_no_steer": 101.25
+   }
+  },
+  {
+   "changes": 2,
+   "config": "B0_H0M1",
+   "eligible": true,
+   "passed": 9,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": false,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": true,
+    "track_reflex_no_steer": true
+   },
+   "values": {
+    "L_hidden": 1.0,
+    "L_visible": 1.0,
+    "controls": 0.3166666666666667,
+    "cues_L": 0.9166666666666665,
+    "cues_open": 0.9416666666666665,
+    "hidden_food": 46.0,
+    "open_hidden": 1.0,
+    "open_visible": 1.0,
+    "track_learned": 91.25,
+    "track_reflex_no_reward": 162.5,
+    "track_reflex_no_steer": 108.25
+   }
+  },
+  {
+   "changes": 2,
+   "config": "B0_H1M0",
+   "eligible": true,
+   "passed": 4,
+   "passes": {
+    "L_hidden": false,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": false,
+    "cues_open": false,
+    "hidden_food": false,
+    "open_hidden": false,
+    "open_visible": false,
+    "track_learned": false,
+    "track_reflex_no_reward": true,
+    "track_reflex_no_steer": true
+   },
+   "values": {
+    "L_hidden": 0.7125,
+    "L_visible": 0.9916666666666667,
+    "controls": 0.029166666666666664,
+    "cues_L": 0.75,
+    "cues_open": 0.8041666666666667,
+    "hidden_food": 27.125,
+    "open_hidden": 0.9208333333333333,
+    "open_visible": 0.8791666666666665,
+    "track_learned": 90.25,
+    "track_reflex_no_reward": 101.25,
+    "track_reflex_no_steer": 101.25
+   }
+  },
+  {
+   "changes": 2,
+   "config": "B0_H1M1",
+   "eligible": true,
+   "passed": 5,
+   "passes": {
+    "L_hidden": false,
+    "L_visible": true,
+    "controls": false,
+    "cues_L": false,
+    "cues_open": false,
+    "hidden_food": false,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": true,
+    "track_reflex_no_steer": true
+   },
+   "values": {
+    "L_hidden": 0.5958333333333333,
+    "L_visible": 0.9833333333333334,
+    "controls": 0.3166666666666667,
+    "cues_L": 0.4791666666666666,
+    "cues_open": 0.7708333333333334,
+    "hidden_food": 24.375,
+    "open_hidden": 0.9583333333333334,
+    "open_visible": 0.9916666666666667,
+    "track_learned": 74.75,
+    "track_reflex_no_reward": 162.5,
+    "track_reflex_no_steer": 108.25
+   }
+  },
+  {
+   "changes": 2,
+   "config": "B1_H0M0",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": false,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": true,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.9958333333333332,
+    "L_visible": 1.0,
+    "controls": 0.004166666666666667,
+    "cues_L": 0.9791666666666666,
+    "cues_open": 0.9708333333333332,
+    "hidden_food": 34.5,
+    "open_hidden": 1.0,
+    "open_visible": 1.0,
+    "track_learned": 32.0,
+    "track_reflex_no_reward": 33.25,
+    "track_reflex_no_steer": 33.25
+   }
+  },
+  {
+   "changes": 2,
+   "config": "B1_H0M1",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": false,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": true,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.9874999999999999,
+    "L_visible": 0.9958333333333332,
+    "controls": 0.004166666666666667,
+    "cues_L": 0.9708333333333332,
+    "cues_open": 0.9625,
+    "hidden_food": 34.0,
+    "open_hidden": 1.0,
+    "open_visible": 1.0,
+    "track_learned": 34.0,
+    "track_reflex_no_reward": 40.0,
+    "track_reflex_no_steer": 35.0
+   }
+  },
+  {
+   "changes": 2,
+   "config": "B1_H1M0",
+   "eligible": false,
+   "passed": 5,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": false,
+    "cues_open": true,
+    "hidden_food": false,
+    "open_hidden": false,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.9083333333333332,
+    "L_visible": 0.9708333333333332,
+    "controls": 0.004166666666666667,
+    "cues_L": 0.8375,
+    "cues_open": 0.8791666666666665,
+    "hidden_food": 20.25,
+    "open_hidden": 0.9250000000000002,
+    "open_visible": 1.0,
+    "track_learned": 38.0,
+    "track_reflex_no_reward": 33.25,
+    "track_reflex_no_steer": 33.25
+   }
+  },
+  {
+   "changes": 2,
+   "config": "B1_H1M1",
+   "eligible": false,
+   "passed": 3,
+   "passes": {
+    "L_hidden": false,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": false,
+    "cues_open": false,
+    "hidden_food": false,
+    "open_hidden": false,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.8791666666666665,
+    "L_visible": 0.9916666666666667,
+    "controls": 0.004166666666666667,
+    "cues_L": 0.6041666666666666,
+    "cues_open": 0.8166666666666669,
+    "hidden_food": 24.75,
+    "open_hidden": 0.9166666666666666,
+    "open_visible": 1.0,
+    "track_learned": 37.75,
+    "track_reflex_no_reward": 40.0,
+    "track_reflex_no_steer": 35.0
+   }
+  }
+ ],
+ "track": {
+  "B0_H0M0": {
+   "learned": {
+    "rest_share": 0.016166666666666666,
+    "rewards": 18.333333333333332,
+    "traversals": 30.083333333333332,
+    "traversals_late": 14.916666666666666
+   },
+   "no_reward": {
+    "rest_share": 0.01825,
+    "rewards": 0.0,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   },
+   "no_steer": {
+    "rest_share": 0.01825,
+    "rewards": 15.25,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   }
+  },
+  "B0_H0M1": {
+   "learned": {
+    "rest_share": 0.7408611111111111,
+    "rewards": 4.333333333333333,
+    "traversals": 7.75,
+    "traversals_late": 1.5
+   },
+   "no_reward": {
+    "rest_share": 0.9196944444444445,
+    "rewards": 0.0,
+    "traversals": 1.5,
+    "traversals_late": 0.0
+   },
+   "no_steer": {
+    "rest_share": 0.7039722222222222,
+    "rewards": 5.0,
+    "traversals": 7.25,
+    "traversals_late": 0.5833333333333334
+   }
+  },
+  "B0_H1M0": {
+   "learned": {
+    "rest_share": 0.014777777777777779,
+    "rewards": 10.833333333333334,
+    "traversals": 19.166666666666668,
+    "traversals_late": 6.083333333333333
+   },
+   "no_reward": {
+    "rest_share": 0.01825,
+    "rewards": 0.0,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   },
+   "no_steer": {
+    "rest_share": 0.01825,
+    "rewards": 15.25,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   }
+  },
+  "B0_H1M1": {
+   "learned": {
+    "rest_share": 0.7646388888888889,
+    "rewards": 4.666666666666667,
+    "traversals": 6.916666666666667,
+    "traversals_late": 0.25
+   },
+   "no_reward": {
+    "rest_share": 0.9196944444444445,
+    "rewards": 0.0,
+    "traversals": 1.5,
+    "traversals_late": 0.0
+   },
+   "no_steer": {
+    "rest_share": 0.7039722222222222,
+    "rewards": 5.0,
+    "traversals": 7.25,
+    "traversals_late": 0.5833333333333334
+   }
+  },
+  "B1_H0M0": {
+   "learned": {
+    "rest_share": 0.0025,
+    "rewards": 47.916666666666664,
+    "traversals": 73.0,
+    "traversals_late": 36.75
+   },
+   "no_reward": {
+    "rest_share": 0.0025833333333333333,
+    "rewards": 0.0,
+    "traversals": 69.41666666666667,
+    "traversals_late": 34.25
+   },
+   "no_steer": {
+    "rest_share": 0.0025833333333333333,
+    "rewards": 47.083333333333336,
+    "traversals": 69.41666666666667,
+    "traversals_late": 34.25
+   }
+  },
+  "B1_H0M1": {
+   "learned": {
+    "rest_share": 0.3874166666666667,
+    "rewards": 26.083333333333332,
+    "traversals": 42.833333333333336,
+    "traversals_late": 9.75
+   },
+   "no_reward": {
+    "rest_share": 0.8696388888888889,
+    "rewards": 0.0,
+    "traversals": 7.833333333333333,
+    "traversals_late": 0.0
+   },
+   "no_steer": {
+    "rest_share": 0.24075000000000002,
+    "rewards": 37.833333333333336,
+    "traversals": 53.166666666666664,
+    "traversals_late": 19.166666666666668
+   }
+  },
+  "B1_H1M0": {
+   "learned": {
+    "rest_share": 0.0014444444444444444,
+    "rewards": 7.166666666666667,
+    "traversals": 12.416666666666666,
+    "traversals_late": 2.4166666666666665
+   },
+   "no_reward": {
+    "rest_share": 0.0025833333333333333,
+    "rewards": 0.0,
+    "traversals": 69.41666666666667,
+    "traversals_late": 34.25
+   },
+   "no_steer": {
+    "rest_share": 0.0025833333333333333,
+    "rewards": 47.083333333333336,
+    "traversals": 69.41666666666667,
+    "traversals_late": 34.25
+   }
+  },
+  "B1_H1M1": {
+   "learned": {
+    "rest_share": 0.6318611111111111,
+    "rewards": 7.25,
+    "traversals": 11.833333333333334,
+    "traversals_late": 0.0
+   },
+   "no_reward": {
+    "rest_share": 0.8696388888888889,
+    "rewards": 0.0,
+    "traversals": 7.833333333333333,
+    "traversals_late": 0.0
+   },
+   "no_steer": {
+    "rest_share": 0.24075000000000002,
+    "rewards": 37.833333333333336,
+    "traversals": 53.166666666666664,
+    "traversals_late": 19.166666666666668
+   }
+  }
+ }
+}
