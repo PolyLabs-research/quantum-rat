@@ -25,16 +25,27 @@ def test_an_accumulating_loop_sums_events_after_its_delay() -> None:
 
 
 def test_the_drive_is_a_soft_or_of_the_reasons() -> None:
-    m = Motivation(default_loops(MotivationConfig()), hunger_initial=1.0)
-    assert m.drive == 0.0  # nothing yet: no curiosity, no reward expected
+    m = Motivation(default_loops(MotivationConfig()), hunger_initial=0.0)  # sated: curiosity is its only reason
+    assert m.drive == 0.0  # nothing yet: no curiosity, not hungry
     for _ in range(100):
         m.step({"novelty": 1.0})
     assert m.drive > 0.99 and m.reason_levels["forage"] == 0.0
     for _ in range(2000):
-        m.step({"novelty": 0.0})  # the place is familiar, and nothing was ever found: the agent loses its reasons
+        m.step({"novelty": 0.0})  # the place is familiar and it is not hungry: the agent loses its reasons
     assert m.drive < 0.01
+
+
+def test_hunger_is_a_reason_on_its_own_and_the_reward_trace_sets_vigour() -> None:
+    m = Motivation(default_loops(MotivationConfig()), hunger_initial=1.0)
+    assert m.drive == pytest.approx(1.0) and m.reason_levels["forage"] == 1.0  # food-restricted: a reason before any find (G53)
+    assert m.vigour() == pytest.approx(0.5)  # nothing found lately: it works at the floor of its vigour
     m.step({"novelty": 0.0, "reward": 1.0, "meal": 1.0})
-    assert m.reason_levels["forage"] > 0.6  # food found: a hungry agent has a reason again
+    assert m.vigour() > 0.8  # a reward lifts the expectation, and the vigour, at once
+    for _ in range(400):
+        m.step({"meal": 1.0, "reward": 1.0})  # a meal a tick: after the gut's delay the satiety accumulates
+    assert m.hunger() < 0.05 and m.reason_levels["forage"] < 0.05  # sated: hunger is no reason any more
+    with pytest.raises(ValueError):
+        Motivation(default_loops(MotivationConfig()), vigour_floor=1.5)
 
 
 def test_reasons_are_a_registry() -> None:

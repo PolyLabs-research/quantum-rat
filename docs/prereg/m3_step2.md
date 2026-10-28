@@ -122,6 +122,17 @@ would carry**:
 | controls | no steering ≤ 0.05 hidden |
 | the open field | reported: wall-zone share, coverage, orbit share |
 
+**Amendment, 2026-10-28 (G53: the owner's decisions at G52 D2 and D4, after the history/motivation probe).** The two
+track bounds are counts, not the median interval between arrivals, which an agent resting 87% of the run passed by
+moving fast when it moved: the learned arm runs at least 42 traversals in 3,000 ticks (half of the 83 that the physical
+minimum of 36 ticks a traversal allows: it laps for most of the run), and each reflex arm (no reward; reward without
+steering) at most half the learned arm's. The controls bound is a margin: the SR's hidden success exceeds the same
+configuration's no-steering agent by at least 0.5 in every gate condition. A control that explores, as one with a
+novelty drive does, is still the control; the registered gate's 0.95 against 0.05 was a margin of 0.9, and half the
+trials found by memory beyond what exploration finds is the least that still says memory is at work. The tables keep
+the median interval; `experiments/m3_part2.py` scores by the amended bounds from G53 on, and G53 re-reads G51's and
+G52's tables under them.
+
 No configuration explored passes them. The exploration says three things must change, and proposes one candidate for
 each, each set from a stated reason before any pilot:
 

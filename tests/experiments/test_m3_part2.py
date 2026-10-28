@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from experiments import m3_part2 as p
 
 
@@ -22,6 +24,17 @@ def test_the_selection_rule() -> None:
     # the most bounds, then the fewest changes
     assert p.select([_score("o1_w_L", 9, True), _score("o1_n_L", 9, True), _score("o0_n_L", 8, True)]) == "o1_n_L"
     assert p.select([_score("o1_w_S", 11, False)]) is None
+
+
+def test_the_scoring_statistics() -> None:
+    # G53: traversals per run on the track (the reflex arms at most half the learned arm's) and the control as a margin
+    track = [{"config": "c", "arm": a, "traversals": n} for a, n in (("learned", 50), ("no_reward", 20), ("no_steer", 30))]
+    gate = [{"config": "c", "condition": cond, "source": src, "session": ses, "success": s}
+            for cond in p.GATE for src, ses, s in (("sr", "hidden", 0.9), ("none", "hidden", 0.3), ("sr", "visible", 1.0))]
+    s = p.score("c", gate, track, [{"config": "c", "arm": "steer", "finds": 40}])
+    assert s["values"]["track_learned"] == 50 and s["passes"]["track_learned"]
+    assert s["passes"]["track_reflex_no_reward"] and not s["passes"]["track_reflex_no_steer"] and not s["eligible"]
+    assert s["values"]["controls"] == pytest.approx(0.6) and s["passes"]["controls"] and s["passes"]["hidden_food"]
 
 
 def test_quick_run(tmp_path) -> None:

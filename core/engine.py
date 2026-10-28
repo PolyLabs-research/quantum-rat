@@ -96,6 +96,7 @@ class EngineContext:
     # agent is (history's visit channel; 0 without it).
     motivation: float = 1.0
     motivation_levels: Dict[str, float] = field(default_factory=dict)
+    vigour: float = 1.0  # G53: the reward trace's scaling of the forward bias (1 without motivation)
     familiarity: float = 0.0
     cue_gate: float = 1.0  # weight on memory steering (0 = muted by a visible target)
     wall_gate: float = 1.0  # weight on memory's hold-course push (0 = muted by a wall close ahead)
@@ -264,13 +265,15 @@ class Engine:
             self.history = History(self.place.size, HistorySettings(
                 channels=tuple(c.history.channels), taste_timescales=tuple(c.history.taste_timescales),
                 sight_timescales=tuple(c.history.sight_timescales), visit_familiarisation=c.history.visit_familiarisation,
-                visit_forgetting=c.history.visit_forgetting, reward_context=tuple(c.history.reward_context)))
+                visit_forgetting=c.history.visit_forgetting, reward_context=tuple(c.history.reward_context),
+                schema={k: tuple(v) for k, v in c.history.schema.items()} if c.history.schema else None))
         if c.motivation.enabled:
             if self.history is None or "visit" not in c.history.channels:
                 raise ValueError("motivation.enabled needs history.enabled with the 'visit' channel (novelty)")
             from brain.systems.motivation import Motivation, default_loops
 
-            self.motivation = Motivation(default_loops(c.motivation), c.motivation.hunger_initial, tuple(c.motivation.reasons))
+            self.motivation = Motivation(default_loops(c.motivation), c.motivation.hunger_initial, tuple(c.motivation.reasons),
+                                         c.motivation.vigour_floor)
         self.working_memory = WorkingMemory(capacity=c.working_memory.capacity)
         self.last_action: Action = Action(name="REST", thrust=0.0, turn=0.0)
         self.pipeline = Pipeline(
@@ -569,8 +572,9 @@ class Engine:
 
                 step = np.minimum(step, 1.0)
             adjustment = self.history.reward_adjustment() if self.history is not None else None
-            if adjustment is None:
-                self.sr_weights += step * (reward - self.sr_weights)  # exploratory (decisions G36)
+            if adjustment is None or self.history.fixed:
+                # G36's rule; with a fixed schema (G53) R learns from its own error and the history term is read on top
+                self.sr_weights += step * (reward - self.sr_weights)
             else:  # G52: each feature predicts R + what its history adds; R and the schema learn from the same error
                 errors = reward - (self.sr_weights + adjustment)
                 self.sr_weights += step * errors
@@ -764,7 +768,7 @@ class Engine:
             self.history.decay()
         if self.sr is not None:
             self._sr_learn(ctx.map_reward)
-        drive = 1.0
+        drive, vigour = 1.0, 1.0
         if self.history is not None:
             self.history.write(self._history_inputs(ctx))
             self._sr_u = None  # the traces moved: the expected reward with them
@@ -774,8 +778,10 @@ class Engine:
             if self.motivation is not None:
                 ate = 1.0 if ctx.map_reward > 0.0 else 0.0
                 drive = self.motivation.step({"novelty": 1.0 - ctx.familiarity, "meal": ate, "reward": ate})
+                vigour = self.motivation.vigour()
                 ctx.motivation_levels = dict(self.motivation.levels)
         ctx.motivation = drive
+        ctx.vigour = vigour
         if self.config.value_memory.oracle_homing:
             self._update_goal_memory(ctx)
 
@@ -829,6 +835,7 @@ class Engine:
             action_stream=self.streams["action_softmax"],
             previous_action=previous_action,
             motivation=drive,
+            vigour=vigour,
         )
         pain = ctx.observation.pain_signal
         if action.name == "REST" and not ctx.microsleep_active and pain > bg.freeze_pain_threshold:

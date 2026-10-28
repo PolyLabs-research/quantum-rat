@@ -69,8 +69,12 @@ def _channel_scores(
     pacing_rest: float = 0.0,
     previous_action: Optional[str] = None,
     motivation: float = 1.0,
+    vigour: float = 1.0,
 ) -> Dict[str, float]:
     """Score each action channel. A pure function of its arguments.
+
+    ``motivation`` (the drive to move, G52) and ``vigour`` (how hard, from the reward trace, G53) both scale
+    FORWARD's bias; what is missing from the drive goes to REST as its ``idle`` term.
 
     ``previous_action`` (the action chosen on the previous tick) feeds the turn commitment
     (``config.turn_commitment``, M3 step 1b, G45): while a wall is ahead, the turn in progress gets that much extra, so
@@ -110,7 +114,7 @@ def _channel_scores(
 
     scores: Dict[str, float] = {}
     scores["FORWARD"] = (
-        config.forward_bias * trn_gain * motivation
+        config.forward_bias * trn_gain * motivation * vigour
         - pain_avoidance * pain
         + novelty_gain * wm_novelty
         + vision_gain * c_target
@@ -171,6 +175,7 @@ def channel_terms(
     pacing_rest: float = 0.0,
     previous_action: Optional[str] = None,
     motivation: float = 1.0,
+    vigour: float = 1.0,
 ) -> Dict[str, Dict[str, float]]:
     """Each channel's score as its named terms: a readout, not the decision.
 
@@ -204,7 +209,7 @@ def channel_terms(
     orient_left, orient_right = _orient(config.orient_gain, c_target, l_target, r_target)
     return {
         "FORWARD": {
-            "bias": config.forward_bias * trn_gain * motivation,
+            "bias": config.forward_bias * trn_gain * motivation * vigour,
             "pain": -pain_avoidance * pain,
             "novelty": novelty_gain * wm_novelty,
             "vision": vision_gain * c_target,
@@ -483,6 +488,7 @@ def select_action_with_scores(
     action_stream: Optional[RNGStream] = None,
     previous_action: Optional[str] = None,
     motivation: float = 1.0,
+    vigour: float = 1.0,
 ) -> Tuple[Action, Dict[str, float]]:
     """Select an action and also return the channel scores that produced it.
 
@@ -510,6 +516,7 @@ def select_action_with_scores(
         pacing_rest,
         previous_action,
         motivation,
+        vigour,
     )
     if config.softmax_temperature > 0.0:
         if action_stream is None:

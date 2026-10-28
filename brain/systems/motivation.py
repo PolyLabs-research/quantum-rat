@@ -21,8 +21,12 @@ reward (Niv, Daw, Joel & Dayan 2007). This module is a set of such loops, built 
 - ``reward_trace`` follows ``reward`` (the agent was rewarded): up at once, down over minutes.
 
 **The drive** to move is a soft OR of the reasons to, each in [0, 1] (``REASONS``): ``explore`` = curiosity and
-``forage`` = hunger * reward_trace, with hunger = max(0, hunger_initial - satiety); drive = 1 - prod(1 - reason).
-Action selection scales FORWARD's bias by the drive and gives REST its ``idle`` term in proportion to what is missing
+``forage`` = hunger, with hunger = max(0, hunger_initial - satiety); drive = 1 - prod(1 - reason). G52 had forage =
+hunger * reward_trace, which left a hungry agent that had found nothing lately with no reason to move but curiosity
+(it rested 74% of a track run with food present); a food-restricted rat runs for food it has not found (G53, the
+owner's decision). **Vigour** is where the reward trace acts: vigour_floor + (1 - vigour_floor) * reward_trace, the
+rate of reward setting how hard the agent works, not whether (Niv et al. 2007). Action selection scales FORWARD's
+bias by drive * vigour and gives REST its ``idle`` term in proportion to what is missing from the drive
 (``basal_ganglia.unmotivated_rest``). A new motive is a loop (or several, with their own delays) and a reason that
 reads them, registered by name; nothing else changes.
 """
@@ -80,15 +84,18 @@ class Motivation:
     """The loops, stepped once a tick on the engine's signals, and the drive they compose."""
 
     def __init__(self, specs: Sequence[LoopSpec], hunger_initial: float = 1.0,
-                 reasons: Sequence[str] = ("explore", "forage")) -> None:
+                 reasons: Sequence[str] = ("explore", "forage"), vigour_floor: float = 0.5) -> None:
         names = [s.name for s in specs]
         if len(set(names)) != len(names):
             raise ValueError("loop names must be unique")
         unknown = [r for r in reasons if r not in REASONS]
         if unknown:
             raise ValueError(f"unknown reason(s) {unknown}; registered: {tuple(REASONS)}")
+        if not 0.0 <= vigour_floor <= 1.0:
+            raise ValueError(f"vigour_floor must be in [0, 1], got {vigour_floor}")
         self.loops: Dict[str, Loop] = {s.name: Loop(s) for s in specs}
         self.hunger_initial = float(hunger_initial)
+        self.vigour_floor = float(vigour_floor)
         self.reasons = tuple(reasons)
         self.reason_levels: Dict[str, float] = {}
         self.levels: Dict[str, float] = {name: loop.value for name, loop in self.loops.items()}
@@ -103,6 +110,11 @@ class Motivation:
     def hunger(self) -> float:
         return max(0.0, self.hunger_initial - self.levels.get("satiety", 0.0))
 
+    def vigour(self) -> float:
+        """How hard the agent works for what it is after: the floor, plus the rest as the reward trace rises (G53)."""
+        trace = min(1.0, max(0.0, self.levels.get("reward_trace", 0.0)))
+        return self.vigour_floor + (1.0 - self.vigour_floor) * trace
+
     def _compose(self) -> float:
         missing = 1.0
         for name in self.reasons:
@@ -115,7 +127,7 @@ class Motivation:
 # reason name -> its level from the motivation's loops (each in [0, 1] after clipping)
 REASONS: Dict[str, Callable[["Motivation"], float]] = {
     "explore": lambda m: m.levels.get("curiosity", 0.0),
-    "forage": lambda m: m.hunger() * m.levels.get("reward_trace", 0.0),
+    "forage": lambda m: m.hunger(),  # G53: hunger is a reason on its own; the reward trace sets vigour instead
 }
 
 

@@ -14,6 +14,13 @@ The track: 10 x 0.5 units (2 m x 0.1 m), the agent put down at the centre facing
 at x = -9 and +9) alternating (eaten at one end, it appears at the other), with the renewable-reward unlearning rate
 (``place.reward_unlearning_rate`` 4, G43's scenario setting for reward that empties); 3,000 ticks; ticks per traversal
 is the median interval between arrivals at alternate end zones (|x| >= 8).
+
+Scored since G53 (the owner's decisions at G52 D2 and D4) by traversals per run, not the median interval, which an
+agent resting most of the run passed by moving fast when it moved: the learned arm at least ``TRACK_MIN_TRAVERSALS``
+(42: half of the 83 a run at the physical minimum of 36 ticks a traversal allows), each reflex arm at most half the
+learned arm's; and the gate's control as a margin, the SR's hidden success over the same configuration's no-steering
+agent by at least ``CONTROL_MARGIN`` in every condition (a control that explores is still the control). The tables
+keep the median interval. G51's and G52's committed tables were scored by the earlier statistics; G53 re-reads them.
 """
 
 from __future__ import annotations
@@ -66,7 +73,8 @@ BASE: Dict[str, Any] = {"place.reward_step_cap": True}  # reward + memory steeri
 BOUNDS = ("track_learned", "track_reflex_no_reward", "track_reflex_no_steer", "open_hidden", "open_visible", "L_hidden",
           "L_visible", "cues_open", "cues_L", "hidden_food", "controls")
 REFLEX_BOUNDS = ("track_reflex_no_reward", "track_reflex_no_steer")
-TRACK_LIMIT = 36.0
+TRACK_MIN_TRAVERSALS = 42.0  # G53: half of the 83 traversals a 3,000-tick run at the physical minimum (36 ticks) allows
+CONTROL_MARGIN = 0.5  # G53: the SR's hidden success over the no-steering agent of the same configuration, every condition
 FOOD_FLOOR = 0.9 * 41.2  # G46's research memory steering, less 10%
 
 
@@ -160,25 +168,25 @@ def run_battery(configs: Mapping[str, Mapping[str, Any]], seeds: Mapping[str, Se
 
 def score(cfg: str, gate, track, food) -> Dict[str, Any]:
     def g(cond, src, ses):
-        return float(np.mean([r["success"] for r in gate if (r["config"], r["condition"], r["source"], r["session"]) == (cfg, cond, src, ses)]))
+        return float(np.mean([float(r["success"]) for r in gate if (r["config"], r["condition"], r["source"], r["session"]) == (cfg, cond, src, ses)]))
 
-    def t(arm):
-        return float(np.median([r["ticks_per_traversal"] for r in track if (r["config"], r["arm"]) == (cfg, arm)]))
+    def t(arm):  # traversals per run (G53); the tables keep the median interval too
+        return float(np.mean([float(r["traversals"]) for r in track if (r["config"], r["arm"]) == (cfg, arm)]))
 
-    finds = float(np.mean([r["finds"] for r in food if (r["config"], r["arm"]) == (cfg, "steer")]))
-    controls = max(g(c, "none", "hidden") for c in GATE)
+    finds = float(np.mean([float(r["finds"]) for r in food if (r["config"], r["arm"]) == (cfg, "steer")]))
+    margin = min(g(c, "sr", "hidden") - g(c, "none", "hidden") for c in GATE)  # the control as a margin (G53)
     values = {"track_learned": t("learned"), "track_reflex_no_reward": t("no_reward"), "track_reflex_no_steer": t("no_steer"),
               "open_hidden": g("open_anchor", "sr", "hidden"), "open_visible": g("open_anchor", "sr", "visible"),
               "L_hidden": g("L_anchor", "sr", "hidden"), "L_visible": g("L_anchor", "sr", "visible"),
               "cues_open": g("open_cues", "sr", "hidden"), "cues_L": g("L_cues", "sr", "hidden"),
-              "hidden_food": finds, "controls": controls}
-    passes = {"track_learned": values["track_learned"] <= TRACK_LIMIT,
-              "track_reflex_no_reward": values["track_reflex_no_reward"] >= 2 * TRACK_LIMIT,
-              "track_reflex_no_steer": values["track_reflex_no_steer"] >= 2 * TRACK_LIMIT,
+              "hidden_food": finds, "controls": margin}
+    passes = {"track_learned": values["track_learned"] >= TRACK_MIN_TRAVERSALS,
+              "track_reflex_no_reward": values["track_reflex_no_reward"] <= values["track_learned"] / 2,
+              "track_reflex_no_steer": values["track_reflex_no_steer"] <= values["track_learned"] / 2,
               "open_hidden": values["open_hidden"] >= 0.95, "open_visible": values["open_visible"] >= 0.90,
               "L_hidden": values["L_hidden"] >= 0.90, "L_visible": values["L_visible"] >= 0.90,
               "cues_open": values["cues_open"] >= 0.85, "cues_L": values["cues_L"] >= 0.85,
-              "hidden_food": values["hidden_food"] >= FOOD_FLOOR, "controls": values["controls"] <= 0.05}
+              "hidden_food": values["hidden_food"] >= FOOD_FLOOR, "controls": values["controls"] >= CONTROL_MARGIN}
     return {"config": cfg, "values": values, "passes": passes, "passed": sum(passes.values()), "changes": changes(cfg),
             "eligible": all(passes[b] for b in REFLEX_BOUNDS)}
 

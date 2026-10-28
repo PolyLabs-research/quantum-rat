@@ -422,11 +422,17 @@ class SimSession:
         if pl.enabled and self.engine.place is not None:
             unlearn = "the learning rate" if pl.reward_unlearning_rate is None else f"{pl.reward_unlearning_rate:g}"
             unlearn += own if "place.reward_unlearning_rate" in overridden else ""
-            sr = (f"; SR reward rule {pl.reward_rule} (learning {pl.reward_learning_rate:g}, unlearning {unlearn}), γ {pl.sr_discount:g}"
+            sr = (f"; SR reward rule {pl.reward_rule} (learning {pl.reward_learning_rate:g}, unlearning {unlearn}"
+                  + (", each step capped at its target" if pl.reward_step_cap else "") + f"), γ {pl.sr_discount:g}"
                   if self.engine.sr is not None else "; no SR learner")
             add("place", "Place population & SR", "active", f"{self.engine.place.size} Gaussian place cells over the estimate{sr}")
         else:
             add("place", "Place population & SR", "off", "no population on this profile")
+        if self.engine.motivation is not None:
+            mo = cfg.motivation
+            add("motivation", "Motivation", "active",
+                f"drive = curiosity or hunger (initial {mo.hunger_initial:g}); the reward trace sets vigour (floor {mo.vigour_floor:g}) on the "
+                "forward bias; REST's idle term for what is missing")
         if vm.oracle_homing:
             add("goal", "Goal memory (oracle homing)", "active",
                 "turns toward the remembered goal where the value read is flat: an oracle control, not learned navigation"
@@ -502,7 +508,7 @@ class SimSession:
             pacing_rest = bg.pace_rest_bonus if ctx.pacing_active else 0.0
             raw = channel_terms(obs, ctx.wm_novelty, ctx.trn_gate_value, ctx.microsleep_active, bg, ctx.neuromodulators,
                                 *ctx.value_signals, ctx.criticality_gain, ctx.freeze_habituation, pacing_rest,
-                         ctx.previous_action, getattr(ctx, "motivation", 1.0))
+                         ctx.previous_action, getattr(ctx, "motivation", 1.0), getattr(ctx, "vigour", 1.0))
             terms = {ch: {k: _r(v) for k, v in t.items()} for ch, t in raw.items()}
             exact = selection_probabilities(scores, bg.softmax_temperature)
             probs = {k: _r(v) for k, v in exact.items()}

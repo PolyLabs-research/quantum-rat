@@ -26,6 +26,11 @@ shared by every place: the agent's schema of what, say, having eaten somewhere d
 the same prediction errors as R. Where food is eaten and gone, u learns to discount the place just eaten at; where it
 is there again next time (the gate's goal), u stays near 0. The successor matrix M, the knowledge of where the agent
 can get to, is untouched by history.
+
+**Or fixed** (``HistorySettings.schema``; G53, the owner's decision after G52's probe, where the learned schema found
+the signs one would want yet R went to zero or below: two terms learned from one error fought over the same places).
+Given, the schema is never learned, R learns from its own error alone as G36's rule has it, and the history term is
+read on top of R: the representation tested apart from its learning.
 """
 
 from __future__ import annotations
@@ -88,6 +93,7 @@ class HistorySettings:
     visit_familiarisation: float = 50.0
     visit_forgetting: float = 18000.0
     reward_context: Tuple[str, ...] = ("taste",)
+    schema: Optional[Dict[str, Tuple[float, ...]]] = None  # fixed weights per reward-context channel (G53); None: learned
 
     @property
     def visit_timescales(self) -> Tuple[float, ...]:
@@ -130,6 +136,15 @@ class History:
             for c in settings.channels
         }
         self.schema: Dict[str, np.ndarray] = {c: np.zeros(len(self.banks[c].timescales)) for c in settings.reward_context}
+        self.fixed = settings.schema is not None  # G53: given, never learned; a channel it leaves out reads 0
+        if self.fixed:
+            stray = [c for c in settings.schema if c not in self.schema]
+            if stray:
+                raise ValueError(f"schema channel(s) {stray} are not in reward_context {tuple(settings.reward_context)}")
+            for c, u in settings.schema.items():
+                if len(u) != len(self.banks[c].timescales):
+                    raise ValueError(f"schema for {c!r} needs one weight per timescale ({len(self.banks[c].timescales)}), got {len(u)}")
+                self.schema[c] = np.array(u, dtype=np.float64)
         self.events_this_tick: Dict[str, int] = {c: 0 for c in settings.channels}
 
     def decay(self) -> None:
@@ -158,7 +173,10 @@ class History:
 
         Normalised because x sums over every channel and timescale (a plain LMS step at the reward weights' rates,
         the unlearning rate of 4 included, diverged in the first probe, G52); the 1 in the denominator keeps a place
-        with almost no history from taking a large step on a tiny signal. Stable for rates below 2."""
+        with almost no history from taking a large step on a tiny signal. Stable for rates below 2. A fixed schema
+        (G53) never moves."""
+        if self.fixed:
+            return
         x = {c: np.sum(self.banks[c].traces * phi[None, :], axis=1) for c in self.schema}
         norm = 1.0 + sum(float(np.sum(v * v)) for v in x.values())
         e = float(np.sum(phi * errors))
@@ -173,7 +191,7 @@ class History:
 
     def summary(self) -> Dict[str, object]:
         return {"channels": list(self.banks), "schema": {c: [round(float(v), 4) for v in u] for c, u in self.schema.items()},
-                "events": dict(self.events_this_tick)}
+                "fixed": self.fixed, "events": dict(self.events_this_tick)}
 
 
 __all__ = ["CHANNELS", "History", "HistoryInputs", "HistorySettings", "TraceBank", "unit_peak"]

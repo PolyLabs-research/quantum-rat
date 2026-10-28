@@ -635,7 +635,9 @@ class HistoryConfig:
     200 s, a log-spaced basis spanning a lap, a trial and a regrowth, set before any run. ``visit_familiarisation``:
     ticks spent at a place for it to become familiar (about ten seconds); ``visit_forgetting``: ticks for that to fade
     (an hour: not within a session). ``reward_context``: the channels whose traces condition the SR's expected reward,
-    through weights learned from its prediction errors (what history means is learned). Needs place.enabled."""
+    through weights learned from its prediction errors (what history means is learned). ``schema`` (G53): those
+    weights fixed instead, per reward-context channel, one per timescale; then R learns from its own error alone and
+    the history term is read on top (None: learned, as G52 built it). Needs place.enabled."""
 
     enabled: bool = False
     channels: Tuple[str, ...] = ("taste", "visit")
@@ -644,6 +646,7 @@ class HistoryConfig:
     visit_familiarisation: float = 50.0
     visit_forgetting: float = 18000.0
     reward_context: Tuple[str, ...] = ("taste",)
+    schema: Optional[Dict[str, Tuple[float, ...]]] = None
 
 
 @dataclass
@@ -654,8 +657,11 @@ class MotivationConfig:
     fades over 30 s after it; a meal registers after 30 s (``satiety_delay``) and is digested over 2 h; a rat sates on
     about 150 pellets (``satiety_per_meal``); it starts food-restricted, as rats in such experiments are
     (``hunger_initial`` 1); a reward lifts its expectation at once and the expectation fades over 2 min of none.
-    ``reasons``: the motives the drive composes (``brain.systems.motivation.REASONS``). Needs history's visit channel
-    (novelty)."""
+    ``reasons``: the motives the drive composes (``brain.systems.motivation.REASONS``): ``forage`` is hunger itself
+    (G53: a food-restricted rat runs for food it has not found; G52 had it hunger × the reward trace, which left a
+    hungry agent resting), and the reward trace sets *vigour*, ``vigour_floor`` + (1 − floor) × trace, which scales
+    the forward bias (Niv, Daw, Joel & Dayan 2007: the reward rate sets how hard it works, not whether). Needs
+    history's visit channel (novelty)."""
 
     enabled: bool = False
     curiosity_rise: float = 10.0
@@ -666,6 +672,7 @@ class MotivationConfig:
     hunger_initial: float = 1.0
     reward_trace_rise: float = 1.0
     reward_trace_fall: float = 600.0
+    vigour_floor: float = 0.5
     reasons: Tuple[str, ...] = ("explore", "forage")
 
 
@@ -678,12 +685,17 @@ RESEARCH_G50: Dict[str, Any] = {
     "sensors.free_space_sensing": True,
     "value_memory.reachable_probes": True,
 }
+# G52's cap on the per-feature reward step, adopted by the research profile at the owner's decision (docs/decisions.md
+# G53); every experiment registered before it pins the old value. PRE_G50 carries it too: the profile before G50 had
+# no cap either, so a pre-G50 registration still means what it said.
+PRE_G53: Dict[str, Any] = {"place.reward_step_cap": False}
 PRE_G50: Dict[str, Any] = {
     "sensors.lateral_odometry": False,
     "sensors.landmark_sensing": False,
     "spatial.landmark_gain": 0.0,
     "sensors.free_space_sensing": False,
     "value_memory.reachable_probes": False,
+    **PRE_G53,
 }
 
 
@@ -795,6 +807,10 @@ class EngineConfig:
           ``reward.shape_hidden = False`` (approach shaping reads visible targets
           only; a hidden goal still rewards on contact). The research baselines
           contain no hidden object and are unchanged by them.
+        - ``place.reward_step_cap = True`` (docs/decisions.md G53): each cell's per-feature reward step is at most
+          all the way to its target, min(1, rate × φᵢ). Inert at this profile's rate (0.5 × φ ≤ 1); it binds where a
+          scenario sets the renewable-reward unlearning rate. Every experiment registered before it pins the old
+          value (``PRE_G53``, carried by ``PRE_G50`` too).
 
         Nothing else differs. Not yet in this profile: replay as an event
         stream inside the engine (M3; the M2a linear-track experiments run
@@ -838,6 +854,8 @@ class EngineConfig:
         # the free space along its value fan and reads value only where it could go (inert without a solid near).
         for key, value in RESEARCH_G50.items():
             cfg.set_field(key, value)
+        # G52's cap on the per-feature reward step (docs/decisions.md G53): a weight never passes its target.
+        cfg.place.reward_step_cap = True
         return cfg
 
     def stochastic_elements(self) -> List[str]:
