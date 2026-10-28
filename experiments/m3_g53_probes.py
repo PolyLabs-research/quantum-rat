@@ -20,6 +20,11 @@ at within about a traversal (20 s) is empty, the reward's full size, and longer 
 ``forage``: motivation on (the visit channel for novelty; no reward context) with G53's composition — hunger a reason
 on its own, the reward trace setting vigour (floor 0.5) — against G52's, which rested a hungry agent that had found
 nothing lately. Exploratory: no selection, no registration.
+
+``vigour`` (G53 D2, the owner's decision): the research body with motivation, four ways, to tell what raised the
+no-steering control to 0.35-0.58 and changed the open-field walk: as the forage phase ran it; the ``explore`` reason
+removed (``motivation.reasons`` = ("forage",)); the vigour floor at 1 (the reward trace no longer scales the forward
+bias); both.
 """
 
 from __future__ import annotations
@@ -40,12 +45,19 @@ from experiments import rq4a_gate as rg
 from experiments.linear_track_replay import _dependency_versions, write_csv
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
-OUT = {"schema": Path("docs/data/m3/history_motivation/fixed_schema"), "forage": Path("docs/data/m3/history_motivation/forage")}
+OUT = {"schema": Path("docs/data/m3/history_motivation/fixed_schema"), "forage": Path("docs/data/m3/history_motivation/forage"),
+       "vigour": Path("docs/data/m3/history_motivation/vigour")}
 SCHEMAS: Dict[str, tuple] = {"learned": (-0.29, -0.25, 0.66), "fast": (-1.0, 0.0, 0.0), "lap": (0.0, -1.0, 0.0)}
+NO_EXPLORE = {"motivation.reasons": ("forage",)}
+VIGOUR_ONE = {"motivation.vigour_floor": 1.0}
 
 
 def configs(phase: str) -> Dict[str, Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
+    if phase == "vigour":
+        base = {**hm.BODIES["B0"], **hm.VISIT_ONLY, **hm.MOTIVATION_ON}
+        return {"B0_M1": base, "B0_M1_noexplore": {**base, **NO_EXPLORE}, "B0_M1_vig1": {**base, **VIGOUR_ONE},
+                "B0_M1_noexplore_vig1": {**base, **NO_EXPLORE, **VIGOUR_ONE}}
     for b, body in hm.BODIES.items():
         if phase == "schema":
             for name, u in SCHEMAS.items():
