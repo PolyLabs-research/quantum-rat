@@ -1,0 +1,139 @@
+{
+ "configs": {
+  "B0_M1": {
+   "history.channels": [
+    "visit"
+   ],
+   "history.enabled": true,
+   "history.reward_context": [],
+   "motivation.enabled": true
+  },
+  "B1_M1": {
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.turn_commitment": 0.3,
+   "basal_ganglia.wall_avoid_range": 0.16666666666666666,
+   "history.channels": [
+    "visit"
+   ],
+   "history.enabled": true,
+   "history.reward_context": [],
+   "motivation.enabled": true
+  }
+ },
+ "phase": "forage",
+ "quick": false,
+ "scores": [
+  {
+   "changes": 2,
+   "config": "B0_M1",
+   "eligible": false,
+   "passed": 7,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": false,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 1.0,
+    "L_visible": 1.0,
+    "controls": 0.38750000000000007,
+    "cues_L": 0.9666666666666668,
+    "cues_open": 0.9541666666666666,
+    "hidden_food": 47.375,
+    "open_hidden": 1.0,
+    "open_visible": 1.0,
+    "track_learned": 29.5,
+    "track_reflex_no_reward": 20.416666666666668,
+    "track_reflex_no_steer": 20.916666666666668
+   }
+  },
+  {
+   "changes": 2,
+   "config": "B1_M1",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": false,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": true,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.9874999999999999,
+    "L_visible": 1.0,
+    "controls": 0.9083333333333332,
+    "cues_L": 0.9708333333333332,
+    "cues_open": 0.9499999999999998,
+    "hidden_food": 35.25,
+    "open_hidden": 1.0,
+    "open_visible": 1.0,
+    "track_learned": 70.33333333333333,
+    "track_reflex_no_reward": 53.583333333333336,
+    "track_reflex_no_steer": 66.33333333333333
+   }
+  }
+ ],
+ "track": {
+  "B0_M1": {
+   "learned": {
+    "rest_share": 0.035388888888888886,
+    "rewards": 19.5,
+    "ticks_per_traversal": 77.04166666666667,
+    "traversals": 29.5,
+    "traversals_late": 16.083333333333332
+   },
+   "no_reward": {
+    "rest_share": 0.023444444444444445,
+    "rewards": 0.0,
+    "ticks_per_traversal": 113.91666666666667,
+    "traversals": 20.416666666666668,
+    "traversals_late": 10.833333333333334
+   },
+   "no_steer": {
+    "rest_share": 0.03130555555555556,
+    "rewards": 13.166666666666666,
+    "ticks_per_traversal": 104.29166666666667,
+    "traversals": 20.916666666666668,
+    "traversals_late": 10.833333333333334
+   }
+  },
+  "B1_M1": {
+   "learned": {
+    "rest_share": 0.02408333333333333,
+    "rewards": 47.166666666666664,
+    "ticks_per_traversal": 33.375,
+    "traversals": 70.33333333333333,
+    "traversals_late": 34.416666666666664
+   },
+   "no_reward": {
+    "rest_share": 0.013277777777777777,
+    "rewards": 0.0,
+    "ticks_per_traversal": 38.166666666666664,
+    "traversals": 53.583333333333336,
+    "traversals_late": 26.416666666666668
+   },
+   "no_steer": {
+    "rest_share": 0.025722222222222223,
+    "rewards": 45.416666666666664,
+    "ticks_per_traversal": 34.041666666666664,
+    "traversals": 66.33333333333333,
+    "traversals_late": 32.916666666666664
+   }
+  }
+ }
+}
