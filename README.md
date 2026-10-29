@@ -141,7 +141,12 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   seeds and adopted** (G54, `docs/prereg/history_fast_schema.md`): 4.9 more hidden-food finds and 5.1 more
   track traversals a run, the gate within 0.01; the research profile now carries history with it. The
   learning-free explorer that motivation made turned out to be its halved forward bias, not curiosity;
-  motivation stays opt-in. Step 3's learner is next.
+  motivation stays opt-in. **Step 3's learner** (G55, two pilots, `docs/prereg/m3_step3.md`): a learned
+  action value over the place features, read by the steering, with replay at a consumption pause. It
+  learns the gate from a cold start as well as the SR, and with history among its features it is level
+  with the profile on the track and hidden food, but the strict track bound stays unmet for every memory
+  source because the wall gate cuts memory's push to hold course on 96–99% of corridor ticks; replay as
+  built hurts. The owner holds the architecture decision (the gate for a learned action value, or forced laps).
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the

@@ -130,3 +130,8 @@ the way on hidden food (35–42: the noise turns are gone, the return to the emp
 state, `qh_none` runs more laps than the profile (38–46) and holds hidden food at or above the floor (37–46); reverse
 replay now helps (its backups carry "empty" with them), `qh_reverse` ≥ `qh_none` on laps; uniform between. The reflex
 arms stay near 23, so the half-bound needs 46 learned traversals: uncertain, and the most likely failure.
+
+**Pilot 2 ran** (`docs/data/m3/step3/pilot2/`; read in G55): the floor's prediction held, history's held only to the
+profile's level (33.8 against 34.0 traversals; the rule chose none), and "reverse now helps" failed. The measured
+reason the bound is unmet, the wall gate, is an architecture question put to the owner in G55 D; this draft stays as
+it is until that is decided.

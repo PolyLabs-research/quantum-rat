@@ -2097,3 +2097,64 @@ Reported: track rewards 19.2 → 20.3 [−1.3, +3.6]; hidden food without steeri
 2. **Step 3's learner is next**, as agreed; its battery base is `m3_part2.BASE` with the adopted history, to be stated in its preregistration.
 
 **Impact:** this entry; `core/config.py` (research default, `PRE_G54`, `PRE_G53`), `ui/sim_session.py`; `experiments/history_fast_schema.py` (the pin), `experiments/m3_part2.py` (`BASE`); `docs/profiles.md`, `docs/m3_place_replay.md`, `README.md`; `docs/data/m3/history_motivation/fast_schema_confirmatory/`, `vigour/` (new); tests in `tests/engine/test_profiles.py`, `tests/engine/test_history_motivation.py`, `tests/experiments/test_rq4a_gate.py`.
+
+## G55 — M3 step 3: a learned action value over the place code, two pilots; the track bound is unreachable under the wall gate
+
+**Date:** 2026-10-29  
+**Why:** the owner's "agree, go" on G54 D2: step 3's learner next, with the track test as its acceptance (G53 C4). Draft preregistration `docs/prereg/m3_step3.md` (`d512012`); build `b35f0bd`; pilot 1 `979cb71`; amendment A1 `f9d82f4`; pilot 2 `2397af6`. Exploratory, the Part 2 pilot's spent seeds (gate and track 31–42, hidden food 1–8), under step 2's battery and G53's statistics on the profile as G54 left it with the step cap. Nothing registered; the draft is the owner's. Branch `m3-step3-learner` off `m3-history-motivation`.
+
+### A. What landed (opt-in; both determinism baselines bit-identical)
+1. **The learner** (`brain/systems/action_value.py`, `LinearQ`): Q(φ, a) = w_a · φ for FORWARD, TURN_LEFT and TURN_RIGHT over the place features (REST keeps its reflex score), learned every tick by Q-learning with replacing eligibility traces (`action_value.learning_rate` 0.1, `discount` 0.98, `lam` 0.9, each from the draft's stated reason) and by replay backups toward a target without traces. `PlaceActionLearner` binds it to φ(x, y) for the replay rules, which back it up by the transition's action (`StoredTransition.action`, new; the M2a rules unchanged).
+2. **The read** (`value_memory.source = "action"`): the advantages Q(φ, a) − mean_a Q through `split_value_signals`, cue and wall gating as for the SR; the SR is kept learning beside it (need reads its rows).
+3. **The transition memory and replay at the consumption pause** (`replay.*`): every movement tick's transition stored (`replay.memory_capacity` 3,000); when the agent eats, the body rests `consume_ticks` (5) and on the pause's first tick the rule backs up `backups_per_pause` (20) transitions, recorded as one `ReplayEvent` in `engine.replay_log` (the console draws it). Rules `none`, `uniform` (the new `replay` RNG stream), `reverse`, and `gain_need` (`MattarDawReplay` over `brain/systems/replay_place.PlaceQModel`: state = the largest-rate cell, need from the SR row; built, not piloted: the floors first). `action_value.oracle_state`: φ at the body's true position.
+4. **Amendment A1** (after pilot 1, dated in the draft before pilot 2): `action_value.history_features` (φ and φ × each taste trace at its cell: the state carries its history, as a splitter cell's does; a `PlaceTransition` stores the features it was experienced on, so a replay backs it up as it was) and `action_value.read_floor` 0.02 (an advantage below it reads as nothing). Pilot 1's configurations pin the floor at 0 so their tables regenerate as run. `core.config.ADOPTED_SINCE_G50` inverts `PRE_G50` for the battery's open-field job.
+5. `experiments/m3_step3.py` (`--phase pilot`, `pilot2`); `m3_part2.run_battery` takes a base and the track rows count replay events; `tools/m3_step3_probes/emptied_end.py`. The console lists the mechanism. Tests +13.
+
+### B. Measured
+
+**Pilot 1** (`docs/data/m3/step3/pilot/`, 286 s; + passes, − fails; the two reflex arms 22.8 / 23.6 traversals in every row, both failing the half-bound):
+
+| configuration | track, learned traversals (≥ 42) | rewards | median ticks a traversal | gate: open / L hidden | cues: open / L | hidden food (≥ 37.1) | bounds |
+|---|---|---|---|---|---|---|---|
+| the profile (G54, capped) | 34.0 − | 18.8 | 65 | 0.99 / 0.98 | 0.96 / 0.98 | 46.5 + | 8 |
+| learner, replay none | 28.3 − | 16.1 | 70 | 1.00 / 1.00 | 0.93 / 0.96 | **27.6** − | 7 |
+| learner, uniform | 24.9 − | 12.6 | 434 | 1.00 / 1.00 | 0.93 / 0.96 | 24.0 − | 7 |
+| learner, reverse | **16.5** − | 9.4 | 424 | 1.00 / 1.00 | 0.93 / 0.96 | 24.8 − | 7 |
+| learner, reverse, oracle state | 14.5 − | 8.9 | 406 | 1.00 / 1.00 | 0.93 / 0.96 | 25.5 − | 7 |
+
+**Pilot 2** (`docs/data/m3/step3/pilot2/`, 277 s; amendment A1):
+
+| configuration | track, learned traversals (≥ 42) | rewards | median ticks a traversal | gate: open / L hidden | cues: open / L | hidden food (≥ 37.1) | bounds |
+|---|---|---|---|---|---|---|---|
+| the profile | 34.0 − | 18.8 | 65 | 0.99 / 0.98 | 0.96 / 0.98 | 46.5 + | 8 |
+| the floor alone | 28.7 − | 17.8 | 82 | 1.00 / 1.00 | 0.93 / 0.96 | **43.4** + | 8 |
+| **history in the state, replay none** | **33.8** − | **19.8** | 63 | 1.00 / 1.00 | 0.93 / 0.96 | 43.0 + | 8 |
+| history in the state, uniform | 27.2 − | 14.8 | 76 | 1.00 / 1.00 | 0.93 / 0.96 | 40.2 + | 8 |
+| history in the state, reverse | 23.8 − | **9.5** | 70 | 1.00 / 1.00 | 0.93 / 0.96 | 39.5 + | 8 |
+
+The rule chose none in either pilot. Visible-goal sessions 0.99–1.00; the no-steering controls ≤ 0.03; the open field identical to the profile's (no reward: the learner never moves).
+
+**The probe** (`tools/m3_step3_probes/emptied_end_out.txt`; the track, seed 31, 3,000 ticks): meals; the share of ticks within 1.5 units of the end just emptied; the share of ticks on which a wall on the centre ray scales the memory term down (`wall_gate` below 1); the share of movement ticks that are turns; the mean largest |advantage| read.
+
+| configuration | meals | near the emptied end | wall-gated ticks | turn share | mean \|advantage\| |
+|---|---|---|---|---|---|
+| the profile | 22 | 0.43 | 0.96 | 0.72 | (the SR) |
+| pilot 1, replay none | 7 | 0.48 | 0.97 | 0.69 | 0.031 |
+| pilot 1, reverse | 8 | 0.65 | 0.98 | 0.85 | 0.040 |
+| the floor alone | 16 | 0.58 | 0.98 | 0.74 | 0.017 |
+| history in the state, none | **24** | 0.44 | 0.96 | 0.70 | **0.066** |
+| history in the state, reverse | 6 | 0.62 | 0.99 | 0.82 | 0.023 |
+
+### C. Reading
+1. **The learner learns, and with A1 it is level with the profile on every task.** It reaches the gate's hidden goal from a cold start as well as the SR does (0.996 / 1.000 told the start; 0.962 / 0.929 with cues, against 0.975 / 0.962), and with history in its state it runs the track as the profile does (33.8 against 34.0 traversals, a reward more) and keeps hidden food above the floor (43.0 against 46.5). Pilot 1's losses were the read and the state, as A1 said: the floor alone took hidden food from 27.6 to 43.4 (the orbits were noise-sized advantages turned into full turns), and history in the state took the track from 28.7 to 33.8 traversals and seed 31's meals from 16 to 24 (the end just emptied told from the full one; the advantages three times the floor).
+2. **The strict track bound is unreachable under the wall gate, for any memory source.** The gate scales memory's push to hold course by the closeness of the wall on the centre vision ray (`wall_gate_gain` 1.0) while letting its turn commands through. In a corridor four cells wide that ray sees a wall on 96–99% of ticks in every configuration, the profile's included, so what the learner knows about FORWARD is cut most of the time and what passes is its turns: 70% of movement ticks are turns, for the SR and the action value alike. The gate is there for a reason (a remembered place beyond a wall once held the agent pressing into it, and foraging lost 13–23 items without it), and lifting it for a learned action value is an architecture decision under the four rules: the owner's.
+3. **Replay as built hurts, with and without history in the state.** Reverse replay halves the meals (19.8 → 9.5 rewards), shrinks the advantages (0.066 → 0.023) and raises the turn share (0.70 → 0.82); uniform less so; the oracle state does not help (the failure is not the estimate). A mechanism to measure before it is believed: Q-learning's target at a state, r + γ max_a Q, is the same for every action, so twenty backups a meal at the same places pull the actions' values together, where the online traces credit the path actually taken. gain × need backs up only where a backup changes the policy, and is the candidate; a stored-next-action (SARSA) target the other.
+4. **Pilot 2's predictions:** the floor's held (laps 28.7 within 30–34 nearly; hidden food 43.4, above 35–42); history in the state held only to the profile's level (38–46 predicted: failed); "reverse now helps" failed. The draft's third row, read literally, says forced laps; its reading ("an action value over place features cannot make the research body lap") is not what was found: the action value laps as the profile does, and both are held by the gate.
+
+### D. Decisions this surfaces (the owner's)
+1. **The wall gate for a learned action value** (amendment A2 and a third pilot): an action value exists to overrule a reflex when experience says so; let its memory term pass the gate (the wall-avoidance term untouched), on the research body. Or keep the architecture and take forced laps per the draft. The corridor body (G45's wall response with the orienting response) laps by reflex, so under the strict rule it cannot pass; under forced laps it is the body RQ1 would run on.
+2. **Replay**: pilot gain × need (built) and a SARSA target before anything about replay is registered; the floors as built are not the replay the row wants.
+3. **Registration**: not yet. The learner is level with the SR on every task and the step's acceptance is unmet; registering it as a value source on its own merits can wait for 1.
+4. **Step 4** (RQ1 over the place code) waits on 1 and 2.
+
+**Impact:** this entry; `brain/systems/action_value.py`, `brain/systems/replay_place.py` (new); `brain/systems/replay_rules.py`, `brain/systems/replay_mattar_daw.py`, `core/config.py`, `core/engine.py`, `ui/sim_session.py`; `experiments/m3_part2.py` (`run_battery(base=)`, `replay_events`), `experiments/m3_step3.py` (new); `tools/m3_step3_probes/` (new); `docs/prereg/m3_step3.md` (draft, amendment A1), `docs/m3_place_replay.md`, `README.md`; `docs/data/m3/step3/pilot/`, `pilot2/` (new); tests in `tests/brain/test_action_value.py`, `tests/engine/test_action_value_engine.py`, `tests/experiments/test_m3_step3.py` (new), `tests/engine/test_value_source.py`.
