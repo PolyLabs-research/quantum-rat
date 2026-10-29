@@ -97,3 +97,41 @@ Configurations on the research body: the profile as adopted (reference); the lea
 
 Nothing after the pilot's rule has chosen. A pre-run amendment (a parameter that must change for the build to run at
 all) is recorded here with its date and reason before the pilot, as M2a's preregistrations did.
+
+## Amendment A1 (2026-10-29, after the first pilot, before the second; the draft being the owner's to register)
+
+**What the first pilot found** (`docs/data/m3/step3/pilot/`, G55 A): no learner configuration passed the track, and
+the rule chose none. The action value solved the gate as well as the SR (hidden 0.996 / 1.000 told the start, 0.962 /
+0.929 with cues) but on the track it ran fewer laps than the research profile (28.3 against 34.0 without replay) and
+fewer still with replay (16.5 with reverse, 14.5 with the oracle state), and hidden food halved (24–28 against 46.5).
+A check (`tools/m3_step3_probes/emptied_end.py`) showed why: with reverse replay the agent spends 65% of the run
+within 1.5 units of the end it has just emptied (the profile 43%, with three times the meals), and the advantages it
+steers on eight ticks after a meal are ±0.01 to ±0.05, which the split's relative dead zone turns into full turns.
+Two causes, both in this design and neither in the learner's arithmetic:
+
+1. **The state was position-only.** Q(φ, a) cannot tell the end just emptied from the full one, which is what G52's
+   reading named as the first missing variable and what G54's fixed schema gives the SR's reward weights; the action
+   value never read it. Reverse replay then backs the reward up along the lap just run, toward the empty end.
+2. **The read had no floor.** The advantages were normalised by their own scale, so a noise-sized preference
+   commanded a full turn; the split's relative dead zone was made for a spatial value relief read along probes.
+
+**The amendment.** (a) `action_value.history_features`: the features are φ and, for each of the taste channel's
+timescales (2 s, 20 s, 200 s), φ times that trace at each cell: this place, eaten at this recently. The state carries
+its history, as a splitter cell's does; a transition is stored with the features it was experienced on
+(`PlaceTransition`), so a replay backs it up as it was. (b) `action_value.read_floor` 0.02: the largest advantage
+magnitude below which the steering reads nothing (a preference worth less than a fiftieth of a reward is noise). The
+first pilot's configurations pin the floor at 0 so their tables regenerate as run. Nothing else changes.
+
+**Pilot 2** (`--phase pilot2`, the same spent seeds and bounds): the profile; `q_floor` (the floor alone, position-only
+features); `qh_none`, `qh_uniform`, `qh_reverse` (both amendments, replay by that rule). The selection rule unchanged.
+
+**Predictions (before pilot 2):** the floor alone brings the learner back to the profile's laps (30–34) and part of
+the way on hidden food (35–42: the noise turns are gone, the return to the empty site is not). With history in the
+state, `qh_none` runs more laps than the profile (38–46) and holds hidden food at or above the floor (37–46); reverse
+replay now helps (its backups carry "empty" with them), `qh_reverse` ≥ `qh_none` on laps; uniform between. The reflex
+arms stay near 23, so the half-bound needs 46 learned traversals: uncertain, and the most likely failure.
+
+**Pilot 2 ran** (`docs/data/m3/step3/pilot2/`; read in G55): the floor's prediction held, history's held only to the
+profile's level (33.8 against 34.0 traversals; the rule chose none), and "reverse now helps" failed. The measured
+reason the bound is unmet, the wall gate, is an architecture question put to the owner in G55 D; this draft stays as
+it is until that is decided.

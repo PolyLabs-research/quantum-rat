@@ -1,0 +1,372 @@
+{
+ "base": {
+  "place.reward_step_cap": true
+ },
+ "chosen": null,
+ "configs": {
+  "q_floor": {
+   "action_value.enabled": true,
+   "action_value.read_floor": 0.02,
+   "replay.rule": "none",
+   "value_memory.source": "action"
+  },
+  "qh_none": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "action_value.read_floor": 0.02,
+   "replay.rule": "none",
+   "value_memory.source": "action"
+  },
+  "qh_reverse": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "action_value.read_floor": 0.02,
+   "replay.rule": "reverse",
+   "value_memory.source": "action"
+  },
+  "qh_uniform": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "action_value.read_floor": 0.02,
+   "replay.rule": "uniform",
+   "value_memory.source": "action"
+  },
+  "research": {}
+ },
+ "phase": "pilot2",
+ "quick": false,
+ "scores": [
+  {
+   "changes": 1,
+   "config": "research",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.9833333333333333,
+    "L_visible": 0.9958333333333332,
+    "controls": 0.9333333333333332,
+    "cues_L": 0.9750000000000001,
+    "cues_open": 0.9624999999999999,
+    "hidden_food": 46.5,
+    "open_hidden": 0.9874999999999999,
+    "open_visible": 0.9916666666666667,
+    "track_learned": 34.0,
+    "track_reflex_no_reward": 22.833333333333332,
+    "track_reflex_no_steer": 22.833333333333332
+   }
+  },
+  {
+   "changes": 2,
+   "config": "q_floor",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.9958333333333332,
+    "L_visible": 0.9958333333333332,
+    "controls": 0.8999999999999999,
+    "cues_L": 0.9624999999999999,
+    "cues_open": 0.9291666666666666,
+    "hidden_food": 43.375,
+    "open_hidden": 1.0,
+    "open_visible": 0.9874999999999999,
+    "track_learned": 28.666666666666668,
+    "track_reflex_no_reward": 22.833333333333332,
+    "track_reflex_no_steer": 23.583333333333332
+   }
+  },
+  {
+   "changes": 2,
+   "config": "qh_none",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.9958333333333332,
+    "L_visible": 0.9958333333333332,
+    "controls": 0.8999999999999999,
+    "cues_L": 0.9624999999999999,
+    "cues_open": 0.9291666666666666,
+    "hidden_food": 43.0,
+    "open_hidden": 1.0,
+    "open_visible": 0.9874999999999999,
+    "track_learned": 33.75,
+    "track_reflex_no_reward": 22.833333333333332,
+    "track_reflex_no_steer": 23.583333333333332
+   }
+  },
+  {
+   "changes": 2,
+   "config": "qh_uniform",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.9958333333333332,
+    "L_visible": 0.9958333333333332,
+    "controls": 0.8999999999999999,
+    "cues_L": 0.9624999999999999,
+    "cues_open": 0.9291666666666666,
+    "hidden_food": 40.25,
+    "open_hidden": 1.0,
+    "open_visible": 0.9874999999999999,
+    "track_learned": 27.166666666666668,
+    "track_reflex_no_reward": 22.833333333333332,
+    "track_reflex_no_steer": 23.583333333333332
+   }
+  },
+  {
+   "changes": 2,
+   "config": "qh_reverse",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.9958333333333332,
+    "L_visible": 0.9958333333333332,
+    "controls": 0.8999999999999999,
+    "cues_L": 0.9624999999999999,
+    "cues_open": 0.9291666666666666,
+    "hidden_food": 39.5,
+    "open_hidden": 1.0,
+    "open_visible": 0.9874999999999999,
+    "track_learned": 23.833333333333332,
+    "track_reflex_no_reward": 22.833333333333332,
+    "track_reflex_no_steer": 23.583333333333332
+   }
+  }
+ ],
+ "seeds": {
+  "food_seeds": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8
+  ],
+  "gate_seeds": [
+   31,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41,
+   42
+  ],
+  "track_seeds": [
+   31,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41,
+   42
+  ]
+ },
+ "track": {
+  "q_floor": {
+   "learned": {
+    "replay_events": 0.0,
+    "rest_share": 0.04480555555555556,
+    "rewards": 17.75,
+    "ticks_per_traversal": 82.33333333333333,
+    "traversals": 28.666666666666668,
+    "traversals_late": 14.916666666666666
+   },
+   "no_reward": {
+    "replay_events": 0.0,
+    "rest_share": 0.01825,
+    "rewards": 0.0,
+    "ticks_per_traversal": 103.83333333333333,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   },
+   "no_steer": {
+    "replay_events": 0.0,
+    "rest_share": 0.04083333333333333,
+    "rewards": 14.25,
+    "ticks_per_traversal": 104.0,
+    "traversals": 23.583333333333332,
+    "traversals_late": 11.5
+   }
+  },
+  "qh_none": {
+   "learned": {
+    "replay_events": 0.0,
+    "rest_share": 0.0465,
+    "rewards": 19.833333333333332,
+    "ticks_per_traversal": 63.0,
+    "traversals": 33.75,
+    "traversals_late": 16.583333333333332
+   },
+   "no_reward": {
+    "replay_events": 0.0,
+    "rest_share": 0.01825,
+    "rewards": 0.0,
+    "ticks_per_traversal": 103.83333333333333,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   },
+   "no_steer": {
+    "replay_events": 0.0,
+    "rest_share": 0.04083333333333333,
+    "rewards": 14.25,
+    "ticks_per_traversal": 104.0,
+    "traversals": 23.583333333333332,
+    "traversals_late": 11.5
+   }
+  },
+  "qh_reverse": {
+   "learned": {
+    "replay_events": 9.5,
+    "rest_share": 0.025861111111111112,
+    "rewards": 9.5,
+    "ticks_per_traversal": 87.70833333333333,
+    "traversals": 23.833333333333332,
+    "traversals_late": 12.416666666666666
+   },
+   "no_reward": {
+    "replay_events": 0.0,
+    "rest_share": 0.01825,
+    "rewards": 0.0,
+    "ticks_per_traversal": 103.83333333333333,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   },
+   "no_steer": {
+    "replay_events": 14.25,
+    "rest_share": 0.04083333333333333,
+    "rewards": 14.25,
+    "ticks_per_traversal": 104.0,
+    "traversals": 23.583333333333332,
+    "traversals_late": 11.5
+   }
+  },
+  "qh_uniform": {
+   "learned": {
+    "replay_events": 14.833333333333334,
+    "rest_share": 0.03780555555555556,
+    "rewards": 14.833333333333334,
+    "ticks_per_traversal": 74.33333333333333,
+    "traversals": 27.166666666666668,
+    "traversals_late": 14.833333333333334
+   },
+   "no_reward": {
+    "replay_events": 0.0,
+    "rest_share": 0.01825,
+    "rewards": 0.0,
+    "ticks_per_traversal": 103.83333333333333,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   },
+   "no_steer": {
+    "replay_events": 14.25,
+    "rest_share": 0.04083333333333333,
+    "rewards": 14.25,
+    "ticks_per_traversal": 104.0,
+    "traversals": 23.583333333333332,
+    "traversals_late": 11.5
+   }
+  },
+  "research": {
+   "learned": {
+    "replay_events": 0.0,
+    "rest_share": 0.015416666666666665,
+    "rewards": 18.75,
+    "ticks_per_traversal": 65.0,
+    "traversals": 34.0,
+    "traversals_late": 16.833333333333332
+   },
+   "no_reward": {
+    "replay_events": 0.0,
+    "rest_share": 0.01825,
+    "rewards": 0.0,
+    "ticks_per_traversal": 103.83333333333333,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   },
+   "no_steer": {
+    "replay_events": 0.0,
+    "rest_share": 0.01825,
+    "rewards": 15.25,
+    "ticks_per_traversal": 103.83333333333333,
+    "traversals": 22.833333333333332,
+    "traversals_late": 11.166666666666666
+   }
+  }
+ }
+}

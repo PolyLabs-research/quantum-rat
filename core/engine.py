@@ -43,6 +43,9 @@ from core.world import World, WorldObject
 from metrics.schema import TickData
 
 GOAL_VECTOR_SOURCES = ("replay", "online")
+# The actions the learned action value is over (M3 step 3; brain.systems.action_value.ACTIONS, not imported here:
+# that module needs numpy and importing core.engine must not).
+ACTION_VALUE_ACTIONS = ("FORWARD", "TURN_LEFT", "TURN_RIGHT")
 
 
 @dataclass
@@ -98,6 +101,11 @@ class EngineContext:
     motivation_levels: Dict[str, float] = field(default_factory=dict)
     vigour: float = 1.0  # G53: the reward trace's scaling of the forward bias (1 without motivation)
     familiarity: float = 0.0
+    # M3 step 3: the action value's advantages (FORWARD, TURN_LEFT, TURN_RIGHT) read this tick, whether the body is in
+    # a consumption pause, and the cells of the replay event made this tick, if any.
+    action_values: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    consuming: bool = False
+    replay_event_cells: Tuple[Tuple[int, int], ...] = ()
     cue_gate: float = 1.0  # weight on memory steering (0 = muted by a visible target)
     wall_gate: float = 1.0  # weight on memory's hold-course push (0 = muted by a wall close ahead)
     freeze_habituation: float = 1.0  # scale on the pain->REST drive (1 = not habituated)
@@ -140,6 +148,8 @@ class Engine:
             "body_motion": self.rng.stream("body_motion"),
             # The distal cues' bearing and distance errors (G48); drawn only when landmark sensing is on.
             "sensors_landmarks": self.rng.stream("sensors_landmarks"),
+            # The uniform replay rule's draws (M3 step 3); drawn only by it, only when on.
+            "replay": self.rng.stream("replay"),
         }
         self.world = World(bounds=c.world.bounds)
         self.agent = Agent(id=agent_offset, pos=(0.0, 0.0))
@@ -242,9 +252,9 @@ class Engine:
         self.sr_weights = None
         self._sr_prev = None
         self._sr_u = None
-        if c.value_memory.source == "sr":
+        if c.value_memory.source in ("sr", "action"):  # "action" (M3 step 3) keeps the SR too: need reads its rows
             if self.place is None:
-                raise ValueError("value_memory.source 'sr' needs place.enabled = True")
+                raise ValueError(f"value_memory.source {c.value_memory.source!r} needs place.enabled = True")
             import numpy as np
 
             from brain.systems.successor_features import SuccessorFeatures
@@ -274,6 +284,34 @@ class Engine:
 
             self.motivation = Motivation(default_loops(c.motivation), c.motivation.hunger_initial, tuple(c.motivation.reasons),
                                          c.motivation.vigour_floor)
+        # A learned action value over the place code, its transition memory and replay at the consumption pause (M3
+        # step 3; docs/prereg/m3_step3.md), off by default.
+        self.action_learner = None
+        self.transition_memory = None
+        self.replay_rule = None
+        self._av_prev = None  # (phi, action, x, y, cell) of the last movement tick: the next transition's start
+        self._av_phi = None  # phi this tick, for the value read
+        self._consume_remaining = 0
+        if c.action_value.enabled:
+            if self.place is None:
+                raise ValueError("action_value.enabled needs place.enabled = True (its features are the place code)")
+            from brain.systems.action_value import LinearQ, PlaceActionLearner
+            from brain.systems.replay_rules import TransitionMemory
+
+            av = c.action_value
+            n_features = self.place.size
+            if av.history_features:  # amendment A1: phi and phi times each taste trace
+                if self.history is None or "taste" not in c.history.channels:
+                    raise ValueError("action_value.history_features needs history.enabled with the 'taste' channel")
+                n_features *= 1 + len(self.history.banks["taste"].timescales)
+            self.action_learner = PlaceActionLearner(LinearQ(n_features, av.learning_rate, av.discount, av.lam, av.traces),
+                                                     self._av_features)
+            self.transition_memory = TransitionMemory(c.replay.memory_capacity)
+            self.replay_rule = self._make_replay_rule(c.replay.rule)
+        elif c.replay.rule != "none":
+            raise ValueError("replay.rule needs action_value.enabled = True (the rule backs up the action value)")
+        if c.value_memory.source == "action" and self.action_learner is None:
+            raise ValueError("value_memory.source 'action' needs action_value.enabled = True")
         self.working_memory = WorkingMemory(capacity=c.working_memory.capacity)
         self.last_action: Action = Action(name="REST", thrust=0.0, turn=0.0)
         self.pipeline = Pipeline(
@@ -629,6 +667,99 @@ class Engine:
             self.sr_weights[:] = 0.0
             self._sr_u = None
 
+    # --- The action value over the place code and replay at the consumption pause (M3 step 3) ---------------------
+
+    def _phi_at(self, x: float, y: float):
+        """The place features at a position: the population's rates normalised to sum 1."""
+        from brain.systems.successor_features import normalised
+
+        return normalised(self.place.rates(x, y))
+
+    def _make_replay_rule(self, name: str):
+        if name == "none":
+            return None
+        if name == "uniform":
+            from brain.systems.replay_rules import UniformReplay
+
+            return UniformReplay()
+        if name == "reverse":
+            from brain.systems.replay_rules import ReverseTrajectoryReplay
+
+            return ReverseTrajectoryReplay()
+        if name == "gain_need":
+            from brain.systems.replay_mattar_daw import MattarDawReplay
+            from brain.systems.replay_place import PlaceQModel
+
+            return MattarDawReplay(PlaceQModel(self))
+        raise ValueError(f"unknown replay rule {name!r}")
+
+    def _av_features(self, x: float, y: float):
+        """The action value's features at a position: phi, and with ``history_features`` phi times each taste trace
+        at its cell (the place and how recently it was eaten at; amendment A1)."""
+        phi = self._phi_at(x, y)
+        if not self.config.action_value.history_features:
+            return phi
+        import numpy as np  # local: importing core.engine must not import numpy (docs/determinism.md)
+
+        traces = self.history.banks["taste"].traces
+        return np.concatenate([phi] + [phi * traces[k] for k in range(traces.shape[0])])
+
+    def _av_position(self, ctx: EngineContext) -> Tuple[float, float]:
+        """Where the action value reads: the estimate, or the body's true position under ``oracle_state``."""
+        if self.config.action_value.oracle_state:
+            return float(self.agent.pos[0]), float(self.agent.pos[1])
+        return float(ctx.grid_x), float(ctx.grid_y)
+
+    def _action_value_learn(self, ctx: EngineContext) -> None:
+        """The last movement's transition into the action value and the transition memory; the consumption pause and
+        its replay when the agent has just eaten; the advantages the steering reads this tick."""
+        from brain.systems.replay_rules import PlaceTransition
+
+        ctx.replay_event_cells = ()
+        x, y = self._av_position(ctx)
+        phi = self._av_features(x, y)
+        prev = self._av_prev
+        if prev is not None:
+            phi_prev, action, x0, y0, cell0 = prev
+            self.action_learner.learner.update(phi_prev, action, ctx.map_reward, phi, False)
+            self.transition_memory.append(PlaceTransition(x0, y0, ctx.map_reward, x, y, False, self.episode, ctx.tick, cell0, action,
+                                                          phi=phi_prev, phi_next=phi))
+        self._av_prev = None  # set again once this tick's action is chosen, if it is a movement
+        self._av_phi = phi
+        adv = self.action_learner.learner.advantages(phi)
+        ctx.action_values = tuple(adv[a] for a in ACTION_VALUE_ACTIONS)
+        if ctx.map_reward > 0.0 and self.config.replay.consume_ticks > 0:
+            self._consume_remaining = self.config.replay.consume_ticks
+            self._replay_at_pause(ctx)
+
+    def _replay_at_pause(self, ctx: EngineContext) -> None:
+        """The rule's backups on the pause's first tick, recorded as one event (nothing of this episode: no event)."""
+        from brain.systems.replay_events import TRIGGER_REWARD
+        from brain.systems.replay_rules import replay
+
+        rule, memory = self.replay_rule, self.transition_memory
+        n = self.config.replay.backups_per_pause
+        if rule is None or n < 1 or not memory.episode(self.episode):
+            return
+        outcome = replay(rule, memory, self.action_learner, n, self.episode, self.streams["replay"], tick=ctx.tick,
+                         travel_sign=1, trigger=TRIGGER_REWARD)
+        self.replay_log.append(outcome.event)
+        ctx.replay_event_cells = outcome.event.cells
+
+    def _after_selection(self, ctx: EngineContext, action: Action) -> Action:
+        """The consumption pause (the body rests while it eats) and the next transition's start."""
+        ctx.consuming = False
+        if self._consume_remaining > 0:
+            self._consume_remaining -= 1
+            ctx.consuming = True
+            action = Action(name="REST", thrust=0.0, turn=0.0)
+        if action.name in ACTION_VALUE_ACTIONS and self._av_phi is not None:
+            x, y = self._av_position(ctx)
+            self._av_prev = (self._av_phi, action.name, x, y, self.spatial.bins_at(x, y))
+        else:
+            self._av_prev = None
+        return action
+
     def _value_at(self, x: float, y: float) -> float:
         """The value the steering reads at a position of the estimate frame, from ``value_memory.source``."""
         if self.sr is not None:
@@ -655,6 +786,20 @@ class Engine:
         if self.config.value_memory.source == "none":
             ctx.goal_vector_active = False
             return 0.0, 0.0, 0.0  # no value steering (M2b step 4's control)
+        if self.config.value_memory.source == "action":  # M3 step 3: the learned action value, read at the agent's own place
+            ctx.goal_vector_active = False
+            ahead, left, right = ctx.action_values
+            scale = max(abs(ahead), abs(left), abs(right))
+            if scale < self.config.action_value.read_floor:  # amendment A1: a preference below the floor is noise
+                return 0.0, 0.0, 0.0
+            bg = self.config.basal_ganglia
+            if bg.value_steer == "split":
+                return split_value_signals(ahead, left, right, scale, bg)
+            if bg.value_steer != "maxnorm":
+                raise ValueError(f"Unknown value_steer {bg.value_steer!r}; expected one of {VALUE_STEER_MODES}")
+            if scale < self.VALUE_FLAT:
+                return 0.0, 0.0, 0.0
+            return ahead / scale, left / scale, right / scale
         look = self.config.value_memory.lookahead
         here = self._value_at(ctx.grid_x, ctx.grid_y)
         # reachable_probes (M3 step 2, draft): each direction is read only as far as the agent sees it could go.
@@ -768,6 +913,8 @@ class Engine:
             self.history.decay()
         if self.sr is not None:
             self._sr_learn(ctx.map_reward)
+        if self.action_learner is not None:
+            self._action_value_learn(ctx)
         drive, vigour = 1.0, 1.0
         if self.history is not None:
             self.history.write(self._history_inputs(ctx))
@@ -837,6 +984,8 @@ class Engine:
             motivation=drive,
             vigour=vigour,
         )
+        if self.action_learner is not None:
+            action = self._after_selection(ctx, action)
         pain = ctx.observation.pain_signal
         if action.name == "REST" and not ctx.microsleep_active and pain > bg.freeze_pain_threshold:
             self._freeze_level += 1.0
@@ -923,6 +1072,10 @@ class Engine:
         self._close_replay_event()
         self.value_memory.reset_episode()
         self._sr_prev = None  # the SR value source's episode boundary too (M2b step 4)
+        if self.action_learner is not None:  # M3 step 3: no transition across a reset; the traces start afresh
+            self.action_learner.reset_episode()
+            self._av_prev = None
+            self._consume_remaining = 0
         if self.body is not None:
             self.body.reset()  # the animal is put down still (G44)
         self.episode += 1

@@ -220,3 +220,14 @@ more track traversals a run [+3.5, +6.5], the gate within 0.01: the research pro
 (`PRE_G54` pins it off for every earlier registration). The vigour check settled G53's open question: the
 learning-free explorer motivation made was the halved forward bias, not curiosity; motivation stays opt-in. Step 3's
 learner is next.
+
+**Step 3's learner, two pilots (G55, 2026-10-29; `docs/prereg/m3_step3.md`, a draft for the owner).** A linear action
+value over the place features for FORWARD and the turns, learned every tick and read by the steering, with a
+transition memory and replay at a consumption pause (none, uniform, reverse; gain × need built, not piloted). It
+reaches the gate's hidden goal from a cold start as well as the SR does. Its first pilot lost the track and hidden
+food to a position-only state and a floorless read; with history among its features and a floor (amendment A1) it is
+level with the profile on every task, 33.8 against 34.0 track traversals, and still fails the strict bound, because
+the wall gate scales memory's push to hold course down on 96–99% of corridor ticks for every memory source, letting
+only its turns through. Replay as built hurts (reverse halves the meals and shrinks the advantages). The owner holds
+the architecture decision: let a learned action value pass the wall gate (a third pilot), or forced laps; and the
+replay variants to pilot before any registration.

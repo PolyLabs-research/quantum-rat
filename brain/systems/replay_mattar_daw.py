@@ -156,7 +156,7 @@ class MattarDawReplay:
         return self.model.need(self.model.acting_state(), state) * max(gain, self.gain_floor)
 
     def _one_step(self, t: StoredTransition, learner: QLearner) -> float:
-        action = self.model.action_of(t.x, t.y, t.x_next, t.y_next)
+        action = t.action or self.model.action_of(t.x, t.y, t.x_next, t.y_next)  # stored with the transition (M3 step 3) or read off the geometry
         return self._evb(self.model.state_index(t.x, t.y), learner.q(t.x, t.y), action, t.td_error(learner))
 
     def _extensions(self, distinct: Sequence[StoredTransition], learner: QLearner,
@@ -166,7 +166,7 @@ class MattarDawReplay:
         if not self.extension or not chain or chain[-1].terminal:
             return []
         first, last = chain[0], chain[-1]
-        action = self.model.action_of(first.x, first.y, first.x_next, first.y_next)
+        action = first.action or self.model.action_of(first.x, first.y, first.x_next, first.y_next)
         q_first = learner.q(first.x, first.y)
         gamma = self.model.discount()
         out: List[Tuple[float, ExtendedBackup]] = []

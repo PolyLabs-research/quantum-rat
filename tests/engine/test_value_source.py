@@ -22,7 +22,7 @@ def _cfg(source: str, place: bool = True) -> EngineConfig:
 
 
 def test_the_sources_and_their_requirements() -> None:
-    assert VALUE_SOURCES == ("tabular", "sr", "none") and ValueMemoryConfig().source == "tabular"
+    assert VALUE_SOURCES == ("tabular", "sr", "none", "action") and ValueMemoryConfig().source == "tabular"
     with pytest.raises(ValueError):
         ValueMemoryConfig(source="model")
     with pytest.raises(ValueError):
