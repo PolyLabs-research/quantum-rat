@@ -690,7 +690,14 @@ class ActionValueConfig:
     by the steering as the memory term when ``value_memory.source == "action"``. ``discount`` 0.98: a full-speed
     traversal of the track (36 ticks) lies within the horizon (0.98³⁶ = 0.48); ``lam`` 0.9: a reward's credit reaches
     back about a traversal; ``learning_rate`` 0.1; ``traces`` replacing. ``oracle_state``: φ read at the body's true
-    position instead of the estimate (the positive control the plan names for step 4). Needs place.enabled."""
+    position instead of the estimate (the positive control the plan names for step 4). Needs place.enabled.
+
+    Amendment A1 (docs/prereg/m3_step3.md, after the first pilot): ``history_features``: the features are φ and, for
+    each of the taste channel's timescales, φ times that trace at each cell (this place, eaten at this recently: the
+    state carries its history, as a splitter cell's does), so Q can tell the end just emptied from the full one; a
+    transition is then stored with the features it was experienced on. Needs history on with the taste channel.
+    ``read_floor``: the largest advantage magnitude below which the steering reads nothing (0.02: a preference worth
+    less than a fiftieth of a reward is noise; the first pilot's split turned noise-sized advantages into full turns)."""
 
     enabled: bool = False
     learning_rate: float = 0.1
@@ -698,6 +705,8 @@ class ActionValueConfig:
     lam: float = 0.9
     traces: str = "replacing"
     oracle_state: bool = False
+    history_features: bool = False
+    read_floor: float = 0.02
 
 
 REPLAY_RULES: Tuple[str, ...] = ("none", "uniform", "reverse", "gain_need")
@@ -744,6 +753,11 @@ RESEARCH_G50: Dict[str, Any] = {
 # PRE_G50 carries PRE_G53: a registration before G53 was before G54 too.
 PRE_G54: Dict[str, Any] = {"history.enabled": False, "history.schema": None}
 PRE_G53: Dict[str, Any] = {"place.reward_step_cap": False, **PRE_G54}
+# Every adoption since G50 as the fields that turn it on, the inverse of PRE_G50 (which carries PRE_G53 and PRE_G54):
+# for a builder that pins the old profile and wants today's on top (experiments.m3_part2's open-field job over
+# experiments.body_characterisation). Kept in step with EngineConfig.research().
+ADOPTED_SINCE_G50: Dict[str, Any] = {**RESEARCH_G50, "place.reward_step_cap": True, "history.enabled": True,
+                                     "history.schema": {"taste": (-1.0, 0.0, 0.0)}}
 PRE_G50: Dict[str, Any] = {
     "sensors.lateral_odometry": False,
     "sensors.landmark_sensing": False,

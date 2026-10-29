@@ -30,27 +30,42 @@ from experiments import rq4a_gate as rg
 from experiments.linear_track_replay import _dependency_versions, write_csv
 from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
-PHASES: Dict[str, Dict[str, Any]] = {"pilot": {**{k: v for k, v in p2.PHASES["pilot"].items() if k != "out"}, "out": Path("docs/data/m3/step3/pilot")}}
+SEEDS = {k: v for k, v in p2.PHASES["pilot"].items() if k != "out"}
 BASE: Dict[str, Any] = {"place.reward_step_cap": True}  # the profile as G54 left it, with the cap
-AV: Dict[str, Any] = {"action_value.enabled": True, "value_memory.source": "action"}
+# The first pilot's read had no floor (amendment A1 added one, default 0.02): pinned so its tables regenerate as run.
+AV: Dict[str, Any] = {"action_value.enabled": True, "value_memory.source": "action", "action_value.read_floor": 0.0}
+# Amendment A1 (docs/prereg/m3_step3.md): the read floor, and history among the action value's features.
+AV_FLOOR: Dict[str, Any] = {"action_value.enabled": True, "value_memory.source": "action", "action_value.read_floor": 0.02}
+AV_HISTORY: Dict[str, Any] = {**AV_FLOOR, "action_value.history_features": True}
 RULE_ORDER = ("none", "reverse", "uniform")  # the simplest first, for ties
-CONFIGS: Dict[str, Dict[str, Any]] = {
-    "research": {},
-    "q_none": {**AV, "replay.rule": "none"},
-    "q_uniform": {**AV, "replay.rule": "uniform"},
-    "q_reverse": {**AV, "replay.rule": "reverse"},
-    "q_reverse_oracle": {**AV, "replay.rule": "reverse", "action_value.oracle_state": True},
+PHASES: Dict[str, Dict[str, Any]] = {
+    "pilot": {"out": Path("docs/data/m3/step3/pilot"), "configs": {
+        "research": {},
+        "q_none": {**AV, "replay.rule": "none"},
+        "q_uniform": {**AV, "replay.rule": "uniform"},
+        "q_reverse": {**AV, "replay.rule": "reverse"},
+        "q_reverse_oracle": {**AV, "replay.rule": "reverse", "action_value.oracle_state": True},
+    }, "learners": ("q_none", "q_uniform", "q_reverse")},
+    "pilot2": {"out": Path("docs/data/m3/step3/pilot2"), "configs": {
+        "research": {},
+        "q_floor": {**AV_FLOOR, "replay.rule": "none"},
+        "qh_none": {**AV_HISTORY, "replay.rule": "none"},
+        "qh_uniform": {**AV_HISTORY, "replay.rule": "uniform"},
+        "qh_reverse": {**AV_HISTORY, "replay.rule": "reverse"},
+    }, "learners": ("q_floor", "qh_none", "qh_uniform", "qh_reverse")},
 }
-LEARNER_CONFIGS = ("q_none", "q_uniform", "q_reverse")
+CONFIGS = PHASES["pilot"]["configs"]
+LEARNER_CONFIGS = PHASES["pilot"]["learners"]
 TRACK_BOUNDS = ("track_learned", "track_reflex_no_reward", "track_reflex_no_steer")
 
 
-def select(scores: Sequence[Mapping[str, Any]]) -> Optional[str]:
+def select(scores: Sequence[Mapping[str, Any]], configs: Mapping[str, Mapping[str, Any]] = CONFIGS,
+           learners: Sequence[str] = LEARNER_CONFIGS) -> Optional[str]:
     """The draft's rule: a learner configuration that passes the track; the most bounds; ties to the simplest rule."""
-    eligible = [s for s in scores if s["config"] in LEARNER_CONFIGS and all(s["passes"][b] for b in TRACK_BOUNDS)]
+    eligible = [s for s in scores if s["config"] in learners and all(s["passes"][b] for b in TRACK_BOUNDS)]
     if not eligible:
         return None
-    return sorted(eligible, key=lambda s: (-s["passed"], RULE_ORDER.index(CONFIGS[s["config"]]["replay.rule"])))[0]["config"]
+    return sorted(eligible, key=lambda s: (-s["passed"], RULE_ORDER.index(configs[s["config"]]["replay.rule"])))[0]["config"]
 
 
 def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
@@ -64,13 +79,14 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     out = args.out or spec["out"]
     if args.quick and out.resolve() == spec["out"].resolve():
         parser.error("a quick run must not overwrite the committed tables: give --out")
-    seeds = p2.QUICK if args.quick else spec
+    configs, learners = spec["configs"], spec["learners"]
+    seeds = p2.QUICK if args.quick else SEEDS
     trials = rg.QUICK_TRIALS if args.quick else rg.TRIALS
     ticks = 300 if args.quick else p2.TICKS
     started = time.perf_counter()
-    gate, track, food, open_field = p2.run_battery(CONFIGS, seeds, trials, ticks, args.workers, base=BASE)
-    scores = [p2.score(c, gate, track, food) for c in CONFIGS]
-    chosen = select(scores)
+    gate, track, food, open_field = p2.run_battery(configs, seeds, trials, ticks, args.workers, base=BASE)
+    scores = [p2.score(c, gate, track, food) for c in configs]
+    chosen = select(scores, configs, learners)
     write_csv(out / "gate.csv", ("config", "condition", "source", "session", "seed", "success"), gate)
     write_csv(out / "track.csv", ("config", "arm", "seed", "rewards", "traversals", "ticks_per_traversal", "traversals_late",
                                   "rest_share", "replay_events"), track)
@@ -78,14 +94,14 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     write_csv(out / "open_field.csv", ("config", "seed", "wall_zone_share", "coverage", "orbit_share", "stall_share"), open_field)
     track_summary = {c: {a: {k: statistics.mean(float(r[k]) for r in track if r["config"] == c and r["arm"] == a)
                              for k in ("rewards", "traversals", "ticks_per_traversal", "traversals_late", "rest_share", "replay_events")}
-                         for a in p2.TRACK_ARMS} for c in CONFIGS}
+                         for a in p2.TRACK_ARMS} for c in configs}
     out.mkdir(parents=True, exist_ok=True)
     (out / "summary.json").write_text(json.dumps({"phase": args.phase, "seeds": {k: list(v) for k, v in seeds.items() if k != "out"},
-                                                  "base": BASE, "configs": CONFIGS, "scores": scores, "chosen": chosen,
+                                                  "base": BASE, "configs": configs, "scores": scores, "chosen": chosen,
                                                   "track": track_summary, "quick": args.quick}, indent=1, sort_keys=True, default=str))
     manifest = build_manifest(p2.track_config(BASE), protocol=f"m3_step3:{args.phase}",
                               seeds=sorted(set(seeds["gate_seeds"]) | set(seeds["track_seeds"]) | set(seeds["food_seeds"])),
-                              ticks_requested=0, extra={"base": BASE, "configs": CONFIGS, "phase": args.phase, "exploratory": True,
+                              ticks_requested=0, extra={"base": BASE, "configs": configs, "phase": args.phase, "exploratory": True,
                                                         "quick": args.quick, "prereg": "docs/prereg/m3_step3.md (draft)",
                                                         "dependencies": _dependency_versions(),
                                                         "command": "python3 -m experiments.m3_step3 " + " ".join(list(argv) if argv is not None else sys.argv[1:])})

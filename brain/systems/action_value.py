@@ -120,7 +120,9 @@ class LinearQ:
 
 
 class PlaceActionLearner:
-    """A ``LinearQ`` bound to phi(x, y): backed up by position and action (the replay rules) and read as Q(x, y, .)."""
+    """A ``LinearQ`` bound to phi(x, y): backed up by a stored transition's action (the replay rules) and read as
+    Q(x, y, .). A transition that carries the features it was experienced on (``PlaceTransition``; with history among
+    the features the state depends on when) is backed up on those; one that does not is recomputed from its positions."""
 
     def __init__(self, learner: LinearQ, features: Callable[[float, float], np.ndarray]) -> None:
         self.learner = learner
@@ -135,13 +137,19 @@ class PlaceActionLearner:
     def update_target(self, x: float, y: float, action: str, target: float) -> float:
         return self.learner.update_target(self.features(x, y), action, target)
 
-    def update_action(self, x: float, y: float, action: str, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
-        """A stored transition's backup (a replay): one step toward its Q-learning target, no traces."""
-        target = self.learner.target(reward, self.features(x_next, y_next), terminal)
-        return self.update_target(x, y, action, target)
+    def _phis(self, t) -> Tuple[np.ndarray, np.ndarray]:
+        phi = getattr(t, "phi", None)
+        phi_next = getattr(t, "phi_next", None)
+        return (self.features(t.x, t.y) if phi is None else phi), (self.features(t.x_next, t.y_next) if phi_next is None else phi_next)
 
-    def td_error_action(self, x: float, y: float, action: str, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
-        return self.learner.td_error(self.features(x, y), action, reward, self.features(x_next, y_next), terminal)
+    def backup_transition(self, t) -> float:
+        """A stored transition's backup (a replay): one step toward its Q-learning target, no traces."""
+        phi, phi_next = self._phis(t)
+        return self.learner.update_target(phi, t.action, self.learner.target(t.reward, phi_next, t.terminal))
+
+    def error_of_transition(self, t) -> float:
+        phi, phi_next = self._phis(t)
+        return self.learner.td_error(phi, t.action, t.reward, phi_next, t.terminal)
 
     def update(self, x: float, y: float, reward: float, x_next: float, y_next: float, terminal: bool) -> float:
         raise TypeError("an action-value learner backs up a transition by its action: StoredTransition.action is empty")

@@ -299,8 +299,13 @@ class Engine:
             from brain.systems.replay_rules import TransitionMemory
 
             av = c.action_value
-            self.action_learner = PlaceActionLearner(LinearQ(self.place.size, av.learning_rate, av.discount, av.lam, av.traces),
-                                                     self._phi_at)
+            n_features = self.place.size
+            if av.history_features:  # amendment A1: phi and phi times each taste trace
+                if self.history is None or "taste" not in c.history.channels:
+                    raise ValueError("action_value.history_features needs history.enabled with the 'taste' channel")
+                n_features *= 1 + len(self.history.banks["taste"].timescales)
+            self.action_learner = PlaceActionLearner(LinearQ(n_features, av.learning_rate, av.discount, av.lam, av.traces),
+                                                     self._av_features)
             self.transition_memory = TransitionMemory(c.replay.memory_capacity)
             self.replay_rule = self._make_replay_rule(c.replay.rule)
         elif c.replay.rule != "none":
@@ -688,6 +693,17 @@ class Engine:
             return MattarDawReplay(PlaceQModel(self))
         raise ValueError(f"unknown replay rule {name!r}")
 
+    def _av_features(self, x: float, y: float):
+        """The action value's features at a position: phi, and with ``history_features`` phi times each taste trace
+        at its cell (the place and how recently it was eaten at; amendment A1)."""
+        phi = self._phi_at(x, y)
+        if not self.config.action_value.history_features:
+            return phi
+        import numpy as np  # local: importing core.engine must not import numpy (docs/determinism.md)
+
+        traces = self.history.banks["taste"].traces
+        return np.concatenate([phi] + [phi * traces[k] for k in range(traces.shape[0])])
+
     def _av_position(self, ctx: EngineContext) -> Tuple[float, float]:
         """Where the action value reads: the estimate, or the body's true position under ``oracle_state``."""
         if self.config.action_value.oracle_state:
@@ -697,16 +713,17 @@ class Engine:
     def _action_value_learn(self, ctx: EngineContext) -> None:
         """The last movement's transition into the action value and the transition memory; the consumption pause and
         its replay when the agent has just eaten; the advantages the steering reads this tick."""
-        from brain.systems.replay_rules import StoredTransition
+        from brain.systems.replay_rules import PlaceTransition
 
         ctx.replay_event_cells = ()
         x, y = self._av_position(ctx)
-        phi = self._phi_at(x, y)
+        phi = self._av_features(x, y)
         prev = self._av_prev
         if prev is not None:
             phi_prev, action, x0, y0, cell0 = prev
             self.action_learner.learner.update(phi_prev, action, ctx.map_reward, phi, False)
-            self.transition_memory.append(StoredTransition(x0, y0, ctx.map_reward, x, y, False, self.episode, ctx.tick, cell0, action))
+            self.transition_memory.append(PlaceTransition(x0, y0, ctx.map_reward, x, y, False, self.episode, ctx.tick, cell0, action,
+                                                          phi=phi_prev, phi_next=phi))
         self._av_prev = None  # set again once this tick's action is chosen, if it is a movement
         self._av_phi = phi
         adv = self.action_learner.learner.advantages(phi)
@@ -773,6 +790,8 @@ class Engine:
             ctx.goal_vector_active = False
             ahead, left, right = ctx.action_values
             scale = max(abs(ahead), abs(left), abs(right))
+            if scale < self.config.action_value.read_floor:  # amendment A1: a preference below the floor is noise
+                return 0.0, 0.0, 0.0
             bg = self.config.basal_ganglia
             if bg.value_steer == "split":
                 return split_value_signals(ahead, left, right, scale, bg)

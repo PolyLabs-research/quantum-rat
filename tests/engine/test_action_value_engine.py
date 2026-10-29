@@ -70,6 +70,34 @@ def test_begin_episode_cuts_the_chain_and_the_oracle_reads_the_true_position() -
     assert e._av_position(e.context) == (float(e.context.grid_x), float(e.context.grid_y))
 
 
+def test_history_features_and_the_read_floor_amendment_a1() -> None:
+    from brain.systems.replay_rules import PlaceTransition
+
+    assert EngineConfig.research().action_value.read_floor == 0.02 and not EngineConfig.research().action_value.history_features
+    e = Engine(seed=5, config=_cfg(**{"action_value.history_features": True, "replay.rule": "reverse"}))
+    e.run(80, reset=True)
+    assert e.action_learner.learner.n == 4 * e.place.size
+    t = e.transition_memory.all()[-1]
+    assert isinstance(t, PlaceTransition) and t.phi is not None and t.phi.shape == (4 * e.place.size,) and t.phi_next.shape == t.phi.shape
+    assert float(np.sum(t.phi[: e.place.size])) == pytest.approx(1.0)  # the plain features first, a partition of unity
+    # a transition is backed up on the features it was experienced on, not on the place as it reads now
+    before = dict(e.action_learner.learner.w)
+    e.history.banks["taste"].traces[:] = 1.0
+    t.backup(e.action_learner)
+    moved = e.action_learner.learner.w[t.action] - before[t.action]
+    assert np.allclose(moved[e.place.size:], 0.0) or np.any(t.phi[e.place.size:] != 0.0)  # the history part moves only where phi did
+    cfg = _cfg(**{"action_value.history_features": True})
+    cfg.history.channels = ("visit",)
+    cfg.history.reward_context = ()
+    cfg.history.schema = None
+    with pytest.raises(ValueError):
+        Engine(seed=1, config=cfg)
+    # the floor: advantages below it read as nothing
+    f = Engine(seed=5, config=_cfg(**{"action_value.read_floor": 10.0}))
+    f.run(60, reset=True)
+    assert f.context.value_signals == (0.0, 0.0, 0.0)
+
+
 def test_the_gain_need_rule_builds_over_the_place_code() -> None:
     from brain.systems.replay_place import PlaceQModel
 

@@ -52,7 +52,7 @@ from __future__ import annotations
 import math
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Iterator, List, Optional, Protocol, Sequence, Tuple
+from typing import Any, Deque, Iterator, List, Optional, Protocol, Sequence, Tuple
 
 from brain.systems.replay_events import (
     DIRECTION_FORWARD,
@@ -103,15 +103,25 @@ class StoredTransition:
 
     def backup(self, learner: Learner) -> float:
         """Apply this transition's TD backup to ``learner``; returns the TD error."""
-        if self.action and hasattr(learner, "update_action"):
-            return learner.update_action(self.x, self.y, self.action, self.reward, self.x_next, self.y_next, self.terminal)  # type: ignore[attr-defined]
+        if self.action and hasattr(learner, "backup_transition"):  # an action-value learner reads the whole transition
+            return learner.backup_transition(self)  # type: ignore[attr-defined]
         return learner.update(self.x, self.y, self.reward, self.x_next, self.y_next, self.terminal)
 
     def td_error(self, learner: Learner) -> float:
         """This transition's TD error under ``learner``'s current values, without a backup."""
-        if self.action and hasattr(learner, "td_error_action"):
-            return learner.td_error_action(self.x, self.y, self.action, self.reward, self.x_next, self.y_next, self.terminal)  # type: ignore[attr-defined]
+        if self.action and hasattr(learner, "error_of_transition"):
+            return learner.error_of_transition(self)  # type: ignore[attr-defined]
         return learner.td_error(self.x, self.y, self.reward, self.x_next, self.y_next, self.terminal)
+
+
+@dataclass(frozen=True)
+class PlaceTransition(StoredTransition):
+    """A transition with the features it was experienced on (M3 step 3, amendment A1): with history among the
+    action value's features the state depends on when, so a replay backs it up as it was, not as the place reads now.
+    ``phi`` and ``phi_next`` are the learner's feature vectors (numpy arrays; None: recompute from the positions)."""
+
+    phi: Any = None
+    phi_next: Any = None
 
 
 class TransitionMemory:
@@ -460,6 +470,7 @@ __all__ = [
     "ReplayOutcome",
     "ReplayRule",
     "ReverseTrajectoryReplay",
+    "PlaceTransition",
     "StoredTransition",
     "TransitionMemory",
     "UniformReplay",

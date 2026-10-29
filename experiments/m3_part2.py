@@ -38,7 +38,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 import core  # noqa: F401  # pins the BLAS thread counts before numpy loads
 import numpy as np
 
-from core.config import PRE_G54, RESEARCH_G50, EngineConfig
+from core.config import ADOPTED_SINCE_G50, PRE_G54, EngineConfig
 from core.engine import Engine
 from core.world import WorldObject
 from experiments import body_characterisation as bc
@@ -145,7 +145,7 @@ def _food_job(job: Tuple[str, Mapping[str, Any], str, int, int]) -> Dict[str, An
 
 def _open_job(job: Tuple[str, Mapping[str, Any], int, int]) -> Dict[str, Any]:
     cfg_name, overrides, seed, ticks = job
-    r = bc.run_world("open", {**RESEARCH_G50, **dict(overrides)}, seed, ticks)  # undo bc's PRE_G50 pin: today's profile
+    r = bc.run_world("open", {**ADOPTED_SINCE_G50, **dict(overrides)}, seed, ticks)  # undo bc's PRE_G50 pin: today's profile
     return {"config": cfg_name, "seed": seed, **{k: r[k] for k in ("wall_zone_share", "coverage", "orbit_share", "stall_share")}}
 
 

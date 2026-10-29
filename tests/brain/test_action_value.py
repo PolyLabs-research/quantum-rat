@@ -71,3 +71,12 @@ def test_the_place_learner_is_backed_up_by_the_transitions_action() -> None:
         bare.backup(learner)
     with pytest.raises(TypeError):
         bare.td_error(learner)
+    # a transition that carries its features is backed up on them (amendment A1), whatever the place reads now
+    from brain.systems.replay_rules import PlaceTransition
+
+    phi = np.zeros(features.size)
+    phi[0] = 1.0
+    stored = PlaceTransition(3.5, 0.5, 1.0, 3.5, 0.5, True, 0, 1, (3, 0), action="TURN_LEFT", phi=phi, phi_next=phi)
+    assert stored.td_error(learner) == pytest.approx(1.0 - learner.learner.w["TURN_LEFT"][0])
+    stored.backup(learner)
+    assert learner.learner.w["TURN_LEFT"][0] > 0.0 and not np.any(learner.learner.w["TURN_LEFT"][1:])
