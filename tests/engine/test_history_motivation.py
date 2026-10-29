@@ -9,17 +9,35 @@ from core.config import EngineConfig
 from core.engine import Engine
 
 
-def test_off_by_default() -> None:
+def test_motivation_off_on_both_profiles_and_history_on_the_research_one_since_g54() -> None:
+    from core.config import PRE_G54
+
     for cfg in (EngineConfig.legacy(), EngineConfig.research()):
-        assert not cfg.history.enabled and not cfg.motivation.enabled
-    e = Engine(seed=1, config=EngineConfig.research())
+        assert not cfg.motivation.enabled
+    assert not EngineConfig.legacy().history.enabled
+    research = EngineConfig.research()
+    assert research.history.enabled and research.history.schema == {"taste": (-1.0, 0.0, 0.0)}
+    assert research.history.channels == ("taste", "visit") and research.history.reward_context == ("taste",)
+    e = Engine(seed=1, config=research)
     e.run(5)
-    assert e.history is None and e.motivation is None and e.context.motivation == 1.0
+    assert e.history is not None and e.history.fixed and e.motivation is None and e.context.motivation == 1.0
+    pinned = EngineConfig.research()
+    for k, v in PRE_G54.items():
+        pinned.set_field(k, v)
+    e = Engine(seed=1, config=pinned)
+    e.run(5)
+    assert e.history is None
 
 
 def test_motivation_needs_the_visit_channel_and_history_needs_the_place_code() -> None:
     cfg = EngineConfig.research()
     cfg.motivation.enabled = True
+    cfg.history.channels = ("taste",)  # the research profile carries visit since G54; without it motivation has no novelty
+    with pytest.raises(ValueError):
+        Engine(seed=1, config=cfg)
+    cfg = EngineConfig.research()
+    cfg.motivation.enabled = True
+    cfg.history.enabled = False
     with pytest.raises(ValueError):
         Engine(seed=1, config=cfg)
     cfg = EngineConfig.legacy()
@@ -71,7 +89,8 @@ def test_the_cap_is_the_research_default_and_pinned_off_before_g53() -> None:
     from core.config import PRE_G50, PRE_G53
 
     assert EngineConfig.research().place.reward_step_cap and not EngineConfig.legacy().place.reward_step_cap
-    assert PRE_G53 == {"place.reward_step_cap": False} and PRE_G50["place.reward_step_cap"] is False
+    assert PRE_G53["place.reward_step_cap"] is False and PRE_G50["place.reward_step_cap"] is False
+    assert PRE_G53["history.enabled"] is False and PRE_G50["history.enabled"] is False  # PRE_G54, carried (G54)
 
 
 def test_a_fixed_schema_is_read_never_learned_and_r_keeps_its_own_rule() -> None:

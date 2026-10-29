@@ -16,6 +16,7 @@ from core.engine import Engine, EngineContext
 def _cfg(source: str, place: bool = True) -> EngineConfig:
     cfg = EngineConfig.research()
     cfg.place.enabled = place
+    cfg.history.enabled = False  # the value source alone: history's read on top of R is tested in test_history_motivation (G54)
     cfg.value_memory.source = source
     return cfg
 

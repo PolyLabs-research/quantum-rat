@@ -53,7 +53,7 @@ those properties in as an opt-in body.
 |---|---|---|---|
 | 1 | **A rodent-like body** (`body.model = "rodent"`, opt-in): speed and angular velocity as Ornstein–Uhlenbeck processes drifted by the chosen action, turns in place, wall-following alignment; characterised on the track and in the open field against the discrete body, and the RQ4(a) gate re-run under it on fresh seeds | RatInABox: movement (the body runs a corridor) | preregistered: `docs/prereg/m3_body.md` |
 | 2 | **Trial structure as an engine concept** and the **embodied track protocol** (Ambrose et al. 2016): start poses, trial / probe / inter-trial / rest phases, reward ends with a consumption pause, reward blocks, lap counter; shared by console and runner; the agent runs its own laps | (the row's own deliverable) | planned |
-| 3 | **Replay as an in-engine event stream over the place code**: the transition memory over place-cell states, the Dyna model as an empirical place-to-place table, need from the SR row, gain from a softmax place-to-neighbour policy, a learned action value over place features that both replay and experience update and that the steering reads; the floors (none, uniform, reverse) first | RL frameworks: learning (the agent's movement values are learned, and replay changes them) | planned |
+| 3 | **Replay as an in-engine event stream over the place code**: the transition memory over place-cell states, the Dyna model as an empirical place-to-place table, need from the SR row, gain from a softmax place-to-neighbour policy, a learned action value over place features that both replay and experience update and that the steering reads; the floors (none, uniform, reverse) first | RL frameworks: learning (the agent's movement values are learned, and replay changes them) | draft preregistration `docs/prereg/m3_step3.md` (2026-10-29), the owner's choice after G53 C4 and G54; the floors first, the track as its acceptance |
 | 4 | **RQ1's positive control** (oracle state) **and the embodied run**, each rule as G32 carries it; preregistered, then confirmatory on fresh seeds | Mattar & Daw: the reference theory, now with an embodied state estimate | planned |
 | A | **Feature populations as one interface**, with head-direction cells (Taube et al. 1990) and boundary-vector cells (Hartley et al. 2000) beside the place cells; console panels | RatInABox: cell types | candidate, after step 3 |
 | B | **A Gymnasium adapter** for the research tasks (the gate first), so a standard RL agent can run the same task as a reference | RL frameworks: ecosystem and baselines | candidate, any time |
@@ -213,3 +213,10 @@ trials, halving the margin memory shows); the hungry corridor body shuttles with
 strict track bound is unmet on both bodies for a structural reason: memory multiplies the research body's laps by 1.3
 where the bound asks 2, and the corridor body laps at full speed by reflex. Next, at the owner's choice: a registered
 confirmation of the fast schema, and step 3's learner.
+
+**The fast schema confirmed and adopted (G54, 2026-10-29; `docs/prereg/history_fast_schema.md`).** On thirty fresh
+seeds the two-second "the place I am eating at is empty" schema gives 4.9 more hidden-food finds [+2.8, +7.1] and 5.1
+more track traversals a run [+3.5, +6.5], the gate within 0.01: the research profile now carries history with it
+(`PRE_G54` pins it off for every earlier registration). The vigour check settled G53's open question: the
+learning-free explorer motivation made was the halved forward bias, not curiosity; motivation stays opt-in. Step 3's
+learner is next.

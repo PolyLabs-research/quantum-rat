@@ -145,7 +145,7 @@ def gate_config(source: str, reward_rule: str = "nlms", reward_unlearning_rate: 
     ``lateral_odometry`` and ``overrides`` then switch back on where a design asks for them."""
     if source not in SOURCES:
         raise ValueError(f"source must be one of {SOURCES}, got {source!r}")
-    cfg = engine_config(estimate, ORACLE_NOISE)
+    cfg = engine_config(estimate, ORACLE_NOISE, registered=False)  # today's profile; the pins below are the gate's own
     if pre_g46 or pre_g50:  # registered before the research profile adopted G48-G49's instrument (G50)
         for key, value in PRE_G50.items():
             cfg.set_field(key, value)

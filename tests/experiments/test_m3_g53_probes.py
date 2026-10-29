@@ -19,4 +19,4 @@ def test_the_configurations() -> None:
             cfg.set_field(k, v)
         e = Engine(seed=1, config=cfg)
         e.run(2)
-        assert (e.history.fixed if "history.schema" in ov else e.motivation is not None)
+        assert (e.history.fixed if ov.get("history.schema") else e.motivation is not None)  # None: the schema learned

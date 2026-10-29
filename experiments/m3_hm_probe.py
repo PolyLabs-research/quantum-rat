@@ -30,8 +30,11 @@ from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 OUT = Path("docs/data/m3/history_motivation/probe")
 BODIES: Dict[str, Dict[str, Any]] = {"B0": {}, "B1": dict(p2.CONFIGS["o1_n_S"])}
-HISTORY_ON: Dict[str, Any] = {"history.enabled": True, "history.channels": ("taste", "visit"), "history.reward_context": ("taste",)}
-VISIT_ONLY: Dict[str, Any] = {"history.enabled": True, "history.channels": ("visit",), "history.reward_context": ()}
+# "history.schema": None keeps these what they were when the probe ran (the schema learned, G52), now that the research
+# profile carries a fixed schema (G54); a configuration that wants one sets it on top (m3_g53_probes, history_fast_schema).
+HISTORY_ON: Dict[str, Any] = {"history.enabled": True, "history.channels": ("taste", "visit"), "history.reward_context": ("taste",),
+                              "history.schema": None}
+VISIT_ONLY: Dict[str, Any] = {"history.enabled": True, "history.channels": ("visit",), "history.reward_context": (), "history.schema": None}
 MOTIVATION_ON: Dict[str, Any] = {"motivation.enabled": True}
 
 

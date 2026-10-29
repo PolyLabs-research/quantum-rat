@@ -19,3 +19,13 @@ R keeping G36's rule, for both bodies. `forage/`: motivation on with G53's compo
 reward trace setting vigour) for both bodies. Both scored by G53's statistics (traversals per run; the gate's control
 as a margin: `docs/prereg/m3_step2.md`, amendment of 2026-10-28); `probe/` and `docs/data/m3/part2/pilot/` keep their
 earlier scores, re-read under the same statistics in `tools/m3_hm_probes/diagnostics_out/rescored_g53.txt`.
+
+`fast_schema_confirmatory/` (G54, registered: `docs/prereg/history_fast_schema.md`): `python3 -m
+experiments.history_fast_schema --phase confirmatory --workers 28`, at `1c55df3` (clean tree, warnings as errors),
+seeds none run before (gate and track 245–274, hidden food 47–76), the research profile with history off (`none`)
+against the fixed two-second taste schema (`fast`); `summary.json` carries the preregistered bounds K1–K3 with their
+paired intervals. Read in `docs/decisions.md` G54, which adopted the change.
+
+`vigour/` (G53 D2): `python3 -m experiments.m3_g53_probes --phase vigour --workers 28`, at `1c55df3`, the research
+body with motivation four ways (as the forage phase ran it; the explore reason removed; the vigour floor at 1; both),
+the pilot's spent seeds; read in G54 C.

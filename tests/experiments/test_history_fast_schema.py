@@ -7,7 +7,9 @@ from experiments import m3_part2 as p2
 
 
 def test_the_registration() -> None:
-    assert fs.CONFIGS["none"] == {} and fs.CONFIGS["fast"]["history.schema"] == {"taste": (-1.0, 0.0, 0.0)}
+    from core.config import PRE_G54
+
+    assert fs.CONFIGS["none"] == PRE_G54 and fs.CONFIGS["fast"]["history.schema"] == {"taste": (-1.0, 0.0, 0.0)}
     assert fs.CONFIGS["fast"]["history.reward_context"] == ("taste",) and "motivation.enabled" not in fs.CONFIGS["fast"]
     spent_gate = set(range(1, 245))
     assert not (set(fs.SEEDS["gate_seeds"]) & spent_gate) and not (set(fs.SEEDS["track_seeds"]) & spent_gate)

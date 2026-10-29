@@ -648,6 +648,11 @@ class HistoryConfig:
     reward_context: Tuple[str, ...] = ("taste",)
     schema: Optional[Dict[str, Tuple[float, ...]]] = None
 
+    def __post_init__(self) -> None:
+        # A schema read back from JSON (from_dict) holds lists; the field holds tuples, so a round trip diffs empty.
+        if self.schema is not None:
+            self.schema = {str(c): tuple(float(v) for v in u) for c, u in self.schema.items()}
+
 
 @dataclass
 class MotivationConfig:
@@ -688,7 +693,11 @@ RESEARCH_G50: Dict[str, Any] = {
 # G52's cap on the per-feature reward step, adopted by the research profile at the owner's decision (docs/decisions.md
 # G53); every experiment registered before it pins the old value. PRE_G50 carries it too: the profile before G50 had
 # no cap either, so a pre-G50 registration still means what it said.
-PRE_G53: Dict[str, Any] = {"place.reward_step_cap": False}
+# The fixed two-second taste schema (history; docs/decisions.md G54, confirmatory docs/prereg/history_fast_schema.md),
+# adopted by the research profile; every experiment registered before it pins history off. PRE_G53 carries it, as
+# PRE_G50 carries PRE_G53: a registration before G53 was before G54 too.
+PRE_G54: Dict[str, Any] = {"history.enabled": False, "history.schema": None}
+PRE_G53: Dict[str, Any] = {"place.reward_step_cap": False, **PRE_G54}
 PRE_G50: Dict[str, Any] = {
     "sensors.lateral_odometry": False,
     "sensors.landmark_sensing": False,
@@ -811,6 +820,12 @@ class EngineConfig:
           all the way to its target, min(1, rate × φᵢ). Inert at this profile's rate (0.5 × φ ≤ 1); it binds where a
           scenario sets the renewable-reward unlearning rate. Every experiment registered before it pins the old
           value (``PRE_G53``, carried by ``PRE_G50`` too).
+        - ``history.enabled = True`` with the taste and visit channels and ``history.schema = {"taste": (-1, 0,
+          0)}`` (docs/decisions.md G54): the SR's expected reward at a place is R less the taste trace two seconds
+          wide, "the place I am eating at is empty"; R keeps its rule. Confirmed on fresh seeds
+          (docs/prereg/history_fast_schema.md): 4.9 more hidden-food finds and 5.1 more track traversals a run, the
+          gate within 0.01. Every experiment registered before it pins history off (``PRE_G54``, carried by
+          ``PRE_G53`` and ``PRE_G50``).
 
         Nothing else differs. Not yet in this profile: replay as an event
         stream inside the engine (M3; the M2a linear-track experiments run
@@ -856,6 +871,12 @@ class EngineConfig:
             cfg.set_field(key, value)
         # G52's cap on the per-feature reward step (docs/decisions.md G53): a weight never passes its target.
         cfg.place.reward_step_cap = True
+        # History with the fixed two-second taste schema (docs/decisions.md G54; docs/prereg/history_fast_schema.md):
+        # "the place I am eating at is empty", read on top of R; the taste and visit channels write their traces.
+        cfg.history.enabled = True
+        cfg.history.channels = ("taste", "visit")
+        cfg.history.reward_context = ("taste",)
+        cfg.history.schema = {"taste": (-1.0, 0.0, 0.0)}
         return cfg
 
     def stochastic_elements(self) -> List[str]:
@@ -960,19 +981,22 @@ _NON_FINITE_TO_STR = {math.inf: "inf", -math.inf: "-inf"}
 _STR_TO_NON_FINITE = {"inf": math.inf, "-inf": -math.inf, "nan": math.nan}
 
 
+def _plain(value: Any) -> Any:
+    """A field's value as strict-JSON data: tuples to lists and non-finite floats to strings, inside a dict or a
+    list too (``history.schema`` holds tuples in a dict, G54)."""
+    if is_dataclass(value):
+        return _dataclass_to_plain(value)
+    if isinstance(value, (tuple, list)):
+        return [_plain(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _plain(v) for k, v in value.items()}
+    if isinstance(value, float) and not math.isfinite(value):
+        return "nan" if math.isnan(value) else _NON_FINITE_TO_STR[value]
+    return value
+
+
 def _dataclass_to_plain(obj: Any) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    for f in fields(obj):
-        value = getattr(obj, f.name)
-        if is_dataclass(value):
-            out[f.name] = _dataclass_to_plain(value)
-        elif isinstance(value, tuple):
-            out[f.name] = list(value)
-        elif isinstance(value, float) and not math.isfinite(value):
-            out[f.name] = "nan" if math.isnan(value) else _NON_FINITE_TO_STR[value]
-        else:
-            out[f.name] = value
-    return out
+    return {f.name: _plain(getattr(obj, f.name)) for f in fields(obj)}
 
 
 def _resolve_aliases(obj: Any, data: Mapping[str, Any], prefix: str) -> Dict[str, Any]:

@@ -428,6 +428,12 @@ class SimSession:
             add("place", "Place population & SR", "active", f"{self.engine.place.size} Gaussian place cells over the estimate{sr}")
         else:
             add("place", "Place population & SR", "off", "no population on this profile")
+        if self.engine.history is not None:
+            hi = cfg.history
+            schema = ", ".join(f"{c} {tuple(u)}" for c, u in (hi.schema or {}).items()) if hi.schema else "learned"
+            add("history", "History", "active",
+                f"traces per sense over the place code: channels {', '.join(hi.channels)}; the SR's expected reward reads "
+                f"R plus the {', '.join(hi.reward_context) or 'no'} schema ({schema}; G52-G54)")
         if self.engine.motivation is not None:
             mo = cfg.motivation
             add("motivation", "Motivation", "active",

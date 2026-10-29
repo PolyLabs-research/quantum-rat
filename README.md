@@ -137,7 +137,11 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   nothing (11% more hidden-food finds on both bodies, the gate unchanged); hunger as a reason removes the
   resting and makes a learning-free agent a strong explorer (up to 58% of hidden goals without any value
   learning). The strict track bound is still unmet: memory multiplies the research body's laps by 1.3 where
-  the bound asks 2, and the corridor body laps by reflex. Step 3's learner is the recommended next step.
+  the bound asks 2, and the corridor body laps by reflex. **The fast schema was confirmed on thirty fresh
+  seeds and adopted** (G54, `docs/prereg/history_fast_schema.md`): 4.9 more hidden-food finds and 5.1 more
+  track traversals a run, the gate within 0.01; the research profile now carries history with it. The
+  learning-free explorer that motivation made turned out to be its halved forward bias, not curiosity;
+  motivation stays opt-in. Step 3's learner is next.
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the

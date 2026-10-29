@@ -38,7 +38,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 import core  # noqa: F401  # pins the BLAS thread counts before numpy loads
 import numpy as np
 
-from core.config import RESEARCH_G50, EngineConfig
+from core.config import PRE_G54, RESEARCH_G50, EngineConfig
 from core.engine import Engine
 from core.world import WorldObject
 from experiments import body_characterisation as bc
@@ -68,8 +68,10 @@ GATE: Dict[str, Dict[str, Any]] = {
 }
 TRACK_ARMS = ("learned", "no_steer", "no_reward")
 # Every configuration's base (G52): the per-feature step capped at the target. Without it the track's unlearning rate
-# (4) diverged the reward weights wherever one place cell carried more than half of phi (G51's first pilot).
-BASE: Dict[str, Any] = {"place.reward_step_cap": True}  # reward + memory steering; reward, no steering; no reward
+# (4) diverged the reward weights wherever one place cell carried more than half of phi (G51's first pilot). History
+# off (PRE_G54): the battery is the research profile as G50 left it plus the cap, which is what G51-G54's probes ran
+# on; a configuration that wants history (m3_hm_probe, m3_g53_probes, history_fast_schema) sets it on top.
+BASE: Dict[str, Any] = {"place.reward_step_cap": True, **PRE_G54}
 BOUNDS = ("track_learned", "track_reflex_no_reward", "track_reflex_no_steer", "open_hidden", "open_visible", "L_hidden",
           "L_visible", "cues_open", "cues_L", "hidden_food", "controls")
 REFLEX_BOUNDS = ("track_reflex_no_reward", "track_reflex_no_steer")

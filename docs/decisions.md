@@ -2061,3 +2061,39 @@ B0 with G53's motivation: the no-steering control finds the hidden goal on 0.35 
 3. **The route**: step 3's learner next (C4), with the track test as its acceptance; forced laps only if that fails too. The explanation given to the owner: the plan's row 3 is replay as an in-engine event stream over the place code with a learned action value that replay and experience both update and the steering reads; M2a found the action-value learner the fastest of the series on the oracle track (G31) and the one whose replay carried the signatures (G32); a learned preference for FORWARD along the corridor is what can suppress the research body's wall turns, which no value-of-place steering can.
 
 **Impact:** this entry; `core/config.py` (research default, `PRE_G53`, `history.schema`, `motivation.vigour_floor`), `core/engine.py`, `brain/systems/history.py`, `brain/systems/motivation.py`, `brain/systems/basal_ganglia.py`, `metrics/decisions.py`, `ui/sim_session.py`; `experiments/m3_part2.py` (scoring), `experiments/m3_g53_probes.py` (new); `tools/m3_hm_probes/rescore.py` (new); `docs/prereg/m3_step2.md` (amendment), `docs/profiles.md`, `docs/m3_place_replay.md`, `README.md`; `docs/data/m3/history_motivation/fixed_schema/`, `forage/` (new); tests in `tests/brain/test_motivation.py`, `tests/engine/test_history_motivation.py`, `tests/engine/test_profiles.py`, `tests/experiments/test_m3_part2.py`, `tests/experiments/test_rq4a_gate.py`, `tests/experiments/test_m3_g53_probes.py` (new).
+
+## G54 — The fixed two-second taste schema confirmed on fresh seeds and adopted; the vigour check
+
+**Date:** 2026-10-29 (registered and run 2026-10-28)  
+**Why:** G53 D1, agreed by the owner: a confirmatory run of the `fast` schema on seeds none run before, with adoption into the research profile if it held. Registration `1c55df3` (`docs/prereg/history_fast_schema.md`, `experiments/history_fast_schema.py`), data `c57207f`. And G53 D2, agreed: the one check before any adoption of motivation, `experiments/m3_g53_probes.py --phase vigour` (exploratory, the pilot's spent seeds). Branch `m3-history-motivation`.
+
+### A. Measured (confirmatory; `docs/data/m3/history_motivation/fast_schema_confirmatory/`, 201 s; gate and track seeds 245–274, hidden food 47–76; fast − none paired by seed, BCa 95%)
+
+| bound | none | fast | difference [95% interval] | verdict |
+|---|---|---|---|---|
+| K1 hidden-food finds, memory steering (lower end > 0) | 41.4 | 46.3 | +4.90 [+2.83, +7.13] | **PASS** |
+| K2 the gate's six SR values (each ≥ −0.03) | 1.00 / 1.00 / 1.00 / 1.00 / 0.95 / 0.97 | 0.99 / 0.99 / 0.99 / 0.99 / 0.95 / 0.97 | −0.01 to +0.00 | **PASS** |
+| K3 track traversals, reward and memory (lower end > −3.0) | 30.0 | 35.1 | +5.13 [+3.47, +6.50] | **PASS** |
+
+Reported: track rewards 19.2 → 20.3 [−1.3, +3.6]; hidden food without steering 51.5 in both arms (the no-steering agent reads no value, so the traces change nothing it does); the no-steering gate controls ≤ 0.035 in both; the open field identical (wall-zone share 0.60, coverage 0.58, orbit share 0.32). The predictions held (K1 2–6, K2 within 0.02, K3 +1 to +5), K3 above its range.
+
+### B. Adopted (the decision table's first row)
+`EngineConfig.research()` now has `history.enabled = True`, channels `("taste", "visit")`, `reward_context = ("taste",)` and `schema = {"taste": (-1, 0, 0)}`: the SR's expected reward at a place is R less the two-second taste trace, R keeping G36's rule. `PRE_G54` pins history off (and the schema `None`) for every earlier registration; `PRE_G53` carries it and `PRE_G50` carries `PRE_G53`. `experiments/history_fast_schema.py`'s `none` arm pins `PRE_G54` (it is the profile as it stood at the registration), and so does `experiments/m3_part2.py`'s `BASE`: the battery stays the profile as G50 left it plus the cap, which is what G51–G54's probes ran on; step 3's protocol states its own base. The console lists History among the mechanisms in force. `docs/profiles.md` has the two rows. Both determinism baselines are bit-identical (the baselines' agent never eats, so the taste trace is never written). The M1 odometry instrument and M2b's estimate, place-population and SR-field experiments turn the place population off or predate history, so `experiments/estimate_correction.engine_config` (their shared builder; the gate passes `registered=False` for today's profile) and `experiments/odometry_characterisation` pin `PRE_G54` and their tables regenerate as registered. `EngineConfig.to_dict` now converts tuples inside a dict (the schema) so a manifest round-trips as strict JSON. Suite 725.
+
+### C. The vigour check (G53 D2; `docs/data/m3/history_motivation/vigour/`, 106 s; the research body with motivation, spent seeds; the no-motivation rows from G52's tables on the same seeds)
+
+| configuration | no-steering control: open, told the start / with cues; L | open field: wall-zone share / coverage / orbit share | hidden food: steering / none | track, learned traversals |
+|---|---|---|---|---|
+| no motivation | 0.03 / 0.03; 0.00 | 0.58 / 0.59 / 0.32 | 41.8 / 51.9 | 30.1 |
+| as the forage phase ran it (explore on, vigour floor 0.5) | 0.58 / 0.57; 0.35 | 0.15 / 0.77 / 0.66 | 47.4 / 68.2 | 29.5 |
+| the explore reason removed | **0.68 / 0.68; 0.43** | 0.15 / 0.77 / 0.66 | 46.5 / 69.5 | 28.2 |
+| the vigour floor at 1 | **0.06 / 0.10; 0.06** | **0.58 / 0.59 / 0.32** | 44.9 / 63.6 | 29.3 |
+| both | 0.13 / 0.13; 0.08 | 0.58 / 0.59 / 0.32 | 45.8 / 66.0 | 30.2 |
+
+**Reading: the explorer is the halved forward bias, not curiosity.** With the vigour floor at 1 the open-field walk is the unmotivated one to the third decimal and the control falls to 0.06–0.13; removing the explore reason instead *raises* the control to 0.68. A hungry agent with no recent reward moves at half its forward bias, turns more, leaves the walls and covers the arena, and that is what finds hidden goals without any value learning. What remains at vigour 1 (hidden food 44.9–45.8 against 41.8; the control 0.06–0.13 against 0.03) is the satiety loop: as the agent eats, hunger and with it the drive fall and REST's idle term rises a little.
+
+### D. Decisions this surfaces (the owner's)
+1. **Motivation stays opt-in**, as G53 D2 said. Adopting it is now a decision about the vigour floor: at 0.5 it makes the learning-free agent an explorer, which halves the margin memory shows on the open arena and changes the open-field walk; at 1 it is nearly inert in a run of this length. Recommended: leave it opt-in through step 3, whose protocol decides what the control carries.
+2. **Step 3's learner is next**, as agreed; its battery base is `m3_part2.BASE` with the adopted history, to be stated in its preregistration.
+
+**Impact:** this entry; `core/config.py` (research default, `PRE_G54`, `PRE_G53`), `ui/sim_session.py`; `experiments/history_fast_schema.py` (the pin), `experiments/m3_part2.py` (`BASE`); `docs/profiles.md`, `docs/m3_place_replay.md`, `README.md`; `docs/data/m3/history_motivation/fast_schema_confirmatory/`, `vigour/` (new); tests in `tests/engine/test_profiles.py`, `tests/engine/test_history_motivation.py`, `tests/experiments/test_rq4a_gate.py`.

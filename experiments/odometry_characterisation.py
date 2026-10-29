@@ -140,7 +140,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from brain.systems.spatial import wrap_angle
-from core.config import EngineConfig
+from core.config import PRE_G54, EngineConfig
 from core.engine import Engine
 from core.seeds import require_seeds_are_samples
 
@@ -176,6 +176,9 @@ class Condition:
         cfg = EngineConfig.research()
         # M1 characterises the integrated estimate. Since M2b's exit the research profile takes its heading from the
         # oracle and resets at walls (decisions G37), so the M1 fields are pinned here and the cells mean what they did.
+        # Since G54 it carries history too, whose traces need the place population M1 has off: pinned off (PRE_G54).
+        for key, value in PRE_G54.items():
+            cfg.set_field(key, value)
         cfg.sensors.heading_oracle = False
         cfg.sensors.heading_oracle_noise = 0.0
         cfg.sensors.wall_contact_sensing = False

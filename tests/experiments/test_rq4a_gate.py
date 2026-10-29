@@ -132,7 +132,8 @@ def test_every_registration_before_g46_pins_the_old_sensing() -> None:
     from core.config import PRE_G53, RESEARCH_G50
 
     now = rg.gate_config("sr", "per_feature")
-    assert sorted(d[0] for d in now.diff(new)) == sorted({**RESEARCH_G50, **PRE_G53})  # G50's adoptions and G53's cap, nothing else
+    # G50's adoptions, G53's cap and G54's history (PRE_G53 carries PRE_G54), nothing else
+    assert sorted(d[0] for d in now.diff(new)) == sorted({**RESEARCH_G50, **PRE_G53})
 
 
 def test_the_estimate_conditions() -> None:

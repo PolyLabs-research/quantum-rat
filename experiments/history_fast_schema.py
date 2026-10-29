@@ -24,6 +24,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 import core  # noqa: F401  # pins the BLAS thread counts before numpy loads
 
 from analysis.stats import paired_effect
+from core.config import PRE_G54
 from experiments import m3_hm_probe as hm
 from experiments import m3_part2 as p2
 from experiments import rq4a_gate as rg
@@ -32,7 +33,8 @@ from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 OUT = Path("docs/data/m3/history_motivation/fast_schema_confirmatory")
 FAST = {**hm.HISTORY_ON, "history.schema": {"taste": (-1.0, 0.0, 0.0)}}
-CONFIGS: Dict[str, Dict[str, Any]] = {"none": {}, "fast": FAST}
+# ``none`` is the research profile as it stood at the registration (1c55df3), before G54 adopted the change: pinned.
+CONFIGS: Dict[str, Dict[str, Any]] = {"none": dict(PRE_G54), "fast": FAST}
 SEEDS = {"gate_seeds": tuple(range(245, 275)), "track_seeds": tuple(range(245, 275)), "food_seeds": tuple(range(47, 77))}
 GATE_VALUES = {"open_hidden": ("open_anchor", "sr", "hidden"), "L_hidden": ("L_anchor", "sr", "hidden"),
                "open_visible": ("open_anchor", "sr", "visible"), "L_visible": ("L_anchor", "sr", "visible"),

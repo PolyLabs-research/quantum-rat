@@ -161,6 +161,8 @@ EXPECTED_RESEARCH_DIFF = [
     ("basal_ganglia.ne_threat_gain", 0.5, 0.0),
     ("basal_ganglia.fiveht_patience_gain", 0.4, 0.0),
     ("basal_ganglia.softmax_temperature", 0.0, 0.1),
+    ("history.enabled", False, True),  # G54: the taste and visit traces over the place code
+    ("history.schema", None, {"taste": (-1.0, 0.0, 0.0)}),  # G54: "the place I am eating at is empty", two seconds wide
 ]
 
 
