@@ -53,7 +53,7 @@ those properties in as an opt-in body.
 |---|---|---|---|
 | 1 | **A rodent-like body** (`body.model = "rodent"`, opt-in): speed and angular velocity as Ornstein–Uhlenbeck processes drifted by the chosen action, turns in place, wall-following alignment; characterised on the track and in the open field against the discrete body, and the RQ4(a) gate re-run under it on fresh seeds | RatInABox: movement (the body runs a corridor) | preregistered: `docs/prereg/m3_body.md` |
 | 2 | **Trial structure as an engine concept** and the **embodied track protocol** (Ambrose et al. 2016): start poses, trial / probe / inter-trial / rest phases, reward ends with a consumption pause, reward blocks, lap counter; shared by console and runner; the agent runs its own laps | (the row's own deliverable) | planned |
-| 3 | **Replay as an in-engine event stream over the place code**: the transition memory over place-cell states, the Dyna model as an empirical place-to-place table, need from the SR row, gain from a softmax place-to-neighbour policy, a learned action value over place features that both replay and experience update and that the steering reads; the floors (none, uniform, reverse) first | RL frameworks: learning (the agent's movement values are learned, and replay changes them) | planned |
+| 3 | **Replay as an in-engine event stream over the place code**: the transition memory over place-cell states, the Dyna model as an empirical place-to-place table, need from the SR row, gain from a softmax place-to-neighbour policy, a learned action value over place features that both replay and experience update and that the steering reads; the floors (none, uniform, reverse) first | RL frameworks: learning (the agent's movement values are learned, and replay changes them) | draft preregistration `docs/prereg/m3_step3.md` (2026-10-29), the owner's choice after G53 C4 and G54; the floors first, the track as its acceptance |
 | 4 | **RQ1's positive control** (oracle state) **and the embodied run**, each rule as G32 carries it; preregistered, then confirmatory on fresh seeds | Mattar & Daw: the reference theory, now with an embodied state estimate | planned |
 | A | **Feature populations as one interface**, with head-direction cells (Taube et al. 1990) and boundary-vector cells (Hartley et al. 2000) beside the place cells; console panels | RatInABox: cell types | candidate, after step 3 |
 | B | **A Gymnasium adapter** for the research tasks (the gate first), so a standard RL agent can run the same task as a reference | RL frameworks: ecosystem and baselines | candidate, any time |
@@ -184,3 +184,39 @@ strict: the reflex alone must not run laps) is the design in `docs/prereg/m3_ste
 
 **The instrument adopted (G50, 2026-10-27).** The research profile now has sideways odometry, the cue map, the
 free-space sense and reachable probes; the branches through step 2's Part 1 are merged into `main`. Part 2 next.
+
+**Step 2, Part 2's pilot (G51, 2026-10-27; its track column corrected by G52).** The orienting response to a seen
+target exists (opt-in); with G45's wall response it runs a corridor and approaches a visible goal, where that response
+alone had collapsed the approach. Eight reflex configurations over the whole battery: none passes the strict track
+bound, and the rule keeps the research profile unchanged. Its reading that memory made laps slower than the reflex
+rested on an artefact (below) and is withdrawn.
+
+**History and motivation (G52, 2026-10-28).** Two variables the mammal has and the agent did not, built opt-in, each
+fed through pluggable inputs: *history* (what it sensed and did, and where, as decaying place-tagged traces per sense,
+with what they mean for reward learned as a schema) and *motivation* (loops of curiosity, satiety and a reward trace,
+composed by registered reasons into the drive to move). Probed over Part 2's battery: history as built costs every
+memory task; motivation's curiosity gives exploration without value learning (the no-steering control finds the hidden
+goal on 16–32% of trials against 3%, and 0% with the explore reason removed) but its forage reason leaves a hungry
+agent resting, so the track is still unmet. The same work found the per-feature reward step passing its target at the
+renewable-reward rate (the weights diverged on the track); capped (`place.reward_step_cap`), memory steering runs the
+research body's track faster than the reflex alone (74 against 101 ticks a traversal), not slower. The owner holds:
+the cap as a default, the track statistic under motivation, the fixed-schema probe for history, the forage correction
+and the controls bound for motivation; step 3's learner stays the recommended structural step.
+
+**The owner's decisions after G52, enacted (G53, 2026-10-28).** The cap is the research default; the track is scored by
+traversals per run (the learned arm at least 42, each reflex arm at most half of it) and the gate's control as a margin
+of 0.5. History with a fixed two-second "the place I am eating at is empty" schema is the first that costs nothing: 11%
+more hidden-food finds on both bodies, 13% more laps on the research body, the gate unchanged; the learned schema's slow
+positive term was what had hurt. Hunger as a reason removes the resting, lifts finds 13% with steering and 31% without,
+and makes a learning-free agent a strong explorer (the no-steering control finds the hidden goal on up to 58% of open
+trials, halving the margin memory shows); the hungry corridor body shuttles without food, as its reflex always did. The
+strict track bound is unmet on both bodies for a structural reason: memory multiplies the research body's laps by 1.3
+where the bound asks 2, and the corridor body laps at full speed by reflex. Next, at the owner's choice: a registered
+confirmation of the fast schema, and step 3's learner.
+
+**The fast schema confirmed and adopted (G54, 2026-10-29; `docs/prereg/history_fast_schema.md`).** On thirty fresh
+seeds the two-second "the place I am eating at is empty" schema gives 4.9 more hidden-food finds [+2.8, +7.1] and 5.1
+more track traversals a run [+3.5, +6.5], the gate within 0.01: the research profile now carries history with it
+(`PRE_G54` pins it off for every earlier registration). The vigour check settled G53's open question: the
+learning-free explorer motivation made was the halved forward bias, not curiosity; motivation stays opt-in. Step 3's
+learner is next.

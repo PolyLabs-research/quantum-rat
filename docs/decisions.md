@@ -1914,3 +1914,186 @@ The M2b instrument (the heading oracle, the wall reset, the place population, SR
 M3 step 2, Part 2 (`docs/prereg/m3_step2.md`): build the orienting response, then the pilot over at most eight configurations under the selection rule written there, with the owner's strict track bound and a 300° field of view; then its preregistration.
 
 **Impact:** this entry; `core/config.py` (`RESEARCH_G50`, `PRE_G50`, `research()`), `core/engine.py`; `tests/determinism/` (the research set); `experiments/rq4a_gate.py`, `g46_retest.py`, `g47_barrier_gate.py`, `g48_landmark_gate.py`, `m3_reachable.py`, `sr_unlearning.py`, `body_characterisation.py`; tests in `tests/engine/`, `tests/determinism/`, `tests/experiments/`; `docs/profiles.md`, `docs/data/console_ablation/README.md`, README, `docs/m3_place_replay.md`.
+
+## G51 — M3 step 2, Part 2's pilot: no configuration passes; the binding constraint is learning, not the reflex
+
+**Date:** 2026-10-27  
+**Why:** `docs/prereg/m3_step2.md` Part 2: build the orienting response, then pilot the candidates over the whole battery and choose by a rule written before the pilot, under the owner's strict track bound and a 300° field of view. Exploratory, spent seeds (gate 31–42, track 31–42, hidden food 1–8; `docs/data/m3/part2/pilot/`, `experiments/m3_part2.py`, at `8dcd7eb`).
+
+**Corrected by G52 (2026-10-28).** The learned-track column below was made with diverging reward weights: on the 0.1 m track one place cell carries up to 92% of φ, and at the unlearning rate 4 the per-feature step overshoots its target (1 − 4 × 0.92 < −1), so every row with memory steering read weights that had blown up (the reflex arms read none). With the step capped at its target the same protocol gives research profile 74.0 (not 124.5), G45's wall response 32.0 (not 69.3), 300° 42.8 (not 55.8), 300° + G45's 31.0 (not 45.0); every other column is byte-identical. **Reading 2 is withdrawn**: with bounded weights, reward and memory make the track *faster* than the reflex alone, not slower. The tables G51 read are kept in `docs/data/m3/part2/pilot_g51_uncapped/`; the corrected ones are in `docs/data/m3/part2/pilot/` and read in G52. The rule's choice (the research profile) and the headline (no configuration passes) stand.
+
+### A. What landed (`8dcd7eb`)
+`basal_ganglia.orient_gain` (0 off): a target seen to one side and none ahead adds the gain to the turn toward it (1.0 outweighs FORWARD's bias of 0.8; a rat orients to a seen reward), with an `orient` decision term the console lists. Opt-in; both baselines bit-identical. `experiments/m3_part2.py`: eight configurations (orient off/on × a narrow or a 300° field × the long-range or G45's wall response) on the research profile as G50 left it, scored against the draft's eleven bounds. Tests +5 (suite 702).
+
+### B. Measured (the draft's bounds; + passes, − fails)
+
+| configuration | track, learned (≤ 36) | track, reflex (≥ 72) | gate: open / L hidden | open / L visible | cues: open / L | hidden food (≥ 37.1) | bounds |
+|---|---|---|---|---|---|---|---|
+| **research profile (o0_n_L)** | 124.5 − | 101.3 + | 1.00 / 1.00 | 1.00 / 1.00 | 0.97 / 0.96 | 41.8 + | **10** |
+| orient (o1_n_L) | 124.5 − | 101.3 + | 1.00 / 1.00 | 1.00 / 1.00 | 0.97 / 0.97 | 41.8 + | 10 |
+| G45's wall response (o0_n_S) | 69.3 − | 33.3 − | 0.79 / 0.71 | **0.03 / 0.03** | 0.68 / 0.71 | 34.5 − | 1 |
+| **orient + G45's (o1_n_S)** | 69.3 − | 33.3 − | 1.00 / 1.00 | **1.00 / 1.00** | 0.97 / 0.98 | 34.5 − | 7 |
+| 300° field (o0_w_L) | 55.8 − | 43.5 − | 1.00 / 1.00 | 1.00 / 1.00 | 0.86 / 0.85 | 61.5 + | 8 |
+| 300° + G45's (o0_w_S) | 45.0 − | 32.0 − | 0.97 / 1.00 | 0.16 / 0.12 | 0.90 / 0.72 | 35.5 − | 4 |
+| orient + 300° (o1_w_L) | 55.8 − | 43.5 − | 1.00 / 1.00 | 1.00 / 1.00 | 0.87 / 0.92 | 61.5 + | 8 |
+| all three (o1_w_S) | 45.0 − | 32.0 − | 1.00 / 1.00 | 1.00 / 1.00 | 0.95 / 0.98 | 35.5 − | 7 |
+
+No-steering controls ≤ 0.03 everywhere. **The rule chooses the research profile unchanged** (eligible: its reflex does not run laps; ten bounds; no changes). **No configuration passes every bound: every one fails the learned track bound.**
+
+### C. Reading
+1. **The orienting response does what it was built for.** With G45's wall response the visible approach collapses (0.03); with the orienting response it is 1.00, and every gate bound passes: one wall response that runs a corridor *and* approaches a visible goal exists (o1_n_S). It is excluded by the strict rule because its reflex alone shuttles the track at 33 ticks a traversal, reward or none.
+2. **The binding constraint is learning.** In every configuration, reward with memory steering makes the track *slower* than the reflex alone (research profile 124.5 against 101.3 ticks a traversal; 9.2 rewards against 15.2 without steering; G45's response 69 against 33), at the renewable-reward unlearning rate. The SR's value points to where reward was, and on a track whose reward alternates that is the end just emptied: the same failure as hidden food (G46: memory steering loses there too). No reflex change can make laps come from reward and memory while the learner points backward.
+3. A 300° field with the long-range wall response turns the open-field walk into near-constant orbiting (orbit share 0.89, near-wall 8%) and raises hidden-food finds to 61.5: a reflex effect, not memory's, not pursued.
+
+### D. Decisions this surfaces (the owner's)
+1. **Per the draft**, with none passing, RQ1's track can use forced laps (G35's protocol) with the gap recorded.
+2. **Recommended instead: take M3 step 3's learner first** (the plan's "learned action value over place features that both replay and experience update and that the steering reads"), with this pilot's track test (laps from reward and memory, the reflex alone not running them) as its acceptance criterion, and forced laps only if that learner fails too. The strict standard stays; the order of steps 2 and 3 changes.
+3. The orienting response stays available (opt-in), the candidate for the wall response once laps can be learned.
+
+**Impact:** this entry; `basal_ganglia.py`, `core/config.py`, `ui/static/js/brain.js`, `ui/sim_session.py`; `experiments/m3_part2.py` (new); `docs/data/m3/part2/pilot/` (new); tests in `tests/brain/test_orienting.py` (new), `tests/experiments/test_m3_part2.py` (new).
+
+## G52 — History and motivation, built with pluggable inputs and probed; the per-feature step capped (G51's track corrected)
+
+**Date:** 2026-10-28 (built 2026-10-27)  
+**Why:** after G51 the owner paused: the agent was missing at least one variable the mammal has. The reading found two, both absent by design: its learned value was a function of where it is and nothing else (so memory pointed back to the place just emptied, G46, G51), and its urge to move was a constant (so a body that could run a corridor ran laps with no food, and one that could not, crawled with it). The owner's instruction (2026-10-27): build both now, each fed by its own pluggable inputs — history is invoked by many senses, so sight must not be the only one; motivation may be several loops with different delays. Exploratory, spent seeds (the Part 2 pilot's: gate 31–42, track 31–42, hidden food 1–8); no selection, no registration. Branch `m3-history-motivation` off `main`.
+
+### A. What landed
+1. **History** (`brain/systems/history.py`; `history.*`; `d54d432`): what the agent has sensed and done, and where, as decaying traces over the place code. A *channel* turns what was sensed this tick into events (a weighting over the place features in the agent's own estimate frame, and a strength); each channel has a bank of traces at several timescales (2 s, 20 s, 200 s: a lap, a trial, a regrowth). Built-in channels: `taste` (it ate here), `visit` (familiarity, one slow trace), `sight` (food seen there); smell, touch and others are added by registering a function in `CHANNELS`, nothing else changes. For the channels in `history.reward_context`, the SR's expected reward at each place becomes R + Σ u·h, the *schema* u (one weight per channel and timescale, shared by every place) learned from the same prediction errors as R: what having eaten somewhere means for the food there is learned, not built in. M, where the agent can get to, is untouched. The schema's step is normalised LMS at the reward learning rate (`76f54c9`: a plain step at the unlearning rate diverged in the first probe).
+2. **Motivation** (`brain/systems/motivation.py`; `motivation.*`; `d54d432`): loops, each following one named signal through its own delay and rise/fall time constants, or accumulating it with a leak: `curiosity` ← novelty (1 − familiarity, from history's visit channel; rises in 2 s, fades over 30 s), `satiety` ← meals after a gut delay of 30 s, digested over 2 h, a rat sating on about 150 pellets, `reward_trace` ← reward (up at once, down over 2 min). A registry of *reasons* composes the drive as a soft OR: `explore` = curiosity, `forage` = hunger × reward trace. Action selection scales FORWARD's bias by the drive and gives REST an `idle` term for what is missing (`basal_ganglia.unmotivated_rest`), shown in the decision log and the console. A new motive is a loop and a reason, registered by name. Every value set from a stated reason before any run.
+3. **The per-feature step capped at its target** (`place.reward_step_cap`; `2f99f98`): the probe re-run with warnings as errors stopped on an overflow that was not history's. On the track one cell carries up to 92% of φ in the first probe's runs (0.73 over a 2,000-tick lap in the diagnostics; 0.57 in the open arena near walls), and at the unlearning rate 4 the step rate × φᵢ passes 1, so a weight overshoots its target and grows; G51's track rows with memory steering were made with diverging weights. Capped, each cell's step is min(1, rate × φᵢ). Off for every registered run (the research profile's rate 0.5 never exceeds it); on in `experiments/m3_part2.py`'s battery (`BASE`), so the Part 2 pilot and the probe both run with it. G51's tables moved to `pilot_g51_uncapped/` (`f4ec447`) and the pilot re-run.
+4. `experiments/m3_hm_probe.py`: two bodies — the research profile (B0) and the orienting response with G45's wall response (B1, Part 2's `o1_n_S`: it runs a corridor and approaches a visible goal, but its reflex alone shuttled) — each with history off/on (H: taste and visit channels, taste conditioning the expected reward) and motivation off/on (M; with history off it carries the visit channel alone, for novelty), over Part 2's battery and bounds. `tools/m3_hm_probes/diagnostics.py`: three checks behind the reading (disclosed; its output committed beside it). Tests +15 (suite 717); both determinism baselines bit-identical.
+
+### B. Measured
+
+**The Part 2 pilot, capped** (`docs/data/m3/part2/pilot/`, 418 s; G51's table with the learned column corrected, every other column unchanged):
+
+| configuration | track, learned (≤ 36) | track, reflex (≥ 72) | rewards, learned / reward without steering | bounds |
+|---|---|---|---|---|
+| **research profile (o0_n_L)**, orient (o1_n_L) | **74.0** − (G51: 124.5) | 101.3 + | 18.3 / 15.2 (G51: 9.2 / 15.2) | **10** |
+| G45's wall response (o0_n_S), orient + G45's (o1_n_S) | 32.0 + (69.3) | 33.3 − | 47.9 / 47.1 | 2, 8 |
+| 300° field (o0_w_L), orient + 300° (o1_w_L) | 42.8 − (55.8) | 43.5 − | 15.6 / 15.3 | 8 |
+| 300° + G45's (o0_w_S), all three (o1_w_S) | 31.0 + (45.0) | 32.0 − | 49.2 / 57.2 | 5, 8 |
+
+The rule still chooses the research profile; no configuration passes every bound. The corridor bodies now pass the learned bound (31–32 ticks a traversal) but their reflex alone runs the same laps (32–33), and with reward and steering they run at most one tick faster.
+
+**The history/motivation probe** (`docs/data/m3/history_motivation/probe/`, 364 s; + passes, − fails):
+
+| configuration | track, learned (≤ 36) | reflex: no reward / no steering (≥ 72) | rewards; rest share (learned) | gate: open / L hidden | open / L visible | cues: open / L | hidden food (≥ 37.1) | control (≤ 0.05) | bounds |
+|---|---|---|---|---|---|---|---|---|---|
+| B0 (= o0_n_L) | 74.0 − | 101.3 / 101.3 + | 18.3; 0.02 | 1.00 / 1.00 | 1.00 / 1.00 | 0.97 / 0.96 | 41.8 + | 0.03 + | 10 |
+| B0 + motivation | 91.3 − | 162.5 / 108.3 + | 4.3; **0.74** | 1.00 / 1.00 | 1.00 / 1.00 | 0.94 / 0.92 | **46.0** + | **0.32** − | 9 |
+| B0 + history | 90.3 − | 101.3 / 101.3 + | 10.8; 0.01 | 0.92 / **0.71** | 0.88 / 0.99 | 0.80 / 0.75 | **27.1** − | 0.03 + | 4 |
+| B0 + both | 74.8 − | 162.5 / 108.3 + | 4.7; 0.76 | 0.96 / 0.60 | 0.99 / 0.98 | 0.77 / 0.48 | 24.4 − | 0.32 − | 5 |
+| B1 (= o1_n_S) | 32.0 + | 33.3 / 33.3 − | 47.9; 0.00 | 1.00 / 1.00 | 1.00 / 1.00 | 0.97 / 0.98 | 34.5 − | 0.00 + | 8 |
+| B1 + motivation | 34.0 + | 40.0 / 35.0 − | 26.1; 0.39 | 1.00 / 0.99 | 1.00 / 1.00 | 0.96 / 0.97 | 34.0 − | 0.00 + | 8 |
+| B1 + history | 38.0 − | 33.3 / 33.3 − | 7.2; 0.00 | 0.93 / 0.91 | 1.00 / 0.97 | 0.88 / 0.84 | 20.2 − | 0.00 + | 5 |
+| B1 + both | 37.8 − | 40.0 / 35.0 − | 7.2; 0.63 | 0.92 / 0.88 | 1.00 / 0.99 | 0.82 / 0.60 | 24.8 − | 0.00 + | 3 |
+
+Track traversals per 3,000 ticks, B0: 30.1 learned, 22.8 reflex; with motivation 7.8 learned, 7.2 reward without steering, 1.5 no reward (rest share 0.92). B1: 73.0 / 69.4 / 69.4; with motivation 42.8 / 53.2 / 7.8 (rest 0.87 without reward). Hidden food without steering: 51.9 (B0), 63.2 with motivation; 33.4 (B1), 38.1. Open field, B0 with motivation: wall-zone share 0.58 → 0.67, orbit share 0.32 → 0.23, coverage 0.59 → 0.59.
+
+**Diagnostics** (`tools/m3_hm_probes/diagnostics_out/summary.txt`): (1) hidden food seed 1 with steering, cap off and on: 38 finds either way, though one cell carries up to 0.57 of φ in the open arena. (2) The no-steering control with motivation but the `explore` reason removed: **0.000** in both open conditions (0.158 told the start and 0.317 with cues when it is present). (3) The taste schema after a track run (seed 31, learned arm, 8 rewards): u = (−0.29, −0.25, +0.66) at 2 s, 20 s, 200 s; the reward weights R themselves ended in [−0.48, 0].
+
+### C. Reading
+1. **The cap corrects G51's second reading.** With bounded weights, reward and memory steering make the research body's laps faster than the reflex alone (74 against 101 ticks a traversal; 18.3 rewards against 15.2), not slower. The evidence that "the learner points backward" was the diverging weights' and is withdrawn. The headline stands and the gap is now plainer: the research body with memory is twice too slow along the corridor (74 > 36), and the bodies that are fast along it run laps by reflex (32–33) that reward and memory can shorten by a tick. The cap changed no row outside the track: where φ concentrates in the open arena the weights are near zero, so an overshoot had nothing to multiply.
+2. **History, as built, costs every task that uses memory**: track rewards 18.3 → 10.8, hidden food 41.8 → 27.1, the L arena's hidden goal 1.00 → 0.71, cues 0.97 → 0.80. The schema learned the signs one would want — a place eaten at within the last 20 s predicts less reward, one eaten at within the last 200 s predicts more (the food comes back) — yet behaviour got worse, and R went to zero or below everywhere on the track. R and the schema learn from one error, so the schema's positive slow term pushes R down where food was, and the value map is two learned terms fighting over the same places; what the agent steers on is the difference. Not adopted. If pursued, the next probe should separate the representation from its learning: a fixed schema with the learned signs and R's rule untouched, to see whether the history term can help at all before it is learned.
+3. **Motivation, as built, rests too much, for a stated reason that was wrong.** `forage` = hunger × reward trace, so a hungry agent that has not eaten lately has no reason to move but curiosity, which habituates: on the track it rests 74% of the time with food present (4.3 rewards) and 92% without. That contradicts the biology the module cites (a food-restricted rat runs for food it has not found); hunger should be a reason on its own, the reward rate scaling vigour. The reflex bound then passes for the wrong reason (an unmotivated reflex does not run) and the learned bound fails (91). On the corridor body motivation does what was wanted of it — the reflex alone stops shuttling (7.8 traversals against 69.4) and lap running stays with reward (42.8; 34.0 ticks a traversal, passing the learned bound) — but the median-interval statistic reads only the moving bouts (40.0 fails ≥ 72), and reward without steering runs more laps than with (53.2 against 42.8): those laps come from reward and the reflex, not from memory.
+4. **Motivation's curiosity is a real variable the controls had not reckoned with.** The no-steering control's hidden-goal success rises from 0.03 to 0.16 told the start and 0.32 with cues, and falls to exactly 0.00 when the explore reason is removed: an agent that rests where it is familiar and moves where it is not drifts into unvisited ground, where a hidden goal is. Exploration without any value learning; it lifts hidden-food finds too (steering 41.8 → 46.0, no steering 51.9 → 63.2). The bound "no steering ≤ 0.05" assumed a memoryless reflex; the four rules' intent was a margin over a no-learning control, and the control should carry the same motivation.
+5. The pattern of G46–G48 continued: a fourth artefact (the unbounded step) had made a result look like a mechanism, caught only because the probe was re-run with warnings as errors. Every M3 run should.
+
+### D. Decisions this surfaces (the owner's)
+1. **`place.reward_step_cap`**: adopt as the research default (inert at the profile's rate; it moves the console's hidden-food and beacon scenarios, which carry U = 4, and G41/G43's tables with them at the next regeneration) or keep it as the track's and the battery's setting. Recommended: adopt; a weight that passes its target is an error, not a mechanism.
+2. **The track statistic**: if motivation is carried, the reflex bound should count traversals per run (or laps in the second half), not the median interval between arrivals, which an agent resting 87% of the time passes by moving fast when it moves. The strict standard itself stays.
+3. **History**: parked as built; whether to run the fixed-schema probe, or leave carrying "where I have been" to step 3's learner (a learned action value with replay has its own way to hold it).
+4. **Motivation**: correct the forage composition (hunger a reason on its own; the reward trace scaling vigour), then re-probe on the same battery; and whether the no-steering control carries the same motivation, the controls bound becoming a margin.
+5. **The route**: step 3's learner remains the recommended structural step, with the track test as its acceptance criterion; corrected motivation is the candidate for a body that laps for reward and stops without it; forced laps only if both fail.
+
+**Impact:** this entry and the correction in G51; `brain/systems/history.py`, `brain/systems/motivation.py` (new); `brain/systems/basal_ganglia.py`, `core/config.py`, `core/engine.py`, `metrics/decisions.py`, `ui/sim_session.py`, `ui/static/js/brain.js`; `experiments/m3_part2.py` (`run_battery`, `BASE`), `experiments/m3_hm_probe.py` (new); `tools/m3_hm_probes/` (new); `docs/data/m3/part2/pilot/` (re-run), `docs/data/m3/part2/pilot_g51_uncapped/` (G51's tables), `docs/data/m3/history_motivation/probe/` (new); `docs/m3_place_replay.md`, `README.md`; tests in `tests/brain/test_history.py`, `tests/brain/test_motivation.py`, `tests/engine/test_history_motivation.py`, `tests/experiments/test_m3_hm_probe.py` (new).
+
+## G53 — The owner's decisions after G52, enacted: the cap adopted, the track counted, a fixed schema, hunger a reason
+
+**Date:** 2026-10-28  
+**Why:** the owner's answers to G52 D: (1) adopt the step cap, agreed; (2) the track statistic, agreed; (3) a fixed-schema probe for history; (4) the forage correction and the control as a margin, agreed; (5) an explanation of the route, given in conversation and recorded in C below. Exploratory, the Part 2 pilot's spent seeds; no selection, no registration. Branch `m3-history-motivation`.
+
+### A. What landed (`1abdaf9`)
+1. **`place.reward_step_cap = True` in the research profile.** Inert at the profile's rate (0.5 × φ ≤ 1): both determinism baselines bit-identical. It binds where a scenario sets the renewable-reward rate (the console's hidden food and beacon, the track); their recorded tables (G40, G41, G43) keep the numbers they were made with until a regeneration. `PRE_G53` pins it off for every earlier registration, and `PRE_G50` carries it, so a pre-G50 registration still means what it said. `docs/profiles.md` has the row.
+2. **The track scored by traversals per run** (`experiments/m3_part2.py`; the dated amendment in `docs/prereg/m3_step2.md`): the learned arm at least 42 traversals in 3,000 ticks (half of the 83 a run at the physical minimum of 36 ticks a traversal allows), each reflex arm (no reward; reward without steering) at most half the learned arm's. **The gate's control as a margin**: the SR's hidden success over the same configuration's no-steering agent by at least 0.5 in every condition (the registered gate's 0.95 against 0.05 was a margin of 0.9; a control that explores is still the control). The tables keep the median interval. `tools/m3_hm_probes/rescore.py` re-reads G51's and G52's committed tables under the new statistics (`diagnostics_out/rescored_g53.txt`): the research profile 30.1 learned traversals against 22.8 reflex (fails both), the corridor bodies 73–85 against 69–84 (the reflex alone runs the laps), G52's motivation on the corridor body 42.8 / 7.8 / 53.2 (reward without steering runs more laps than with).
+3. **A fixed schema for history** (`history.schema`: weights per reward-context channel, one per timescale, never learned; R keeps G36's rule and the history term is read on top), so the representation is tested apart from its learning.
+4. **Hunger a reason on its own**; the reward trace sets *vigour*, `motivation.vigour_floor` (0.5) + the rest as the trace rises, which scales the forward bias beside the drive (`EngineContext.vigour`; the decision log, the console's terms and its mechanism list carry it). A food-restricted rat runs for food it has not found; the reward rate sets how hard, not whether (Niv et al. 2007).
+5. `experiments/m3_g53_probes.py`: the fixed-schema phase (both bodies × three schemas over the taste traces at 2 s, 20 s, 200 s, each set from a stated reason before the run: `learned` (−0.29, −0.25, +0.66), what G52's learning found; `fast` (−1, 0, 0), the place is empty while the agent is still at it; `lap` (0, −1, 0), a place eaten at within about a traversal is empty) and the forage phase (both bodies with G53's motivation). Tests +5 (suite 722).
+
+### B. Measured (G53's statistics; + passes, − fails; reference rows from G52's tables re-scored)
+
+**Fixed schema** (`docs/data/m3/history_motivation/fixed_schema/`, 356 s):
+
+| configuration | track, learned (≥ 42) | reflex: no reward / no steering (≤ half) | rewards | gate: open / L hidden | cues: open / L | hidden food (≥ 37.1) | margin (≥ 0.5) | bounds |
+|---|---|---|---|---|---|---|---|---|
+| B0, no history | 30.1 − | 22.8 / 22.8 − | 18.3 | 1.00 / 1.00 | 0.97 / 0.96 | 41.8 + | 0.95 + | 8 |
+| **B0 + fast** | **34.0** − | 22.8 / 22.8 − | 18.8 | 0.99 / 0.98 | 0.96 / 0.98 | **46.5** + | 0.93 + | 8 |
+| B0 + lap | 25.3 − | 22.8 / 22.8 − | 8.7 | 0.92 / 0.89 | 0.85 / 0.83 | 30.4 − | 0.82 + | 4 |
+| B0 + learned | 9.7 − | 22.8 / 22.8 − | 7.8 | 0.99 / 1.00 | **0.50 / 0.76** | **19.0** − | 0.47 − | 4 |
+| B1, no history | 73.0 + | 69.4 / 69.4 − | 47.9 | 1.00 / 1.00 | 0.97 / 0.98 | 34.5 − | 0.97 + | 8 |
+| **B1 + fast** | 60.0 + | 69.4 / 69.4 − | 38.3 | 1.00 / 0.98 | 0.98 / 0.98 | **38.4** + | 0.97 + | **9** |
+| B1 + lap | 15.3 − | 69.4 / 69.4 − | 9.2 | 0.96 / 0.92 | 0.85 / 0.90 | 30.8 − | 0.85 + | 7 |
+| B1 + learned | 14.8 − | 69.4 / 69.4 − | 13.2 | 1.00 / 1.00 | 0.56 / 0.60 | 12.5 − | 0.56 + | 5 |
+
+Visible-goal sessions ≥ 0.92 everywhere; the no-steering controls ≤ 0.03 (history alone does not explore); the open field identical to the no-history rows.
+
+**Forage** (`docs/data/m3/history_motivation/forage/`, 68 s):
+
+| configuration | track, learned (≥ 42) | reflex: no reward / no steering (≤ half) | rewards; rest share | gate: open / L hidden | cues: open / L | hidden food (≥ 37.1) | margin (≥ 0.5) | bounds |
+|---|---|---|---|---|---|---|---|---|
+| B0, G52's motivation | 7.8 − | 1.5 + / 7.3 − | 4.3; 0.74 | 1.00 / 1.00 | 0.94 / 0.92 | 46.0 + | 0.62 + | 9 |
+| **B0 + motivation (G53)** | 29.5 − | 20.4 / 20.9 − | 19.5; **0.04** | 1.00 / 1.00 | 0.95 / 0.97 | **47.4** + | **0.39** − | 7 |
+| B1, G52's motivation | 42.8 + | 7.8 + / 53.2 − | 26.1; 0.39 | 1.00 / 0.99 | 0.96 / 0.97 | 34.0 − | 0.96 + | 9 |
+| **B1 + motivation (G53)** | 70.3 + | **53.6** / 66.3 − | 47.2; 0.02 | 1.00 / 0.99 | 0.95 / 0.97 | 35.3 − | 0.91 + | 8 |
+
+B0 with G53's motivation: the no-steering control finds the hidden goal on 0.35 (L, told the start), 0.36 (L, cues), 0.58 (open, told the start) and 0.57 (open, cues) of trials (0.03 without motivation; 0.16–0.32 under G52's); hidden food without steering 68.2 (51.9); the open field's wall-zone share 0.15 (0.58), coverage 0.77 (0.59), orbit share 0.66 (0.32). B1: controls ≤ 0.04, the open field as without motivation.
+
+### C. Reading
+1. **The fast schema is the first history that costs nothing.** A two-second "the place I am eating at is empty" raises hidden-food finds by 11% on both bodies (46.5 against 41.8; 38.4 against 34.5, which passes the floor) and the research body's laps by 13% (34.0 against 30.1 traversals), with the gate, the cues and the controls unchanged. On the corridor body it costs the track 18% (60 against 73 traversals): the steering it sharpens slows a reflex already lapping at full speed. The `lap` schema and G52's learned one hurt everywhere, the learned worst (cues 0.50, hidden food 19.0): its slow *positive* term, "a place eaten at within 200 s holds more", sends the agent back to what it emptied. G52's history failed on its representation as much as on its learning.
+2. **Hunger as a reason does what was asked and shows what the resting had hidden.** The research body with motivation laps and eats as without it (29.5 traversals, rest share 0.04; G52's 7.8 and 0.74), finds 13% more hidden food with steering and 31% more without. The corridor body, hungry, shuttles with no food at all (53.6 traversals): G52's "motivation stops the reflex shuttling" was the resting artefact. Hunger is the reason to move and the corridor is where that body moves; only satiety would stop it (150 meals: not within a run).
+3. **A hungry, curious agent at half vigour is a strong explorer without any value learning.** With no reward lately the forward bias is halved, the walk turns more, leaves the walls (wall-zone share 0.58 → 0.15) and covers the arena (0.59 → 0.77); the no-steering control reaches the hidden goal on 35–58% of trials, so the margin memory has to show falls to 0.39 on the open arena (fails 0.5) while the SR agent still reaches 0.95–1.00. Whether the rise is curiosity or the halved vigour is one check away (the explore reason off; the vigour floor 1); not run.
+4. **The track bound stays unmet on both bodies, and the reason is now structural.** The bound asks memory with reward to double the reflex's laps. On the research body memory multiplies them by 1.3–1.5 (30–34 against 23): its long-range wall response zigzags in a 0.1 m corridor and steering by the value of places can only bias those turns toward the better end. On the corridor body the reflex laps at full speed (69–73) and memory can only slow it. Every mechanism so far (the orienting response, the wall responses, history, motivation, the cap) changes how the value of *places* is read or how much the body moves; none changes which *action* the agent prefers from a state on the strength of experience. That is step 3's learner.
+
+### D. Decisions this surfaces (the owner's)
+1. **The fast schema**: register a confirmatory run on fresh seeds (hidden food 47+, gate 245+, track 245+) with adoption into the research profile (`history.enabled`, taste and visit channels, schema (−1, 0, 0)) if it holds. Recommended.
+2. **Motivation**: keep opt-in. Before any adoption, the one check in C3 (explore off; vigour floor 1), because it changes the walk and the controls; in protocols the control carries it, as it already does.
+3. **The route**: step 3's learner next (C4), with the track test as its acceptance; forced laps only if that fails too. The explanation given to the owner: the plan's row 3 is replay as an in-engine event stream over the place code with a learned action value that replay and experience both update and the steering reads; M2a found the action-value learner the fastest of the series on the oracle track (G31) and the one whose replay carried the signatures (G32); a learned preference for FORWARD along the corridor is what can suppress the research body's wall turns, which no value-of-place steering can.
+
+**Impact:** this entry; `core/config.py` (research default, `PRE_G53`, `history.schema`, `motivation.vigour_floor`), `core/engine.py`, `brain/systems/history.py`, `brain/systems/motivation.py`, `brain/systems/basal_ganglia.py`, `metrics/decisions.py`, `ui/sim_session.py`; `experiments/m3_part2.py` (scoring), `experiments/m3_g53_probes.py` (new); `tools/m3_hm_probes/rescore.py` (new); `docs/prereg/m3_step2.md` (amendment), `docs/profiles.md`, `docs/m3_place_replay.md`, `README.md`; `docs/data/m3/history_motivation/fixed_schema/`, `forage/` (new); tests in `tests/brain/test_motivation.py`, `tests/engine/test_history_motivation.py`, `tests/engine/test_profiles.py`, `tests/experiments/test_m3_part2.py`, `tests/experiments/test_rq4a_gate.py`, `tests/experiments/test_m3_g53_probes.py` (new).
+
+## G54 — The fixed two-second taste schema confirmed on fresh seeds and adopted; the vigour check
+
+**Date:** 2026-10-29 (registered and run 2026-10-28)  
+**Why:** G53 D1, agreed by the owner: a confirmatory run of the `fast` schema on seeds none run before, with adoption into the research profile if it held. Registration `1c55df3` (`docs/prereg/history_fast_schema.md`, `experiments/history_fast_schema.py`), data `c57207f`. And G53 D2, agreed: the one check before any adoption of motivation, `experiments/m3_g53_probes.py --phase vigour` (exploratory, the pilot's spent seeds). Branch `m3-history-motivation`.
+
+### A. Measured (confirmatory; `docs/data/m3/history_motivation/fast_schema_confirmatory/`, 201 s; gate and track seeds 245–274, hidden food 47–76; fast − none paired by seed, BCa 95%)
+
+| bound | none | fast | difference [95% interval] | verdict |
+|---|---|---|---|---|
+| K1 hidden-food finds, memory steering (lower end > 0) | 41.4 | 46.3 | +4.90 [+2.83, +7.13] | **PASS** |
+| K2 the gate's six SR values (each ≥ −0.03) | 1.00 / 1.00 / 1.00 / 1.00 / 0.95 / 0.97 | 0.99 / 0.99 / 0.99 / 0.99 / 0.95 / 0.97 | −0.01 to +0.00 | **PASS** |
+| K3 track traversals, reward and memory (lower end > −3.0) | 30.0 | 35.1 | +5.13 [+3.47, +6.50] | **PASS** |
+
+Reported: track rewards 19.2 → 20.3 [−1.3, +3.6]; hidden food without steering 51.5 in both arms (the no-steering agent reads no value, so the traces change nothing it does); the no-steering gate controls ≤ 0.035 in both; the open field identical (wall-zone share 0.60, coverage 0.58, orbit share 0.32). The predictions held (K1 2–6, K2 within 0.02, K3 +1 to +5), K3 above its range.
+
+### B. Adopted (the decision table's first row)
+`EngineConfig.research()` now has `history.enabled = True`, channels `("taste", "visit")`, `reward_context = ("taste",)` and `schema = {"taste": (-1, 0, 0)}`: the SR's expected reward at a place is R less the two-second taste trace, R keeping G36's rule. `PRE_G54` pins history off (and the schema `None`) for every earlier registration; `PRE_G53` carries it and `PRE_G50` carries `PRE_G53`. `experiments/history_fast_schema.py`'s `none` arm pins `PRE_G54` (it is the profile as it stood at the registration), and so does `experiments/m3_part2.py`'s `BASE`: the battery stays the profile as G50 left it plus the cap, which is what G51–G54's probes ran on; step 3's protocol states its own base. The console lists History among the mechanisms in force. `docs/profiles.md` has the two rows. Both determinism baselines are bit-identical (the baselines' agent never eats, so the taste trace is never written). The M1 odometry instrument and M2b's estimate, place-population and SR-field experiments turn the place population off or predate history, so `experiments/estimate_correction.engine_config` (their shared builder; the gate passes `registered=False` for today's profile) and `experiments/odometry_characterisation` pin `PRE_G54` and their tables regenerate as registered. `EngineConfig.to_dict` now converts tuples inside a dict (the schema) so a manifest round-trips as strict JSON. Suite 725.
+
+### C. The vigour check (G53 D2; `docs/data/m3/history_motivation/vigour/`, 106 s; the research body with motivation, spent seeds; the no-motivation rows from G52's tables on the same seeds)
+
+| configuration | no-steering control: open, told the start / with cues; L | open field: wall-zone share / coverage / orbit share | hidden food: steering / none | track, learned traversals |
+|---|---|---|---|---|
+| no motivation | 0.03 / 0.03; 0.00 | 0.58 / 0.59 / 0.32 | 41.8 / 51.9 | 30.1 |
+| as the forage phase ran it (explore on, vigour floor 0.5) | 0.58 / 0.57; 0.35 | 0.15 / 0.77 / 0.66 | 47.4 / 68.2 | 29.5 |
+| the explore reason removed | **0.68 / 0.68; 0.43** | 0.15 / 0.77 / 0.66 | 46.5 / 69.5 | 28.2 |
+| the vigour floor at 1 | **0.06 / 0.10; 0.06** | **0.58 / 0.59 / 0.32** | 44.9 / 63.6 | 29.3 |
+| both | 0.13 / 0.13; 0.08 | 0.58 / 0.59 / 0.32 | 45.8 / 66.0 | 30.2 |
+
+**Reading: the explorer is the halved forward bias, not curiosity.** With the vigour floor at 1 the open-field walk is the unmotivated one to the third decimal and the control falls to 0.06–0.13; removing the explore reason instead *raises* the control to 0.68. A hungry agent with no recent reward moves at half its forward bias, turns more, leaves the walls and covers the arena, and that is what finds hidden goals without any value learning. What remains at vigour 1 (hidden food 44.9–45.8 against 41.8; the control 0.06–0.13 against 0.03) is the satiety loop: as the agent eats, hunger and with it the drive fall and REST's idle term rises a little.
+
+### D. Decisions this surfaces (the owner's)
+1. **Motivation stays opt-in**, as G53 D2 said. Adopting it is now a decision about the vigour floor: at 0.5 it makes the learning-free agent an explorer, which halves the margin memory shows on the open arena and changes the open-field walk; at 1 it is nearly inert in a run of this length. Recommended: leave it opt-in through step 3, whose protocol decides what the control carries.
+2. **Step 3's learner is next**, as agreed; its battery base is `m3_part2.BASE` with the adopted history, to be stated in its preregistration.
+
+**Impact:** this entry; `core/config.py` (research default, `PRE_G54`, `PRE_G53`), `ui/sim_session.py`; `experiments/history_fast_schema.py` (the pin), `experiments/m3_part2.py` (`BASE`); `docs/profiles.md`, `docs/m3_place_replay.md`, `README.md`; `docs/data/m3/history_motivation/fast_schema_confirmatory/`, `vigour/` (new); tests in `tests/engine/test_profiles.py`, `tests/engine/test_history_motivation.py`, `tests/experiments/test_rq4a_gate.py`.

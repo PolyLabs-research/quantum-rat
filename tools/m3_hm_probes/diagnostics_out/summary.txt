@@ -1,0 +1,7 @@
+1. hidden food seed 1, steer: finds cap off 38, cap on 38
+   largest share of phi in one cell: open arena 0.57 (x4 = 2.30), track 0.73 (x4 = 2.94); the cap binds above 0.25
+2. no-steering control, hidden, open_anchor, reasons explore+forage: 0.158 (seeds 31-42)
+2. no-steering control, hidden, open_anchor, reasons forage: 0.000 (seeds 31-42)
+2. no-steering control, hidden, open_cues, reasons explore+forage: 0.317 (seeds 31-42)
+2. no-steering control, hidden, open_cues, reasons forage: 0.000 (seeds 31-42)
+3. track seed 31, history on, learned arm: rewards 8; taste schema u per timescale (10, 100, 1000 ticks) = [-0.2896, -0.2512, 0.6596]; reward weights in [-0.48, -0.00]

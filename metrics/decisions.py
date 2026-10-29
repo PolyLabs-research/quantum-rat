@@ -83,7 +83,7 @@ def decision_record(engine: Any) -> Dict[str, Any]:
         pacing_rest = bg.pace_rest_bonus if ctx.pacing_active else 0.0
         terms = channel_terms(obs, ctx.wm_novelty, ctx.trn_gate_value, ctx.microsleep_active, bg, ctx.neuromodulators,
                               *ctx.value_signals, ctx.criticality_gain, ctx.freeze_habituation, pacing_rest,
-                         ctx.previous_action)
+                         ctx.previous_action, getattr(ctx, "motivation", 1.0), getattr(ctx, "vigour", 1.0))
     probs = selection_probabilities(scores, bg.softmax_temperature) if scores else {}
     without = {name: counterfactual_probabilities(scores, terms, bg.softmax_temperature, (name,)) if scores else {}
                for name in COUNTERFACTUAL_TERMS}

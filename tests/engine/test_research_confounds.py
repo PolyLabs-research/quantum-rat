@@ -103,6 +103,7 @@ def test_a_full_speed_step_is_estimated_at_one_on_average_under_the_research_pro
     def run(limit: float):
         cfg = EngineConfig.research()
         cfg.place.enabled = False  # a 5,000-unit box would hold a 10^8-cell population; the odometry contract needs none
+        cfg.history.enabled = False  # its traces are over that population (G54)
         cfg.value_memory.source = "tabular"
         cfg.world.bounds = (5000.0, 5000.0)
         cfg.sensors.forward_delta_limit = limit
@@ -134,8 +135,9 @@ def test_a_full_speed_step_is_estimated_at_one_on_average_under_the_research_pro
 def test_the_body_does_not_read_the_range_and_the_legacy_profile_is_unchanged() -> None:
     cfg_a = EngineConfig.research()
     cfg_b = EngineConfig.research()
-    for cfg in (cfg_a, cfg_b):  # no population in the 5,000-unit box (as above)
+    for cfg in (cfg_a, cfg_b):  # no population in the 5,000-unit box (as above), so no history either (G54)
         cfg.place.enabled = False
+        cfg.history.enabled = False
         cfg.value_memory.source = "tabular"
     cfg_b.sensors.forward_delta_limit = 1.0
     cfg_a.basal_ganglia.softmax_temperature = cfg_b.basal_ganglia.softmax_temperature = 0.0  # a deterministic arbiter

@@ -303,7 +303,7 @@ def test_frame_carries_the_decision_terms_and_the_selection_probabilities():
         assert set(a["terms"]) == set(a["scores"])
         for channel, score in a["scores"].items():
             assert abs(sum(a["terms"][channel].values()) - score) < 2e-3  # the frame rounds to 4 dp
-        assert abs(sum(a["probs"].values()) - 1.0) < 1e-6
+        assert abs(sum(a["probs"].values()) - 1.0) < 2e-3  # the frame rounds each probability to 4 dp
         if profile == "research":
             assert a["source"] == "sr" and a["temperature"] == 0.1
         else:

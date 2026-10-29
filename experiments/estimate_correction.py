@@ -35,7 +35,7 @@ import numpy as np
 
 from analysis.stats import bootstrap_ci, cliffs_delta, paired_effect, pseudo_replication_guard
 from brain.systems.spatial import wrap_angle
-from core.config import EngineConfig
+from core.config import PRE_G54, EngineConfig
 from core.engine import Engine
 from experiments.linear_track_replay import _dependency_versions, _stat_seed, write_csv
 from experiments.linear_track_rq1 import write_csv_gz
@@ -78,11 +78,19 @@ def runs() -> List[Run]:
     return [Run(c, ORACLE_NOISE) for c in CONDITIONS] + [Run("oracle_reset", n) for n in SENSITIVITY_NOISES]
 
 
-def engine_config(condition: str, oracle_noise: float = ORACLE_NOISE) -> EngineConfig:
-    """The research profile with the heading oracle and wall-contact sensing on and the condition's estimate."""
+def engine_config(condition: str, oracle_noise: float = ORACLE_NOISE, *, registered: bool = True) -> EngineConfig:
+    """The research profile with the heading oracle and wall-contact sensing on and the condition's estimate.
+
+    ``registered`` (the default): the profile as M2b registered it, before it carried history (G54), pinned off
+    (``PRE_G54``) so the committed tables of this experiment, the place-population and the SR-field experiments
+    regenerate and a step-1 condition without the place population still builds (history's traces need it). The
+    RQ4(a) gate passes ``registered=False`` for today's profile and applies its own pins."""
     if condition not in CONDITIONS:
         raise ValueError(f"unknown condition {condition!r}; one of {tuple(CONDITIONS)}")
     cfg = EngineConfig.research()
+    if registered:
+        for key, value in PRE_G54.items():
+            cfg.set_field(key, value)
     cfg.sensors.heading_oracle = True
     cfg.sensors.heading_oracle_noise = float(oracle_noise)
     cfg.sensors.wall_contact_sensing = True

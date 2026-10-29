@@ -151,6 +151,7 @@ EXPECTED_RESEARCH_DIFF = [
     ("spatial.landmark_gain", 0.0, 0.1),
     ("place.enabled", False, True),
     ("place.reward_rule", "nlms", "per_feature"),
+    ("place.reward_step_cap", False, True),  # G53: each cell's step at most all the way to its target
     ("trn.narrow_above_kappa", 1.1, math.inf),
     ("trn.microsleep_enabled", True, False),
     ("basal_ganglia.novelty_gain", 0.2, 0.0),
@@ -160,6 +161,8 @@ EXPECTED_RESEARCH_DIFF = [
     ("basal_ganglia.ne_threat_gain", 0.5, 0.0),
     ("basal_ganglia.fiveht_patience_gain", 0.4, 0.0),
     ("basal_ganglia.softmax_temperature", 0.0, 0.1),
+    ("history.enabled", False, True),  # G54: the taste and visit traces over the place code
+    ("history.schema", None, {"taste": (-1.0, 0.0, 0.0)}),  # G54: "the place I am eating at is empty", two seconds wide
 ]
 
 

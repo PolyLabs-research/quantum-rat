@@ -65,6 +65,7 @@ def test_the_engine_computes_the_rates_at_the_estimate_and_changes_nothing_else(
     off = EngineConfig.research()
     off.value_memory.source = "tabular"
     off.place.enabled = False
+    off.history.enabled = False  # its traces are over the population (G54); nothing reads them with the map as the source
     plain = Engine(seed=3, config=off)
     assert plain.place is None and plain.place_rates is None
     plain_trace = plain.run(300, reset=True)

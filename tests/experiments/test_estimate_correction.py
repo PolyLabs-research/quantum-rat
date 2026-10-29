@@ -34,13 +34,13 @@ def test_the_cells_are_the_preregistered_ones() -> None:
     for condition, spec in ec.CONDITIONS.items():
         cfg = ec.engine_config(condition)
         diff = {d[0] for d in research.diff(cfg)}
-        expected = set()
+        expected = {"history.enabled", "history.schema"}  # registered before G54: history pinned off (PRE_G54)
         if spec["heading_source"] != "oracle":
             expected.add("spatial.heading_source")
         if not spec["wall_reset"]:
             expected.add("spatial.wall_reset")
         assert diff == expected, condition
-    assert {d[0] for d in research.diff(ec.engine_config("oracle_reset", 0.1))} == {"sensors.heading_oracle_noise"}
+    assert {d[0] for d in research.diff(ec.engine_config("oracle_reset", 0.1))} == {"sensors.heading_oracle_noise", "history.enabled", "history.schema"}
     with pytest.raises(ValueError):
         ec.engine_config("compass")
 

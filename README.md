@@ -119,7 +119,29 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   probes; every experiment registered before it pins the old values, and its tables regenerate. In the console's scenarios the SR steering circled sites it had just emptied and
   cost a third of the hidden-food finds (G40; measured with the hidden sites sensed, G46). A separate unlearning rate removes that (G41) but
   costs the gate 13 points of hidden-goal success at the rate that does it (G42), so the instrument
-  keeps one rate and the two renewable-reward scenarios carry the faster one (G43).
+  keeps one rate and the two renewable-reward scenarios carry the faster one (G43). **M3's step 2, Part 2**
+  (G51): an orienting response to a seen target (opt-in) and a pilot of eight reflex configurations over
+  every task; none passes the strict track bound (laps from reward and memory, none from the reflex alone),
+  and the rule keeps the research profile. **Two variables the mammal has and the agent did not** (G52,
+  opt-in, each fed through pluggable inputs): history (what it sensed and did, where, as decaying
+  place-tagged traces per sense, with what they mean for reward learned) and motivation (loops of
+  curiosity, satiety and a reward trace composing the drive to move). Probed over the same battery:
+  history as built costs every memory task; motivation's curiosity gives exploration without value
+  learning (the no-steering control finds the hidden goal on 16–32% of trials against 3%) but its forage
+  reason leaves a hungry agent resting; the track is still unmet. The same work found the per-feature
+  reward step passing its target at the renewable-reward rate, so the weights diverged on the track; a cap
+  (`place.reward_step_cap`, opt-in) fixes it, and with it memory steering runs the track faster than the
+  reflex alone (74 against 101 ticks a traversal), not slower as G51 had read. **The owner's decisions after
+  that** (G53): the cap is the research default; the track is scored by laps per run and the gate's control as
+  a margin; history with a fixed two-second "the place I am eating at is empty" schema is the first that costs
+  nothing (11% more hidden-food finds on both bodies, the gate unchanged); hunger as a reason removes the
+  resting and makes a learning-free agent a strong explorer (up to 58% of hidden goals without any value
+  learning). The strict track bound is still unmet: memory multiplies the research body's laps by 1.3 where
+  the bound asks 2, and the corridor body laps by reflex. **The fast schema was confirmed on thirty fresh
+  seeds and adopted** (G54, `docs/prereg/history_fast_schema.md`): 4.9 more hidden-food finds and 5.1 more
+  track traversals a run, the gate within 0.01; the research profile now carries history with it. The
+  learning-free explorer that motivation made turned out to be its halved forward bias, not curiosity;
+  motivation stays opt-in. Step 3's learner is next.
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the

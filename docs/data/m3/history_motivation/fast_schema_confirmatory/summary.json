@@ -1,0 +1,386 @@
+{
+ "bounds": {
+  "K1_finds_steer": {
+   "alpha": 0.05,
+   "fraction_b_gt_a": 0.7666666666666667,
+   "fraction_ties": 0.1,
+   "high": 7.133333333333334,
+   "low": 2.8333333333333335,
+   "mean_a": 41.4,
+   "mean_b": 46.3,
+   "mean_diff": 4.9,
+   "method": "bca",
+   "n": 30,
+   "n_boot": 10000,
+   "note": "",
+   "passes": true
+  },
+  "K2_gate_no_loss": {
+   "L_hidden": {
+    "alpha": 0.05,
+    "fraction_b_gt_a": 0.0,
+    "fraction_ties": 0.8,
+    "high": -0.003333333333333336,
+    "low": -0.01833333333333335,
+    "mean_a": 1.0,
+    "mean_b": 0.99,
+    "mean_diff": -0.010000000000000009,
+    "method": "bca",
+    "n": 30,
+    "n_boot": 10000,
+    "note": "",
+    "passes": true
+   },
+   "L_visible": {
+    "alpha": 0.05,
+    "fraction_b_gt_a": 0.0,
+    "fraction_ties": 0.8333333333333334,
+    "high": -0.003333333333333336,
+    "low": -0.021666666666666674,
+    "mean_a": 1.0,
+    "mean_b": 0.99,
+    "mean_diff": -0.010000000000000005,
+    "method": "bca",
+    "n": 30,
+    "n_boot": 10000,
+    "note": "",
+    "passes": true
+   },
+   "cues_L": {
+    "alpha": 0.05,
+    "fraction_b_gt_a": 0.23333333333333334,
+    "fraction_ties": 0.4666666666666667,
+    "high": 0.03333333333333333,
+    "low": -0.015000000000000013,
+    "mean_a": 0.9666666666666667,
+    "mean_b": 0.9700000000000001,
+    "mean_diff": 0.0033333333333333288,
+    "method": "bca",
+    "n": 30,
+    "n_boot": 10000,
+    "note": "",
+    "passes": true
+   },
+   "cues_open": {
+    "alpha": 0.05,
+    "fraction_b_gt_a": 0.3333333333333333,
+    "fraction_ties": 0.23333333333333334,
+    "high": 0.029999999999999995,
+    "low": -0.03000000000000001,
+    "mean_a": 0.955,
+    "mean_b": 0.9533333333333331,
+    "mean_diff": -0.0016666666666666718,
+    "method": "bca",
+    "n": 30,
+    "n_boot": 10000,
+    "note": "",
+    "passes": true
+   },
+   "open_hidden": {
+    "alpha": 0.05,
+    "fraction_b_gt_a": 0.0,
+    "fraction_ties": 0.8666666666666667,
+    "high": -0.0033333333333333327,
+    "low": -0.020000000000000007,
+    "mean_a": 1.0,
+    "mean_b": 0.9916666666666667,
+    "mean_diff": -0.008333333333333337,
+    "method": "bca",
+    "n": 30,
+    "n_boot": 10000,
+    "note": "",
+    "passes": true
+   },
+   "open_visible": {
+    "alpha": 0.05,
+    "fraction_b_gt_a": 0.0,
+    "fraction_ties": 0.7666666666666667,
+    "high": -0.006666666666666669,
+    "low": -0.025000000000000012,
+    "mean_a": 1.0,
+    "mean_b": 0.9866666666666667,
+    "mean_diff": -0.013333333333333341,
+    "method": "bca",
+    "n": 30,
+    "n_boot": 10000,
+    "note": "",
+    "passes": true
+   }
+  },
+  "K2_passes": true,
+  "K3_track_traversals": {
+   "alpha": 0.05,
+   "bound": -3.0,
+   "fraction_b_gt_a": 0.8666666666666667,
+   "fraction_ties": 0.03333333333333333,
+   "high": 6.5,
+   "low": 3.466666666666667,
+   "mean_a": 30.0,
+   "mean_b": 35.13333333333333,
+   "mean_diff": 5.133333333333334,
+   "method": "bca",
+   "n": 30,
+   "n_boot": 10000,
+   "note": "",
+   "passes": true
+  },
+  "reported": {
+   "food_no_steer": {
+    "alpha": 0.05,
+    "fraction_b_gt_a": 0.0,
+    "fraction_ties": 1.0,
+    "high": 0.0,
+    "low": 0.0,
+    "mean_a": 51.5,
+    "mean_b": 51.5,
+    "mean_diff": 0.0,
+    "method": "none",
+    "n": 30,
+    "n_boot": 0,
+    "note": "degenerate: all values equal, nothing resampled"
+   },
+   "track_rewards": {
+    "alpha": 0.05,
+    "fraction_b_gt_a": 0.5333333333333333,
+    "fraction_ties": 0.0,
+    "high": 3.5652936714402435,
+    "low": -1.2666666666666666,
+    "mean_a": 19.166666666666668,
+    "mean_b": 20.266666666666666,
+    "mean_diff": 1.1,
+    "method": "bca",
+    "n": 30,
+    "n_boot": 10000,
+    "note": ""
+   }
+  }
+ },
+ "configs": {
+  "fast": {
+   "history.channels": [
+    "taste",
+    "visit"
+   ],
+   "history.enabled": true,
+   "history.reward_context": [
+    "taste"
+   ],
+   "history.schema": {
+    "taste": [
+     -1.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  "none": {}
+ },
+ "phase": "confirmatory",
+ "quick": false,
+ "scores": [
+  {
+   "changes": 1,
+   "config": "none",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 1.0,
+    "L_visible": 1.0,
+    "controls": 0.9199999999999999,
+    "cues_L": 0.9666666666666667,
+    "cues_open": 0.955,
+    "hidden_food": 41.4,
+    "open_hidden": 1.0,
+    "open_visible": 1.0,
+    "track_learned": 30.0,
+    "track_reflex_no_reward": 23.733333333333334,
+    "track_reflex_no_steer": 23.733333333333334
+   }
+  },
+  {
+   "changes": 1,
+   "config": "fast",
+   "eligible": false,
+   "passed": 8,
+   "passes": {
+    "L_hidden": true,
+    "L_visible": true,
+    "controls": true,
+    "cues_L": true,
+    "cues_open": true,
+    "hidden_food": true,
+    "open_hidden": true,
+    "open_visible": true,
+    "track_learned": false,
+    "track_reflex_no_reward": false,
+    "track_reflex_no_steer": false
+   },
+   "values": {
+    "L_hidden": 0.99,
+    "L_visible": 0.99,
+    "controls": 0.9183333333333331,
+    "cues_L": 0.9700000000000001,
+    "cues_open": 0.9533333333333331,
+    "hidden_food": 46.3,
+    "open_hidden": 0.9916666666666667,
+    "open_visible": 0.9866666666666667,
+    "track_learned": 35.13333333333333,
+    "track_reflex_no_reward": 23.733333333333334,
+    "track_reflex_no_steer": 23.733333333333334
+   }
+  }
+ ],
+ "seeds": {
+  "food_seeds": [
+   47,
+   48,
+   49,
+   50,
+   51,
+   52,
+   53,
+   54,
+   55,
+   56,
+   57,
+   58,
+   59,
+   60,
+   61,
+   62,
+   63,
+   64,
+   65,
+   66,
+   67,
+   68,
+   69,
+   70,
+   71,
+   72,
+   73,
+   74,
+   75,
+   76
+  ],
+  "gate_seeds": [
+   245,
+   246,
+   247,
+   248,
+   249,
+   250,
+   251,
+   252,
+   253,
+   254,
+   255,
+   256,
+   257,
+   258,
+   259,
+   260,
+   261,
+   262,
+   263,
+   264,
+   265,
+   266,
+   267,
+   268,
+   269,
+   270,
+   271,
+   272,
+   273,
+   274
+  ],
+  "track_seeds": [
+   245,
+   246,
+   247,
+   248,
+   249,
+   250,
+   251,
+   252,
+   253,
+   254,
+   255,
+   256,
+   257,
+   258,
+   259,
+   260,
+   261,
+   262,
+   263,
+   264,
+   265,
+   266,
+   267,
+   268,
+   269,
+   270,
+   271,
+   272,
+   273,
+   274
+  ]
+ },
+ "track": {
+  "fast": {
+   "learned": {
+    "rest_share": 0.015111111111111112,
+    "rewards": 20.266666666666666,
+    "ticks_per_traversal": 58.916666666666664,
+    "traversals": 35.13333333333333
+   },
+   "no_reward": {
+    "rest_share": 0.017822222222222222,
+    "rewards": 0.0,
+    "ticks_per_traversal": 100.33333333333333,
+    "traversals": 23.733333333333334
+   },
+   "no_steer": {
+    "rest_share": 0.017822222222222222,
+    "rewards": 14.166666666666666,
+    "ticks_per_traversal": 100.33333333333333,
+    "traversals": 23.733333333333334
+   }
+  },
+  "none": {
+   "learned": {
+    "rest_share": 0.016777777777777777,
+    "rewards": 19.166666666666668,
+    "ticks_per_traversal": 72.9,
+    "traversals": 30.0
+   },
+   "no_reward": {
+    "rest_share": 0.017822222222222222,
+    "rewards": 0.0,
+    "ticks_per_traversal": 100.33333333333333,
+    "traversals": 23.733333333333334
+   },
+   "no_steer": {
+    "rest_share": 0.017822222222222222,
+    "rewards": 14.166666666666666,
+    "ticks_per_traversal": 100.33333333333333,
+    "traversals": 23.733333333333334
+   }
+  }
+ }
+}

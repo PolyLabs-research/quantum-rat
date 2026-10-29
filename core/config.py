@@ -441,6 +441,12 @@ class PlaceConfig:
     # circling measurement (G40) pointed to: the value at a just-emptied place outlasting the reward. Read by the
     # per-feature rule only.
     reward_unlearning_rate: Optional[float] = None
+    # reward_step_cap (G52): each cell's per-feature step is min(1, rate * phi_i), so a weight moves at most all the way
+    # to its target and never past it. Off, every registered run: with the unlearning rate 4 a step overshoots wherever
+    # one cell carries more than a quarter of phi (near walls in the open arena, a third of hidden food's ticks, |R|
+    # staying below 0.1) and diverges where one carries more than half (the 0.1 m track, where a cell reaches 0.92: G51's
+    # track runs with memory steering were made with weights that blew up).
+    reward_step_cap: bool = False
 
     def __post_init__(self) -> None:
         for name in ("spacing", "width", "max_rate", "sr_learning_rate", "reward_learning_rate"):
@@ -519,6 +525,16 @@ class BasalGangliaConfig:
     # leave the two turns tied tick after tick (the agent dithered at a track's ends, G44). 0 is off.
     wall_avoid_range: float = 1.0
     turn_commitment: float = 0.0
+    # orient_gain (M3 step 2, Part 2; docs/prereg/m3_step2.md): a target seen off to one side and not ahead adds this
+    # to the turn toward it, so the agent turns to face a reward it sees before it approaches (a rat orients to a seen
+    # reward). 1.0 outweighs FORWARD's bias of 0.8, set from that reason before any pilot; the approach's own drive
+    # (vision_gain x closeness) alone was too weak to turn the agent (the visible approach had rested on wall turning).
+    # 0 is off, every run so far.
+    orient_gain: float = 0.0
+    # unmotivated_rest (G52): REST's drive when the agent has no reason to move (motivation.enabled; the "idle" term is
+    # this times 1 - the drive). 1.0 outweighs FORWARD's bias (0.8) and a wall's pull to turn (at most 0.9), set from
+    # that reason: an agent with nothing to move for stops. Inert at a drive of 1 (motivation off: every run so far).
+    unmotivated_rest: float = 1.0
     dopamine_explore_gain: float = 0.6  # how strongly low dopamine boosts exploration
     # Neuromodulator control couplings (0 disables; defaults are no-ops at baseline
     # modulator levels NE=0, ACh=0, 5HT=0.5, so default behaviour is unchanged).
@@ -610,6 +626,61 @@ STOCHASTIC_PARAMETERS: Tuple[str, ...] = (
 )
 
 
+@dataclass
+class HistoryConfig:
+    """What the agent has sensed and done, and where (``brain.systems.history``; G52). Off by default.
+
+    ``channels``: the senses that write history (registered in ``brain.systems.history.CHANNELS``: "taste", "visit",
+    "sight"; more are added there). ``*_timescales``: each channel's trace timescales, in ticks (0.2 s): 2 s, 20 s and
+    200 s, a log-spaced basis spanning a lap, a trial and a regrowth, set before any run. ``visit_familiarisation``:
+    ticks spent at a place for it to become familiar (about ten seconds); ``visit_forgetting``: ticks for that to fade
+    (an hour: not within a session). ``reward_context``: the channels whose traces condition the SR's expected reward,
+    through weights learned from its prediction errors (what history means is learned). ``schema`` (G53): those
+    weights fixed instead, per reward-context channel, one per timescale; then R learns from its own error alone and
+    the history term is read on top (None: learned, as G52 built it). Needs place.enabled."""
+
+    enabled: bool = False
+    channels: Tuple[str, ...] = ("taste", "visit")
+    taste_timescales: Tuple[float, ...] = (10.0, 100.0, 1000.0)
+    sight_timescales: Tuple[float, ...] = (10.0, 100.0, 1000.0)
+    visit_familiarisation: float = 50.0
+    visit_forgetting: float = 18000.0
+    reward_context: Tuple[str, ...] = ("taste",)
+    schema: Optional[Dict[str, Tuple[float, ...]]] = None
+
+    def __post_init__(self) -> None:
+        # A schema read back from JSON (from_dict) holds lists; the field holds tuples, so a round trip diffs empty.
+        if self.schema is not None:
+            self.schema = {str(c): tuple(float(v) for v in u) for c, u in self.schema.items()}
+
+
+@dataclass
+class MotivationConfig:
+    """Loops that give the agent a reason to move (``brain.systems.motivation``; G52). Off by default (a drive of 1).
+
+    Each value set from a stated reason before any run, in ticks (0.2 s): curiosity rises within 2 s of novelty and
+    fades over 30 s after it; a meal registers after 30 s (``satiety_delay``) and is digested over 2 h; a rat sates on
+    about 150 pellets (``satiety_per_meal``); it starts food-restricted, as rats in such experiments are
+    (``hunger_initial`` 1); a reward lifts its expectation at once and the expectation fades over 2 min of none.
+    ``reasons``: the motives the drive composes (``brain.systems.motivation.REASONS``): ``forage`` is hunger itself
+    (G53: a food-restricted rat runs for food it has not found; G52 had it hunger × the reward trace, which left a
+    hungry agent resting), and the reward trace sets *vigour*, ``vigour_floor`` + (1 − floor) × trace, which scales
+    the forward bias (Niv, Daw, Joel & Dayan 2007: the reward rate sets how hard it works, not whether). Needs
+    history's visit channel (novelty)."""
+
+    enabled: bool = False
+    curiosity_rise: float = 10.0
+    curiosity_fall: float = 150.0
+    satiety_per_meal: float = 1.0 / 150.0
+    satiety_delay: int = 150
+    satiety_digestion: float = 36000.0
+    hunger_initial: float = 1.0
+    reward_trace_rise: float = 1.0
+    reward_trace_fall: float = 600.0
+    vigour_floor: float = 0.5
+    reasons: Tuple[str, ...] = ("explore", "forage")
+
+
 # The obstacles work's instrument, adopted by the research profile at the owner's decision (docs/decisions.md G50),
 # and the values every experiment registered before it pins so it still means what it said.
 RESEARCH_G50: Dict[str, Any] = {
@@ -619,12 +690,21 @@ RESEARCH_G50: Dict[str, Any] = {
     "sensors.free_space_sensing": True,
     "value_memory.reachable_probes": True,
 }
+# G52's cap on the per-feature reward step, adopted by the research profile at the owner's decision (docs/decisions.md
+# G53); every experiment registered before it pins the old value. PRE_G50 carries it too: the profile before G50 had
+# no cap either, so a pre-G50 registration still means what it said.
+# The fixed two-second taste schema (history; docs/decisions.md G54, confirmatory docs/prereg/history_fast_schema.md),
+# adopted by the research profile; every experiment registered before it pins history off. PRE_G53 carries it, as
+# PRE_G50 carries PRE_G53: a registration before G53 was before G54 too.
+PRE_G54: Dict[str, Any] = {"history.enabled": False, "history.schema": None}
+PRE_G53: Dict[str, Any] = {"place.reward_step_cap": False, **PRE_G54}
 PRE_G50: Dict[str, Any] = {
     "sensors.lateral_odometry": False,
     "sensors.landmark_sensing": False,
     "spatial.landmark_gain": 0.0,
     "sensors.free_space_sensing": False,
     "value_memory.reachable_probes": False,
+    **PRE_G53,
 }
 
 
@@ -657,6 +737,8 @@ class EngineConfig:
     trn: TRNConfig = field(default_factory=TRNConfig)
     working_memory: WorkingMemoryConfig = field(default_factory=WorkingMemoryConfig)
     basal_ganglia: BasalGangliaConfig = field(default_factory=BasalGangliaConfig)
+    history: HistoryConfig = field(default_factory=HistoryConfig)
+    motivation: MotivationConfig = field(default_factory=MotivationConfig)
 
     @classmethod
     def legacy(cls) -> "EngineConfig":
@@ -734,6 +816,16 @@ class EngineConfig:
           ``reward.shape_hidden = False`` (approach shaping reads visible targets
           only; a hidden goal still rewards on contact). The research baselines
           contain no hidden object and are unchanged by them.
+        - ``place.reward_step_cap = True`` (docs/decisions.md G53): each cell's per-feature reward step is at most
+          all the way to its target, min(1, rate × φᵢ). Inert at this profile's rate (0.5 × φ ≤ 1); it binds where a
+          scenario sets the renewable-reward unlearning rate. Every experiment registered before it pins the old
+          value (``PRE_G53``, carried by ``PRE_G50`` too).
+        - ``history.enabled = True`` with the taste and visit channels and ``history.schema = {"taste": (-1, 0,
+          0)}`` (docs/decisions.md G54): the SR's expected reward at a place is R less the taste trace two seconds
+          wide, "the place I am eating at is empty"; R keeps its rule. Confirmed on fresh seeds
+          (docs/prereg/history_fast_schema.md): 4.9 more hidden-food finds and 5.1 more track traversals a run, the
+          gate within 0.01. Every experiment registered before it pins history off (``PRE_G54``, carried by
+          ``PRE_G53`` and ``PRE_G50``).
 
         Nothing else differs. Not yet in this profile: replay as an event
         stream inside the engine (M3; the M2a linear-track experiments run
@@ -777,6 +869,14 @@ class EngineConfig:
         # the free space along its value fan and reads value only where it could go (inert without a solid near).
         for key, value in RESEARCH_G50.items():
             cfg.set_field(key, value)
+        # G52's cap on the per-feature reward step (docs/decisions.md G53): a weight never passes its target.
+        cfg.place.reward_step_cap = True
+        # History with the fixed two-second taste schema (docs/decisions.md G54; docs/prereg/history_fast_schema.md):
+        # "the place I am eating at is empty", read on top of R; the taste and visit channels write their traces.
+        cfg.history.enabled = True
+        cfg.history.channels = ("taste", "visit")
+        cfg.history.reward_context = ("taste",)
+        cfg.history.schema = {"taste": (-1.0, 0.0, 0.0)}
         return cfg
 
     def stochastic_elements(self) -> List[str]:
@@ -881,19 +981,22 @@ _NON_FINITE_TO_STR = {math.inf: "inf", -math.inf: "-inf"}
 _STR_TO_NON_FINITE = {"inf": math.inf, "-inf": -math.inf, "nan": math.nan}
 
 
+def _plain(value: Any) -> Any:
+    """A field's value as strict-JSON data: tuples to lists and non-finite floats to strings, inside a dict or a
+    list too (``history.schema`` holds tuples in a dict, G54)."""
+    if is_dataclass(value):
+        return _dataclass_to_plain(value)
+    if isinstance(value, (tuple, list)):
+        return [_plain(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _plain(v) for k, v in value.items()}
+    if isinstance(value, float) and not math.isfinite(value):
+        return "nan" if math.isnan(value) else _NON_FINITE_TO_STR[value]
+    return value
+
+
 def _dataclass_to_plain(obj: Any) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    for f in fields(obj):
-        value = getattr(obj, f.name)
-        if is_dataclass(value):
-            out[f.name] = _dataclass_to_plain(value)
-        elif isinstance(value, tuple):
-            out[f.name] = list(value)
-        elif isinstance(value, float) and not math.isfinite(value):
-            out[f.name] = "nan" if math.isnan(value) else _NON_FINITE_TO_STR[value]
-        else:
-            out[f.name] = value
-    return out
+    return {f.name: _plain(getattr(obj, f.name)) for f in fields(obj)}
 
 
 def _resolve_aliases(obj: Any, data: Mapping[str, Any], prefix: str) -> Dict[str, Any]:

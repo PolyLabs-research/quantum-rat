@@ -129,10 +129,11 @@ def test_every_registration_before_g46_pins_the_old_sensing() -> None:
     assert old.sensors.unseen_block_rays and old.reward.shape_hidden
     assert not new.sensors.unseen_block_rays and not new.reward.shape_hidden
     assert [d[0] for d in new.diff(old)] == ["sensors.unseen_block_rays", "reward.shape_hidden"]
-    from core.config import RESEARCH_G50
+    from core.config import PRE_G53, RESEARCH_G50
 
     now = rg.gate_config("sr", "per_feature")
-    assert sorted(d[0] for d in now.diff(new)) == sorted(RESEARCH_G50)  # G50's adoptions, and nothing else
+    # G50's adoptions, G53's cap and G54's history (PRE_G53 carries PRE_G54), nothing else
+    assert sorted(d[0] for d in now.diff(new)) == sorted({**RESEARCH_G50, **PRE_G53})
 
 
 def test_the_estimate_conditions() -> None:
