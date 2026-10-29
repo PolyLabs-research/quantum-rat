@@ -97,13 +97,20 @@ class StoredTransition:
     episode: int
     index: int
     cell: Cell
+    # The action taken (M3 step 3, the action value over the place code): a learner with ``update_action`` is backed
+    # up by it; empty for the M2a track rules, whose learners read the action off the geometry.
+    action: str = ""
 
     def backup(self, learner: Learner) -> float:
         """Apply this transition's TD backup to ``learner``; returns the TD error."""
+        if self.action and hasattr(learner, "update_action"):
+            return learner.update_action(self.x, self.y, self.action, self.reward, self.x_next, self.y_next, self.terminal)  # type: ignore[attr-defined]
         return learner.update(self.x, self.y, self.reward, self.x_next, self.y_next, self.terminal)
 
     def td_error(self, learner: Learner) -> float:
         """This transition's TD error under ``learner``'s current values, without a backup."""
+        if self.action and hasattr(learner, "td_error_action"):
+            return learner.td_error_action(self.x, self.y, self.action, self.reward, self.x_next, self.y_next, self.terminal)  # type: ignore[attr-defined]
         return learner.td_error(self.x, self.y, self.reward, self.x_next, self.y_next, self.terminal)
 
 

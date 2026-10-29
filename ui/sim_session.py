@@ -434,6 +434,14 @@ class SimSession:
             add("history", "History", "active",
                 f"traces per sense over the place code: channels {', '.join(hi.channels)}; the SR's expected reward reads "
                 f"R plus the {', '.join(hi.reward_context) or 'no'} schema ({schema}; G52-G54)")
+        if self.engine.action_learner is not None:
+            av, rp = cfg.action_value, cfg.replay
+            add("action_value", "Action value", "active" if vm.source == "action" else "readout",
+                f"Q(place, action) for FORWARD and the turns, learned every tick (rate {av.learning_rate:g}, γ {av.discount:g}, "
+                f"λ {av.lam:g}" + ("; φ at the true position" if av.oracle_state else "") + ")"
+                + (f"; replay {rp.rule}: {rp.backups_per_pause} backups at each {rp.consume_ticks}-tick consumption pause"
+                   if rp.rule != "none" else f"; no replay (a {rp.consume_ticks}-tick consumption pause)")
+                + ("; the steering reads it (M3 step 3)" if vm.source == "action" else "; nothing reads it"))
         if self.engine.motivation is not None:
             mo = cfg.motivation
             add("motivation", "Motivation", "active",

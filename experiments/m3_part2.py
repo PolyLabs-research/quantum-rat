@@ -133,7 +133,8 @@ def _track_job(job: Tuple[str, Mapping[str, Any], str, int, int]) -> Dict[str, A
     gaps = [b - a for a, b in zip(arrivals, arrivals[1:])]
     return {"config": cfg_name, "arm": arm, "seed": seed, "rewards": rewards, "traversals": len(gaps),
             "ticks_per_traversal": float(statistics.median(gaps)) if gaps else float(ticks),
-            "traversals_late": sum(1 for a in arrivals[1:] if a >= ticks // 2), "rest_share": rests / ticks}
+            "traversals_late": sum(1 for a in arrivals[1:] if a >= ticks // 2), "rest_share": rests / ticks,
+            "replay_events": len(eng.replay_log)}  # M3 step 3: the events the run's replay made (0 without one)
 
 
 def _food_job(job: Tuple[str, Mapping[str, Any], str, int, int]) -> Dict[str, Any]:
@@ -156,10 +157,12 @@ def _pool(fn, jobs, workers):
 
 
 def run_battery(configs: Mapping[str, Mapping[str, Any]], seeds: Mapping[str, Sequence[int]], trials: int, ticks: int,
-                workers: Optional[int]):
+                workers: Optional[int], base: Optional[Mapping[str, Any]] = None):
     """Every configuration (name -> overrides) through the battery: the gate, the track, hidden food, the open field, each
-    on ``BASE`` (the capped per-feature step) with the configuration's own fields on top."""
-    configs = {c: {**BASE, **dict(ov)} for c, ov in configs.items()}
+    on ``base`` (``BASE`` unless given: the capped per-feature step with history pinned off; M3 step 3 gives the profile
+    as G54 left it) with the configuration's own fields on top."""
+    base = BASE if base is None else dict(base)
+    configs = {c: {**base, **dict(ov)} for c, ov in configs.items()}
     gate = _pool(_gate_job, [(c, ov, cond, src, ses, s, trials) for c, ov in configs.items() for cond in GATE
                              for src in ("sr", "none") for ses in rg.SESSIONS for s in seeds["gate_seeds"]], workers)
     track = _pool(_track_job, [(c, ov, a, s, ticks) for c, ov in configs.items() for a in TRACK_ARMS for s in seeds["track_seeds"]], workers)

@@ -470,7 +470,7 @@ class PlaceConfig:
 REWARD_RULES: Tuple[str, ...] = ("nlms", "per_feature")
 
 
-VALUE_SOURCES: Tuple[str, ...] = ("tabular", "sr", "none")
+VALUE_SOURCES: Tuple[str, ...] = ("tabular", "sr", "none", "action")  # "action": the learned action value (M3 step 3)
 
 
 @dataclass
@@ -681,6 +681,52 @@ class MotivationConfig:
     reasons: Tuple[str, ...] = ("explore", "forage")
 
 
+@dataclass
+class ActionValueConfig:
+    """A learned action value over the place code (M3 step 3; docs/prereg/m3_step3.md). Off by default.
+
+    Q(φ, a) = w_a · φ for the three movement actions, learned every tick from the agent's own transitions by
+    Q-learning with eligibility traces (``brain.systems.action_value.LinearQ``) and by replay (``replay``), and read
+    by the steering as the memory term when ``value_memory.source == "action"``. ``discount`` 0.98: a full-speed
+    traversal of the track (36 ticks) lies within the horizon (0.98³⁶ = 0.48); ``lam`` 0.9: a reward's credit reaches
+    back about a traversal; ``learning_rate`` 0.1; ``traces`` replacing. ``oracle_state``: φ read at the body's true
+    position instead of the estimate (the positive control the plan names for step 4). Needs place.enabled."""
+
+    enabled: bool = False
+    learning_rate: float = 0.1
+    discount: float = 0.98
+    lam: float = 0.9
+    traces: str = "replacing"
+    oracle_state: bool = False
+
+
+REPLAY_RULES: Tuple[str, ...] = ("none", "uniform", "reverse", "gain_need")
+
+
+@dataclass
+class ReplayConfig:
+    """Replay as an in-engine event stream at the reward-consumption pause (M3 step 3). ``rule`` "none" by default.
+
+    When the agent eats, the body rests for ``consume_ticks`` (5: one second; the rat stops to eat) and on the
+    pause's first tick the rule backs up ``backups_per_pause`` (20, M2a's fixed budget) transitions from a memory of
+    the last ``memory_capacity`` ticks (3,000: a run) into the action value, recorded as one ``ReplayEvent`` in
+    ``engine.replay_log``. Rules: "none"; "uniform" (drawn from the ``replay`` RNG stream); "reverse" (the current
+    episode's transitions, most recent first); "gain_need" (Mattar & Daw's EVB with the forward n-step extension on
+    the action value, need from the SR row). Needs ``action_value.enabled`` for any rule but "none" and leaves the
+    legacy microsleep replay (``value_memory.replay_recent``, ``trn``) as it is."""
+
+    rule: str = "none"
+    backups_per_pause: int = 20
+    consume_ticks: int = 5
+    memory_capacity: int = 3000
+
+    def __post_init__(self) -> None:
+        if self.rule not in REPLAY_RULES:
+            raise ValueError(f"replay.rule must be one of {REPLAY_RULES}, got {self.rule!r}")
+        if self.backups_per_pause < 0 or self.consume_ticks < 0 or self.memory_capacity < 1:
+            raise ValueError("replay.backups_per_pause and consume_ticks must be >= 0 and memory_capacity >= 1")
+
+
 # The obstacles work's instrument, adopted by the research profile at the owner's decision (docs/decisions.md G50),
 # and the values every experiment registered before it pins so it still means what it said.
 RESEARCH_G50: Dict[str, Any] = {
@@ -739,6 +785,8 @@ class EngineConfig:
     basal_ganglia: BasalGangliaConfig = field(default_factory=BasalGangliaConfig)
     history: HistoryConfig = field(default_factory=HistoryConfig)
     motivation: MotivationConfig = field(default_factory=MotivationConfig)
+    action_value: ActionValueConfig = field(default_factory=ActionValueConfig)
+    replay: ReplayConfig = field(default_factory=ReplayConfig)
 
     @classmethod
     def legacy(cls) -> "EngineConfig":
