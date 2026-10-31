@@ -242,10 +242,119 @@ class AstrocyteConfig:
     frozen: bool = False
 
 
+NEUROMOD_MODELS: Tuple[str, ...] = ("legacy", "biological")
+
+
 @dataclass
 class NeuromodConfig:
     reward_lr: float = 0.1  # EMA rate of the running mean of reward (DA = reward - this mean)
     rpe_scale: float = 1.0  # scale of (reward - running mean) in DA and of the mean in 5HT
+    # The biological model (the whole, docs/prereg/whole_resource.md §2.2; G56). "legacy": the four scalar traces above
+    # (core.neuromodulation). "biological": each modulator in its role (brain.systems.neuromodulators), each on only
+    # when its part is (a part that is off holds its neutral level: DA 0.5, 5HT 0.5, NE 0, ACh 0). Every number below
+    # is the preregistration's, set from its stated reason before any run.
+    model: str = "legacy"
+    dopamine: bool = False  # phasic = the TD error; tonic = the reward trace, which sets vigour; budgets replay
+    serotonin: bool = False  # satiety: post-ingestive rest
+    noradrenaline: bool = False  # surprise (|TD error|) raises the softmax temperature
+    acetylcholine: bool = False  # novelty and movement: encoding (the SR's learning rate) against consolidation (replay)
+    tonic_fall: float = 600.0  # ticks: the reward trace falls over 2 minutes without reward
+    vigour_floor: float = 0.5  # vigour = floor + (1 - floor) x the reward trace
+    replay_budget: int = 20  # backups at a meal at the largest |TD error| (M2a's fixed budget)
+    delta_ref: float = 0.5  # the |TD error| that earns the full replay budget and saturates the traces
+    ne_fall: float = 50.0  # ticks: noradrenaline falls over 10 s after a surprise
+    ne_temperature_gain: float = 2.0  # softmax temperature x (1 + gain x NE)
+    ach_novelty_weight: float = 0.5
+    ach_motion_weight: float = 0.5
+    ach_replay_threshold: float = 0.3  # awake replay only at or below this ACh
+    satiety_band: float = 0.2  # 5HT's satiety rises from setpoint - band to the setpoint
+
+    def __post_init__(self) -> None:
+        if self.model not in NEUROMOD_MODELS:
+            raise ValueError(f"neuromod.model must be one of {NEUROMOD_MODELS}, got {self.model!r}")
+        parts = (self.dopamine, self.serotonin, self.noradrenaline, self.acetylcholine)
+        if any(parts) and self.model != "biological":
+            raise ValueError("a neuromodulator part needs neuromod.model = 'biological'")
+
+
+@dataclass
+class MetabolismConfig:
+    """The body's energy balance (the whole, docs/prereg/whole_resource.md §2.1; G56): physics, not brain. Off by default.
+
+    A reserve E in [0, 1] (``start`` 0.6) pays ``basal_cost`` a tick at rest (full to empty in 30 minutes: a
+    compressed store, declared), plus ``locomotion_factor`` times that at full speed (about three times resting in all,
+    the order of a rat's rise in oxygen uptake from rest to a steady run), ``sleep_factor`` of it asleep. A meal of
+    ``food_energy`` enters the gut and is absorbed with time constant ``absorption_time`` (1 minute, compressed); it
+    takes ``consume_ticks`` (1 s), the body resting. E is capped at 1 (the excess is lost); at 0 the agent has starved
+    (``ctx.starved``; the task decides what that ends). ``food_energy`` is set by the task's calibration
+    (docs/prereg/whole_resource.md §3)."""
+
+    enabled: bool = False
+    start: float = 0.6
+    basal_cost: float = 1.0 / 9000.0
+    locomotion_factor: float = 2.0
+    sleep_factor: float = 0.8
+    absorption_time: float = 300.0
+    food_energy: float = 0.075
+    consume_ticks: int = 5
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.start <= 1.0):
+            raise ValueError("metabolism.start must be in [0, 1]")
+        if self.basal_cost < 0.0 or self.locomotion_factor < 0.0 or self.sleep_factor < 0.0:
+            raise ValueError("metabolism costs must be non-negative")
+        if self.absorption_time <= 0.0 or self.food_energy <= 0.0 or self.consume_ticks < 0:
+            raise ValueError("metabolism.absorption_time and food_energy must be positive and consume_ticks >= 0")
+
+
+@dataclass
+class InteroceptionConfig:
+    """The agent's sense of its own energy (the whole, docs/prereg/whole_resource.md §2.2; G56). Off by default.
+
+    Reads E_eff = reserve + gut against ``setpoint`` 0.8. Reward is drive reduction (Keramati & Gutkin 2014): a meal
+    brings [D(E_eff) - D(E_eff + K)] / [D(0) - D(K)], D(x) = ((x - setpoint)/setpoint)^2; the consummatory reflex eats
+    on contact only when that is positive. Hunger saturates at ``hunger_floor`` (0.4: an animal is fully motivated
+    long before its reserve is empty). The incentive (the reward a meal would bring now, clipped to [0, 1]) scales the
+    memory term (``incentive_memory``) and vision's pull to food (``incentive_vision``). Needs metabolism."""
+
+    enabled: bool = False
+    setpoint: float = 0.8
+    hunger_floor: float = 0.4
+    incentive_memory: bool = True
+    incentive_vision: bool = True
+
+    def __post_init__(self) -> None:
+        if not (0.0 < self.hunger_floor < self.setpoint <= 1.0):
+            raise ValueError("interoception needs 0 < hunger_floor < setpoint <= 1")
+
+
+@dataclass
+class SleepConfig:
+    """Homeostatic sleep (the whole, docs/prereg/whole_resource.md §2.2; G56). Off by default.
+
+    Sleep pressure S rises in wake toward 1 with time constant ``wake_time_constant`` and falls in sleep with
+    ``sleep_time_constant`` (Borbély 1982's process S; compressed and polyphasic: wake bouts of about 10 minutes, sleep
+    of about 2). Sleep starts when S >= ``onset``, hunger < ``hunger_blocks_onset`` (hunger keeps an animal awake;
+    Yamanaka et al. 2003) and no pain; it ends when S <= ``offset``, hunger >= ``hunger_wakes`` or pain. Asleep, the
+    thalamic gate is closed (no sensory input reaches selection: the body rests) and replay runs ``replay_per_tick``
+    backups a tick when the replay part is on."""
+
+    enabled: bool = False
+    wake_time_constant: float = 3000.0
+    sleep_time_constant: float = 600.0
+    onset: float = 0.6
+    offset: float = 0.2
+    hunger_blocks_onset: float = 0.25
+    hunger_wakes: float = 0.5
+    replay_per_tick: int = 2
+
+    def __post_init__(self) -> None:
+        if self.wake_time_constant <= 0.0 or self.sleep_time_constant <= 0.0:
+            raise ValueError("sleep time constants must be positive")
+        if not (0.0 <= self.offset < self.onset <= 1.0):
+            raise ValueError("sleep needs 0 <= offset < onset <= 1")
+        if self.replay_per_tick < 0:
+            raise ValueError("sleep.replay_per_tick must be >= 0")
 
 
 @dataclass
@@ -470,7 +579,8 @@ class PlaceConfig:
 REWARD_RULES: Tuple[str, ...] = ("nlms", "per_feature")
 
 
-VALUE_SOURCES: Tuple[str, ...] = ("tabular", "sr", "none", "action")  # "action": the learned action value (M3 step 3)
+# "action": the learned action value (M3 step 3); "sr_action": both, the SR's signals plus the action value's (G56)
+VALUE_SOURCES: Tuple[str, ...] = ("tabular", "sr", "none", "action", "sr_action")
 
 
 @dataclass
@@ -546,6 +656,10 @@ class BasalGangliaConfig:
     # vision_gain: 0 = off, the default; at 1.0 it flips no decision in the
     # probed worlds (tools/probes/dormant_couplings).
     criticality_gain: float = 0.0
+    # criticality_scales_walls (the whole, G56): the criticality gain also scales wall avoidance, so the dynamic range of
+    # sensory processing (docs/prereg/whole_resource.md §2.2) reaches every vision-derived term, not only the pull to
+    # targets. False: walls are read at full gain, every result before G56.
+    criticality_scales_walls: bool = False
     # Softmax action selection. 0 (default): the deterministic argmax over the
     # channel scores with its fixed tie order (ACTION_ORDER), no RNG draw. tau > 0:
     # the action is sampled with probability proportional to exp((s_i - max_j
@@ -679,6 +793,9 @@ class MotivationConfig:
     reward_trace_fall: float = 600.0
     vigour_floor: float = 0.5
     reasons: Tuple[str, ...] = ("explore", "forage")
+    # hunger_source (the whole, G56): "meals", G53's estimate (hunger_initial less a satiety loop that counts meals);
+    # "interoception", the sensed energy deficit (interoception's hunger), falling back to "meals" without it.
+    hunger_source: str = "meals"
 
 
 @dataclass
@@ -707,6 +824,9 @@ class ActionValueConfig:
     oracle_state: bool = False
     history_features: bool = False
     read_floor: float = 0.02
+    # read_gain (the whole, G56): with value_memory.source "sr_action" the memory term is the SR's split signals plus
+    # this times the action value's.
+    read_gain: float = 1.0
 
 
 REPLAY_RULES: Tuple[str, ...] = ("none", "uniform", "reverse", "gain_need")
@@ -728,6 +848,12 @@ class ReplayConfig:
     backups_per_pause: int = 20
     consume_ticks: int = 5
     memory_capacity: int = 3000
+    # sr_replay (the whole, G56; docs/prereg/whole_resource.md §2.2): replay that updates the successor map M only
+    # (SR-Dyna, Russek et al. 2017): at a meal the current episode's last transitions in reverse (the budget from
+    # dopamine, else backups_per_pause), when acetylcholine allows; asleep, sleep.replay_per_tick transitions a tick
+    # drawn uniformly from the last sr_memory_capacity. Independent of ``rule`` (which replays the action value).
+    sr_replay: bool = False
+    sr_memory_capacity: int = 3000
 
     def __post_init__(self) -> None:
         if self.rule not in REPLAY_RULES:
@@ -801,6 +927,9 @@ class EngineConfig:
     motivation: MotivationConfig = field(default_factory=MotivationConfig)
     action_value: ActionValueConfig = field(default_factory=ActionValueConfig)
     replay: ReplayConfig = field(default_factory=ReplayConfig)
+    metabolism: MetabolismConfig = field(default_factory=MetabolismConfig)
+    interoception: InteroceptionConfig = field(default_factory=InteroceptionConfig)
+    sleep: SleepConfig = field(default_factory=SleepConfig)
 
     @classmethod
     def legacy(cls) -> "EngineConfig":
@@ -1130,6 +1259,10 @@ __all__ = [
     "BasalGangliaConfig",
     "EngineConfig",
     "HEADING_SOURCES",
+    "InteroceptionConfig",
+    "MetabolismConfig",
+    "NEUROMOD_MODELS",
+    "SleepConfig",
     "VALUE_SOURCES",
     "STOCHASTIC_PARAMETERS",
     "config_diff",

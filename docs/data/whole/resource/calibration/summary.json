@@ -1,0 +1,23 @@
+{
+ "calibration": {
+  "K": 0.065,
+  "cost_per_meal": 0.06382592592593171,
+  "meals": 126,
+  "would_have_spent": 8.042066666667395
+ },
+ "configs": {
+  "base": {
+   "place.reward_step_cap": true
+  }
+ },
+ "food_energy": 0.075,
+ "phase": "calibrate",
+ "quick": false,
+ "seeds": [
+  1001,
+  1002,
+  1003,
+  1004
+ ],
+ "ticks": 9000
+}

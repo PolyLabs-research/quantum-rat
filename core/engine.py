@@ -17,7 +17,11 @@ from brain.systems.basal_ganglia import (
     split_value_signals,
     wall_gate_signals,
 )
-from brain.systems.criticality import CriticalityField, near_critical_gain
+from brain.systems.criticality import CriticalityField, HomeostaticCoupling, near_critical_gain
+from brain.systems.interoception import hunger as interoceptive_hunger
+from brain.systems.interoception import incentive as meal_incentive
+from brain.systems.interoception import meal_reward
+from brain.systems.interoception import satiety as interoceptive_satiety
 from brain.systems.replay_events import (
     DIRECTION_FORWARD,
     DIRECTION_REVERSE,
@@ -119,6 +123,24 @@ class EngineContext:
     target_contact: bool = False  # touching a target this tick (the primary contact reward)
     goal_vector_active: bool = False  # the value signals came from the goal-vector memory
     previous_action: str = "REST"  # the action chosen on the tick before this decision (the turn commitment's input)
+    # The whole (G56; docs/prereg/whole_resource.md), readouts: the body's energy (reserve and gut; 0 without
+    # metabolism) and whether it has starved; the energy eaten this tick, the object it came from and the meal's
+    # reward; interoception's hunger and incentive (0 and 1 without it); the TD error dopamine read; sleep and its
+    # pressure; the criticality distance m; the softmax temperature and vision's gain on targets this tick.
+    energy: float = 0.0
+    gut: float = 0.0
+    starved: bool = False
+    ingested: float = 0.0
+    ingested_object: Any = None
+    meal_value: float = 0.0
+    hunger: float = 0.0
+    incentive: float = 1.0
+    td_error: float = 0.0
+    asleep: bool = False
+    sleep_pressure: float = 0.0
+    criticality_m: float = 1.0
+    temperature: float = 0.0
+    target_gain: float = 1.0
     tick_data: TickData | None = None
 
 
@@ -252,7 +274,7 @@ class Engine:
         self.sr_weights = None
         self._sr_prev = None
         self._sr_u = None
-        if c.value_memory.source in ("sr", "action"):  # "action" (M3 step 3) keeps the SR too: need reads its rows
+        if c.value_memory.source in ("sr", "action", "sr_action"):  # "action" (M3 step 3) keeps the SR too: need reads its rows
             if self.place is None:
                 raise ValueError(f"value_memory.source {c.value_memory.source!r} needs place.enabled = True")
             import numpy as np
@@ -310,8 +332,47 @@ class Engine:
             self.replay_rule = self._make_replay_rule(c.replay.rule)
         elif c.replay.rule != "none":
             raise ValueError("replay.rule needs action_value.enabled = True (the rule backs up the action value)")
-        if c.value_memory.source == "action" and self.action_learner is None:
-            raise ValueError("value_memory.source 'action' needs action_value.enabled = True")
+        if c.value_memory.source in ("action", "sr_action") and self.action_learner is None:
+            raise ValueError(f"value_memory.source {c.value_memory.source!r} needs action_value.enabled = True")
+        # The whole (G56; docs/prereg/whole_resource.md §2), every part off by default: the body's metabolism,
+        # interoception, the neuromodulators in their roles, homeostatic sleep, criticality as a state variable, and
+        # replay of the successor map.
+        self.metabolism = None
+        if c.metabolism.enabled:
+            from core.metabolism import Metabolism
+
+            mc = c.metabolism
+            self.metabolism = Metabolism(mc.start, mc.basal_cost, mc.locomotion_factor, mc.sleep_factor, mc.absorption_time)
+        if c.interoception.enabled and self.metabolism is None:
+            raise ValueError("interoception.enabled needs metabolism.enabled (there is no energy to sense)")
+        self.bio_neuromod = None
+        if c.neuromod.model == "biological":
+            from brain.systems.neuromodulators import BiologicalNeuromodulators
+
+            self.bio_neuromod = BiologicalNeuromodulators(c.neuromod)
+        self.sleep = None
+        if c.sleep.enabled:
+            from brain.systems.sleep import SleepHomeostat
+
+            sc = c.sleep
+            self.sleep = SleepHomeostat(sc.wake_time_constant, sc.sleep_time_constant, sc.onset, sc.offset,
+                                        sc.hunger_blocks_onset, sc.hunger_wakes)
+        self.crit_coupling = None
+        if c.criticality.dynamic:
+            self.crit_coupling = HomeostaticCoupling(c.criticality.critical_coupling, c.criticality.sleep_coupling,
+                                                     c.criticality.homeostasis_time)
+        self.sr_replay = None
+        if c.replay.sr_replay:
+            if self.sr is None:
+                raise ValueError("replay.sr_replay needs the successor features (value_memory.source 'sr' or 'sr_action')")
+            from brain.systems.sr_replay import SRReplay
+
+            self.sr_replay = SRReplay(c.replay.sr_memory_capacity)
+        self._hunger = 0.0  # interoception's hunger at the end of the last brain step (sleep reads it)
+        self._v_prev = None  # incentive x SR value at the last tick's estimate (dopamine's TD error)
+        self._sr_prev_pos = None  # the estimate at the last online SR step (the map replay's transitions)
+        self._sleep_event = None  # the replay event of a sleep in progress
+        self._replay_pending: int | None = None  # a meal's replay budget, waiting for acetylcholine to allow it
         self.working_memory = WorkingMemory(capacity=c.working_memory.capacity)
         self.last_action: Action = Action(name="REST", thrust=0.0, turn=0.0)
         self.pipeline = Pipeline(
@@ -347,6 +408,17 @@ class Engine:
         ctx.energy_scale = throttle if a.scales_motion else 1.0
         ctx.atp = self.astrocyte.atp
         ctx.glycogen = self.astrocyte.glycogen
+        if self.metabolism is not None:  # the body's energy balance (G56): last tick's movement is paid for now
+            self.metabolism.tick(self.speed_fraction(), asleep=self.sleep is not None and self.sleep.asleep)
+            ctx.energy, ctx.gut, ctx.starved = self.metabolism.reserve, self.metabolism.gut, self.metabolism.starved
+
+    def speed_fraction(self) -> float:
+        """How fast the body moved on the last tick, as a fraction of full speed: the rodent body's speed over its run
+        speed, the discrete body's last thrust (what metabolism charges locomotion by; G56)."""
+        if self.body is not None:
+            run = self.config.body.run_speed
+            return self.body.speed / run if run > 0.0 else 0.0
+        return abs(self.last_action.thrust)
 
     def _world_step(self, ctx: EngineContext) -> None:
         if self.body is not None:
@@ -373,6 +445,11 @@ class Engine:
         ctx.observation_checksum = observation_checksum(obs)
 
     def _trn_step(self, ctx: EngineContext) -> None:
+        # The dynamic coupling (G56): the lattice's distance from criticality follows the sleep pressure, tuned back
+        # homeostatically (last tick's pressure: sleep steps below).
+        if self.crit_coupling is not None:
+            ctx.criticality_m = self.crit_coupling.step(self.sleep.pressure if self.sleep is not None else 0.0)
+            self.criticality.coupling_override = self.crit_coupling.coupling
         # Update criticality metrics before gating
         crit = self.criticality.step()
         ctx.kappa = crit.kappa
@@ -383,9 +460,18 @@ class Engine:
         self.trn_gate.update_microsleep(ctx.atp)
         ctx.microsleep_active = self.trn_gate.microsleep.active
         ctx.microsleep_ticks_remaining = self.trn_gate.microsleep.ticks_remaining
+        # Homeostatic sleep (G56): asleep, the thalamic gate is closed, so no sensory input reaches selection (the
+        # arbiter's microsleep branch: REST alone). Hunger is the last brain step's.
+        if self.sleep is not None:
+            pain = ctx.observation.pain_signal if ctx.observation is not None else 0.0
+            ctx.asleep = self.sleep.step(self._hunger, pain)
+            ctx.sleep_pressure = self.sleep.pressure
+            ctx.microsleep_active = ctx.microsleep_active or ctx.asleep
 
         # TRN gating based on atp/kappa/microsleep
         state, gate_val = self.trn_gate.trn_state(ctx.atp, ctx.kappa)
+        if ctx.asleep:
+            state, gate_val = "CLOSED", 0.0
         ctx.trn_state = state
         ctx.trn_gate_value = gate_val
 
@@ -574,11 +660,34 @@ class Engine:
                 reward += r.approach_weight * (self._prev_target_dist - dist)
             self._prev_target_dist = dist
             self._prev_target = (obj, obj.x, obj.y)
-        if ctx.target_contact:
+        if self.metabolism is not None:  # G56: touching food is a meal only when the consummatory reflex eats it
+            meal = self._ingest(ctx, nearest)
+            reward += meal
+            primary += meal
+        elif ctx.target_contact:
             reward += r.contact_bonus
             primary += r.contact_bonus
         ctx.map_reward = reward if learn_shaping else primary
         return reward
+
+    def _ingest(self, ctx: EngineContext, nearest: Tuple[float, WorldObject] | None) -> float:
+        """The consummatory reflex (G56; docs/prereg/whole_resource.md §2): on contact with food, eat it unless a meal is
+        under way or the agent has starved; with interoception only when the meal would reduce the drive. Returns the
+        meal's reward: interoception's drive reduction, or the contact bonus for an agent that does not sense its need."""
+        ctx.ingested, ctx.ingested_object, ctx.meal_value = 0.0, None, 0.0
+        if not ctx.target_contact or nearest is None or self._consume_remaining > 0 or self.metabolism.starved:
+            return 0.0
+        energy = self.config.metabolism.food_energy
+        if self.config.interoception.enabled:
+            value = meal_reward(self.metabolism.effective, energy, self.config.interoception.setpoint)
+            if value <= 0.0:
+                return 0.0
+        else:
+            value = self.config.reward.contact_bonus
+        self.metabolism.eat(energy)
+        self._consume_remaining = self.config.metabolism.consume_ticks
+        ctx.ingested, ctx.ingested_object, ctx.meal_value = energy, nearest[1], value
+        return value
 
     # Directions (relative to heading) the value map is consulted along. The side
     # fans reach ~80 degrees so a value peak off to the side reads as "turn that
@@ -589,14 +698,22 @@ class Engine:
     # Largest sampled advantage below which the map counts as locally flat.
     VALUE_FLAT = 1e-3
 
-    def _sr_learn(self, reward: float) -> None:
+    def _sr_learn(self, reward: float, lr_scale: float = 1.0, pos: Tuple[float, float] | None = None) -> None:
         """One online step of the SR value source (M2b step 4): the TD backup of the transition from the previous tick's
-        features to this tick's, then the reward weights by normalised LMS on the reward received on arrival here."""
+        features to this tick's, then the reward weights by normalised LMS on the reward received on arrival here.
+        ``lr_scale`` multiplies the successor features' learning rate (acetylcholine, G56); with the map replay on, the
+        transition is also stored at its positions ``pos`` (the estimate)."""
         from brain.systems.successor_features import normalised
 
         phi = normalised(self.place_rates)
         if self._sr_prev is not None:
-            self.sr.update(self._sr_prev, phi)
+            self.sr.update(self._sr_prev, phi, lr_scale=lr_scale)
+            if self.sr_replay is not None and self._sr_prev_pos is not None and pos is not None:
+                from brain.systems.sr_replay import MapTransition
+
+                x0, y0 = self._sr_prev_pos
+                self.sr_replay.store(MapTransition(x0, y0, pos[0], pos[1], self.episode, self.spatial.bins_at(x0, y0)))
+        self._sr_prev_pos = pos
         rate = self.config.place.reward_learning_rate
         if self.config.place.reward_rule == "per_feature":
             # G41: on a tick that sees no reward the weights fall toward 0 at the active cells at the unlearning rate
@@ -746,13 +863,73 @@ class Engine:
         self.replay_log.append(outcome.event)
         ctx.replay_event_cells = outcome.event.cells
 
-    def _after_selection(self, ctx: EngineContext, action: Action) -> Action:
-        """The consumption pause (the body rests while it eats) and the next transition's start."""
+    def _pause_action(self, ctx: EngineContext, action: Action) -> Action:
+        """The consumption pause: while a meal is under way the body rests."""
         ctx.consuming = False
         if self._consume_remaining > 0:
             self._consume_remaining -= 1
             ctx.consuming = True
             action = Action(name="REST", thrust=0.0, turn=0.0)
+        return action
+
+    def _sr_replay_step(self, ctx: EngineContext, delta: float) -> None:
+        """Replay of the successor map (G56; docs/prereg/whole_resource.md §2.2): at a meal, the episode's last
+        transitions newest first (the budget from dopamine's |TD error|, else the fixed one) when acetylcholine allows,
+        recorded as one event; asleep, ``sleep.replay_per_tick`` uniform draws a tick, one event per sleep bout."""
+        from brain.systems.replay_events import (
+            DIRECTION_NEITHER,
+            RULE_REVERSE_TRAJECTORY,
+            RULE_UNIFORM,
+            TRIGGER_REWARD,
+            TRIGGER_SLEEP,
+            OpenReplayEvent,
+            ReplayEvent,
+        )
+        from brain.systems.replay_rules import sequence_direction
+
+        bio = self.bio_neuromod
+        if ctx.ingested > 0.0:  # the budget is set by the meal's surprise; the sweep waits for the still body
+            default = self.config.replay.backups_per_pause
+            self._replay_pending = bio.replay_budget(delta, default) if bio is not None else default
+        if self._replay_pending is not None and not (bio is None or bio.replay_allowed()):
+            if self._consume_remaining == 0 and ctx.ingested == 0.0:
+                self._replay_pending = None  # the meal is over and acetylcholine never allowed it
+        elif self._replay_pending is not None:
+            budget, self._replay_pending = self._replay_pending, None
+            sweep = self.sr_replay.reverse_sweep(self.episode, budget)
+            if sweep:
+                self._replay_map(sweep)
+                direction, _ = sequence_direction([t.x for t in sweep], 1)
+                cells = tuple(t.cell for t in sweep)
+                self.replay_log.append(ReplayEvent(tick_start=ctx.tick, tick_end=ctx.tick, trigger=TRIGGER_REWARD,
+                                                   rule=RULE_REVERSE_TRAJECTORY, cells=cells, direction=direction,
+                                                   start_cell=cells[0], n_backups=len(cells), span=len(self.sr_replay.memory)))
+                ctx.replay_event_cells = cells
+        if ctx.asleep and self.config.sleep.replay_per_tick > 0:
+            draws = self.sr_replay.draws(self.config.sleep.replay_per_tick, self.streams["replay"])
+            if draws:
+                if self._sleep_event is None:
+                    self._sleep_event = OpenReplayEvent(ctx.tick, TRIGGER_SLEEP, RULE_UNIFORM, DIRECTION_NEITHER, len(self.sr_replay.memory))
+                self._sleep_event.tick(ctx.tick)
+                self._replay_map(draws)
+                for t in draws:
+                    self._sleep_event.backup(ctx.tick, t.cell)
+        elif not ctx.asleep and self._sleep_event is not None:
+            finished = self._sleep_event.close()
+            self._sleep_event = None
+            if finished is not None:
+                self.replay_log.append(finished)
+
+    def _replay_map(self, transitions) -> None:
+        """Back the successor features up along stored transitions (positions in the estimate frame)."""
+        for t in transitions:
+            self.sr.update(self._phi_at(t.x, t.y), self._phi_at(t.x_next, t.y_next))
+            self.sr_replay.backups += 1
+        self._sr_u = None  # M changed
+
+    def _after_selection(self, ctx: EngineContext, action: Action) -> Action:
+        """The consumption pause (the body rests while it eats) and the next transition's start."""
+        action = self._pause_action(ctx, action)
         if action.name in ACTION_VALUE_ACTIONS and self._av_phi is not None:
             x, y = self._av_position(ctx)
             self._av_prev = (self._av_phi, action.name, x, y, self.spatial.bins_at(x, y))
@@ -783,23 +960,41 @@ class Engine:
         ``goal_vector_flat`` hands over to ``goal_vector_signals``: turn toward
         the remembered goal's place.
         """
-        if self.config.value_memory.source == "none":
+        source = self.config.value_memory.source
+        if source == "none":
             ctx.goal_vector_active = False
             return 0.0, 0.0, 0.0  # no value steering (M2b step 4's control)
-        if self.config.value_memory.source == "action":  # M3 step 3: the learned action value, read at the agent's own place
+        if source == "action":  # M3 step 3: the learned action value, read at the agent's own place
             ctx.goal_vector_active = False
-            ahead, left, right = ctx.action_values
-            scale = max(abs(ahead), abs(left), abs(right))
-            if scale < self.config.action_value.read_floor:  # amendment A1: a preference below the floor is noise
-                return 0.0, 0.0, 0.0
-            bg = self.config.basal_ganglia
-            if bg.value_steer == "split":
-                return split_value_signals(ahead, left, right, scale, bg)
-            if bg.value_steer != "maxnorm":
-                raise ValueError(f"Unknown value_steer {bg.value_steer!r}; expected one of {VALUE_STEER_MODES}")
-            if scale < self.VALUE_FLAT:
-                return 0.0, 0.0, 0.0
-            return ahead / scale, left / scale, right / scale
+            return self._action_value_read(ctx)
+        signals = self._spatial_value_signals(ctx)
+        ic = self.config.interoception
+        if source in ("sr", "sr_action") and ic.enabled and ic.incentive_memory:
+            # G56: the SR's value is revalued at once by the present state (the incentive of a meal now)
+            signals = (ctx.incentive * signals[0], ctx.incentive * signals[1], ctx.incentive * signals[2])
+        if source == "sr_action":  # G56: the model-free action value read beside it, not revalued
+            q = self._action_value_read(ctx)
+            g = self.config.action_value.read_gain
+            signals = (signals[0] + g * q[0], signals[1] + g * q[1], signals[2] + g * q[2])
+        return signals
+
+    def _action_value_read(self, ctx: EngineContext) -> Tuple[float, float, float]:
+        """The action value's advantages as steering signals (M3 step 3; the read floor of amendment A1)."""
+        ahead, left, right = ctx.action_values
+        scale = max(abs(ahead), abs(left), abs(right))
+        if scale < self.config.action_value.read_floor:  # amendment A1: a preference below the floor is noise
+            return 0.0, 0.0, 0.0
+        bg = self.config.basal_ganglia
+        if bg.value_steer == "split":
+            return split_value_signals(ahead, left, right, scale, bg)
+        if bg.value_steer != "maxnorm":
+            raise ValueError(f"Unknown value_steer {bg.value_steer!r}; expected one of {VALUE_STEER_MODES}")
+        if scale < self.VALUE_FLAT:
+            return 0.0, 0.0, 0.0
+        return ahead / scale, left / scale, right / scale
+
+    def _spatial_value_signals(self, ctx: EngineContext) -> Tuple[float, float, float]:
+        """The place value's signals (tabular or SR), probed along the heading and a fan on each side."""
         look = self.config.value_memory.lookahead
         here = self._value_at(ctx.grid_x, ctx.grid_y)
         # reachable_probes (M3 step 2, draft): each direction is read only as far as the agent sees it could go.
@@ -901,6 +1096,26 @@ class Engine:
         ctx.neuromodulators = self.neuromod_system.update(
             reward=ctx.reward, novelty=ctx.wm_novelty, pain=ctx.observation.pain_signal
         )
+        # The whole (G56): interoception reads the state after this tick's meal; dopamine's TD error is taken over the
+        # incentive-scaled SR value before this tick's learning; the modulators in their roles replace the traces above.
+        ic = self.config.interoception
+        if ic.enabled:
+            e_eff, energy = self.metabolism.effective, self.config.metabolism.food_energy
+            ctx.hunger = interoceptive_hunger(e_eff, ic.setpoint, ic.hunger_floor)
+            ctx.incentive = meal_incentive(e_eff, energy, ic.setpoint)
+        delta = ctx.map_reward
+        if self.bio_neuromod is not None:
+            if self.sr is not None and not ctx.asleep:
+                v_now = ctx.incentive * self.sr_value(ctx.grid_x, ctx.grid_y)
+                v_prev = v_now if self._v_prev is None else self._v_prev
+                delta = ctx.map_reward + self.config.place.sr_discount * v_now - v_prev
+                self._v_prev = v_now
+            sat = interoceptive_satiety(self.metabolism.effective, ic.setpoint, self.config.neuromod.satiety_band) if ic.enabled else 0.0
+            ctx.neuromodulators = self.bio_neuromod.update(
+                delta=delta, reward=ctx.map_reward, pain=ctx.observation.pain_signal,
+                novelty=(1.0 - ctx.familiarity) if self.history is not None else 0.0,
+                moving=self.last_action.name != "REST", asleep=ctx.asleep, satiety=sat)
+        ctx.td_error = delta
         # Plasticity: TD-learn the map from the map reward (primary outcomes by default).
         # The extinction cost is passed from the config on every call, so it can be
         # tuned live and the config stays the single source of truth.
@@ -911,10 +1126,16 @@ class Engine:
         )
         if self.history is not None:
             self.history.decay()
-        if self.sr is not None:
-            self._sr_learn(ctx.map_reward)
+        if self.sr is not None and not ctx.asleep:  # asleep there is no experience to learn from (G56)
+            # With interoception the reward weights learn the outcome (a meal: 1), so the value is revalued by the
+            # present state rather than fixed at the state it was learned in (G56).
+            outcome = ctx.map_reward - ctx.meal_value + (1.0 if ctx.ingested > 0.0 else 0.0) if ic.enabled else ctx.map_reward
+            scale = self.bio_neuromod.sr_learning_scale() if self.bio_neuromod is not None else 1.0
+            self._sr_learn(outcome, lr_scale=scale, pos=(ctx.grid_x, ctx.grid_y))
         if self.action_learner is not None:
             self._action_value_learn(ctx)
+        if self.sr_replay is not None:
+            self._sr_replay_step(ctx, delta)
         drive, vigour = 1.0, 1.0
         if self.history is not None:
             self.history.write(self._history_inputs(ctx))
@@ -923,12 +1144,17 @@ class Engine:
 
             ctx.familiarity = self.history.familiarity(normalised(self.place_rates))
             if self.motivation is not None:
+                if self.config.motivation.hunger_source == "interoception" and ic.enabled:
+                    self.motivation.sensed_hunger = ctx.hunger  # G56: the sensed deficit, not the meal count
                 ate = 1.0 if ctx.map_reward > 0.0 else 0.0
                 drive = self.motivation.step({"novelty": 1.0 - ctx.familiarity, "meal": ate, "reward": ate})
                 vigour = self.motivation.vigour()
                 ctx.motivation_levels = dict(self.motivation.levels)
+        if self.bio_neuromod is not None and self.config.neuromod.dopamine:
+            vigour = self.bio_neuromod.vigour()  # G56: tonic dopamine sets vigour
         ctx.motivation = drive
         ctx.vigour = vigour
+        self._hunger = ctx.hunger
         if self.config.value_memory.oracle_homing:
             self._update_goal_memory(ctx)
 
@@ -948,7 +1174,9 @@ class Engine:
         # Gain from kappa (near_critical_gain), logged every tick; it reaches
         # action selection only in proportion to basal_ganglia.criticality_gain,
         # 0 by default.
-        crit_gain = near_critical_gain(ctx.kappa, self.config.criticality.gain_width)
+        # With the dynamic coupling (G56) the gain reads the lattice's distance from criticality, m, not kappa.
+        crit_gain = near_critical_gain(ctx.criticality_m if self.crit_coupling is not None else ctx.kappa,
+                                       self.config.criticality.gain_width)
 
         # Freeze habituation: the pain->REST drive fades with recent pain-freezing.
         freeze_h = math.exp(-self._freeze_level / bg.freeze_tau) if bg.freeze_tau > 0.0 else 1.0
@@ -966,6 +1194,9 @@ class Engine:
         # Action selection: the deterministic argmax, or at softmax_temperature > 0
         # one seeded softmax draw per tick; dopamine modulates exploration.
         previous_action = self.last_action.name  # the decision before this one (the turn commitment reads it, G45)
+        # G56: what food is worth now scales vision's pull to it; noradrenaline raises the temperature after surprise.
+        ctx.target_gain = ctx.incentive if (ic.enabled and ic.incentive_vision) else 1.0
+        ctx.temperature = bg.softmax_temperature * (self.bio_neuromod.temperature_factor() if self.bio_neuromod is not None else 1.0)
         action, scores = select_action_with_scores(
             observation=ctx.observation,
             wm_novelty=ctx.wm_novelty,
@@ -983,9 +1214,13 @@ class Engine:
             previous_action=previous_action,
             motivation=drive,
             vigour=vigour,
+            target_gain=ctx.target_gain,
+            temperature=ctx.temperature,
         )
         if self.action_learner is not None:
             action = self._after_selection(ctx, action)
+        elif self.metabolism is not None:
+            action = self._pause_action(ctx, action)  # G56: the body rests while it eats
         pain = ctx.observation.pain_signal
         if action.name == "REST" and not ctx.microsleep_active and pain > bg.freeze_pain_threshold:
             self._freeze_level += 1.0
@@ -1076,6 +1311,11 @@ class Engine:
             self.action_learner.reset_episode()
             self._av_prev = None
             self._consume_remaining = 0
+        if getattr(self, "metabolism", None) is not None:  # G56: a meal does not carry across a reset
+            self._consume_remaining = 0
+        self._sr_prev_pos = None  # G56: the map replay links no transition across a reset
+        self._v_prev = None  # G56: dopamine's TD error starts afresh
+        self._replay_pending = None
         if self.body is not None:
             self.body.reset()  # the animal is put down still (G44)
         self.episode += 1

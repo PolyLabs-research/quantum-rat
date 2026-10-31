@@ -38,6 +38,14 @@ class CriticalityConfig:
     kappa_min_avalanches: int = 20  # avalanches needed before kappa is meaningful
     avalanche_history: int = 4000  # cap on retained avalanche sizes
     gain_width: float = 0.3  # width of the near-critical cortical-gain curve (in kappa units)
+    # The dynamic coupling (the whole, docs/prereg/whole_resource.md §2.2; G56). Off: the coupling is the constant
+    # above and the gain reads kappa, every result before G56. On: the coupling is critical_coupling x m, where m is
+    # the distance from criticality (critical_coupling 0.5 is this lattice's bond-percolation critical point), m = m0 +
+    # sleep_coupling x sleep pressure, m0 tuned homeostatically toward m = 1 over homeostasis_time ticks; the gain reads m.
+    dynamic: bool = False
+    critical_coupling: float = 0.5
+    sleep_coupling: float = 0.3
+    homeostasis_time: float = 3000.0
 
 
 @dataclass
@@ -105,6 +113,9 @@ class CriticalityField:
     def __init__(self, stream: RNGStream, config: CriticalityConfig | None = None) -> None:
         self.config = config or CriticalityConfig()
         self.stream: RNGStream = stream
+        # What the dynamic coupling sets each tick (HomeostaticCoupling; G56), or None: the config's value, read live
+        # (the console's coupling slider writes the config). The config itself is never written here.
+        self.coupling_override: float | None = None
         self.kappa = 1.0
         self._active: Set[Cell] = set()
         self._fired: Set[Cell] = set()  # cells that fired in the current avalanche
@@ -165,7 +176,7 @@ class CriticalityField:
             return CriticalityMetrics(active=1, avalanche_size=0, kappa=self.kappa)
 
         # Propagate: each active cell activates each neighbour with prob coupling.
-        p = self.config.coupling
+        p = self.config.coupling if self.coupling_override is None else self.coupling_override
         next_active: Set[Cell] = set()
         for (i, j) in self._active:
             for nb in self._neighbors(i, j):
@@ -188,10 +199,40 @@ class CriticalityField:
         return CriticalityMetrics(active=len(next_active), avalanche_size=0, kappa=self.kappa)
 
 
+class HomeostaticCoupling:
+    """The lattice's coupling as a state variable (the whole, docs/prereg/whole_resource.md §2.2; G56).
+
+    m is the distance from criticality (1: critical). Each tick m = m0 + ``sleep_coupling`` x sleep pressure, and m0
+    moves toward making m = 1 by (1 - m) / ``homeostasis_time``: wakefulness pushes the network supercritical, the
+    homeostatic tuning pulls it back over minutes, and sleep (falling pressure) restores it (wake potentiates and sleep
+    downscales, Tononi & Cirelli 2006; cortical circuits are homeostatically tuned to criticality, Ma, Turrigiano,
+    Wessel & Hengen 2019). The coupling handed to the lattice is ``critical_coupling`` x m."""
+
+    def __init__(self, critical_coupling: float = 0.5, sleep_coupling: float = 0.3, homeostasis_time: float = 3000.0) -> None:
+        if not (0.0 < critical_coupling <= 1.0) or homeostasis_time <= 0.0:
+            raise ValueError("critical_coupling must be in (0, 1] and homeostasis_time positive")
+        self.critical_coupling = float(critical_coupling)
+        self.sleep_coupling = float(sleep_coupling)
+        self.homeostasis_time = float(homeostasis_time)
+        self.m0 = 1.0
+        self.m = 1.0
+
+    def step(self, pressure: float) -> float:
+        """One tick: the distance from criticality given the sleep pressure; returns m."""
+        self.m = self.m0 + self.sleep_coupling * pressure
+        self.m0 += (1.0 - self.m) / self.homeostasis_time
+        return self.m
+
+    @property
+    def coupling(self) -> float:
+        return min(1.0, max(0.0, self.critical_coupling * self.m))
+
+
 __all__ = [
     "CriticalityField",
     "CriticalityConfig",
     "CriticalityMetrics",
+    "HomeostaticCoupling",
     "compute_kappa",
     "near_critical_gain",
 ]

@@ -43,11 +43,12 @@ class SuccessorFeatures:
         """M phi, as a row-wise element-wise product and sum (no BLAS)."""
         return np.sum(self.M * phi[None, :], axis=1)
 
-    def update(self, phi: np.ndarray, phi_next: np.ndarray, terminal: bool = False) -> float:
-        """One TD backup of the transition phi -> phi_next; returns |delta| (the Euclidean norm of the error)."""
+    def update(self, phi: np.ndarray, phi_next: np.ndarray, terminal: bool = False, lr_scale: float = 1.0) -> float:
+        """One TD backup of the transition phi -> phi_next; returns |delta| (the Euclidean norm of the error).
+        ``lr_scale`` multiplies the learning rate for this backup (acetylcholine's encoding gain, G56; 1.0: as built)."""
         target = phi if terminal else phi + self.gamma * self.psi(phi_next)
         delta = target - self.psi(phi)
-        self.M += self.lr * (delta[:, None] * phi[None, :])
+        self.M += (self.lr * lr_scale) * (delta[:, None] * phi[None, :])
         self.updates += 1
         return float(math.sqrt(float(np.sum(delta * delta))))
 

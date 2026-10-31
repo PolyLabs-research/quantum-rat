@@ -96,6 +96,9 @@ class Motivation:
         self.loops: Dict[str, Loop] = {s.name: Loop(s) for s in specs}
         self.hunger_initial = float(hunger_initial)
         self.vigour_floor = float(vigour_floor)
+        # The sensed energy deficit, when interoception provides it (the whole, G56): hunger() returns it instead of
+        # G53's meal-count estimate. None: the estimate.
+        self.sensed_hunger: float | None = None
         self.reasons = tuple(reasons)
         self.reason_levels: Dict[str, float] = {}
         self.levels: Dict[str, float] = {name: loop.value for name, loop in self.loops.items()}
@@ -108,6 +111,8 @@ class Motivation:
         return self.drive
 
     def hunger(self) -> float:
+        if self.sensed_hunger is not None:
+            return min(1.0, max(0.0, self.sensed_hunger))
         return max(0.0, self.hunger_initial - self.levels.get("satiety", 0.0))
 
     def vigour(self) -> float:

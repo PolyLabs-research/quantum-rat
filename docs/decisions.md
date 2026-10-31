@@ -2100,6 +2100,8 @@ Reported: track rewards 19.2 → 20.3 [−1.3, +3.6]; hidden food without steeri
 
 ## G55 — M3 step 3: a learned action value over the place code, two pilots; the track bound is unreachable under the wall gate
 
+**Corrected (2026-10-31): reading C2 and decision D1 are wrong.** Measured after this entry (`tools/m3_step3_probes/wall_gate.py`, output beside it; the pilot's spent seeds): letting the action value pass the wall gate (`wall_gate_gain` 0) makes it worse, not better. Track rewards fall from 19.8 to 9.6 a run and traversals from 33.8 to 28.9 (12.6 with reverse replay); hidden food 43.0 → 41.4; the gate and cues unchanged. The gate was doing the job it was added for at G16: on four track seeds the agent presses forward without moving on 33% of ticks with the gate off against 6% with it on, at the end it has just emptied. Turning does fall (71% → 47% of movement ticks), but the freed forward push drives into the end wall, not along the corridor. For the SR the gate is nearly inert (34.0 → 34.8 traversals): the reachable probes (G49) already stop it reading value through walls. So the gate is active on most corridor ticks, as measured, but it is not what limits laps: the binding constraint is the learner, which has no reason to stop pushing into a wall (a bump changes neither its state nor its reward: likely, not measured). D1's proposed third pilot is withdrawn; what remains is a wall-contact cost for the learner, or forced laps.
+
 **Date:** 2026-10-29  
 **Why:** the owner's "agree, go" on G54 D2: step 3's learner next, with the track test as its acceptance (G53 C4). Draft preregistration `docs/prereg/m3_step3.md` (`d512012`); build `b35f0bd`; pilot 1 `979cb71`; amendment A1 `f9d82f4`; pilot 2 `2397af6`. Exploratory, the Part 2 pilot's spent seeds (gate and track 31–42, hidden food 1–8), under step 2's battery and G53's statistics on the profile as G54 left it with the step cap. Nothing registered; the draft is the owner's. Branch `m3-step3-learner` off `m3-history-motivation`.
 
@@ -2158,3 +2160,58 @@ The rule chose none in either pilot. Visible-goal sessions 0.99–1.00; the no-s
 4. **Step 4** (RQ1 over the place code) waits on 1 and 2.
 
 **Impact:** this entry; `brain/systems/action_value.py`, `brain/systems/replay_place.py` (new); `brain/systems/replay_rules.py`, `brain/systems/replay_mattar_daw.py`, `core/config.py`, `core/engine.py`, `ui/sim_session.py`; `experiments/m3_part2.py` (`run_battery(base=)`, `replay_events`), `experiments/m3_step3.py` (new); `tools/m3_step3_probes/` (new); `docs/prereg/m3_step3.md` (draft, amendment A1), `docs/m3_place_replay.md`, `README.md`; `docs/data/m3/step3/pilot/`, `pilot2/` (new); tests in `tests/brain/test_action_value.py`, `tests/engine/test_action_value_engine.py`, `tests/experiments/test_m3_step3.py` (new), `tests/engine/test_value_source.py`.
+
+## G56 — The whole, part 1: every cartoon part upgraded and coupled; resource management piloted and bracketed
+
+**Date:** 2026-10-31  
+**Why:** the owner's working hypothesis: mammalian behaviour emerges from the interaction of many systems, so the parts studied one at a time may fail where the whole works. The owner's decisions: **upgrade every cartoon part and use all of them in the combined agent; start with the most basic function of life, resource management** (identifying that energy is needed, finding it and consuming it). Draft preregistration `docs/prereg/whole_resource.md` (`20b6e1c`, written before any build or run), with pre-run amendments P1 (a meal's replay waits for the still body) and P2 (the calibration: K = 0.065). Build `519e8e9`; calibration `b8cf343`; pilot `62223f2`; the tick-by-tick check `7ad65b7` and its output. Branch `whole-resource` off `main`. Exploratory: the pilot's seeds 1–12; nothing registered.
+
+### A. What landed (every part opt-in; both determinism baselines bit-identical)
+Each part of the audit graded "cartoon" now has a referenced role and is coupled to the others (the draft's §2 table has every number and its reason):
+1. **Metabolism** (`core/metabolism.py`, `metabolism.*`): a body energy reserve paid every tick (about three times resting at full speed, 0.8 of it asleep), filled by meals through a gut; starvation at 0. It replaces, in the task, the astrocyte, whose only effects were to throttle movement and close the sensory gate; it throttles nothing.
+2. **Interoception** (`brain/systems/interoception.py`, `interoception.*`): reward is the drive a meal removes (Keramati & Gutkin 2014); the consummatory reflex eats only when that is positive; hunger and the incentive (what food is worth now) scale memory and vision's pull to food. The SR's reward weights learn the outcome, so its value is revalued at once; the action value learns the reward, so it is not.
+3. **The neuromodulators in their roles** (`brain/systems/neuromodulators.py`, `neuromod.model` "biological"): dopamine is the TD error over the SR value, its tonic level the reward trace that sets vigour, its magnitude the replay budget; serotonin is satiety (rest after meals); noradrenaline follows surprise and raises the softmax temperature; acetylcholine follows novelty (familiarity from history's visit channel, replacing the checksum bit) and movement, raising the SR's learning rate and gating replay.
+4. **Homeostatic sleep** (`brain/systems/sleep.py`, `sleep.*`): sleep pressure (Borbély's process S), hunger keeps the agent awake; asleep the thalamic gate is closed (selection gets no input), metabolism slows and the map replays.
+5. **Criticality as a state variable** (`brain/systems/criticality.HomeostaticCoupling`): the lattice's distance from criticality follows sleep pressure and is tuned back homeostatically; its dynamic-range gain scales vision and wall avoidance (`basal_ganglia.criticality_scales_walls`).
+6. **Replay of the successor map** (`brain/systems/sr_replay.py`, `replay.sr_replay`): reverse at a meal when acetylcholine allows, uniform asleep.
+7. **The action value** read beside the SR (`value_memory.source` "sr_action"), **motivation** reading the sensed hunger (`motivation.hunger_source`), the **rodent body**, the **orienting response**.
+8. `experiments/whole_resource.py`: the task (a 2 m arena, four visible food patches regrowing 2 minutes after being eaten, 30-minute runs), the calibration, the 27 configurations (the base, the whole, the whole minus each of the twelve parts, the base plus each, the whole with memory unread), the spark's scoring and the verdict. The console lists every part. Tests +21 (suite 752).
+
+### B. Measured
+
+**Calibration** (P2): the base would have spent 8.04 units of energy over 126 meals on seeds 1001–1004: K = 0.065, inside the predicted 0.05–0.10.
+
+**The pilot as preregistered** (`docs/data/whole/resource/pilot/`, 215 s): every configuration but one survives every seed (the base plus interoception starves on 3 of 12). **The verdict's first condition fails: the whole does not show the spark as defined**, because R2 could not be scored: the whole holds its energy inside a band where its hunger never reaches the "hungry" threshold (h ≥ 0.5) on 5% of ticks, on any seed. R1 passes for the whole (survival 12/12, mean |E − 0.8| 0.128), and also for the base plus motivation (0.131) and the base plus the body (0.091), which do not regulate at all. The verdict's other two conditions are moot.
+
+**The same runs read tick by tick** (`tools/whole_probes/need_activity.py`, output beside it; every run identical to the pilot's, meal for meal; post hoc, no bounds):
+
+| configuration | energy, second half: mean / within-run sd | movement, hungriest third less most sated third | rest after meals | sleep | food per unit of locomotor energy | meals |
+|---|---|---|---|---|---|---|
+| **base** | 0.61 / 0.049 | 0.02 | 0.01 | 0 | 2.1 | 32 |
+| **whole** | 0.67 / **0.023** | **0.22** | **0.80** | 0.20 | **6.8** | 19 |
+| whole − interoception | 0.96 / 0.035 | 0.06 | 0.08 | 0.22 | 3.9 | 32.5 |
+| whole − motivation | 0.74 / 0.010 | 0.29 | 0.57 | 0.22 | 4.2 | 23 |
+| whole − serotonin | 0.72 / 0.021 | 0.21 | 0.59 | 0.22 | 5.5 | 20.5 |
+| whole − dopamine | 0.69 / 0.027 | 0.25 | 0.75 | 0.22 | 5.5 | 20 |
+| whole − orienting | 0.61 / 0.023 | 0.23 | 0.69 | 0.11 | 4.4 | 20 |
+| whole − sleep | 0.67 / 0.023 | 0.19 | 0.79 | 0 | 5.9 | 20 |
+| whole − the body (discrete) | 0.70 / 0.020 | 0.06 | 0.84 | 0.20 | (27.7: not comparable) | 18 |
+| whole − acetylcholine, − noradrenaline, − criticality, − action value, − replay | 0.66–0.68 / 0.023–0.028 | 0.22–0.25 | 0.77–0.81 | 0.19–0.21 | 6.4–7.0 | 19 |
+| whole, memory unread | 0.68 / 0.024 | 0.20 | 0.79 | 0.20 | 6.5 | 19 |
+| base + interoception | 0.31 / 0.058 (3 starve) | 0.04 | 0.02 | 0 | 1.5 | 24 |
+| base + any one other part | 0.61–1.00 / 0.002–0.061 | ≤ 0.07 | ≤ 0.05 | ≤ 0.22 | 2.1–3.6 | 28–48 |
+
+At the preregistered thresholds, on the ticks where they occur, the whole moves on 82% of hungry ticks and 9% of sated ones (the base: 99% and 97%).
+
+### C. Reading
+1. **The whole shows the behaviour the owner named, though not by the measures I preregistered.** It holds its energy at half the base's spread, spends 80% of the half-minute after a meal still (the base: 1%), sleeps a fifth of the time, eats 19 meals where the base eats 32, and gets three times as much food per unit of energy spent moving; its movement follows its hunger, where the base's does not. That is need, finding and consumption as one regulated loop.
+2. **Two of my measures were wrong, and the record has to say so.** R1(b), the mean distance from the setpoint, is passed by agents that do not regulate at all (the base plus the body sits near 0.8 by the luck of its intake and spending; the base plus orienting is pinned at the cap). R2's thresholds lie outside the band a regulating agent holds, so the better the regulation, the less R2 can be scored. Neither was found before the pilot; changing them now is post hoc, so nothing above is a pass.
+3. **No single part produces the profile, and most of the twelve are not needed for it: the weak form, as predicted.** Every single addition leaves the base's profile (no rest after meals, no need-contingent movement, efficiency at most 3.6); interoception alone starves the agent on a quarter of the seeds (the incentive weakens the pull to food while nothing slows the body). Removing interoception breaks the regulation (the agent eats to near capacity and is still for only 8% of the half-minute after a meal). Motivation, serotonin, dopamine and orienting each carry part of the efficiency or the rest; sleep's removal costs a little efficiency (5.9); the discrete body flattens the activity contrast (0.06), partly through how its locomotion is costed. Removing acetylcholine, noradrenaline, criticality, the action value or replay changes nothing measurable here, and memory unread changes nothing either (the food is visible). The spark here needs a handful of parts working together; it does not need most of them.
+4. **The interactions are real.** Interoception is harmful alone and essential in the whole; motivation does little alone and, with interoception, is what turns hunger into foraging and satiety into rest. That is the owner's hypothesis in its weak form, measured.
+
+### D. Decisions this surfaces (the owner's)
+1. **Fix the measures, then confirm.** Recommended, written into the draft as a dated amendment before any confirmatory run: regulation as *compensation* (in the held-out environment with half the food, the whole keeps its energy band by foraging more, where fixed behaviour cannot; and a within-run spread bound) and need-contingent activity by within-run hunger terciles; then the confirmatory run on fresh seeds 13–42 and the held-out environment. Not recommended: tuning parameters until the whole swings into the old thresholds, which would fit the measure, not the animal.
+2. **The parts this task does not use.** Five parts make no difference to resource management with visible food. The next spark behaviour (the owner's choice) should be one where they should: hidden food that moves (memory, replay, acetylcholine's encoding), a changing world (noradrenaline's surprise), long runs with sleep pressure under hunger (sleep and criticality).
+3. **Adoption**: none yet. The whole stays opt-in until a confirmatory run passes.
+
+**Impact:** this entry; `core/metabolism.py`, `brain/systems/interoception.py`, `brain/systems/neuromodulators.py`, `brain/systems/sleep.py`, `brain/systems/sr_replay.py` (new); `brain/systems/criticality.py`, `brain/systems/basal_ganglia.py`, `brain/systems/motivation.py`, `brain/systems/successor_features.py`, `brain/systems/replay_events.py`, `core/config.py`, `core/engine.py`, `metrics/decisions.py`, `ui/sim_session.py`; `experiments/whole_resource.py` (new); `tools/whole_probes/` (new); `docs/prereg/whole_resource.md` (new, P1, P2); `docs/data/whole/resource/` (new); tests in `tests/brain/test_whole_parts.py`, `tests/engine/test_whole_engine.py`, `tests/experiments/test_whole_resource.py` (new), `tests/engine/test_value_source.py`.

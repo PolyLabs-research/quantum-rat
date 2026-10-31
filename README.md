@@ -147,6 +147,17 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   with the profile on the track and hidden food, but the strict track bound stays unmet for every memory
   source because the wall gate cuts memory's push to hold course on 96–99% of corridor ticks; replay as
   built hurts. The owner holds the architecture decision (the gate for a learned action value, or forced laps).
+  Corrected afterwards: letting the action value pass the wall gate makes it worse (it pins itself against the
+  end wall), so the gate is not what limits laps; the learner is.
+* **The whole** (`docs/whole.md`; G56). At the owner's direction, every part the audit graded a cartoon is now
+  upgraded to a referenced role and coupled to the others, all opt-in: a body energy balance the agent senses
+  (reward as the drive a meal removes), motivation, the four neuromodulators in their roles, homeostatic sleep,
+  criticality as a state variable, replay of the successor map, the action value, the rodent body and the
+  orienting response. On the first target behaviour, resource management (`docs/prereg/whole_resource.md`), the
+  whole holds its energy at half the base's spread, rests after meals and sleeps, forages when hungry, and gets
+  three times as much food per unit of energy spent moving; no single part added to the base does any of that,
+  and a handful of parts carry it (interoception above all), not most. Two of the preregistered measures turned
+  out wrong, so this is not yet a passed test: amended measures and a confirmatory run await the owner.
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the

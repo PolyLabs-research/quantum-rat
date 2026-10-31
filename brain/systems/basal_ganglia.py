@@ -70,11 +70,14 @@ def _channel_scores(
     previous_action: Optional[str] = None,
     motivation: float = 1.0,
     vigour: float = 1.0,
+    target_gain: float = 1.0,
 ) -> Dict[str, float]:
     """Score each action channel. A pure function of its arguments.
 
     ``motivation`` (the drive to move, G52) and ``vigour`` (how hard, from the reward trace, G53) both scale
-    FORWARD's bias; what is missing from the drive goes to REST as its ``idle`` term.
+    FORWARD's bias; what is missing from the drive goes to REST as its ``idle`` term. ``target_gain`` multiplies
+    vision's pull to targets (interoception's incentive: what food is worth in the present state, G56; 1.0: as built).
+    With ``config.criticality_scales_walls`` the criticality gain also scales wall avoidance (G56).
 
     ``previous_action`` (the action chosen on the previous tick) feeds the turn commitment
     (``config.turn_commitment``, M3 step 1b, G45): while a wall is ahead, the turn in progress gets that much extra, so
@@ -105,7 +108,8 @@ def _channel_scores(
     # ACh gain and the kappa gain scale vision_gain; criticality_gain (the config
     # weight) is 0 by default, so crit_mod is 1.0.
     crit_mod = (1.0 - config.criticality_gain) + config.criticality_gain * criticality_gain
-    vision_gain = config.vision_gain * (1.0 + config.ach_precision_gain * ach) * crit_mod
+    vision_gain = config.vision_gain * (1.0 + config.ach_precision_gain * ach) * crit_mod * target_gain
+    wall_gain = config.wall_avoid_gain * (crit_mod if config.criticality_scales_walls else 1.0)
     # Norepinephrine: arousal raises threat sensitivity (pain avoidance / freezing).
     pain_avoidance = config.pain_avoidance * (1.0 + config.ne_threat_gain * ne)
     rest_pain_gain = config.rest_pain_gain * (1.0 + config.ne_threat_gain * ne)
@@ -119,7 +123,7 @@ def _channel_scores(
         + novelty_gain * wm_novelty
         + vision_gain * c_target
         + config.value_gain * value_ahead
-        - config.wall_avoid_gain * c_wall
+        - wall_gain * c_wall
     )
     # The 0.5 floor guarantees a turn (not a futile forward) when a wall is close
     # ahead but both sides read blocked, e.g. when pinned on a boundary.
@@ -128,14 +132,14 @@ def _channel_scores(
         + vision_gain * l_target
         + config.value_gain * value_left
         + max(config.turn_bias, 0.0)
-        + config.wall_avoid_gain * c_wall * (0.5 + l_open)
+        + wall_gain * c_wall * (0.5 + l_open)
     )
     scores["TURN_RIGHT"] = (
         config.novelty_turn_gain * wm_novelty
         + vision_gain * r_target
         + config.value_gain * value_right
         + max(-config.turn_bias, 0.0)
-        + config.wall_avoid_gain * c_wall * (0.5 + r_open)
+        + wall_gain * c_wall * (0.5 + r_open)
     )
     scores["REST"] = rest_pain_gain * pain * freeze_habituation + 0.1 * (1.0 - trn_gain) + rest_patience
     if pacing_rest:
@@ -176,6 +180,7 @@ def channel_terms(
     previous_action: Optional[str] = None,
     motivation: float = 1.0,
     vigour: float = 1.0,
+    target_gain: float = 1.0,
 ) -> Dict[str, Dict[str, float]]:
     """Each channel's score as its named terms: a readout, not the decision.
 
@@ -199,7 +204,8 @@ def channel_terms(
     fiveht = modulators.get("5HT", 0.5)
     novelty_gain = config.novelty_gain * (1.0 + config.dopamine_explore_gain * (0.5 - da))
     crit_mod = (1.0 - config.criticality_gain) + config.criticality_gain * criticality_gain
-    vision_gain = config.vision_gain * (1.0 + config.ach_precision_gain * ach) * crit_mod
+    vision_gain = config.vision_gain * (1.0 + config.ach_precision_gain * ach) * crit_mod * target_gain
+    wall_gain = config.wall_avoid_gain * (crit_mod if config.criticality_scales_walls else 1.0)
     pain_avoidance = config.pain_avoidance * (1.0 + config.ne_threat_gain * ne)
     rest_pain_gain = config.rest_pain_gain * (1.0 + config.ne_threat_gain * ne)
     rest_patience = config.fiveht_patience_gain * (fiveht - 0.5)
@@ -214,14 +220,14 @@ def channel_terms(
             "novelty": novelty_gain * wm_novelty,
             "vision": vision_gain * c_target,
             "memory": config.value_gain * value_ahead,
-            "wall": -config.wall_avoid_gain * c_wall,
+            "wall": -wall_gain * c_wall,
         },
         "TURN_LEFT": {
             "novelty": config.novelty_turn_gain * wm_novelty,
             "vision": vision_gain * l_target,
             "memory": config.value_gain * value_left,
             "bias": max(config.turn_bias, 0.0),
-            "wall": config.wall_avoid_gain * c_wall * (0.5 + l_open),
+            "wall": wall_gain * c_wall * (0.5 + l_open),
             "commit": commit_left,
             "orient": orient_left,
         },
@@ -230,7 +236,7 @@ def channel_terms(
             "vision": vision_gain * r_target,
             "memory": config.value_gain * value_right,
             "bias": max(-config.turn_bias, 0.0),
-            "wall": config.wall_avoid_gain * c_wall * (0.5 + r_open),
+            "wall": wall_gain * c_wall * (0.5 + r_open),
             "commit": commit_right,
             "orient": orient_right,
         },
@@ -489,6 +495,8 @@ def select_action_with_scores(
     previous_action: Optional[str] = None,
     motivation: float = 1.0,
     vigour: float = 1.0,
+    target_gain: float = 1.0,
+    temperature: Optional[float] = None,
 ) -> Tuple[Action, Dict[str, float]]:
     """Select an action and also return the channel scores that produced it.
 
@@ -497,7 +505,8 @@ def select_action_with_scores(
     action is the argmax with its fixed tie order and ``action_stream`` is not
     touched; at a temperature > 0 it is ``softmax_sample``d from
     ``action_stream`` (required then; ValueError without one), and the
-    returned scores are still the scores.
+    returned scores are still the scores. ``temperature`` (None: the config's)
+    is the softmax temperature this tick (noradrenaline's, G56).
     """
     config = config if config is not None else BasalGangliaConfig()
     modulators = modulators if modulators is not None else {}
@@ -517,11 +526,13 @@ def select_action_with_scores(
         previous_action,
         motivation,
         vigour,
+        target_gain,
     )
-    if config.softmax_temperature > 0.0:
+    tau = config.softmax_temperature if temperature is None else temperature
+    if tau > 0.0:
         if action_stream is None:
             raise ValueError("softmax_temperature > 0 needs an action_stream to draw from")
-        best = softmax_sample(scores, config.softmax_temperature, action_stream)
+        best = softmax_sample(scores, tau, action_stream)
     else:
         best = argmax_action(scores)  # deterministic tie-break order, no draw
     return _action_for(best), scores
