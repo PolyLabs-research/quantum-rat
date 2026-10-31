@@ -2286,3 +2286,34 @@ The verdict: **condition 1 holds** (the whole adapts), **condition 2 fails** (do
 3. **Not recommended:** rescuing this pilot by redefining its measures. The task, not the measures, was wrong.
 
 **Impact:** this entry; `docs/prereg/whole_change.md` (new, and the record that the pilot ran); `experiments/whole_change.py` (new); `docs/data/whole/change/pilot/` (new); `docs/whole.md`, `README.md`; tests in `tests/experiments/test_whole_change.py` (new).
+
+## G59 — The reward scale fixed (amendment A2): the parts now read rewards near 1, and scarcity got worse, exposing dopamine's tonic level as a held peak
+
+**Date:** 2026-10-31  
+**Why:** the owner's decision at G57 C1 and G58 C1 ("agree, go"): put interoception's reward on the scale the other parts were built for, then re-run the pilots. Amendment A2 in `docs/prereg/whole_resource.md` (`776cfea`), before any run under it: `interoception.reward_scale` multiplies a meal's reward wherever it is a learning signal, its value calibrated once so that the whole's median meal on part 1's pilot seeds brings 1. G57 C1 had proposed normalising to a meal at the hunger floor; checked before the run, that multiplies rewards by 2.1 and leaves a typical meal at about 0.18, so the median rule was registered instead. Calibration `1ee74d8` (`docs/data/whole/resource/scale/`); re-pilot `17c3f80` (`docs/data/whole/resource/repilot/`, 357 s: the 27 configurations, seeds 1–12, both arenas, A1's spark with survival 11 of 12); the seed-for-seed check `tools/whole_probes/scale_effect.py` with its output. Merged before this: `whole-confirm` into `main` (`dc1bacd`). Branch `whole-scale`.
+
+### A. Measured
+**Calibration:** 227 meals of the whole at scale 1, median reward 0.103 (quartiles 0.057, 0.152): **the scale is 9.7** (predicted 5–15).
+
+**The whole at both scales, the same seeds (1–12):**
+
+| scale | arena | survived | level, second half | awake ticks moving | mean vigour | ticks the action value steers | meals | mean meal reward |
+|---|---|---|---|---|---|---|---|---|
+| 1 | familiar | 12 | 0.672 | 0.21 | 0.53 | 0 | 18.9 | 0.11 |
+| 1 | half food | 12 | 0.441 | 0.75 | 0.61 | 0 | 21.5 | 0.34 |
+| 9.7 | familiar | 12 | 0.687 | 0.24 | 0.73 | **0** | 19.9 | 0.96 |
+| 9.7 | half food | 12 | **0.283** | **0.93** | **0.85** | **0.21** | 24.1 | **4.62** |
+
+**The re-pilot as preregistered:** the whole fails A1's spark again, on R1′(c): its level falls 0.40 from the familiar arena to the half-food one (bound 0.10). It survives every run in both; in the half-food arena the base and every single addition but orienting starve (the base plus dopamine on 11 of 12 runs, the rest on all 12). Without orienting, 0 of 12 half-food runs survive; with memory unread, 4; without dopamine, 8; without acetylcholine, 10. In the familiar arena the regulation is as before (spread 0.026 against the base's 0.049; hunger contrast 0.25; still for 71% of the half-minute after a meal; asleep 22%). Without serotonin the hunger contrast falls to 0.11 (fails R2′).
+
+### B. Reading
+1. **The scale reached its aim in part.** Meals now bring about 1 in the familiar arena and vigour moves (0.73 on average, not a constant 0.55). But the action value still never steers there; it steers only in scarcity, on a fifth of ticks, where hungry meals bring about 4.6.
+2. **Scarcity got worse, seed for seed:** the level in the half-food arena fell from 0.44 to 0.28, because the whole moves more (93% of awake ticks against 75%) at higher vigour (0.85 against 0.61). The cause is a second mismatch, in my design of dopamine's tonic level: it holds the size of the last meal, rising at once and falling over two minutes, rather than averaging reward over time. With reward as drive reduction, a hungry agent's meal is worth more, so vigour rises exactly when food is scarce. Average-reward vigour (Niv, Daw, Joel & Dayan 2007) predicts the opposite: a lower rate of reward lowers vigour. At the old scale the trace sat near its floor, which hid this.
+3. **What carries survival in scarcity is sharper now:** orienting (none survive without it), memory (a third survive without it), dopamine and acetylcholine.
+4. **Predictions:** the scale ✓; the action value steering, only in scarcity; vigour moving ✓, but with meal size rather than the rate of meals; the familiar arena as before ✓; scarcity closer to the familiar level ✗ (worse).
+
+### C. Decisions this surfaces (the owner's)
+1. **Dopamine's tonic level as an average rate of reward** (a leaky mean of reward over minutes, as the rate of reward is defined), a second registered tuning step, recommended, with part 1's pilot re-run under it. Until then the scale stays at 9.7: it is the agreed fix, and part 2's redesigned pilot runs with it.
+2. The action value's read floor or its features remain the open question for the familiar arena; recommended to wait for the rate fix, which changes what it learns from.
+
+**Impact:** this entry; `docs/prereg/whole_resource.md` (amendment A2 and its calibration); `core/config.py` (`interoception.reward_scale`), `core/engine.py`; `experiments/whole_resource.py` (the scale and repilot phases, `configurations(parts)`, `scaled_parts`); `tools/whole_probes/scale_effect.py` (new); `docs/data/whole/resource/scale/`, `repilot/` (new); tests in `tests/experiments/test_whole_resource.py`.
