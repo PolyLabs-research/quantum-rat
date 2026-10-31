@@ -104,3 +104,8 @@ writing the code, neither informed by any run:
 
 The design probe (`--phase design`) runs the whole on seeds 2001–2004 and stops each run at the move, so nothing
 after the move is seen before the pilot.
+
+**The feasibility rule's outcome (2026-10-31, before the pilot).** `docs/data/whole/change/smell_design/` (at
+`416cbd3`, clean tree, warnings as errors, 6.7 s): the whole ate **27, 23, 28 and 21 meals** in the first 30 minutes
+on seeds 2001–2004 (mean 24.75; the bound 6), none starved; its reserve at the move was 0.57, 0.51, 0.29 and 0.62.
+The rule passes with three patches: no fourth patch. The pilot runs as §2–§7 and P1 describe.

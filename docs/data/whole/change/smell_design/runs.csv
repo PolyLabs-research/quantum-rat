@@ -1,0 +1,5 @@
+config,seed,survived,survival_ticks,meals_pre_move,final_energy,sleep_share
+whole,2001,True,9000,27,0.57047,0
+whole,2002,True,9000,23,0.50606,0.0733333
+whole,2003,True,9000,28,0.29346,0
+whole,2004,True,9000,21,0.62489,0.160111

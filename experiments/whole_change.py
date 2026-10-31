@@ -68,7 +68,9 @@ OLFACTION: Dict[str, Any] = {"sensors.olfaction": True, "basal_ganglia.smell_gai
 # other layout's patches, inside an old zone
 FOURTH: Tuple[Tuple[float, float], Tuple[float, float]] = ((-2.0, 7.0), (2.0, 7.0))
 FEASIBLE_MEALS = 6.0
-FOURTH_PATCH: Optional[bool] = None  # set by --phase design (§2); None: the rule not yet checked
+# set by --phase design (§2); None: the rule not yet checked. False: 24.75 meals before the move on the design seeds
+# (the bound 6; docs/data/whole/change/smell_design), so three patches
+FOURTH_PATCH: Optional[bool] = False
 SMELL_BREAKS_MIN = 7
 V1_MARGIN = 1.25
 PHASES: Dict[str, Dict[str, Any]] = {
