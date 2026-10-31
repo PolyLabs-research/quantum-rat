@@ -153,7 +153,25 @@ def _channel_scores(
         scores["TURN_LEFT"] += orient_left
     if orient_right:
         scores["TURN_RIGHT"] += orient_right
+    if config.smell_gain > 0.0:  # G60: the odour's pull to food, scaled like vision's by what food is worth now
+        smell_fwd, smell_left, smell_right = _smell(config.smell_gain * target_gain, observation.odour)
+        scores["FORWARD"] += smell_fwd
+        scores["TURN_LEFT"] += smell_left
+        scores["TURN_RIGHT"] += smell_right
     return scores
+
+
+def _smell(gain: float, odour: Optional[Tuple[float, float]]) -> Tuple[float, float, float]:
+    """The odour's pull (G60; docs/prereg/whole_smell.md §1): strength s = (L + R)/2, direction d = (L - R)/(L + R);
+    FORWARD gains gain x s x (1 - |d|), the turn toward the stronger nostril gain x s x |d|. (0, 0, 0) without odour."""
+    if gain <= 0.0 or odour is None:
+        return 0.0, 0.0, 0.0
+    left, right = odour
+    total = left + right
+    if total <= 0.0:
+        return 0.0, 0.0, 0.0
+    s, d = 0.5 * total, (left - right) / total
+    return gain * s * (1.0 - abs(d)), gain * s * max(0.0, d), gain * s * max(0.0, -d)
 
 
 def _orient(gain: float, c_target: float, l_target: float, r_target: float) -> Tuple[float, float]:
@@ -213,7 +231,7 @@ def channel_terms(
     commit_left = config.turn_commitment if committed and previous_action == "TURN_LEFT" else 0.0
     commit_right = config.turn_commitment if committed and previous_action == "TURN_RIGHT" else 0.0
     orient_left, orient_right = _orient(config.orient_gain, c_target, l_target, r_target)
-    return {
+    terms = {
         "FORWARD": {
             "bias": config.forward_bias * trn_gain * motivation * vigour,
             "pain": -pain_avoidance * pain,
@@ -248,6 +266,12 @@ def channel_terms(
             "idle": config.unmotivated_rest * (1.0 - motivation) if motivation < 1.0 else 0.0,
         },
     }
+    if config.smell_gain > 0.0:  # G60: only where the part is on, so every earlier readout keeps its terms
+        smell_fwd, smell_left, smell_right = _smell(config.smell_gain * target_gain, observation.odour)
+        terms["FORWARD"]["smell"] = smell_fwd
+        terms["TURN_LEFT"]["smell"] = smell_left
+        terms["TURN_RIGHT"]["smell"] = smell_right
+    return terms
 
 
 def selection_probabilities(

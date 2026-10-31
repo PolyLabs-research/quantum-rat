@@ -200,6 +200,14 @@ class SensorConfig:
     landmark_fov: float = 5.235987755982989
     landmark_bearing_noise: float = 0.05
     landmark_distance_noise: float = 0.10
+    # olfaction (the whole, part 2's second design; docs/prereg/whole_smell.md; G60): the odour of uneaten food at two
+    # nostrils, sum over food of exp(-max(0, distance - radius) / odour_length), clipped to [0, 1]; the nostrils sit
+    # nostril_distance units from the body's centre at +-nostril_angle from the heading (the separation exaggerated so
+    # one sample resolves a gradient, as a rat's head casting does). Off: None.
+    olfaction: bool = False
+    odour_length: float = 1.5
+    nostril_distance: float = 0.5
+    nostril_angle: float = 0.52
 
     def __post_init__(self) -> None:
         if not (math.isfinite(self.heading_oracle_noise) and self.heading_oracle_noise >= 0.0):
@@ -647,6 +655,10 @@ class BasalGangliaConfig:
     # (vision_gain x closeness) alone was too weak to turn the agent (the visible approach had rested on wall turning).
     # 0 is off, every run so far.
     orient_gain: float = 0.0
+    # smell_gain (G60; docs/prereg/whole_smell.md): the weight of the odour's pull to food (sensors.olfaction): FORWARD
+    # gains smell_gain x incentive x strength x (1 - |direction|), the turn toward the stronger nostril smell_gain x
+    # incentive x strength x |direction|. 0: no smell term (every result before G60).
+    smell_gain: float = 0.0
     # unmotivated_rest (G52): REST's drive when the agent has no reason to move (motivation.enabled; the "idle" term is
     # this times 1 - the drive). 1.0 outweighs FORWARD's bias (0.8) and a wall's pull to turn (at most 0.9), set from
     # that reason: an agent with nothing to move for stops. Inert at a drive of 1 (motivation off: every run so far).

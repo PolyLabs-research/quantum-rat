@@ -249,6 +249,7 @@ def gather_observation(
         heading = _wrap(heading)
     contacts = _wall_contacts(agent, world) if config.wall_contact_sensing else None
     landmarks = _landmark_sightings(agent, world, config, landmark_stream) if config.landmark_sensing else None
+    odour = _odour(agent, world, config) if config.olfaction else None
     obs = Observation(
         vision_rays=tuple(rays),
         whisker_hits=whisker_hits,
@@ -260,10 +261,34 @@ def gather_observation(
         landmarks=landmarks,
         lateral_delta=lateral_delta,
         free_space=free_space,
+        odour=odour,
     )
     obs.validate(forward_limit=config.forward_delta_limit)
     return obs
 
+
+# Food that smells (G60): what has not been eaten. A "collected" object has been eaten and is gone.
+ODOROUS_KINDS = ("target", "hidden")
+
+
+def odour_at(world: World, x: float, y: float, length: float) -> float:
+    """The odour of uneaten food at (x, y): the sum over food of exp(-max(0, distance - radius) / length), at most 1."""
+    total = 0.0
+    for obj in world.objects:
+        if obj.kind in ODOROUS_KINDS:
+            total += math.exp(-max(0.0, math.hypot(x - obj.x, y - obj.y) - obj.radius) / length)
+    return min(1.0, total)
+
+
+def _odour(agent: Agent, world: World, config: SensorConfig) -> Tuple[float, float]:
+    """(left, right): the odour at the two nostrils, ``nostril_distance`` from the body's centre at +-``nostril_angle``."""
+    x, y = agent.pos
+    out = []
+    for side in (1.0, -1.0):
+        a = agent.heading + side * config.nostril_angle
+        out.append(odour_at(world, x + config.nostril_distance * math.cos(a), y + config.nostril_distance * math.sin(a),
+                            config.odour_length))
+    return out[0], out[1]
 
 
 # Wall contact (M2b step 1): within this distance of a wall's line the body touches it. The world clamps the body to
