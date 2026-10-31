@@ -682,6 +682,7 @@ class Engine:
             value = meal_reward(self.metabolism.effective, energy, self.config.interoception.setpoint)
             if value <= 0.0:
                 return 0.0
+            value *= self.config.interoception.reward_scale  # amendment A2: the learning signal's scale (1.0: as built)
         else:
             value = self.config.reward.contact_bonus
         self.metabolism.eat(energy)

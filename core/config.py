@@ -322,10 +322,16 @@ class InteroceptionConfig:
     hunger_floor: float = 0.4
     incentive_memory: bool = True
     incentive_vision: bool = True
+    # reward_scale (amendment A2 of docs/prereg/whole_resource.md; G59): multiplies a meal's reward wherever it is a
+    # learning signal (the action value's reward, dopamine's TD error), so a typical meal brings about what the other
+    # parts were built around; the incentive, the consummatory reflex and the SR's outcome learning do not read it.
+    reward_scale: float = 1.0
 
     def __post_init__(self) -> None:
         if not (0.0 < self.hunger_floor < self.setpoint <= 1.0):
             raise ValueError("interoception needs 0 < hunger_floor < setpoint <= 1")
+        if not self.reward_scale > 0.0:
+            raise ValueError("interoception.reward_scale must be positive")
 
 
 @dataclass

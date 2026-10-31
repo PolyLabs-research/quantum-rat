@@ -220,3 +220,32 @@ form, confirmed on fresh seeds and a held-out arena**, with interoception and th
 
 The verdict's first condition fails: the whole passes R1′(a), R1′(b) and R2′ and the effort half of R1′(c), but its
 level falls 0.22 from `full` to `half`, more than the bound of 0.10. This document is not changed after the run.
+
+## Amendment A2: the reward scale, a registered joint-tuning step (2026-10-31, the owner's decision at G57 C1 and G58 C1, before any run under it)
+
+**Why.** G57 B4: interoception's reward for a typical meal is about 0.09, an order of magnitude below the rewards the
+other parts were built around (the contact bonus, 1). So the action value never reaches its read floor, dopamine's
+tonic trace sits near its floor (vigour near constant), and replay's budget and noradrenaline's temperature run near
+the bottom of their ranges.
+
+**The change.** `interoception.reward_scale` multiplies a meal's reward wherever it is a learning signal: the reward the
+action value learns and the reward in dopamine's TD error. Unchanged: the incentive (what food is worth now, in
+[0, 1], which scales memory and vision's pull to food), the consummatory reflex (eat when the reward is positive), and
+the SR's outcome learning (a meal: 1).
+
+**The rule for its value: a calibration, not a search.** The scale is set so that the median reward of the whole's meals
+on part 1's pilot seeds (1–12, the familiar arena) is 1, the contact bonus's size: computed once from the whole as the
+pilot ran it (scale 1), rounded to two significant figures (`--phase scale`). G57 C1 proposed normalising to a meal at
+the hunger floor instead; that multiplies every reward by 2.1 and leaves a meal at the whole's typical state
+(E_eff ≈ 0.70) at about 0.18, still far below 1, so it does not meet the aim, and the median rule does by
+construction.
+
+**Then.** Part 1's pilot re-run under the new scale (`--phase repilot`) on seeds 1–12 in both arenas (the half-food
+arena on seeds it has not seen), scored by amendment A1's spark with its survival bound at 11 of 12, and A1's verdict.
+Exploratory: the scale was calibrated on these seeds; any confirmation uses fresh seeds 43–72.
+
+**Predictions (before the calibration and the re-run).** The scale comes out between 5 and 15. The action value now
+steers: its advantages exceed the read floor on a measurable share of ticks, and removing it changes the runs.
+Dopamine's vigour varies with the rate of meals instead of sitting near 0.55. In the familiar arena the regulation is
+as before. Under scarcity the whole holds a level closer to the familiar one than G57's (a drop under 0.22; under 0.10
+is possible but I do not predict it).

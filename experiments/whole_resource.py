@@ -72,7 +72,14 @@ PHASES: Dict[str, Dict[str, Any]] = {
     "calibrate": {"seeds": (1001, 1002, 1003, 1004), "out": Path("docs/data/whole/resource/calibration"), "envs": ("full",)},
     "pilot": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/resource/pilot"), "envs": ("full",)},
     "confirm": {"seeds": tuple(range(13, 43)), "out": Path("docs/data/whole/resource/confirm"), "envs": ("full", "half")},
+    # Amendment A2: the reward scale's calibration (the whole at scale 1, the pilot's seeds and arena), and part 1's
+    # pilot re-run under it in both arenas
+    "scale": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/resource/scale"), "envs": ("full",)},
+    "repilot": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/resource/repilot"), "envs": ("full", "half")},
 }
+# Amendment A2's scale: set by --phase scale (the median meal of the whole on the pilot's seeds brings 1); None: not yet
+REWARD_SCALE: Optional[float] = None
+REPILOT_SURVIVAL_MIN = 11  # A1's survival bound on 12 seeds
 # Amendment A1's bounds (the confirmatory run)
 CONFIRM_SURVIVAL_MIN = 28
 HOLD_RATIO = 0.75
@@ -118,17 +125,27 @@ def whole() -> Dict[str, Any]:
     return merge(BASE, *PARTS.values())
 
 
-def configurations() -> Dict[str, Dict[str, Any]]:
-    """The 27 configurations of §5, name -> overrides on the research profile (the task's metabolism added by the run)."""
-    configs: Dict[str, Dict[str, Any]] = {"base": dict(BASE), "whole": whole()}
-    for name in PARTS:
-        configs[f"whole-{name}"] = merge(BASE, *(ov for p, ov in PARTS.items() if p != name))
+def configurations(parts: Optional[Mapping[str, Mapping[str, Any]]] = None) -> Dict[str, Dict[str, Any]]:
+    """The 27 configurations of §5, name -> overrides on the research profile (the task's metabolism added by the run),
+    from ``parts`` (``PARTS``, as the pilot and the confirmatory run had them, unless given)."""
+    parts = PARTS if parts is None else parts
+    whole_ov = merge(BASE, *parts.values())
+    configs: Dict[str, Dict[str, Any]] = {"base": dict(BASE), "whole": dict(whole_ov)}
+    for name in parts:
+        configs[f"whole-{name}"] = merge(BASE, *(ov for p, ov in parts.items() if p != name))
         if "neuromod.model" not in configs[f"whole-{name}"]:
             configs[f"whole-{name}"]["neuromod.model"] = "legacy"
-    for name, ov in PARTS.items():
+    for name, ov in parts.items():
         configs[f"base+{name}"] = merge(BASE, ov)
-    configs["whole_nomemory"] = merge(whole(), NO_MEMORY)
+    configs["whole_nomemory"] = merge(whole_ov, NO_MEMORY)
     return configs
+
+
+def scaled_parts(scale: float) -> Dict[str, Dict[str, Any]]:
+    """``PARTS`` with interoception's reward on amendment A2's scale."""
+    parts = {name: dict(ov) for name, ov in PARTS.items()}
+    parts["interoception"]["interoception.reward_scale"] = scale
+    return parts
 
 
 def engine_config(overrides: Mapping[str, Any], food_energy: float, charge: bool = True) -> EngineConfig:
@@ -166,6 +183,7 @@ def run_task(job: Tuple[str, Mapping[str, Any], int, int, float, bool], keep_ser
     moving: List[bool] = []
     asleep: List[bool] = []
     meal_ticks: List[int] = []
+    meal_values: List[float] = []
     temps: List[float] = []
     gains: List[float] = []
     trace: List[Dict[str, Any]] = []
@@ -179,6 +197,7 @@ def run_task(job: Tuple[str, Mapping[str, Any], int, int, float, bool], keep_ser
             ctx.ingested_object.kind = "collected"
             regrow_at[id(ctx.ingested_object)] = t + REGROW
             meal_ticks.append(t)
+            meal_values.append(ctx.meal_value)
         for p in patches:
             due = regrow_at.get(id(p))
             if due is not None and t >= due:
@@ -237,7 +256,8 @@ def run_task(job: Tuple[str, Mapping[str, Any], int, int, float, bool], keep_ser
     })
     out: Dict[str, Any] = {"row": row, "trace": trace}
     if keep_series:
-        out["series"] = {"energy": energy, "hunger": hunger_series, "moving": moving, "asleep": asleep, "meals": meal_ticks}
+        out["series"] = {"energy": energy, "hunger": hunger_series, "moving": moving, "asleep": asleep, "meals": meal_ticks,
+                         "meal_values": meal_values}
     return out
 
 
@@ -278,7 +298,7 @@ def verdict(scores: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]:
 
 
 def score_confirm(full: Sequence[Mapping[str, Any]], half: Sequence[Mapping[str, Any]], base_spread: float,
-                  n_boot: int = 10_000) -> Dict[str, Any]:
+                  n_boot: int = 10_000, survival_min: int = CONFIRM_SURVIVAL_MIN) -> Dict[str, Any]:
     """Amendment A1's spark for one configuration: R1′ (survival in both arenas; holding, the within-run spread in
     ``full`` against ``base_spread``; compensation, the level kept within 0.10 from ``full`` to ``half`` by moving more,
     paired by seed) and R2′ (the within-run hunger contrast in ``full``)."""
@@ -293,7 +313,7 @@ def score_confirm(full: Sequence[Mapping[str, Any]], half: Sequence[Mapping[str,
     seeds = sorted(s for s in by_full if s in by_half and by_full[s] == by_full[s] and by_half[s] == by_half[s])
     effort = paired_effect([by_full[s] for s in seeds], [by_half[s] for s in seeds], n_boot=n_boot, seed=0) if len(seeds) > 1 else None
     contrast = _mean([r["hunger_contrast"] for r in full])
-    r1a = surv_full >= CONFIRM_SURVIVAL_MIN and surv_half >= CONFIRM_SURVIVAL_MIN
+    r1a = surv_full >= survival_min and surv_half >= survival_min
     r1b = spread <= HOLD_RATIO * base_spread
     r1c = bool(level_full - level_half <= LEVEL_DROP_MAX and effort is not None and effort["low"] > 0.0)
     r2 = contrast >= CONTRAST_MIN
@@ -321,11 +341,17 @@ def verdict_confirm(scores: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]:
             "synergy": {"whole_gain": base - w["spread_full"], "sum_of_single_gains": sum(gains.values()), "single_gains": gains}}
 
 
-def _pool(jobs, workers):
+def run_one_series(job: Tuple[str, Mapping[str, Any], int, int, float, bool]) -> Dict[str, Any]:
+    """``run_one`` with the per-tick series (the reward scale's calibration reads the meals' rewards)."""
+    return run_task(job, keep_series=True)
+
+
+def _pool(jobs, workers, fn=None):
+    fn = run_one if fn is None else fn
     if workers == 1:
-        return [run_one(j) for j in jobs]
+        return [fn(j) for j in jobs]
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        return list(pool.map(run_one, jobs, chunksize=1))
+        return list(pool.map(fn, jobs, chunksize=1))
 
 
 def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
@@ -342,16 +368,26 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     seeds = QUICK_SEEDS if args.quick else spec["seeds"]
     ticks = QUICK_TICKS if args.quick else TICKS
     calibrate = args.phase == "calibrate"
+    scale_phase = args.phase == "scale"
     if calibrate:
         configs, k = {"base": dict(BASE)}, PROVISIONAL_K
     else:
         if FOOD_ENERGY is None and not args.quick:
             parser.error("the food's energy is not calibrated yet: run --phase calibrate and record K (amendment P2)")
-        configs, k = configurations(), (FOOD_ENERGY if FOOD_ENERGY is not None else PROVISIONAL_K)
-    confirm = args.phase == "confirm"
+        k = FOOD_ENERGY if FOOD_ENERGY is not None else PROVISIONAL_K
+        if scale_phase:  # amendment A2: the whole as the pilot ran it (scale 1)
+            configs = {"whole": configurations()["whole"]}
+        elif args.phase == "repilot":
+            if REWARD_SCALE is None and not args.quick:
+                parser.error("the reward scale is not calibrated yet: run --phase scale and record it (amendment A2)")
+            configs = configurations(scaled_parts(REWARD_SCALE if REWARD_SCALE is not None else 10.0))
+        else:
+            configs = configurations()
+    confirm = args.phase in ("confirm", "repilot")
     envs = spec["envs"]
     started = time.perf_counter()
-    results = _pool([(c, ov, s, ticks, k, calibrate, env) for c, ov in configs.items() for env in envs for s in seeds], args.workers)
+    results = _pool([(c, ov, s, ticks, k, calibrate, env) for c, ov in configs.items() for env in envs for s in seeds], args.workers,
+                    fn=run_one_series if scale_phase else run_one)
     rows = [r["row"] for r in results]
     traces = [t for r in results for t in r["trace"]]
     out.mkdir(parents=True, exist_ok=True)
@@ -368,7 +404,10 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
         n_boot = 200 if args.quick else 10_000
         pick = lambda c, e: [r for r in rows if r["config"] == c and r["env"] == e]  # noqa: E731
         base_spread = _mean([r["energy_sd_late"] for r in pick("base", "full")])
-        scores = {c: score_confirm(pick(c, "full"), pick(c, "half"), base_spread, n_boot) for c in configs}
+        survival_min = REPILOT_SURVIVAL_MIN if args.phase == "repilot" else CONFIRM_SURVIVAL_MIN
+        scores = {c: score_confirm(pick(c, "full"), pick(c, "half"), base_spread, n_boot, survival_min) for c in configs}
+        if args.phase == "repilot":
+            summary["reward_scale"] = REWARD_SCALE
         summary["scores"] = scores
         summary["verdict"] = verdict_confirm(scores)
         print(f"{'config':24s} surv f/h  spread(bound)   level f/h (drop)    effort f->h [95%]         contrast  R1a R1b R1c R2  spark")
@@ -385,6 +424,14 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
                                   "K": round(round((spent / meals) / 0.005) * 0.005, 3) if meals else None}
         print(f"calibration: the base would have spent {spent:.4f} over {meals} meals on {len(seeds)} seeds -> "
               f"cost per meal {summary['calibration']['cost_per_meal']}; K = {summary['calibration']['K']}")
+    elif scale_phase:  # amendment A2: the scale that makes the whole's median meal bring 1
+        values = sorted(v for r in results for v in r["series"]["meal_values"])
+        median = statistics.median(values) if values else float("nan")
+        scale = float(f"{1.0 / median:.2g}") if values and median > 0 else None
+        summary["scale"] = {"meals": len(values), "median_meal_reward": median, "quartiles": statistics.quantiles(values, n=4) if len(values) > 1 else None,
+                            "reward_scale": scale}
+        print(f"reward scale: {len(values)} meals of the whole, median reward {median:.4f} (quartiles "
+              f"{[round(q, 4) for q in summary['scale']['quartiles'] or []]}) -> scale {scale}")
     else:
         scores = {c: score([r for r in rows if r["config"] == c]) for c in configs}
         summary["scores"] = scores
