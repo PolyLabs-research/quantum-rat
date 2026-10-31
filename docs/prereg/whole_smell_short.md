@@ -75,3 +75,12 @@ of the time); 0.10, 0.65; 0.125, 0.68; 0.15, 0.70; 0.20, 0.70. **The rule picks 
 0.065 / 0.08 = 7.88. The prediction (0.10 or 0.125) was wrong. Noted before the pilot: at 0.065 the whole ate about as
 many meals before the move with the short reach as the second design's whole did with the long one (23.75 against
 24.75), so finding the food was not made much harder. The pilot runs as §1–§3 describe.
+
+## The pilot ran (2026-10-31; `docs/data/whole/change/short_pilot/`; read in G62)
+
+Both validity checks fail a third time: the whole eats 0.91 times as much before the move with memory read as with
+it unread (the bound 1.25), and the move does not raise the ground it covers. The whole shows the spark, but so does
+the base with the rodent body alone, and only removing the body breaks it. G62 reads why: with food enough, the rodent
+body's sweep finds hidden food; and V1 measured intake, which an agent in balance sets by its need, so memory's benefit
+(less effort for the same food) could not show in it. This document is not changed after the run; G62 C1 puts
+whether part 2 continues to the owner.

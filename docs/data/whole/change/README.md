@@ -34,3 +34,7 @@ Under the draft preregistration `docs/prereg/whole_smell_short.md`: the odour's 
 rule (§1.2). The whole on design seeds 4001–4004 at every rung of the ladder (K 0.065–0.20), each run stopped at the
 move. `runs.csv`: per rung and seed, the meals before the move, the reserve over the ten minutes before it and at it,
 the share asleep; `summary.json`: the rule (K = 0.08, the smallest rung in balance).
+
+`short_pilot/` (`python3 -m experiments.whole_change --phase smell3 --workers 28`, at `5761933`, 275 s): the 29
+configurations on seeds 1–12 at K = 0.08 (the reward scale 7.88), the three hidden patches moving at minute 30.
+`runs.csv`, `energy_trace.csv` and `summary.json` as the second design's.

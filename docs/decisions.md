@@ -2406,3 +2406,40 @@ The level's drop from the familiar arena to the half-food one: 0.375 (peak), 0.3
 3. **Part 2's third design goes ahead with the parts as built** (G60 C1), the tonic level the held peak.
 
 **Impact:** this entry; `core/config.py` (`neuromod.tonic_model`, `rate_time`, `rate_ref`), `brain/systems/neuromodulators.py`, `core/engine.py`; `tools/whole_probes/tonic_rate.py` (new) and its output; tests in `tests/brain/test_tonic_rate.py` (new).
+
+## G62 — The whole, part 2, third design: in balance, any agent with the rodent body adapts; memory saves effort but is not needed, and validity fails a third time
+
+**Date:** 2026-10-31  
+**Why:** the owner's go at G60 C1 ("go on all"): part 2 redesigned with a short odour reach and an economy in balance. Draft preregistration `docs/prereg/whole_smell_short.md` (`56205d9`, before any build or run): the odour's length 0.5 units by a rule on geometry alone (three patches mark 12% of the floor at the encounter threshold, against 66% in G60); the food's energy the smallest rung of a ladder at which the whole is in balance before the move; the reward scale following it (9.7 × 0.065 / K). Code `3406cb4`; the economy rule on design seeds 4001–4004 (`5761933`, `docs/data/whole/change/short_design/`): **K = 0.08** (the reserve 0.63 over the ten minutes before the move; predicted 0.10 or 0.125), scale 7.88. Pilot `77fb035` (`docs/data/whole/change/short_pilot/`, 275 s: the 29 configurations × seeds 1–12, from a clean tree, warnings as errors). The parts as in G60; dopamine's tonic level the held peak (G61).
+
+### A. Measured
+**Validity, read first: both checks fail again.** V1: the whole's intake in the quarter-hour before the move is **0.91 times** the whole's with memory unread (1.38 against 1.51 ×10⁻⁴ a tick; the bound 1.25). V2: 347 bins covered in the five minutes after the move against 343 before (+4, BCa 95% [−67, +89]).
+
+| configuration | survived (of 12) | intake ×10⁴ a tick: quarter-hour before → last quarter-hour | near the old places: first 5 min after / last 15 min (chance 0.094, bound 0.141) | first meal at a new patch (ticks) | ground covered (bins): 5 min before → after | efficiency before the move | asleep | spark |
+|---|---|---|---|---|---|---|---|---|
+| base | 0 (0.6 meals a run) | 0 → 0 | — | — | — | — | 0 | no |
+| **whole** | **12** | 1.38 → 1.54 | 0.12 / 0.08 | 284 | 343 → 347 | **4.98** | 0.14 | **yes** |
+| whole, memory unread | 12 | 1.51 → 1.47 | 0.14 / 0.13 | 386 | 410 → 403 | 3.75 | 0.10 | yes |
+| whole without olfaction | 12 | 1.44 → 1.60 | 0.16 / 0.09 | 422 | 364 → 364 | 4.79 | 0.12 | yes |
+| whole without interoception | 12 | 1.76 → 1.96 | 0.15 / 0.07 | 185 | 483 → 631 | 2.71 | 0.22 | yes |
+| whole without the rodent body | **6** | 0.89 → 0.81 | **0.47** / 0.09 | 1,018 | **18 → 108** | (barely moves) | 0.12 | **no** (A1) |
+| whole without orienting | 12: the whole's runs bit for bit | | | | | | | yes |
+| whole without any other one part | 12 each | 1.27–1.56 → 1.47–1.76 | | 264–573 | | | | yes, all ten |
+| **base + the rodent body** | **12** | **2.16 → 2.10** | 0.09 / 0.06 | 253 | 673 → 742 | 2.11 | 0 | **yes** |
+| base + any other one part, olfaction included | 0 | 0–0.28 → 0 | | | | | | no |
+
+The verdict: **condition 1 holds** (the whole adapts; its lowest reserve after the move 0.33–0.56); **condition 2 fails** (the base with the rodent body alone adapts); **condition 3 fails** (only removing the body breaks it).
+
+### B. Reading
+1. **The task now tests the body.** With food enough, any agent with the rodent body survives the move and recovers: its noisy sweep finds hidden patches by contact, smell or no smell. The base with that body alone eats more than the whole (2.16 against 1.38), because it never stops. Without the rodent body the whole barely moves (18 bins in five minutes), sits at a patch, and after the move stays near the old place for 47% of the first five minutes, the strongest return to an old place in the three designs; half those runs starve.
+2. **V1 failed as registered, and the measure was wrong for this design (my error).** An agent in balance eats what it spends, so memory cannot raise its intake; its benefit shows as effort. Read post hoc: the whole gets 4.98 units of food per unit spent moving against 3.75 with memory unread (1.33 times). Memory is useful here, not needed.
+3. **The move is still no surprise.** The whole goes back to the old places in the first five minutes little more than by chance (0.12 against 0.094; memory unread 0.14), covers no more ground after the move, and its noradrenaline does not rise (0.09 → 0.07).
+4. **The three designs together:** in this 2 m arena, food that is seen, smelled from afar or hidden is found at least as well by a sweep as by memory; memory has saved effort at most. The bracket cannot show emergence on adaptation here, because one part, the body, carries it. In this project memory has been needed only where a sweep cannot reach (the memory maze, G15–G16; G19: "only the memory maze showed memory doing anything").
+5. **Predictions (§4):** K 0.10 or 0.125 ✗ (0.08); V1 ✗; V2 ✗; the whole shows the spark ✓, but it does not return to the old places more than by chance ✗; the base starves ✓; the base with the rodent body survives and fails condition 2 ✓; removing interoception, motivation or olfaction breaks it ✗ (none does); removing the body breaks it ✓; orienting changes nothing ✓ (bit for bit); memory unread fails V1's margin ✓ (as registered), recovers more slowly ✗ (0.97 against 1.12, but first meal at a new patch later: 386 against 284 ticks).
+
+### C. Decisions this surfaces (the owner's)
+1. **Whether part 2 continues in this form** (§5's table). Recommended: stop varying the food in this arena. Adapting to a move needs memory only where a sweep is costly. If part 2 continues, the next design should make the world, not the food, the constraint: a larger arena (four times the floor, the same patches), with the economy rule applied again, after a check that the place code and the SR's map work at that scale. The alternative is a different second behaviour.
+2. **For any agent in balance, a memory check should be effort per meal (efficiency), not intake.** Recommended for every future validity check of memory.
+3. **The research body's perseveration** (47% near the old place after the move) is the clearest expectation-driven return seen in part 2, in a configuration the bracket counts as a failure. It is worth a look on its own if the owner wants the surprise signature studied.
+
+**Impact:** this entry; `docs/prereg/whole_smell_short.md` (new: the draft, the design probe's outcome and the record that the pilot ran); `experiments/whole_change.py` (the design3 and smell3 phases, `smell_parts(odour_length, food_energy)`, `economy_rule`); `docs/data/whole/change/short_design/`, `short_pilot/` (new); `docs/whole.md`, `README.md`; tests in `tests/experiments/test_whole_change.py`.

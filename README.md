@@ -167,8 +167,11 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   agent works harder exactly when food is scarce. A second target behaviour, adapting when the food moves, has
   twice not tested what it was built for: with the food visible (G58), adapting is seeing; with the food hidden
   and smelled (G60, a new olfactory sense), the odour of three patches reaches two thirds of the floor, so memory
-  is not needed, and the whole runs down by a slow energy deficit rather than failing at the move. A further
-  redesign is pending.
+  is not needed, and the whole runs down by a slow energy deficit rather than failing at the move. With a short
+  reach and food enough to keep it in balance (G62), the whole adapts, but so does the base with the rodent body
+  alone: in this arena a noisy sweep finds hidden food, and memory only saves effort. Making dopamine's tonic
+  level a rate of reward did not hold the level in scarcity either (G61): there the agent moves on nearly every
+  awake tick whatever its vigour.
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the
