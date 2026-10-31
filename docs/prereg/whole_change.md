@@ -89,3 +89,10 @@ never used). `experiments/whole_change.py --phase pilot`, from a clean tree with
 ## 8. What would change this document
 
 Nothing after the pilot's configurations have run. A pre-run amendment is recorded here, dated, before the pilot.
+
+## The pilot ran (2026-10-31; `docs/data/whole/change/pilot/`; read in G58)
+
+The whole shows the spark, but so does the base with dopamine, acetylcholine or orienting alone, and no single
+removal breaks it: by §7, one mechanism suffices. With the food visible, adapting to its move needs no memory and
+violates no expectation, so the task did not test the parts it was built for. This document is not changed after the
+run; G58 C2 puts a redesign to the owner.

@@ -2253,3 +2253,36 @@ In the familiar arena the whole spends 77% of the half-minute after a meal still
 2. **Part 2** goes ahead now, at the owner's "go", on the whole as it stands: its pilot is the baseline the tuning decision is then made against, across both behaviours.
 
 **Impact:** this entry; `docs/prereg/whole_resource.md` (amendment A1, and the record that the confirmatory run ran); `experiments/whole_resource.py` (the confirm phase); `docs/data/whole/resource/confirm/` (new); `docs/whole.md`, `README.md`; tests in `tests/experiments/test_whole_resource.py`.
+
+## G58 — The whole, part 2 piloted: with visible food, adapting to its move needs no memory, and three single parts suffice
+
+**Date:** 2026-10-31  
+**Why:** the owner's decision at G56 D2: a target behaviour that needs the parts resource management did not. Draft preregistration `docs/prereg/whole_change.md` (`c037acf`, before any build or run): three visible patches move without a signal half way through a 60-minute run; the spark is survival (A1), recovery of intake after the move (A2) and extinction of visits to the old places (A3). Code `734262f`; pilot `4516030` (`docs/data/whole/change/pilot/`, 363 s; the 27 configurations × seeds 1–12, from a clean tree, warnings as errors). The parts as they stand (G57 C1's tuning decision pending). A design probe before the draft (disclosed in it) ruled out hidden food: the base found 1–6 meals in 30 minutes.
+
+### A. Measured
+
+| configuration | survived | intake per tick ×10⁴: before → after the move | near the old places: first 5 min after / last 15 min (bound 0.141) | first meal at a new patch (ticks) | ground covered (bins): 5 min before → after | noradrenaline: before → after | spark |
+|---|---|---|---|---|---|---|---|
+| base | **0** (starves at tick 7,026 on average, before the move) | 0.71 → 0 | 0.12 / — | 73 | 158 → 74 | 0.50 → 0.50 (legacy trace) | no |
+| **whole** | 12 | 1.22 → 1.28 | 0.08 / 0.09 | 243 | 259 → 253 | **0.04 → 0.03** | **yes** |
+| whole, memory unread | 12 | 1.17 → 1.30 | 0.11 / 0.10 | 226 | 283 → 271 | 0.03 → 0.04 | yes |
+| whole minus any one part | 12 each | 1.05–1.76 → 1.06–1.69 | 0.08–0.56 / 0.05–0.11 | 101–805 | | | **yes, all twelve** |
+| base + dopamine | 12 | 2.23 → 2.24 | 0.10 / 0.03 | 47 | 504 → 603 | | **yes** |
+| base + acetylcholine | 12 | 2.17 → 2.00 | 0.11 / 0.02 | 64 | 501 → 563 | | **yes** |
+| base + orienting | 12 | 2.53 → 2.55 | 0.11 / 0.02 | 31 | 469 → 564 | | **yes** |
+| base + the body | 10 | 1.81 → 1.83 | 0.11 / 0.06 | 115 | 690 → 697 | | no (A1) |
+| base + any other one part | 0–3 | | | | | | no |
+
+The verdict: **condition 1 holds** (the whole adapts), **condition 2 fails** (dopamine, acetylcholine and orienting each make the base adapt on their own) and **condition 3 fails** (no removal breaks it). By the decision table: one mechanism suffices, and three different ones do. My predictions failed wherever they said a part would matter.
+
+### B. Reading
+1. **The task did not test what it was built to test.** With the food visible, adapting to its move is a matter of seeing it. The base starves before the move (three patches are too few for its wall-following walk), and any single part that makes it see more (acetylcholine's sharper vision), reach what it sees (orienting) or leave the walls (dopamine's low vigour turns it away from them) lets it survive, overeating, and "adapt" at once. Memory unread changes nothing.
+2. **The whole shows none of the signatures of an expectation violated.** It never returns to the old places, even in the first five minutes after the move; it covers no more ground after the move than before; its noradrenaline does not move. With visible food and rewards on G57's small scale, an empty site is no surprise: there is nothing for noradrenaline, acetylcholine's encoding or replay to do.
+3. **Both causes are mine.** Choosing visible food after the hidden-food probe removed the demand on memory; the reward-scale mismatch found in G57 mutes the prediction errors that surprise would run on.
+
+### C. Decisions this surfaces (the owner's)
+1. **The joint-tuning decision (G57 C1) now has two tasks behind it.** Recommended as there: put interoception's reward on the scale the other parts were built for, written as a dated amendment, and re-run both parts' pilots.
+2. **Part 2 redesigned so that memory is needed and a move is a surprise.** Recommended: food the agent can smell at close range but not see from afar (a short-range olfactory sense: a new sensor, and the sense rats forage by), so that finding food again from across the arena takes memory, and an emptied place is an expectation violated. Built opt-in and preregistered, after the tuning decision.
+3. **Not recommended:** rescuing this pilot by redefining its measures. The task, not the measures, was wrong.
+
+**Impact:** this entry; `docs/prereg/whole_change.md` (new, and the record that the pilot ran); `experiments/whole_change.py` (new); `docs/data/whole/change/pilot/` (new); `docs/whole.md`, `README.md`; tests in `tests/experiments/test_whole_change.py` (new).
