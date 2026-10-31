@@ -18,3 +18,9 @@ hidden (smelled, not seen), and the parts run on amendment A2's reward scale wit
 feasibility rule (§2). The whole on design seeds 2001–2004, each run stopped at the move, so nothing after it was
 seen before the pilot. `runs.csv`: per seed, the meals before the move, the reserve there and the share asleep;
 `summary.json`: the rule (mean 24.75 meals, the bound 6: passes, no fourth patch).
+
+`smell_pilot/` (`python3 -m experiments.whole_change --phase smell --workers 28`, at `fcb20d8`, 287 s): the 29
+configurations on seeds 1–12, 60-minute runs whose three hidden patches move without a signal at minute 30. `runs.csv`:
+part 2's columns and the meals before the move; `energy_trace.csv`: the reserve, the gut and sleep every 150 ticks;
+`summary.json`: the validity checks (V1, V2), the spark (A1–A3) and the verdict. The disclosed check behind G60's
+reading: `tools/whole_probes/smell_budget.py`.

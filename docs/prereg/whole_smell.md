@@ -109,3 +109,12 @@ after the move is seen before the pilot.
 `416cbd3`, clean tree, warnings as errors, 6.7 s): the whole ate **27, 23, 28 and 21 meals** in the first 30 minutes
 on seeds 2001–2004 (mean 24.75; the bound 6), none starved; its reserve at the move was 0.57, 0.51, 0.29 and 0.62.
 The rule passes with three patches: no fourth patch. The pilot runs as §2–§7 and P1 describe.
+
+## The pilot ran (2026-10-31; `docs/data/whole/change/smell_pilot/`; read in G60)
+
+Both validity checks fail: the whole eats only 1.10 times as much before the move with memory read as with it unread
+(the bound 1.25), and the move does not raise the ground it covers. By §8 the task again does not test what it was
+built to test. The whole does not show the spark either: 7 of its 12 runs starve after the move. G60 reads why: the
+odour of three patches reaches two thirds of the floor (the reach was set per source, not checked against the arena),
+and the whole is in deficit from the start, its decline steepening as hunger and memory's pull rise. This document is
+not changed after the run; G60 C1 puts a further redesign to the owner.
