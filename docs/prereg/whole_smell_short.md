@@ -65,3 +65,13 @@ Design probe 4001–4004; pilot 1–12; reserved for a confirmatory run 13–42.
 
 Nothing after the pilot's configurations have run. The design probe's outcome and any pre-run amendment are recorded
 here, dated, before the pilot.
+
+## 7. The design probe's outcome (2026-10-31, before the pilot)
+
+`docs/data/whole/change/short_design/` (at `3406cb4`, clean tree, warnings as errors, 17.5 s): the whole on design
+seeds 4001–4004, each run stopped at the move, odour length 0.5. Its reserve over the ten minutes before the move, by
+rung (none starved at any): K 0.065, **0.50** (not in balance; 23.75 meals); **0.08, 0.63** (16.75 meals; asleep 15–16%
+of the time); 0.10, 0.65; 0.125, 0.68; 0.15, 0.70; 0.20, 0.70. **The rule picks K = 0.08**, the reward scale 9.7 ×
+0.065 / 0.08 = 7.88. The prediction (0.10 or 0.125) was wrong. Noted before the pilot: at 0.065 the whole ate about as
+many meals before the move with the short reach as the second design's whole did with the long one (23.75 against
+24.75), so finding the food was not made much harder. The pilot runs as §1–§3 describe.

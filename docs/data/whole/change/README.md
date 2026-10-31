@@ -24,3 +24,13 @@ configurations on seeds 1–12, 60-minute runs whose three hidden patches move w
 part 2's columns and the meals before the move; `energy_trace.csv`: the reserve, the gut and sleep every 150 ticks;
 `summary.json`: the validity checks (V1, V2), the spark (A1–A3) and the verdict. The disclosed check behind G60's
 reading: `tools/whole_probes/smell_budget.py`.
+
+## The third design: a short reach, an economy in balance (G62)
+
+Under the draft preregistration `docs/prereg/whole_smell_short.md`: the odour's length 0.5 units (three patches mark
+12% of the floor at the encounter threshold), the food's energy set by the economy rule, the reward scale following it.
+
+`short_design/` (`python3 -m experiments.whole_change --phase design3 --workers 24`, at `3406cb4`, 17.5 s): the economy
+rule (§1.2). The whole on design seeds 4001–4004 at every rung of the ladder (K 0.065–0.20), each run stopped at the
+move. `runs.csv`: per rung and seed, the meals before the move, the reserve over the ten minutes before it and at it,
+the share asleep; `summary.json`: the rule (K = 0.08, the smallest rung in balance).

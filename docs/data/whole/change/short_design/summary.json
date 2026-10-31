@@ -1,0 +1,296 @@
+{
+ "configs": {
+  "whole K=0.065": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "basal_ganglia.ach_precision_gain": 0.5,
+   "basal_ganglia.criticality_gain": 1.0,
+   "basal_ganglia.criticality_scales_walls": true,
+   "basal_ganglia.fiveht_patience_gain": 1.0,
+   "basal_ganglia.ne_threat_gain": 0.5,
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.smell_gain": 0.6,
+   "body.model": "rodent",
+   "body.rotational_noise": 2.0943951023931953,
+   "body.speed_noise": 0.08,
+   "criticality.dynamic": true,
+   "interoception.enabled": true,
+   "interoception.reward_scale": 9.7,
+   "motivation.enabled": true,
+   "motivation.hunger_source": "interoception",
+   "motivation.vigour_floor": 1.0,
+   "neuromod.acetylcholine": true,
+   "neuromod.dopamine": true,
+   "neuromod.model": "biological",
+   "neuromod.noradrenaline": true,
+   "neuromod.serotonin": true,
+   "place.reward_step_cap": true,
+   "replay.sr_replay": true,
+   "sensors.odour_length": 0.5,
+   "sensors.olfaction": true,
+   "sleep.enabled": true,
+   "value_memory.source": "sr_action"
+  },
+  "whole K=0.08": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "basal_ganglia.ach_precision_gain": 0.5,
+   "basal_ganglia.criticality_gain": 1.0,
+   "basal_ganglia.criticality_scales_walls": true,
+   "basal_ganglia.fiveht_patience_gain": 1.0,
+   "basal_ganglia.ne_threat_gain": 0.5,
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.smell_gain": 0.6,
+   "body.model": "rodent",
+   "body.rotational_noise": 2.0943951023931953,
+   "body.speed_noise": 0.08,
+   "criticality.dynamic": true,
+   "interoception.enabled": true,
+   "interoception.reward_scale": 7.88125,
+   "motivation.enabled": true,
+   "motivation.hunger_source": "interoception",
+   "motivation.vigour_floor": 1.0,
+   "neuromod.acetylcholine": true,
+   "neuromod.dopamine": true,
+   "neuromod.model": "biological",
+   "neuromod.noradrenaline": true,
+   "neuromod.serotonin": true,
+   "place.reward_step_cap": true,
+   "replay.sr_replay": true,
+   "sensors.odour_length": 0.5,
+   "sensors.olfaction": true,
+   "sleep.enabled": true,
+   "value_memory.source": "sr_action"
+  },
+  "whole K=0.1": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "basal_ganglia.ach_precision_gain": 0.5,
+   "basal_ganglia.criticality_gain": 1.0,
+   "basal_ganglia.criticality_scales_walls": true,
+   "basal_ganglia.fiveht_patience_gain": 1.0,
+   "basal_ganglia.ne_threat_gain": 0.5,
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.smell_gain": 0.6,
+   "body.model": "rodent",
+   "body.rotational_noise": 2.0943951023931953,
+   "body.speed_noise": 0.08,
+   "criticality.dynamic": true,
+   "interoception.enabled": true,
+   "interoception.reward_scale": 6.304999999999999,
+   "motivation.enabled": true,
+   "motivation.hunger_source": "interoception",
+   "motivation.vigour_floor": 1.0,
+   "neuromod.acetylcholine": true,
+   "neuromod.dopamine": true,
+   "neuromod.model": "biological",
+   "neuromod.noradrenaline": true,
+   "neuromod.serotonin": true,
+   "place.reward_step_cap": true,
+   "replay.sr_replay": true,
+   "sensors.odour_length": 0.5,
+   "sensors.olfaction": true,
+   "sleep.enabled": true,
+   "value_memory.source": "sr_action"
+  },
+  "whole K=0.125": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "basal_ganglia.ach_precision_gain": 0.5,
+   "basal_ganglia.criticality_gain": 1.0,
+   "basal_ganglia.criticality_scales_walls": true,
+   "basal_ganglia.fiveht_patience_gain": 1.0,
+   "basal_ganglia.ne_threat_gain": 0.5,
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.smell_gain": 0.6,
+   "body.model": "rodent",
+   "body.rotational_noise": 2.0943951023931953,
+   "body.speed_noise": 0.08,
+   "criticality.dynamic": true,
+   "interoception.enabled": true,
+   "interoception.reward_scale": 5.044,
+   "motivation.enabled": true,
+   "motivation.hunger_source": "interoception",
+   "motivation.vigour_floor": 1.0,
+   "neuromod.acetylcholine": true,
+   "neuromod.dopamine": true,
+   "neuromod.model": "biological",
+   "neuromod.noradrenaline": true,
+   "neuromod.serotonin": true,
+   "place.reward_step_cap": true,
+   "replay.sr_replay": true,
+   "sensors.odour_length": 0.5,
+   "sensors.olfaction": true,
+   "sleep.enabled": true,
+   "value_memory.source": "sr_action"
+  },
+  "whole K=0.15": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "basal_ganglia.ach_precision_gain": 0.5,
+   "basal_ganglia.criticality_gain": 1.0,
+   "basal_ganglia.criticality_scales_walls": true,
+   "basal_ganglia.fiveht_patience_gain": 1.0,
+   "basal_ganglia.ne_threat_gain": 0.5,
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.smell_gain": 0.6,
+   "body.model": "rodent",
+   "body.rotational_noise": 2.0943951023931953,
+   "body.speed_noise": 0.08,
+   "criticality.dynamic": true,
+   "interoception.enabled": true,
+   "interoception.reward_scale": 4.203333333333333,
+   "motivation.enabled": true,
+   "motivation.hunger_source": "interoception",
+   "motivation.vigour_floor": 1.0,
+   "neuromod.acetylcholine": true,
+   "neuromod.dopamine": true,
+   "neuromod.model": "biological",
+   "neuromod.noradrenaline": true,
+   "neuromod.serotonin": true,
+   "place.reward_step_cap": true,
+   "replay.sr_replay": true,
+   "sensors.odour_length": 0.5,
+   "sensors.olfaction": true,
+   "sleep.enabled": true,
+   "value_memory.source": "sr_action"
+  },
+  "whole K=0.2": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "basal_ganglia.ach_precision_gain": 0.5,
+   "basal_ganglia.criticality_gain": 1.0,
+   "basal_ganglia.criticality_scales_walls": true,
+   "basal_ganglia.fiveht_patience_gain": 1.0,
+   "basal_ganglia.ne_threat_gain": 0.5,
+   "basal_ganglia.orient_gain": 1.0,
+   "basal_ganglia.smell_gain": 0.6,
+   "body.model": "rodent",
+   "body.rotational_noise": 2.0943951023931953,
+   "body.speed_noise": 0.08,
+   "criticality.dynamic": true,
+   "interoception.enabled": true,
+   "interoception.reward_scale": 3.1524999999999994,
+   "motivation.enabled": true,
+   "motivation.hunger_source": "interoception",
+   "motivation.vigour_floor": 1.0,
+   "neuromod.acetylcholine": true,
+   "neuromod.dopamine": true,
+   "neuromod.model": "biological",
+   "neuromod.noradrenaline": true,
+   "neuromod.serotonin": true,
+   "place.reward_step_cap": true,
+   "replay.sr_replay": true,
+   "sensors.odour_length": 0.5,
+   "sensors.olfaction": true,
+   "sleep.enabled": true,
+   "value_memory.source": "sr_action"
+  }
+ },
+ "first": [
+  [
+   5.0,
+   5.0
+  ],
+  [
+   -6.0,
+   -2.0
+  ],
+  [
+   2.0,
+   -6.0
+  ]
+ ],
+ "food_energy": null,
+ "fourth_patch": null,
+ "kind": "hidden",
+ "odour_length": 0.5,
+ "phase": "design3",
+ "quick": false,
+ "reward_scale": null,
+ "rule": {
+  "K": 0.08,
+  "bound": 0.6,
+  "rungs": {
+   "0.065": {
+    "in_balance": false,
+    "meals_pre_move": 23.75,
+    "reserve_pre10": 0.4979074073337758,
+    "starved": 0
+   },
+   "0.08": {
+    "in_balance": true,
+    "meals_pre_move": 16.75,
+    "reserve_pre10": 0.6318587180608979,
+    "starved": 0
+   },
+   "0.1": {
+    "in_balance": true,
+    "meals_pre_move": 13.5,
+    "reserve_pre10": 0.6544373261076817,
+    "starved": 0
+   },
+   "0.125": {
+    "in_balance": true,
+    "meals_pre_move": 10.75,
+    "reserve_pre10": 0.6781958036430566,
+    "starved": 0
+   },
+   "0.15": {
+    "in_balance": true,
+    "meals_pre_move": 8.25,
+    "reserve_pre10": 0.6970704770776166,
+    "starved": 0
+   },
+   "0.2": {
+    "in_balance": true,
+    "meals_pre_move": 6.5,
+    "reserve_pre10": 0.696251939771887,
+    "starved": 0
+   }
+  }
+ },
+ "second": [
+  [
+   -5.0,
+   5.0
+  ],
+  [
+   6.0,
+   -2.0
+  ],
+  [
+   -2.0,
+   -6.0
+  ]
+ ],
+ "seeds": [
+  4001,
+  4002,
+  4003,
+  4004
+ ],
+ "ticks": 18000,
+ "windows": {
+  "after": [
+   13500,
+   18000
+  ],
+  "before": [
+   4500,
+   9000
+  ],
+  "change": [
+   9000,
+   9000
+  ],
+  "post5": [
+   9000,
+   10500
+  ],
+  "pre5": [
+   7500,
+   9000
+  ]
+ }
+}

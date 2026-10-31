@@ -85,7 +85,9 @@ V1_MARGIN = 1.25
 SHORT_LENGTH = 0.5
 K_LADDER: Tuple[float, ...] = (0.065, 0.08, 0.10, 0.125, 0.15, 0.20)
 BALANCE_MIN = 0.6
-SHORT_K: Optional[float] = None  # set by --phase design3 (§1.2); None: the rule not yet applied
+# set by --phase design3 (§1.2); None: the rule not yet applied. 0.08: the smallest rung in balance (the reserve 0.63
+# over the ten minutes before the move; docs/data/whole/change/short_design)
+SHORT_K: Optional[float] = 0.08
 QUICK_K = 0.10  # a quick run's K while SHORT_K is unset (the smoke test)
 PHASES: Dict[str, Dict[str, Any]] = {
     "pilot": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/change/pilot"), "prereg": "docs/prereg/whole_change.md"},
