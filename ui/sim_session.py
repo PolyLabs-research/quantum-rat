@@ -444,9 +444,34 @@ class SimSession:
                 + ("; the steering reads it (M3 step 3)" if vm.source == "action" else "; nothing reads it"))
         if self.engine.motivation is not None:
             mo = cfg.motivation
+            sensed = mo.hunger_source == "interoception" and cfg.interoception.enabled
             add("motivation", "Motivation", "active",
-                f"drive = curiosity or hunger (initial {mo.hunger_initial:g}); the reward trace sets vigour (floor {mo.vigour_floor:g}) on the "
-                "forward bias; REST's idle term for what is missing")
+                ("drive = curiosity or the sensed hunger" if sensed else f"drive = curiosity or hunger (initial {mo.hunger_initial:g})")
+                + f"; the reward trace sets vigour (floor {mo.vigour_floor:g}) on the forward bias; REST's idle term for what is missing")
+        # The whole (G56; docs/prereg/whole_resource.md)
+        if self.engine.metabolism is not None:
+            mc = cfg.metabolism
+            add("metabolism", "Metabolism", "active",
+                f"an energy reserve paid every tick (more when moving, less asleep), filled by meals of {mc.food_energy:g} through the gut")
+        if cfg.interoception.enabled:
+            ic = cfg.interoception
+            add("interoception", "Interoception", "active",
+                f"senses its energy against a setpoint of {ic.setpoint:g}: reward is the drive a meal removes, it eats only when that is "
+                "positive, and what food is worth now scales memory and vision's pull to it")
+        if self.engine.bio_neuromod is not None:
+            nm = cfg.neuromod
+            on = [name for name, flag in (("dopamine: TD error, vigour, replay budget", nm.dopamine),
+                                          ("serotonin: satiety rest", nm.serotonin),
+                                          ("noradrenaline: surprise raises the temperature", nm.noradrenaline),
+                                          ("acetylcholine: novelty and movement set encoding against replay", nm.acetylcholine)) if flag]
+            add("neuromod", "Neuromodulators", "active", "; ".join(on) if on else "the biological model with no modulator on")
+        if self.engine.sleep is not None:
+            add("sleep", "Sleep", "active", "pressure builds awake and falls asleep; hunger keeps it awake; asleep the thalamic gate closes")
+        if self.engine.crit_coupling is not None:
+            add("criticality", "Criticality", "active", "the lattice's distance from criticality follows sleep pressure, tuned back "
+                "homeostatically; its dynamic-range gain scales vision and wall avoidance")
+        if self.engine.sr_replay is not None:
+            add("map_replay", "Map replay", "active", "replays the successor map: reverse at a meal (when acetylcholine allows), uniform asleep")
         if vm.oracle_homing:
             add("goal", "Goal memory (oracle homing)", "active",
                 "turns toward the remembered goal where the value read is flat: an oracle control, not learned navigation"
@@ -522,13 +547,15 @@ class SimSession:
             pacing_rest = bg.pace_rest_bonus if ctx.pacing_active else 0.0
             raw = channel_terms(obs, ctx.wm_novelty, ctx.trn_gate_value, ctx.microsleep_active, bg, ctx.neuromodulators,
                                 *ctx.value_signals, ctx.criticality_gain, ctx.freeze_habituation, pacing_rest,
-                         ctx.previous_action, getattr(ctx, "motivation", 1.0), getattr(ctx, "vigour", 1.0))
+                         ctx.previous_action, getattr(ctx, "motivation", 1.0), getattr(ctx, "vigour", 1.0),
+                         getattr(ctx, "target_gain", 1.0))
             terms = {ch: {k: _r(v) for k, v in t.items()} for ch, t in raw.items()}
-            exact = selection_probabilities(scores, bg.softmax_temperature)
+            tau = getattr(ctx, "temperature", bg.softmax_temperature)  # this tick's (G56: noradrenaline moves it)
+            exact = selection_probabilities(scores, tau)
             probs = {k: _r(v) for k, v in exact.items()}
-            without_memory = counterfactual_probabilities(scores, raw, bg.softmax_temperature, ("memory",))
+            without_memory = counterfactual_probabilities(scores, raw, tau, ("memory",))
             probs_without_memory = {k: _r(v) for k, v in without_memory.items()}
-            influence = {name: _r(total_variation(exact, counterfactual_probabilities(scores, raw, bg.softmax_temperature, (name,))))
+            influence = {name: _r(total_variation(exact, counterfactual_probabilities(scores, raw, tau, (name,))))
                          for name in COUNTERFACTUAL_TERMS}
         goal_cell = None  # the goal-vector memory, in world coordinates (only with oracle homing on)
         goal = eng.goal_point() if eng.config.value_memory.oracle_homing else None
@@ -554,7 +581,7 @@ class SimSession:
                 # family's immediate influence as the total-variation shift it makes to the probabilities.
                 "probs_without_memory": probs_without_memory,
                 "influence": influence,
-                "temperature": _r(bg.softmax_temperature),
+                "temperature": _r(getattr(ctx, "temperature", bg.softmax_temperature)),
                 "source": eng.config.value_memory.source,
                 "value_gain": _r(bg.value_gain),
                 "value": [_r(v) for v in (ctx.value_signals if ctx else (0.0, 0.0, 0.0))],

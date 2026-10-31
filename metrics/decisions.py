@@ -83,9 +83,11 @@ def decision_record(engine: Any) -> Dict[str, Any]:
         pacing_rest = bg.pace_rest_bonus if ctx.pacing_active else 0.0
         terms = channel_terms(obs, ctx.wm_novelty, ctx.trn_gate_value, ctx.microsleep_active, bg, ctx.neuromodulators,
                               *ctx.value_signals, ctx.criticality_gain, ctx.freeze_habituation, pacing_rest,
-                         ctx.previous_action, getattr(ctx, "motivation", 1.0), getattr(ctx, "vigour", 1.0))
-    probs = selection_probabilities(scores, bg.softmax_temperature) if scores else {}
-    without = {name: counterfactual_probabilities(scores, terms, bg.softmax_temperature, (name,)) if scores else {}
+                         ctx.previous_action, getattr(ctx, "motivation", 1.0), getattr(ctx, "vigour", 1.0),
+                         getattr(ctx, "target_gain", 1.0))
+    tau = getattr(ctx, "temperature", bg.softmax_temperature)  # the temperature this tick's choice used (G56: NE moves it)
+    probs = selection_probabilities(scores, tau) if scores else {}
+    without = {name: counterfactual_probabilities(scores, terms, tau, (name,)) if scores else {}
                for name in COUNTERFACTUAL_TERMS}
     influence = {name: _r(total_variation(probs, without[name])) for name in COUNTERFACTUAL_TERMS}
     target_rays = [ray for ray in (obs.vision_rays if obs is not None else ()) if ray.obj_type == "target"]

@@ -146,3 +146,11 @@ patches, moved) that the pilot never sees. Every run from a clean tree with nume
 
 Nothing after the pilot's configurations have run. A pre-run amendment (a parameter that must change for the build to
 run at all, or the calibration's outcome) is recorded here, dated, before the pilot.
+
+## Pre-run amendments
+
+**P1 (2026-10-31, found in the build's smoke run, before calibration).** A meal's replay was taken on the tick the
+agent arrives at the food, when it has just moved, so acetylcholine (half of it movement) never allowed it. Replay at
+reward happens while the animal is still and eating (Foster & Wilson 2006), so the budget is set by the meal's TD
+error on arrival and the sweep runs on the first tick of the meal's pause on which acetylcholine allows it (the body
+resting, ACh is half the novelty); if the meal ends first, there is none. Nothing else changes.
