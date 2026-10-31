@@ -42,6 +42,9 @@ from metrics.manifest import build_manifest, finish_manifest, write_manifest
 
 TICKS = 9000
 PATCHES: Tuple[Tuple[float, float], ...] = ((5.0, 5.0), (-5.0, 5.0), (-5.0, -5.0), (5.0, -5.0))
+# Amendment A1's held-out arena: half the patches, moved (the pilot never saw it)
+HALF_PATCHES: Tuple[Tuple[float, float], ...] = ((0.0, 6.0), (0.0, -6.0))
+ENVIRONMENTS: Dict[str, Tuple[Tuple[float, float], ...]] = {"full": PATCHES, "half": HALF_PATCHES}
 PATCH_RADIUS = 0.75
 REGROW = 600
 SETPOINT = 0.8  # the analyst's hunger and deviation use interoception's setpoint and floor, sensed or not
@@ -66,9 +69,16 @@ PARTS: Dict[str, Dict[str, Any]] = {
 }
 NO_MEMORY: Dict[str, Any] = {"basal_ganglia.value_gain": 0.0}
 PHASES: Dict[str, Dict[str, Any]] = {
-    "calibrate": {"seeds": (1001, 1002, 1003, 1004), "out": Path("docs/data/whole/resource/calibration")},
-    "pilot": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/resource/pilot")},
+    "calibrate": {"seeds": (1001, 1002, 1003, 1004), "out": Path("docs/data/whole/resource/calibration"), "envs": ("full",)},
+    "pilot": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/resource/pilot"), "envs": ("full",)},
+    "confirm": {"seeds": tuple(range(13, 43)), "out": Path("docs/data/whole/resource/confirm"), "envs": ("full", "half")},
 }
+# Amendment A1's bounds (the confirmatory run)
+CONFIRM_SURVIVAL_MIN = 28
+HOLD_RATIO = 0.75
+LEVEL_DROP_MAX = 0.10
+CONTRAST_MIN = 0.15
+CONFIRM_TRACE_EVERY = 150
 QUICK_SEEDS = (1, 2)
 QUICK_TICKS = 400
 # The spark's bounds (§4) and the verdict's (§5)
@@ -82,6 +92,19 @@ BREAKS_MIN = 6
 RUN_COLUMNS = ("config", "seed", "survived", "survival_ticks", "final_energy", "mean_dev_late", "low_share", "hungry_share",
                "sated_share", "moving_hungry", "moving_sated", "meals", "eaten", "spent", "spent_locomotion", "efficiency",
                "lost", "sleep_share", "sleep_bouts", "postprandial_rest", "replay_events", "mean_temperature", "mean_sensory_gain")
+# The confirmatory run's table: the arena, the pilot's columns, and amendment A1's measures
+CONFIRM_COLUMNS = ("config", "env", "seed") + RUN_COLUMNS[2:] + ("energy_mean_late", "energy_sd_late", "hunger_contrast",
+                                                                  "moving_awake")
+
+
+def tercile_contrast(hunger: Sequence[float], moving: Sequence[bool], asleep: Sequence[bool]) -> float:
+    """On awake ticks, the share moving in the run's hungriest third less the share in its most sated third (A1's R2′)."""
+    awake = sorted((h, m) for h, m, a in zip(hunger, moving, asleep) if not a)
+    if len(awake) < 30:
+        return float("nan")
+    third = len(awake) // 3
+    low, high = awake[:third], awake[-third:]
+    return sum(m for _, m in high) / len(high) - sum(m for _, m in low) / len(low)
 
 
 def merge(*dicts: Mapping[str, Any]) -> Dict[str, Any]:
@@ -124,12 +147,14 @@ def run_one(job: Tuple[str, Mapping[str, Any], int, int, float, bool]) -> Dict[s
 
 def run_task(job: Tuple[str, Mapping[str, Any], int, int, float, bool], keep_series: bool = False) -> Dict[str, Any]:
     """``run_one``'s run; with ``keep_series`` the per-tick reserve, hunger, movement and sleep come back too (the
-    disclosed checks in ``tools/whole_probes``; the pilot never asks for them)."""
-    name, overrides, seed, ticks, food_energy, calibrate = job
+    disclosed checks in ``tools/whole_probes``; the pilot never asks for them). A seventh element of ``job`` names the
+    arena (``ENVIRONMENTS``; "full", the pilot's, when absent)."""
+    name, overrides, seed, ticks, food_energy, calibrate = job[:6]
+    env = job[6] if len(job) > 6 else "full"
     cfg = engine_config(overrides, food_energy, charge=not calibrate)
     eng = Engine(seed=seed, config=cfg)
     eng.world.cues.extend(CUES)
-    patches = [WorldObject(x, y, PATCH_RADIUS, "target") for (x, y) in PATCHES]
+    patches = [WorldObject(x, y, PATCH_RADIUS, "target") for (x, y) in ENVIRONMENTS[env]]
     for p in patches:
         eng.world.add_object(p)
     regrow_at: Dict[int, int] = {}
@@ -167,7 +192,8 @@ def run_task(job: Tuple[str, Mapping[str, Any], int, int, float, bool], keep_ser
         temps.append(ctx.temperature)
         gains.append(ctx.criticality_gain)
         if t % 50 == 0:
-            trace.append({"config": name, "seed": seed, "tick": t, "energy": round(e, 5), "gut": round(g, 5), "asleep": int(ctx.asleep)})
+            trace.append({"config": name, "env": env, "seed": seed, "tick": t, "energy": round(e, 5), "gut": round(g, 5),
+                          "asleep": int(ctx.asleep)})
         if ctx.starved and not calibrate:
             survived, survival_ticks = False, t + 1
             break
@@ -197,6 +223,18 @@ def run_task(job: Tuple[str, Mapping[str, Any], int, int, float, bool], keep_ser
         "postprandial_rest": statistics.mean(post) if post else float("nan"),
         "replay_events": len(eng.replay_log), "mean_temperature": statistics.mean(temps), "mean_sensory_gain": statistics.mean(gains),
     }
+    # Amendment A1's measures (not in the pilot's table): the level and spread of the reserve over the second half (a
+    # starved run's dead ticks count 0 in the level; the spread is over the ticks it lived), the within-run hunger
+    # contrast in movement, and the share of awake ticks spent moving.
+    alive_late = energy[late_from:]
+    awake_moving = [moving[i] for i in awake]
+    row.update({
+        "env": env,
+        "energy_mean_late": (sum(alive_late) / (ticks - late_from)) if ticks > late_from else float("nan"),
+        "energy_sd_late": statistics.pstdev(alive_late) if len(alive_late) > 1 else float("nan"),
+        "hunger_contrast": tercile_contrast(hunger_series, moving, asleep),
+        "moving_awake": (sum(awake_moving) / len(awake_moving)) if awake_moving else float("nan"),
+    })
     out: Dict[str, Any] = {"row": row, "trace": trace}
     if keep_series:
         out["series"] = {"energy": energy, "hunger": hunger_series, "moving": moving, "asleep": asleep, "meals": meal_ticks}
@@ -239,6 +277,50 @@ def verdict(scores: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]:
                         "single_gains": gains}}
 
 
+def score_confirm(full: Sequence[Mapping[str, Any]], half: Sequence[Mapping[str, Any]], base_spread: float,
+                  n_boot: int = 10_000) -> Dict[str, Any]:
+    """Amendment A1's spark for one configuration: R1′ (survival in both arenas; holding, the within-run spread in
+    ``full`` against ``base_spread``; compensation, the level kept within 0.10 from ``full`` to ``half`` by moving more,
+    paired by seed) and R2′ (the within-run hunger contrast in ``full``)."""
+    from analysis.stats import paired_effect
+
+    surv_full = sum(1 for r in full if r["survived"])
+    surv_half = sum(1 for r in half if r["survived"])
+    spread = _mean([r["energy_sd_late"] for r in full])
+    level_full, level_half = _mean([r["energy_mean_late"] for r in full]), _mean([r["energy_mean_late"] for r in half])
+    by_full = {r["seed"]: r["moving_awake"] for r in full}
+    by_half = {r["seed"]: r["moving_awake"] for r in half}
+    seeds = sorted(s for s in by_full if s in by_half and by_full[s] == by_full[s] and by_half[s] == by_half[s])
+    effort = paired_effect([by_full[s] for s in seeds], [by_half[s] for s in seeds], n_boot=n_boot, seed=0) if len(seeds) > 1 else None
+    contrast = _mean([r["hunger_contrast"] for r in full])
+    r1a = surv_full >= CONFIRM_SURVIVAL_MIN and surv_half >= CONFIRM_SURVIVAL_MIN
+    r1b = spread <= HOLD_RATIO * base_spread
+    r1c = bool(level_full - level_half <= LEVEL_DROP_MAX and effort is not None and effort["low"] > 0.0)
+    r2 = contrast >= CONTRAST_MIN
+    return {"survived_full": surv_full, "survived_half": surv_half, "spread_full": spread, "spread_bound": HOLD_RATIO * base_spread,
+            "level_full": level_full, "level_half": level_half, "level_drop": level_full - level_half,
+            "effort": {k: effort[k] for k in ("mean_a", "mean_b", "mean_diff", "low", "high")} if effort else None,
+            "hunger_contrast": contrast, "R1a": r1a, "R1b": bool(r1b), "R1c": r1c, "R2": bool(r2),
+            "spark": bool(r1a and r1b and r1c and r2),
+            "efficiency_full": _mean([r["efficiency"] for r in full]), "efficiency_half": _mean([r["efficiency"] for r in half]),
+            "rest_after_meals_full": _mean([r["postprandial_rest"] for r in full]), "sleep_share_full": _mean([r["sleep_share"] for r in full]),
+            "meals_full": _mean([r["meals"] for r in full]), "meals_half": _mean([r["meals"] for r in half])}
+
+
+def verdict_confirm(scores: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]:
+    """§5's three conditions on amendment A1's spark; synergy on the within-run spread in ``full``; R3 reported."""
+    singles = {p: scores[f"base+{p}"]["spark"] for p in PARTS}
+    breaks = {p: not scores[f"whole-{p}"]["spark"] for p in PARTS}
+    base = scores["base"]["spread_full"]
+    gains = {p: base - scores[f"base+{p}"]["spread_full"] for p in PARTS}
+    w, nm = scores["whole"], scores["whole_nomemory"]
+    return {"1_whole_shows_the_spark": scores["whole"]["spark"], "2_no_single_addition_shows_it": not any(singles.values()),
+            "3_most_removals_break_it": sum(breaks.values()) >= BREAKS_MIN, "removals_that_break_it": [p for p, b in breaks.items() if b],
+            "single_additions_that_show_it": [p for p, s in singles.items() if s],
+            "R3_memory_margin_reported": {"full": [w["efficiency_full"], nm["efficiency_full"]], "half": [w["efficiency_half"], nm["efficiency_half"]]},
+            "synergy": {"whole_gain": base - w["spread_full"], "sum_of_single_gains": sum(gains.values()), "single_gains": gains}}
+
+
 def _pool(jobs, workers):
     if workers == 1:
         return [run_one(j) for j in jobs]
@@ -266,16 +348,38 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
         if FOOD_ENERGY is None and not args.quick:
             parser.error("the food's energy is not calibrated yet: run --phase calibrate and record K (amendment P2)")
         configs, k = configurations(), (FOOD_ENERGY if FOOD_ENERGY is not None else PROVISIONAL_K)
+    confirm = args.phase == "confirm"
+    envs = spec["envs"]
     started = time.perf_counter()
-    results = _pool([(c, ov, s, ticks, k, calibrate) for c, ov in configs.items() for s in seeds], args.workers)
+    results = _pool([(c, ov, s, ticks, k, calibrate, env) for c, ov in configs.items() for env in envs for s in seeds], args.workers)
     rows = [r["row"] for r in results]
     traces = [t for r in results for t in r["trace"]]
     out.mkdir(parents=True, exist_ok=True)
-    write_csv(out / "runs.csv", RUN_COLUMNS, rows)
-    write_csv(out / "energy_trace.csv", ("config", "seed", "tick", "energy", "gut", "asleep"), traces)
+    if confirm:  # amendment A1's table, both arenas; the trace thinned to every CONFIRM_TRACE_EVERY ticks
+        write_csv(out / "runs.csv", CONFIRM_COLUMNS, rows)
+        write_csv(out / "energy_trace.csv", ("config", "env", "seed", "tick", "energy", "gut", "asleep"),
+                  [t for t in traces if t["tick"] % CONFIRM_TRACE_EVERY == 0])
+    else:
+        write_csv(out / "runs.csv", RUN_COLUMNS, rows)
+        write_csv(out / "energy_trace.csv", ("config", "seed", "tick", "energy", "gut", "asleep"), traces)
     summary: Dict[str, Any] = {"phase": args.phase, "seeds": list(seeds), "ticks": ticks, "food_energy": k, "quick": args.quick,
-                               "configs": configs}
-    if calibrate:
+                               "configs": configs, "envs": list(envs)}
+    if confirm:
+        n_boot = 200 if args.quick else 10_000
+        pick = lambda c, e: [r for r in rows if r["config"] == c and r["env"] == e]  # noqa: E731
+        base_spread = _mean([r["energy_sd_late"] for r in pick("base", "full")])
+        scores = {c: score_confirm(pick(c, "full"), pick(c, "half"), base_spread, n_boot) for c in configs}
+        summary["scores"] = scores
+        summary["verdict"] = verdict_confirm(scores)
+        print(f"{'config':24s} surv f/h  spread(bound)   level f/h (drop)    effort f->h [95%]         contrast  R1a R1b R1c R2  spark")
+        for c, s in scores.items():
+            e = s["effort"] or {"mean_a": float("nan"), "mean_b": float("nan"), "low": float("nan"), "high": float("nan")}
+            print(f"{c:24s} {s['survived_full']:2d}/{s['survived_half']:2d}  {s['spread_full']:.3f}({s['spread_bound']:.3f})  "
+                  f"{s['level_full']:.3f}/{s['level_half']:.3f} ({s['level_drop']:+.3f})  {e['mean_a']:.2f}->{e['mean_b']:.2f} "
+                  f"[{e['low']:+.3f},{e['high']:+.3f}]  {s['hunger_contrast']:7.3f}   "
+                  + "  ".join("+" if s[k] else "-" for k in ("R1a", "R1b", "R1c", "R2")) + f"   {'yes' if s['spark'] else 'no'}")
+        print(json.dumps(summary["verdict"], indent=1, default=str))
+    elif calibrate:
         spent, meals = sum(r["spent"] for r in rows), sum(r["meals"] for r in rows)
         summary["calibration"] = {"would_have_spent": spent, "meals": meals, "cost_per_meal": spent / meals if meals else None,
                                   "K": round(round((spent / meals) / 0.005) * 0.005, 3) if meals else None}

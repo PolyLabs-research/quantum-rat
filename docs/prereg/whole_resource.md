@@ -167,3 +167,51 @@ not be scored (the whole holds its energy inside a band where its hunger never r
 the measures above were wrong in ways the pilot exposed: R1(b) is passed by agents that do not regulate, and R2's
 thresholds lie outside the band a regulating agent holds. This document is not changed after the run; G56 D1 puts
 amended measures to the owner, to be written here as a dated amendment before any confirmatory run.
+
+## Amendment A1: the confirmatory run (2026-10-31, the owner's decision at G56 D1, before any confirmatory run)
+
+The pilot showed what the original measures could not see; these replace them for the confirmatory run. Everything
+in §2 and §3 is unchanged (K = 0.065).
+
+**Two arenas.** The pilot's (`full`: four patches at (±5, ±5)) and the held-out one the pilot never saw (`half`: two
+patches, moved, at (0, 6) and (0, −6); the same radius, regrowth and K). With half the food the intake a run can reach
+halves: an agent that never rests spends about as much as two patches can give, so holding its energy in `half` takes
+resting when sated and foraging efficiently, and fixed behaviour cannot adjust.
+
+**The spark, amended.** Every configuration, both arenas, fresh seeds 13–42 (30), 9,000 ticks:
+
+- **R1′, regulation.** (a) *Survival*: no starvation on at least 28 of 30 seeds in each arena. (b) *Holding*: the
+  within-run standard deviation of the reserve over the run's second half, averaged over seeds in `full`, at most
+  0.75 × the base's on the same seeds (the pilot: the whole 0.023, the base 0.049). (c) *Compensation*: moving from
+  `full` to `half`, the mean reserve over the second half falls by at most 0.10 (less than half the band the pilot's
+  whole held, 0.60–0.83 with the gut), and the share of awake ticks spent moving rises, paired by seed
+  (`analysis.stats.paired_effect`, BCa 95%: the interval's lower end above 0). Holding the level by doing more is
+  what regulation means; holding it by luck is not.
+- **R2′, need-contingent movement.** On awake ticks in `full`, the share moving in the run's hungriest third less the
+  share in its most sated third (terciles of the run's own hunger), averaged over seeds, at least 0.15 (the pilot:
+  the whole 0.22, the base 0.02).
+- **The spark is R1′ and R2′.** R3 (the memory margin) is reported in both arenas, not part of the spark: with
+  visible food, memory unread changed nothing in the pilot.
+
+**The verdict** keeps the three conditions of §5 on the amended spark: the whole shows it; no single addition to the
+base does; removing a single part breaks it for at least 6 of the 12. Synergy reported as before (on the within-run
+spread in `full`).
+
+**Predictions (written before the confirmatory run, from the pilot).** The whole passes R1′ and R2′: it survives in
+both arenas, holds its spread near half the base's, keeps its level within 0.10 by moving more in `half`, and its
+movement follows its hunger. The base starves in `half` on most seeds. No single addition passes. Removing
+interoception breaks it (no need-contingent movement; it overeats in `full` and never rests); removing the body
+breaks R2′ (the discrete body's contrast was 0.06); the other ten removals do not. So condition 3 fails: **the weak
+form, confirmed on fresh seeds and a held-out arena**, with interoception and the body named.
+
+**Decision table (confirmatory).**
+
+| result | reading | what follows |
+|---|---|---|
+| 1 and 2, not 3 | the weak form holds out of sample: the spark needs a few named parts | recorded; part 2 of the whole (a behaviour that needs the parts this one did not) |
+| all three | the strong form, on this task | recorded; part 2 tests whether it generalises |
+| 1 fails | the pilot's regulation does not hold on fresh seeds or does not compensate | recorded; whether the parts are tuned jointly (a registered tuning phase) before part 2 is the owner's call |
+| a single addition shows it | one mechanism suffices | recorded, with which |
+
+`experiments/whole_resource.py --phase confirm`, from a clean tree with warnings as errors, writes
+`docs/data/whole/resource/confirm/`.

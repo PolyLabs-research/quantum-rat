@@ -48,8 +48,34 @@ def test_the_spark_and_the_verdict() -> None:
     assert math.isclose(v["synergy"]["whole_gain"], 0.2) and v["synergy"]["sum_of_single_gains"] == 0.0
 
 
+def _confirm_rows(n=30, survived=True, sd=0.02, level=(0.67, 0.62), moving=(0.3, 0.5), contrast=0.2, eff=6.0):
+    full = [{"seed": s, "survived": survived, "energy_sd_late": sd, "energy_mean_late": level[0], "moving_awake": moving[0] + 0.001 * s,
+             "hunger_contrast": contrast, "efficiency": eff, "postprandial_rest": 0.8, "sleep_share": 0.2, "meals": 19} for s in range(n)]
+    half = [{"seed": s, "survived": survived, "energy_sd_late": sd, "energy_mean_late": level[1], "moving_awake": moving[1] + 0.002 * s,
+             "hunger_contrast": contrast, "efficiency": eff, "postprandial_rest": 0.8, "sleep_share": 0.2, "meals": 12} for s in range(n)]
+    return full, half
+
+
+def test_amendment_a1_scoring() -> None:
+    assert wr.ENVIRONMENTS["half"] == ((0.0, 6.0), (0.0, -6.0)) and wr.PHASES["confirm"]["seeds"] == tuple(range(13, 43))
+    s = wr.score_confirm(*_confirm_rows(), base_spread=0.05, n_boot=200)
+    assert s["spark"] and s["R1a"] and s["R1b"] and s["R1c"] and s["R2"] and abs(s["level_drop"] - 0.05) < 1e-9
+    assert not wr.score_confirm(*_confirm_rows(sd=0.04), base_spread=0.05, n_boot=200)["R1b"]  # 0.04 > 0.75 x 0.05
+    assert not wr.score_confirm(*_confirm_rows(level=(0.67, 0.5)), base_spread=0.05, n_boot=200)["R1c"]  # the level fell 0.17
+    assert not wr.score_confirm(*_confirm_rows(moving=(0.5, 0.3)), base_spread=0.05, n_boot=200)["R1c"]  # held it without trying
+    assert not wr.score_confirm(*_confirm_rows(contrast=0.1), base_spread=0.05, n_boot=200)["R2"]
+    assert not wr.score_confirm(*_confirm_rows(survived=False), base_spread=0.05, n_boot=200)["R1a"]
+    assert wr.tercile_contrast([0.1] * 30 + [0.9] * 30 + [0.5] * 30, [False] * 30 + [True] * 30 + [True] * 30, [False] * 90) == 1.0
+
+
 def test_quick_run(tmp_path) -> None:
     summary = wr.main(["--phase", "pilot", "--quick", "--workers", "1", "--out", str(tmp_path)])
     assert len(summary["scores"]) == 27 and (tmp_path / "runs.csv").exists() and (tmp_path / "energy_trace.csv").exists()
     cal = wr.main(["--phase", "calibrate", "--quick", "--workers", "1", "--out", str(tmp_path / "cal")])
     assert cal["calibration"]["meals"] >= 0 and EngineConfig.research().metabolism.enabled is False
+    conf = wr.main(["--phase", "confirm", "--quick", "--workers", "1", "--out", str(tmp_path / "conf")])
+    assert len(conf["scores"]) == 27 and conf["envs"] == ["full", "half"]
+    header = (tmp_path / "conf" / "runs.csv").read_text().splitlines()[0]
+    assert header.startswith("config,env,seed") and "hunger_contrast" in header
+    pilot_header = (tmp_path / "runs.csv").read_text().splitlines()[0]
+    assert pilot_header == ",".join(wr.RUN_COLUMNS)  # the pilot's table keeps its columns
