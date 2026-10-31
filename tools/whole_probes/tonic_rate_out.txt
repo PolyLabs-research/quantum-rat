@@ -1,0 +1,12 @@
+the whole, seeds 3001-3012, part 1's arenas, scale 9.7
+tonic model  arena survived  level  moving  vigour  meals efficiency meal reward
+peak         full        12  0.673   0.254   0.751   19.6       5.58       1.079
+peak         half        12  0.298   0.952   0.853   24.5       1.68       4.464
+reward_rate  full        12  0.679   0.247   0.707   19.7       6.07       1.081
+reward_rate  half        11  0.297   0.861   0.919   22.9       1.94       4.365
+energy_rate  full        12  0.682   0.246   0.655   19.7       6.28       1.087
+energy_rate  half        12  0.352   0.877   0.673   23.2       1.94       3.963
+
+level drop, familiar -> half food, peak: 0.375 (A1's bound 0.10)
+level drop, familiar -> half food, reward_rate: 0.383 (A1's bound 0.10)
+level drop, familiar -> half food, energy_rate: 0.330 (A1's bound 0.10)

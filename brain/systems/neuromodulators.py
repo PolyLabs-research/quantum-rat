@@ -9,7 +9,9 @@ engine's ``ctx.neuromodulators``, where the arbiter's existing couplings read th
 - **Dopamine** (Schultz, Dayan & Montague 1997; Niv, Daw, Joel & Dayan 2007): DA = 0.5 + 0.5 clamp(delta / delta_ref)
   for the TD error delta the engine hands over; the **tonic** level is a reward trace (up at once to a meal's reward,
   down over ``tonic_fall`` ticks), and **vigour** = floor + (1 - floor) x tonic scales the forward bias; the replay
-  budget at a meal is round(budget x min(1, |delta| / delta_ref)) (Ambrose, Pfeiffer & Foster 2016).
+  budget at a meal is round(budget x min(1, |delta| / delta_ref)) (Ambrose, Pfeiffer & Foster 2016). With
+  ``tonic_model`` "reward_rate" or "energy_rate" (G61) the tonic level is instead a leaky mean, over ``rate_time``
+  ticks, of the reward per tick over ``rate_ref``, or of the energy eaten per tick over the cost of moving at full speed.
 - **Serotonin** (Blundell 1977; Antin et al. 1975): 5HT = 0.5 + 0.5 x satiety: post-ingestive rest.
 - **Noradrenaline** (Yu & Dayan 2005; Aston-Jones & Cohen 2005): a trace of |delta| / delta_ref (up at once, down
   over ``ne_fall`` ticks) plus pain; the softmax temperature x (1 + gain x NE).
@@ -31,22 +33,31 @@ NEUTRAL: Dict[str, float] = {"DA": 0.5, "5HT": 0.5, "NE": 0.0, "ACh": 0.0}
 
 
 class BiologicalNeuromodulators:
-    def __init__(self, config) -> None:  # core.config.NeuromodConfig with model "biological"
+    def __init__(self, config, energy_ref: float = 0.0) -> None:  # core.config.NeuromodConfig with model "biological"
         self.c = config
         self.levels: Dict[str, float] = dict(NEUTRAL)
         self.tonic = 0.0
+        self.rate = 0.0  # G61: the leaky mean the rate models' tonic level reads
+        self._rate_ref = config.rate_ref if config.tonic_model == "reward_rate" else energy_ref
+        if config.tonic_model == "energy_rate" and not energy_ref > 0.0:
+            raise ValueError("tonic_model 'energy_rate' needs the cost of moving at full speed (metabolism on)")
         self.ne_trace = 0.0
         self._tonic_keep = math.exp(-1.0 / config.tonic_fall)
         self._ne_keep = math.exp(-1.0 / config.ne_fall)
 
     def update(self, *, delta: float, reward: float, pain: float, novelty: float, moving: bool, asleep: bool,
-               satiety: float) -> Dict[str, float]:
+               satiety: float, energy: float = 0.0) -> Dict[str, float]:
         c = self.c
         if c.dopamine:
             self.levels["DA"] = _clamp(0.5 + 0.5 * _clamp(delta / c.delta_ref, -1.0, 1.0))
-            self.tonic *= self._tonic_keep
-            if reward > 0.0:
-                self.tonic = max(self.tonic, min(1.0, reward))
+            if c.tonic_model == "peak":
+                self.tonic *= self._tonic_keep
+                if reward > 0.0:
+                    self.tonic = max(self.tonic, min(1.0, reward))
+            else:  # G61: a rate, the reward or the energy eaten this tick into a leaky mean over rate_time
+                income = reward if c.tonic_model == "reward_rate" else energy
+                self.rate += (income - self.rate) / c.rate_time
+                self.tonic = _clamp(self.rate / self._rate_ref)
         if c.serotonin:
             self.levels["5HT"] = _clamp(0.5 + 0.5 * satiety)
         if c.noradrenaline:
