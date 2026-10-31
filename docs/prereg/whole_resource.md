@@ -159,3 +159,11 @@ resting, ACh is half the novelty); if the meal ends first, there is none. Nothin
 (`docs/data/whole/resource/calibration/`, at `519e8e9`, clean tree, warnings as errors) would have spent 8.042 units
 of energy over 126 meals (28–36 a run; it moves at about half its full speed on average, so about twice the basal
 cost): 0.0638 a meal, so **K = 0.065**, inside the predicted 0.05–0.10.
+
+## The pilot ran (2026-10-31; `docs/data/whole/resource/pilot/`; read in G56)
+
+As preregistered, the verdict's first condition fails: the whole does not show the spark as defined, because R2 could
+not be scored (the whole holds its energy inside a band where its hunger never reaches h ≥ 0.5 on 5% of ticks). Two of
+the measures above were wrong in ways the pilot exposed: R1(b) is passed by agents that do not regulate, and R2's
+thresholds lie outside the band a regulating agent holds. This document is not changed after the run; G56 D1 puts
+amended measures to the owner, to be written here as a dated amendment before any confirmatory run.
