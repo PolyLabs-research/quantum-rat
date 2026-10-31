@@ -1,0 +1,5 @@
+config,seed,survived,survival_ticks,final_energy,mean_dev_late,low_share,hungry_share,sated_share,moving_hungry,moving_sated,meals,eaten,spent,spent_locomotion,efficiency,lost,sleep_share,sleep_bouts,postprandial_rest,replay_events,mean_temperature,mean_sensory_gain
+base,1001,True,9000,1,0.2,0,0.0113333,0.984,1,0.977191,33,2.475,2.01256,0,nan,1.87133,0,0,0.0217322,0,0.1,0.927754
+base,1002,True,9000,1,0.2,0,0.0404444,0.939333,0.978022,0.977407,29,2.175,2.01184,0,nan,1.70413,0,0,0.0140517,0,0.1,0.937614
+base,1003,True,9000,1,0.2,0,0.00766667,0.953444,1,0.974362,36,2.7,1.99413,0,nan,2.22984,0,0,0.0156261,0,0.1,0.930553
+base,1004,True,9000,1,0.2,0,0.0271111,0.893889,0.987705,0.97775,28,2.1,2.02353,0,nan,1.61003,0,0,0.0140476,0,0.1,0.933168

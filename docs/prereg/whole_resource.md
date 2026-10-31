@@ -154,3 +154,8 @@ agent arrives at the food, when it has just moved, so acetylcholine (half of it 
 reward happens while the animal is still and eating (Foster & Wilson 2006), so the budget is set by the meal's TD
 error on arrival and the sweep runs on the first tick of the meal's pause on which acetylcholine allows it (the body
 resting, ACh is half the novelty); if the meal ends first, there is none. Nothing else changes.
+
+**P2 (2026-10-31, the calibration's outcome, before any configuration ran).** The base on seeds 1001–1004
+(`docs/data/whole/resource/calibration/`, at `519e8e9`, clean tree, warnings as errors) would have spent 8.042 units
+of energy over 126 meals (28–36 a run; it moves at about half its full speed on average, so about twice the basal
+cost): 0.0638 a meal, so **K = 0.065**, inside the predicted 0.05–0.10.
