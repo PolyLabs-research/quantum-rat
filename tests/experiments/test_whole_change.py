@@ -105,3 +105,51 @@ def test_quick_design_and_smell_runs(tmp_path) -> None:
     smell = wc.main(["--phase", "smell", "--quick", "--workers", "1", "--out", str(tmp_path / "smell")])
     assert len(smell["scores"]) == 29 and set(smell["validity"]) >= {"V1_memory_needed", "V2_move_surprises"}
     assert (tmp_path / "smell" / "runs.csv").read_text().splitlines()[0] == ",".join(wc.SMELL_COLUMNS)
+
+
+# The third design (docs/prereg/whole_smell_short.md; G62)
+
+
+def test_the_third_design_shortens_the_reach_and_scales_the_reward_with_k() -> None:
+    parts = wc.smell_parts(wc.SHORT_LENGTH, 0.13)
+    assert parts["olfaction"]["sensors.odour_length"] == 0.5 and parts["olfaction"]["basal_ganglia.smell_gain"] == 0.6
+    assert parts["interoception"]["interoception.reward_scale"] == pytest.approx(9.7 * 0.065 / 0.13)
+    assert wc.smell_parts() == wc.smell_parts(None, None) and "sensors.odour_length" not in wc.smell_parts()["olfaction"]
+    assert wc.K_LADDER[0] == wc.wr.FOOD_ENERGY and list(wc.K_LADDER) == sorted(wc.K_LADDER)
+
+
+def _floor_share(length: float, n: int = 80) -> float:
+    from core.sensors import odour_at
+    from core.world import World, WorldObject
+    w = World(bounds=(10.0, 10.0))
+    for (x, y) in wc.FIRST:
+        w.add_object(WorldObject(x, y, wc.wr.PATCH_RADIUS, "hidden"))
+    grid = [-10.0 + 20.0 * (i + 0.5) / n for i in range(n)]
+    return sum(odour_at(w, x, y, length) >= 0.05 for x in grid for y in grid) / n ** 2
+
+
+def test_the_reach_rule_on_geometry_alone() -> None:
+    assert _floor_share(wc.SHORT_LENGTH) <= 0.15 < _floor_share(1.0)  # §1.1: 0.5 marks 12%, 1.0 a third
+    assert _floor_share(1.5) > 0.6  # the second design's two thirds (G60)
+
+
+def test_the_economy_rule_picks_the_smallest_rung_in_balance() -> None:
+    def rows(k, reserve, survived=True):
+        return [{"food_energy": k, "reserve_pre10": reserve, "survived": survived, "meals_pre_move": 10} for _ in range(4)]
+    rule = wc.economy_rule(rows(0.065, 0.3) + rows(0.08, 0.62, survived=False) + rows(0.10, 0.61) + rows(0.125, 0.7))
+    assert rule["K"] == 0.10 and not rule["rungs"][0.08]["in_balance"] and rule["rungs"][0.125]["in_balance"]
+    assert wc.economy_rule(rows(0.065, 0.3) + rows(0.08, 0.5))["K"] is None
+    assert wc._reserve_before([0.6] * 50, 100, 100) == pytest.approx(0.3)  # starved half way: the dead ticks count 0
+
+
+def test_quick_design3_and_smell3_runs(tmp_path, monkeypatch) -> None:
+    design = wc.main(["--phase", "design3", "--quick", "--workers", "1", "--out", str(tmp_path / "d3")])
+    assert set(design["rule"]["rungs"]) == set(wc.K_LADDER) and design["odour_length"] == 0.5
+    assert (tmp_path / "d3" / "runs.csv").read_text().splitlines()[0] == ",".join(wc.DESIGN3_COLUMNS)
+    monkeypatch.setattr(wc, "SHORT_K", None)
+    with pytest.raises(SystemExit):
+        wc.main(["--phase", "smell3", "--workers", "1", "--out", str(tmp_path / "no")])
+    smell = wc.main(["--phase", "smell3", "--quick", "--workers", "1", "--out", str(tmp_path / "s3")])
+    assert len(smell["scores"]) == 29 and smell["food_energy"] == wc.QUICK_K
+    assert smell["reward_scale"] == pytest.approx(9.7 * 0.065 / wc.QUICK_K)
+    assert smell["configs"]["whole"]["sensors.odour_length"] == 0.5
