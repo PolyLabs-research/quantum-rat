@@ -119,6 +119,12 @@ def engine_config(overrides: Mapping[str, Any], food_energy: float, charge: bool
 
 def run_one(job: Tuple[str, Mapping[str, Any], int, int, float, bool]) -> Dict[str, Any]:
     """One run of the task; the per-run measures of §4 and a trace of E every 50 ticks."""
+    return run_task(job)
+
+
+def run_task(job: Tuple[str, Mapping[str, Any], int, int, float, bool], keep_series: bool = False) -> Dict[str, Any]:
+    """``run_one``'s run; with ``keep_series`` the per-tick reserve, hunger, movement and sleep come back too (the
+    disclosed checks in ``tools/whole_probes``; the pilot never asks for them)."""
     name, overrides, seed, ticks, food_energy, calibrate = job
     cfg = engine_config(overrides, food_energy, charge=not calibrate)
     eng = Engine(seed=seed, config=cfg)
@@ -191,7 +197,10 @@ def run_one(job: Tuple[str, Mapping[str, Any], int, int, float, bool]) -> Dict[s
         "postprandial_rest": statistics.mean(post) if post else float("nan"),
         "replay_events": len(eng.replay_log), "mean_temperature": statistics.mean(temps), "mean_sensory_gain": statistics.mean(gains),
     }
-    return {"row": row, "trace": trace}
+    out: Dict[str, Any] = {"row": row, "trace": trace}
+    if keep_series:
+        out["series"] = {"energy": energy, "hunger": hunger_series, "moving": moving, "asleep": asleep, "meals": meal_ticks}
+    return out
 
 
 def _mean(values: Sequence[float]) -> float:
