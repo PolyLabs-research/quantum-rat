@@ -1,0 +1,62 @@
+{
+ "configs": {
+  "whole": {
+   "action_value.enabled": true,
+   "action_value.history_features": true,
+   "basal_ganglia.ach_precision_gain": 0.5,
+   "basal_ganglia.criticality_gain": 1.0,
+   "basal_ganglia.criticality_scales_walls": true,
+   "basal_ganglia.fiveht_patience_gain": 1.0,
+   "basal_ganglia.ne_threat_gain": 0.5,
+   "basal_ganglia.orient_gain": 1.0,
+   "body.model": "rodent",
+   "body.rotational_noise": 2.0943951023931953,
+   "body.speed_noise": 0.08,
+   "criticality.dynamic": true,
+   "interoception.enabled": true,
+   "motivation.enabled": true,
+   "motivation.hunger_source": "interoception",
+   "motivation.vigour_floor": 1.0,
+   "neuromod.acetylcholine": true,
+   "neuromod.dopamine": true,
+   "neuromod.model": "biological",
+   "neuromod.noradrenaline": true,
+   "neuromod.serotonin": true,
+   "place.reward_step_cap": true,
+   "replay.sr_replay": true,
+   "sleep.enabled": true,
+   "value_memory.source": "sr_action"
+  }
+ },
+ "envs": [
+  "full"
+ ],
+ "food_energy": 0.065,
+ "phase": "scale",
+ "quick": false,
+ "scale": {
+  "meals": 227,
+  "median_meal_reward": 0.10333816184392411,
+  "quartiles": [
+   0.05663031478666979,
+   0.10333816184392411,
+   0.1522921052209131
+  ],
+  "reward_scale": 9.7
+ },
+ "seeds": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12
+ ],
+ "ticks": 9000
+}

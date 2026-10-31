@@ -78,7 +78,7 @@ PHASES: Dict[str, Dict[str, Any]] = {
     "repilot": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/resource/repilot"), "envs": ("full", "half")},
 }
 # Amendment A2's scale: set by --phase scale (the median meal of the whole on the pilot's seeds brings 1); None: not yet
-REWARD_SCALE: Optional[float] = None
+REWARD_SCALE: Optional[float] = 9.7  # amendment A2's calibration (docs/data/whole/resource/scale)
 REPILOT_SURVIVAL_MIN = 11  # A1's survival bound on 12 seeds
 # Amendment A1's bounds (the confirmatory run)
 CONFIRM_SURVIVAL_MIN = 28

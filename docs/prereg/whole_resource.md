@@ -249,3 +249,7 @@ steers: its advantages exceed the read floor on a measurable share of ticks, and
 Dopamine's vigour varies with the rate of meals instead of sitting near 0.55. In the familiar arena the regulation is
 as before. Under scarcity the whole holds a level closer to the familiar one than G57's (a drop under 0.22; under 0.10
 is possible but I do not predict it).
+
+**A2's calibration (2026-10-31, before the re-run).** The whole at scale 1 on seeds 1–12 (`docs/data/whole/resource/scale/`,
+at `776cfea`, clean tree, warnings as errors) ate 227 meals with a median reward of 0.103 (quartiles 0.057 and 0.152):
+**the reward scale is 9.7**, inside the predicted 5–15.
