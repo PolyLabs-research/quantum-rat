@@ -20,3 +20,9 @@ beside it.
 A1's measures (the level and within-run spread of the reserve over the second half, the within-run hunger contrast,
 the share of awake ticks moving); `energy_trace.csv`: every 150 ticks; `summary.json`: A1's scores and the verdict
 (the whole fails R1′(c): its level falls 0.22 from `full` to `half`). Read in `docs/decisions.md` G57.
+
+`scale/` (at `776cfea`, 8 s; amendment A2): the whole at reward scale 1 on seeds 1–12, the familiar arena;
+`summary.json` holds its 227 meals' median reward (0.103) and the scale it sets (9.7).
+
+`repilot/` (at `1ee74d8`, 357 s; A2): the 27 configurations with interoception's reward scaled by 9.7, seeds 1–12,
+both arenas; A1's columns, scores (survival 11 of 12) and verdict. Read in `docs/decisions.md` G59.

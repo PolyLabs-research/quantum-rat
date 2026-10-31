@@ -52,6 +52,9 @@ class Observation:
     # M3 step 2 (draft): the distance to the nearest solid along each of core.sensors.FREE_SPACE_ANGLES; None unless
     # sensors.free_space_sensing.
     free_space: Optional[Tuple[float, ...]] = None
+    # G60 (docs/prereg/whole_smell.md): the odour of uneaten food at the (left, right) nostril, each in [0, 1]; None unless
+    # sensors.olfaction.
+    odour: Optional[Tuple[float, float]] = None
 
     def validate(self, forward_limit: float = 1.0) -> None:
         """Check the ranges; ``forward_limit`` is the egomotion range in force (``SensorConfig.forward_delta_limit``).
@@ -87,10 +90,13 @@ class Observation:
             for name, bearing, distance in self.landmarks:
                 if not isinstance(name, str) or not -3.14159266 <= bearing <= 3.14159266 or not distance >= 0.0:
                     raise ValueError(f"a landmark is (name, bearing in [-pi, pi], distance >= 0), got {(name, bearing, distance)}")
+        if self.odour is not None:
+            if len(self.odour) != 2 or not all(0.0 <= v <= 1.0 for v in self.odour):
+                raise ValueError(f"odour must be (left, right), each in [0, 1], got {self.odour}")
 
 
 # The Observation's optional fields (M2b): omitted from the checksum and the determinism record while None.
-OPTIONAL_OBSERVATION_FIELDS: Tuple[str, ...] = ("heading", "wall_contacts", "landmarks", "lateral_delta", "free_space")
+OPTIONAL_OBSERVATION_FIELDS: Tuple[str, ...] = ("heading", "wall_contacts", "landmarks", "lateral_delta", "free_space", "odour")
 
 
 def observation_fields(obs: Observation) -> Dict[str, Any]:

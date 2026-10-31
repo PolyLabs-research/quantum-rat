@@ -481,6 +481,10 @@ class SimSession:
         add("vision", "Vision drive", "active" if bg.vision_gain > 0 else "off",
             f"gain {bg.vision_gain:g}; {se.vision_rays} rays over {se.fov:g} rad, range {se.vision_range:g}; a visible target mutes memory (cue gate {bg.cue_gate_gain:g})"
             + (f"; a target seen to one side turns the agent toward it (orient {bg.orient_gain:g})" if bg.orient_gain > 0 else ""))
+        if se.olfaction:  # G60
+            add("smell", "Smell", "active" if bg.smell_gain > 0 else "readout",
+                f"the odour of uneaten food at two nostrils (length {se.odour_length:g} units); gain {bg.smell_gain:g}, turning toward "
+                "the stronger side and running on when both smell it")
         reach = "the whole vision range" if bg.wall_avoid_range == 1.0 else f"{bg.wall_avoid_range * se.vision_range * cfg.units.metres_per_unit:.2g} m"
         commit = f"; turn commitment {bg.turn_commitment:g}" if bg.turn_commitment > 0 else ""
         add("wall", "Wall avoidance", "active" if bg.wall_avoid_gain > 0 else "off",

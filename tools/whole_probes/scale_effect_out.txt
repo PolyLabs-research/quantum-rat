@@ -1,0 +1,6 @@
+the scaled runs identical to the re-pilot's (meals, run by run): True
+scale arena survived  level  moving  vigour temperature  action value steers  meals meal reward
+  1.0 full        12  0.672   0.213   0.533       0.104                0.000   18.9       0.108
+  1.0 half        12  0.441   0.749   0.614       0.117                0.000   21.5       0.339
+  9.7 full        12  0.687   0.242   0.729       0.119                0.000   19.9       0.964
+  9.7 half        12  0.283   0.928   0.847       0.127                0.213   24.1       4.617

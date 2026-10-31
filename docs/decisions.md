@@ -2286,3 +2286,92 @@ The verdict: **condition 1 holds** (the whole adapts), **condition 2 fails** (do
 3. **Not recommended:** rescuing this pilot by redefining its measures. The task, not the measures, was wrong.
 
 **Impact:** this entry; `docs/prereg/whole_change.md` (new, and the record that the pilot ran); `experiments/whole_change.py` (new); `docs/data/whole/change/pilot/` (new); `docs/whole.md`, `README.md`; tests in `tests/experiments/test_whole_change.py` (new).
+
+## G59 — The reward scale fixed (amendment A2): the parts now read rewards near 1, and scarcity got worse, exposing dopamine's tonic level as a held peak
+
+**Date:** 2026-10-31  
+**Why:** the owner's decision at G57 C1 and G58 C1 ("agree, go"): put interoception's reward on the scale the other parts were built for, then re-run the pilots. Amendment A2 in `docs/prereg/whole_resource.md` (`776cfea`), before any run under it: `interoception.reward_scale` multiplies a meal's reward wherever it is a learning signal, its value calibrated once so that the whole's median meal on part 1's pilot seeds brings 1. G57 C1 had proposed normalising to a meal at the hunger floor; checked before the run, that multiplies rewards by 2.1 and leaves a typical meal at about 0.18, so the median rule was registered instead. Calibration `1ee74d8` (`docs/data/whole/resource/scale/`); re-pilot `17c3f80` (`docs/data/whole/resource/repilot/`, 357 s: the 27 configurations, seeds 1–12, both arenas, A1's spark with survival 11 of 12); the seed-for-seed check `tools/whole_probes/scale_effect.py` with its output. Merged before this: `whole-confirm` into `main` (`dc1bacd`). Branch `whole-scale`.
+
+### A. Measured
+**Calibration:** 227 meals of the whole at scale 1, median reward 0.103 (quartiles 0.057, 0.152): **the scale is 9.7** (predicted 5–15).
+
+**The whole at both scales, the same seeds (1–12):**
+
+| scale | arena | survived | level, second half | awake ticks moving | mean vigour | ticks the action value steers | meals | mean meal reward |
+|---|---|---|---|---|---|---|---|---|
+| 1 | familiar | 12 | 0.672 | 0.21 | 0.53 | 0 | 18.9 | 0.11 |
+| 1 | half food | 12 | 0.441 | 0.75 | 0.61 | 0 | 21.5 | 0.34 |
+| 9.7 | familiar | 12 | 0.687 | 0.24 | 0.73 | **0** | 19.9 | 0.96 |
+| 9.7 | half food | 12 | **0.283** | **0.93** | **0.85** | **0.21** | 24.1 | **4.62** |
+
+**The re-pilot as preregistered:** the whole fails A1's spark again, on R1′(c): its level falls 0.40 from the familiar arena to the half-food one (bound 0.10). It survives every run in both; in the half-food arena the base and every single addition but orienting starve (the base plus dopamine on 11 of 12 runs, the rest on all 12). Without orienting, 0 of 12 half-food runs survive; with memory unread, 4; without dopamine, 8; without acetylcholine, 10. In the familiar arena the regulation is as before (spread 0.026 against the base's 0.049; hunger contrast 0.25; still for 71% of the half-minute after a meal; asleep 22%). Without serotonin the hunger contrast falls to 0.11 (fails R2′).
+
+### B. Reading
+1. **The scale reached its aim in part.** Meals now bring about 1 in the familiar arena and vigour moves (0.73 on average, not a constant 0.55). But the action value still never steers there; it steers only in scarcity, on a fifth of ticks, where hungry meals bring about 4.6.
+2. **Scarcity got worse, seed for seed:** the level in the half-food arena fell from 0.44 to 0.28, because the whole moves more (93% of awake ticks against 75%) at higher vigour (0.85 against 0.61). The cause is a second mismatch, in my design of dopamine's tonic level: it holds the size of the last meal, rising at once and falling over two minutes, rather than averaging reward over time. With reward as drive reduction, a hungry agent's meal is worth more, so vigour rises exactly when food is scarce. Average-reward vigour (Niv, Daw, Joel & Dayan 2007) predicts the opposite: a lower rate of reward lowers vigour. At the old scale the trace sat near its floor, which hid this.
+3. **What carries survival in scarcity is sharper now:** orienting (none survive without it), memory (a third survive without it), dopamine and acetylcholine.
+4. **Predictions:** the scale ✓; the action value steering, only in scarcity; vigour moving ✓, but with meal size rather than the rate of meals; the familiar arena as before ✓; scarcity closer to the familiar level ✗ (worse).
+
+### C. Decisions this surfaces (the owner's)
+1. **Dopamine's tonic level as an average rate of reward** (a leaky mean of reward over minutes, as the rate of reward is defined), a second registered tuning step, recommended, with part 1's pilot re-run under it. Until then the scale stays at 9.7: it is the agreed fix, and part 2's redesigned pilot runs with it.
+2. The action value's read floor or its features remain the open question for the familiar arena; recommended to wait for the rate fix, which changes what it learns from.
+
+**Impact:** this entry; `docs/prereg/whole_resource.md` (amendment A2 and its calibration); `core/config.py` (`interoception.reward_scale`), `core/engine.py`; `experiments/whole_resource.py` (the scale and repilot phases, `configurations(parts)`, `scaled_parts`); `tools/whole_probes/scale_effect.py` (new); `docs/data/whole/resource/scale/`, `repilot/` (new); tests in `tests/experiments/test_whole_resource.py`.
+
+## G60 — The whole, part 2 by smell: the task again does not test memory or surprise, and the whole runs down by a slow deficit, not by the move
+
+**Date:** 2026-10-31  
+**Why:** the owner's decision at G58 C2 ("agree, go"): part 2 redesigned around smell, after the tuning step (G59). Draft preregistration `docs/prereg/whole_smell.md` (`af90a4d`, before any build or run); olfaction built opt-in (`5f0a07d`: the odour of uneaten food at two nostrils, its pull in selection; every hash unchanged); pre-run amendment P1 (`416cbd3`: the drafted fallback fourth patch lay inside an old zone and was placed again; V1's window pinned to the quarter-hour before the move); the feasibility rule's outcome (`fcb20d8`: the whole ate 24.75 meals before the move on design seeds 2001–2004, the bound 6, so three patches). Pilot `24a4297` (`docs/data/whole/change/smell_pilot/`, 287 s: the 29 configurations × seeds 1–12, hidden patches, from a clean tree, warnings as errors). The parts on A2's reward scale; dopamine's tonic level as built (G59 C1 pending). A disclosed post hoc check, `tools/whole_probes/smell_budget.py` (four configurations' pilot runs again, checked meal for meal and tick for tick), reads where the energy went.
+
+### A. Measured
+**Validity, read first (§3): both checks fail.** V1: the whole's intake in the quarter-hour before the move is **1.10 times** the whole's with memory unread (1.91 against 1.73 ×10⁻⁴ a tick; the bound 1.25). V2: in the five minutes after the move the whole covers 742 bins against 716 in the five before (paired difference +26, BCa 95% [−58, +75]). By §8, the task does not test what it was built to test.
+
+| configuration | survived (of 12) | intake ×10⁴ a tick: quarter-hour before the move → last quarter-hour | near the old places: first 5 min after / last 15 min (chance 0.094, bound 0.141) | first meal at a new patch (ticks) | ground covered (bins): 5 min before → after | asleep | spark |
+|---|---|---|---|---|---|---|---|
+| base | 0 (0.6 meals a run) | 0 → 0 | — | — | — | 0 | no |
+| **whole** | **5** (the other 7 starve 8–25 minutes after the move) | 1.91 → 1.13 | 0.10 / 0.06 | 250 | 716 → 742 | 0.02 | **no** (A1, A2) |
+| whole, memory unread | **8** | 1.73 → 1.54 | 0.11 / 0.12 | 117 | 623 → 616 | 0.01 | no (A1) |
+| whole without interoception | 9 | 1.49 → 1.49 | 0.14 / 0.06 | 268 | 482 → 651 | 0.21 | no (A1) |
+| whole without the action value | 9 | 1.61 → 1.40 | 0.10 / 0.07 | 137 | 589 → 605 | 0.02 | no (A1) |
+| whole without olfaction | 6 | 1.75 → 1.32 | 0.09 / 0.06 | 227 | 637 → 675 | 0.04 | no |
+| whole without dopamine (vigour then pinned at 1) | 4 | 1.70 → 0.58 | 0.10 / 0.04 | 406 | 671 → 613 | 0.05 | no |
+| whole without the rodent body | 1 | 0.42 → 0.12 | 0.13 / 0.06 | 375 | 112 → 70 | 0.02 | no |
+| whole without orienting | 5: the whole's runs bit for bit (it orients to seen food; none is seen) | | | | | | no |
+| whole without any other one part | 3–6 | | | | | | no |
+| base + the rodent body | 2 | 1.76 → 0.39 | 0.10 / 0.06 | 230 | 673 → 685 | 0 | no |
+| base + any other one part, olfaction included | 0 | 0–0.05 → 0 | | | | | no |
+
+The verdict, read after the validity checks: **condition 1 fails** (the whole does not show the spark); condition 2 holds (no single addition does); condition 3 holds only vacuously (every removal "breaks" a spark the whole does not have).
+
+**The odour field** (the three patches of the first layout, λ = 1.5 units): **66% of the floor** smells of food at the encounter threshold (0.05), 25% at 0.2; the patches themselves cover 1.3%.
+
+**Where the energy went** (the post hoc check; ×10⁴ a tick, means over seeds; a starved run's half ends where it starved):
+
+| configuration | half | eaten | basal | locomotion | net | awake ticks moving | hunger | memory's pull | smell encounters (share ending in a meal within a minute) |
+|---|---|---|---|---|---|---|---|---|---|
+| whole | before the move | 1.88 | 1.10 | 0.95 | −0.17 | 0.80 | 0.64 | 0.41 | 96 (0.81) |
+| whole | after | 1.89 | 1.11 | 1.28 | **−0.49** | 0.93 | 0.89 | 0.90 | 101 (0.76) |
+| memory unread | before | 1.91 | 1.11 | 1.00 | −0.20 | 0.80 | 0.62 | 0 | 127 (0.81) |
+| memory unread | after | 1.88 | 1.11 | 1.00 | −0.22 | 0.79 | 0.78 | 0 | 127 (0.77) |
+| without interoception | before | 1.55 | 1.06 | 0.77 | −0.28 | 0.97 | not sensed | 0.57 | 105 (0.75) |
+| without interoception | after | 1.60 | 1.06 | 0.78 | −0.25 | 0.96 | not sensed | 0.82 | 91 (0.76) |
+| without dopamine | before | 1.80 | 1.09 | 0.93 | −0.23 | 0.72 | 0.59 | 0.39 | 102 (0.79) |
+| without dopamine | after | 1.49 | 1.10 | 1.14 | −0.75 | 0.85 | 0.79 | 0.87 | 71 (0.69) |
+
+**Minute by minute around the move** (means over the runs alive): the whole's reserve falls from 0.43 five minutes before the move to 0.40 at it (0.006 a minute) and to 0.31 eight minutes after (0.011 a minute), while it eats 0.6–1.3 meals a minute before and 0.7–1.1 after; the share of awake ticks moving goes from 0.81–0.85 to 0.85–0.92, hunger from 0.74–0.79 to 0.76–0.86 and memory's pull from 0.64–0.70 to 0.73–0.87, with no break at the move. With memory unread the agent moves on 0.69–0.80 of awake ticks before the move and 0.68–0.80 after, and its reserve falls 0.007 a minute before and 0.003 after (0.41 at the move, 0.38 nine minutes later). Without interoception the agent is near the old places up to a third of the time in the minutes before the move (0.09–0.33), 27% and 17% of the time in the first two after, then near the new ones 30–34% of the time from the second minute to the sixth.
+
+### B. Reading
+1. **Memory is not needed, again, and the cause is mine.** The odour's reach was set per source (45 cm, "a fifth of the arena's width") and never checked against the arena: three patches mark two thirds of the floor, so "hidden" food is signposted almost everywhere. The whole meets it by smell about three times a minute while sweeping nearly half the floor's bins every five minutes, and four meetings in five end in a meal within a minute. Over the first half it eats no more with memory read than without (1.88 against 1.91 a tick). The rodent body does the sweeping: the base with that body alone eats at 92% of the whole's rate before the move, and the base without it never eats.
+2. **The move cannot show as a surprise.** The whole is already hungry (0.64), awake and moving on four ticks in five before the move; its coverage has no room to rise, and noradrenaline does not move (0.14 → 0.13).
+3. **The whole fails by a slow deficit, not by the move.** It is in deficit from the start (−0.17 ×10⁻⁴ a tick before the move, the reserve 0.40 by then), it eats at the same pace after the move as before, and its moving share, hunger and memory's pull rise together through the run; after the move its decline steepens about twofold, with no step at the move itself. With memory unread the same agent moves less in the minutes before the move and holds its reserve after it: 8 of 12 survive against 5. The likely route, not isolated here: memory's signal is scaled by the incentive, which grows with hunger, so a deficit strengthens a pull that moves the agent without bringing food. Every configuration lives near break-even (without interoception the agent survives 9 of 12 runs, ending near empty), so whatever adds movement decides survival, and survival over the hour measures the energy budget, not adapting.
+4. **Without interoception the agent shows the pattern §7 predicted for the whole:** it stays near the food places much of the time before the move, goes back to them when the food has gone, then stays near the new places. It does so with a fixed incentive, sleeping a fifth of the time; the whole, driven by sensed hunger, does neither.
+5. **Predictions (§7):** V1 ✗; V2 ✗; the whole passes ✗ (it survives 5 of 12 and does not return to the old places more than by chance); the base starves ✓; no single addition survives, olfaction included ✓ (the base with smell alone never eats); removing olfaction breaks it ✗ (6 of 12 survive without it, against the whole's 5); removing dopamine helps ✗ (worse, 4: without dopamine vigour is pinned at 1, not lowered); removing orienting changes nothing ✓ (bit for bit); memory unread survives less often ✗ (more often, 8).
+6. A parallel, not evidence: rats fed on a restricted schedule with a running wheel run more and can starve (activity-based anorexia; Routtenberg & Kuznesof 1967). The spiral here follows from design choices named above.
+
+### C. Decisions this surfaces (the owner's)
+1. **A further redesign of part 2 is the owner's call (§8).** The two pilots show what a test of adapting needs: (a) a smell field that marks little of the floor, its reach checked against the arena (with three patches, a length of 0.5 units, 15 cm of reach, marks 12% at the encounter threshold; 0.3 units, 6%); (b) an economy in which the whole is in balance before the move, resting and sleeping between foraging bouts as in part 1, rather than in deficit from the first minute (richer meals than part 1's break-even K); (c) both set by rules written before a design probe on fresh design seeds, and checked there before any pilot. Recommended, in that form.
+2. **Dopamine's tonic level as an average rate of reward (G59 C1) first.** The deficit spiral is where it bears: average-reward vigour falls with the rate of reward, which is what an agent in deficit needs, and the held peak does not. Recommended before the redesign, so the redesign is not set around the held peak.
+3. Memory's incentive scaling (the pull growing with hunger) is the second candidate in the spiral; recommended to read it again after C2, not to tune it now.
+4. Not recommended: reading this pilot's bracket for or against emergence. The whole does not show the spark, and the task does not test memory.
+
+**Impact:** this entry; `docs/prereg/whole_smell.md` (P1, the feasibility rule's outcome, and the record that the pilot ran); `core/config.py`, `core/sensors.py`, `brain/contracts.py`, `brain/systems/basal_ganglia.py` (olfaction, opt-in), `ui/sim_session.py`, `ui/static/js/brain.js`; `experiments/whole_change.py` (the design and smell phases); `tools/whole_probes/smell_budget.py` (new) and its output; `docs/data/whole/change/smell_design/`, `smell_pilot/` (new); `docs/whole.md`, `README.md`; tests in `tests/brain/test_olfaction.py` (new), `tests/experiments/test_whole_change.py`, `tests/sensors/test_heading_oracle_and_contacts.py`.

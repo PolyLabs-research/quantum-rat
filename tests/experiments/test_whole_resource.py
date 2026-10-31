@@ -9,6 +9,30 @@ from core.engine import Engine
 from experiments import whole_resource as wr
 
 
+def test_the_reward_scale_amendment_a2() -> None:
+    scaled = wr.configurations(wr.scaled_parts(7.0))
+    assert scaled["whole"]["interoception.reward_scale"] == 7.0 and scaled["base+interoception"]["interoception.reward_scale"] == 7.0
+    assert "interoception.reward_scale" not in wr.configurations()["whole"]  # the pilot's and the confirmatory run's, unchanged
+    assert "interoception.reward_scale" not in scaled["whole-interoception"] and "interoception.reward_scale" not in scaled["base"]
+    from core.engine import Engine
+    from core.world import WorldObject
+
+    def meal(scale):
+        cfg = wr.engine_config({"interoception.enabled": True, "interoception.reward_scale": scale}, 0.1)
+        e = Engine(seed=1, config=cfg)
+        e.world.add_object(WorldObject(5.0, 5.0, 0.75, "target"))
+        e.run(1, reset=True)
+        e.metabolism.reserve = 0.5
+        from brain.contracts import Action
+
+        e.agent.pos, e.last_action = (5.0, 5.0), Action(name="REST", thrust=0.0, turn=0.0)
+        e.run(1)
+        return e.context
+    one, seven = meal(1.0), meal(7.0)
+    assert one.ingested == seven.ingested == 0.1 and abs(seven.meal_value - 7.0 * one.meal_value) < 1e-12
+    assert seven.map_reward == seven.meal_value and seven.incentive == one.incentive  # the incentive is not scaled
+
+
 def test_the_configurations() -> None:
     configs = wr.configurations()
     assert len(wr.PARTS) == 12 and len(configs) == 27
@@ -73,6 +97,10 @@ def test_quick_run(tmp_path) -> None:
     assert len(summary["scores"]) == 27 and (tmp_path / "runs.csv").exists() and (tmp_path / "energy_trace.csv").exists()
     cal = wr.main(["--phase", "calibrate", "--quick", "--workers", "1", "--out", str(tmp_path / "cal")])
     assert cal["calibration"]["meals"] >= 0 and EngineConfig.research().metabolism.enabled is False
+    scale = wr.main(["--phase", "scale", "--quick", "--workers", "1", "--out", str(tmp_path / "scale")])
+    assert list(scale["configs"]) == ["whole"] and "reward_scale" in scale["scale"]
+    rep = wr.main(["--phase", "repilot", "--quick", "--workers", "1", "--out", str(tmp_path / "rep")])
+    assert len(rep["scores"]) == 27 and rep["configs"]["whole"]["interoception.reward_scale"] > 0
     conf = wr.main(["--phase", "confirm", "--quick", "--workers", "1", "--out", str(tmp_path / "conf")])
     assert len(conf["scores"]) == 27 and conf["envs"] == ["full", "half"]
     header = (tmp_path / "conf" / "runs.csv").read_text().splitlines()[0]
