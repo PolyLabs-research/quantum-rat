@@ -157,7 +157,11 @@ maturity. Every number below was measured by a probe in `tools/probes/` (outputs
   whole holds its energy at half the base's spread, rests after meals and sleeps, forages when hungry, and gets
   three times as much food per unit of energy spent moving; no single part added to the base does any of that,
   and a handful of parts carry it (interoception above all), not most. Two of the preregistered measures turned
-  out wrong, so this is not yet a passed test: amended measures and a confirmatory run await the owner.
+  out wrong; under amended measures, on fresh seeds (G57), the regulation replicates, and in a held-out arena with
+  half the food the whole is the only agent that survives by changing what it does (it triples its foraging), but
+  it settles at a lower energy level than the registered bound allows, so the test is not passed. The same run
+  shows the parts were scaled one at a time: the action value never steers and dopamine's vigour is nearly
+  constant, because interoception's rewards are an order of magnitude smaller than they assume.
 * **Honest limits / in progress.** The criticality gain has no measured effect on behaviour at
   the default coupling (above), and the assays remain simple single-episode or few-trial tasks.
   Memory steering earns its keep only where the task needs memory: it is everything in the

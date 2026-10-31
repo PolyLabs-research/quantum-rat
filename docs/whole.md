@@ -25,4 +25,4 @@ base.
 
 | part | behaviour | status |
 |---|---|---|
-| 1 | **Resource management**: identifying that energy is needed, finding it and consuming it (`docs/prereg/whole_resource.md`) | piloted (G56): the whole regulates its energy, rests after meals and forages when hungry, which no single addition does; a handful of parts carry it; two preregistered measures were wrong and amended measures await the owner before a confirmatory run |
+| 1 | **Resource management**: identifying that energy is needed, finding it and consuming it (`docs/prereg/whole_resource.md`) | piloted (G56): the whole regulates its energy, rests after meals and forages when hungry, which no single addition does; a handful of parts carry it. Confirmatory run under amended measures (G57): the regulation replicates on fresh seeds; in a scarce held-out arena the whole alone survives by tripling its foraging but settles 0.22 lower, failing the registered bound. A reward-scale mismatch leaves the action value inert and dopamine's vigour near constant; joint tuning is the owner's call |

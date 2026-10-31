@@ -215,3 +215,8 @@ form, confirmed on fresh seeds and a held-out arena**, with interoception and th
 
 `experiments/whole_resource.py --phase confirm`, from a clean tree with warnings as errors, writes
 `docs/data/whole/resource/confirm/`.
+
+## The confirmatory run ran (2026-10-31; `docs/data/whole/resource/confirm/`; read in G57)
+
+The verdict's first condition fails: the whole passes R1′(a), R1′(b) and R2′ and the effort half of R1′(c), but its
+level falls 0.22 from `full` to `half`, more than the bound of 0.10. This document is not changed after the run.
