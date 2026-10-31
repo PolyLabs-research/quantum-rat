@@ -1,0 +1,15 @@
+config             pass  track_learne  track_reflex  track_reflex   open_hidden  open_visible      L_hidden     L_visible     cues_open        cues_L   hidden_food      controls
+research              8        34.00-        22.83-        22.83-         0.99+         0.99+         0.98+         1.00+         0.96+         0.98+        46.50+         0.93+
+research_nogate       8        34.75-        22.83-        22.83-         0.99+         1.00+         1.00+         0.99+         0.95+         0.96+        46.88+         0.92+
+qh_none               8        33.75-        22.83-        23.58-         1.00+         0.99+         1.00+         1.00+         0.93+         0.96+        43.00+         0.90+
+qh_none_nogate        8        28.92-        22.83-        23.58-         1.00+         0.99+         1.00+         0.99+         0.95+         0.97+        41.38+         0.92+
+qh_reverse_nogate     8        12.58-        22.83-        23.58-         1.00+         0.99+         1.00+         0.99+         0.95+         0.97+        38.50+         0.92+
+track, learned arm (mean per run): rewards, traversals
+  research            18.8  34.0
+  research_nogate     19.9  34.8
+  qh_none             19.8  33.8
+  qh_none_nogate       9.6  28.9
+  qh_reverse_nogate    4.8  12.6
+the action value on the track, seeds 31-34 (mean): meals, turn share of movement ticks, pressing forward without moving
+  gate on   meals 19.000  turn_share 0.709  pressing_without_moving 0.057
+  gate off  meals 9.000  turn_share 0.467  pressing_without_moving 0.325
