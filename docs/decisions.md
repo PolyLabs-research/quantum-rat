@@ -2215,3 +2215,74 @@ At the preregistered thresholds, on the ticks where they occur, the whole moves 
 3. **Adoption**: none yet. The whole stays opt-in until a confirmatory run passes.
 
 **Impact:** this entry; `core/metabolism.py`, `brain/systems/interoception.py`, `brain/systems/neuromodulators.py`, `brain/systems/sleep.py`, `brain/systems/sr_replay.py` (new); `brain/systems/criticality.py`, `brain/systems/basal_ganglia.py`, `brain/systems/motivation.py`, `brain/systems/successor_features.py`, `brain/systems/replay_events.py`, `core/config.py`, `core/engine.py`, `metrics/decisions.py`, `ui/sim_session.py`; `experiments/whole_resource.py` (new); `tools/whole_probes/` (new); `docs/prereg/whole_resource.md` (new, P1, P2); `docs/data/whole/resource/` (new); tests in `tests/brain/test_whole_parts.py`, `tests/engine/test_whole_engine.py`, `tests/experiments/test_whole_resource.py` (new), `tests/engine/test_value_source.py`.
+
+## G57 — The whole, part 1, confirmed out of sample in the familiar arena; in scarcity it compensates but holds a lower level
+
+**Date:** 2026-10-31  
+**Why:** the owner's decisions at G56 D1–D3 ("agree, go"): amended measures, then a confirmatory run; the next target behaviour; the merge (`02e3789`). Amendment A1 registered in `docs/prereg/whole_resource.md` (`9756bba`) before the run: a held-out arena with half the food, moved; regulation as survival in both arenas, holding (the within-run spread at most 0.75 of the base's) and compensation (the level kept within 0.10 by moving more); need-contingent movement by the run's own hunger terciles. Data `53362e8` (`docs/data/whole/resource/confirm/`, 1,005 s): 27 configurations × fresh seeds 13–42 × both arenas, from a clean tree, warnings as errors.
+
+### A. Measured (+ passes, − fails)
+
+| configuration | survived: familiar / scarce | spread (bound 0.031) | level: familiar → scarce | moving share: familiar → scarce | hunger contrast (≥ 0.15) | R1a R1b R1c R2 |
+|---|---|---|---|---|---|---|
+| base | 30 / **0** | 0.041 | 0.63 → 0 | 0.98 → 0.99 | 0.02 | − − − − |
+| **whole** | **30 / 30** | **0.023** | 0.66 → 0.45 (**−0.22**) | **0.24 → 0.76** [+0.44, +0.58] | **0.24** | + + **−** + |
+| whole − interoception | 30 / 30 | 0.035 | 0.96 → 0.30 | 0.97 → 0.97 | 0.06 | + − − − |
+| whole − motivation | 30 / 30 | 0.011 | 0.74 → 0.32 | 0.50 → 0.97 | 0.29 | + + − + |
+| whole − dopamine | 30 / **17** | 0.023 | 0.69 → 0.17 | 0.25 → 0.97 | 0.28 | − + − + |
+| whole − orienting | 30 / **16** | 0.027 | 0.60 → 0.14 | 0.34 → 0.96 | 0.30 | − + − + |
+| whole, memory unread | 30 / 29 | 0.027 | 0.66 → 0.35 | 0.23 → 0.83 | 0.21 | + + − + |
+| whole − the body (discrete) | 30 / 30 | 0.018 | 0.68 → 0.60 (−0.08) | 0.06 → 0.38 | 0.05 | + + + − |
+| whole − serotonin, − noradrenaline, − acetylcholine, − sleep, − criticality, − replay | 30 / 30 | 0.022–0.025 | 0.66–0.71 → 0.39–0.47 | 0.21–0.37 → 0.72–0.87 | 0.20–0.27 | + + − + |
+| whole − the action value | identical to the whole, run for run | | | | | |
+| base + orienting | 30 / 30 | 0.002 | 1.00 → 0.26 | 0.97 → 0.98 | 0.07 | + + − − |
+| base + any other one part | 24–30 / **0** | 0.029–0.067 | 0.38–0.96 → 0–0.07 | 0.97 → 0.98–0.99 | ≤ 0.05 | − (R1b + with acetylcholine) − − |
+
+In the familiar arena the whole spends 77% of the half-minute after a meal still (the base: 2%), sleeps 19% of the time, eats 19.2 meals to the base's 32.4 and gets 6.4 units of food per unit of locomotor energy to the base's 2.1. In the scarce arena the base finds half a meal a run; the whole finds 21.6, more than in the familiar arena, and its level over the second half ranges from 0.28 to 0.60 across seeds.
+
+**As preregistered, the verdict's first condition fails: the whole does not show the amended spark,** because its level falls 0.22 from the familiar to the scarce arena, more than the bound of 0.10. Conditions 2 and 3 are moot. My prediction (the level kept within 0.10) failed.
+
+### B. Reading
+1. **Out of sample, in the arena it was piloted in, the whole's regulation holds.** On 30 fresh seeds it survives every run, holds its energy at about half the base's spread, and moves according to its own hunger; the rest after meals, the sleep and the threefold efficiency replicate.
+2. **In scarcity the whole compensates, but only partly.** It is the only agent family that survives the scarce arena by changing what it does: it triples the time it spends moving and finds more food than in the familiar arena. Every single addition to the base starves there, except orienting, which survives by eating whatever it meets and cannot raise an effort that is already total. But the whole settles at a lower level, so by the registered bound it does not regulate. (Rats on restricted food also settle at a lower body weight; that is context, not a rescue of the bound.)
+3. **Which parts matter when food is scarce.** Without interoception or motivation there is no compensation (the agent moves constantly in both arenas). Without dopamine 13 of 30 starve, and without orienting 14 of 30. Memory unread lowers the level and costs one run. Serotonin, noradrenaline, acetylcholine, sleep, criticality and replay change the level by 0.07 at most.
+4. **The action value is used but inert, and dopamine's vigour is mostly a constant: a scale mismatch between the parts.** Interoception's reward for a typical meal is about 0.09, because it is normalised to a starving agent's meal; the action value's preferences never exceed 0.009 against a read floor of 0.02, so it never steers (removing it changes nothing, run for run, in the pilot and here). The same scale keeps dopamine's tonic trace near its floor, so vigour sits near 0.55 throughout: its effect, which saves energy in scarcity, is a steady slowdown rather than tracking the rate of reward. Replay's budget and noradrenaline's temperature run near the bottom of their ranges for the same reason. Each part was scaled on its own for rewards near 1; together they do not fit. This is the joint-tuning problem in concrete form.
+
+### C. Decisions this surfaces (the owner's)
+1. **Joint tuning before anything is registered again.** Recommended: one principled change rather than a parameter search: put interoception's reward on the scale the other parts were built for (normalised to a meal at the hunger floor rather than to a starving agent's), written into the preregistration as a dated amendment, then re-pilot both target behaviours together (tune together, confirm apart). The bound that failed stays as registered.
+2. **Part 2** goes ahead now, at the owner's "go", on the whole as it stands: its pilot is the baseline the tuning decision is then made against, across both behaviours.
+
+**Impact:** this entry; `docs/prereg/whole_resource.md` (amendment A1, and the record that the confirmatory run ran); `experiments/whole_resource.py` (the confirm phase); `docs/data/whole/resource/confirm/` (new); `docs/whole.md`, `README.md`; tests in `tests/experiments/test_whole_resource.py`.
+
+## G58 — The whole, part 2 piloted: with visible food, adapting to its move needs no memory, and three single parts suffice
+
+**Date:** 2026-10-31  
+**Why:** the owner's decision at G56 D2: a target behaviour that needs the parts resource management did not. Draft preregistration `docs/prereg/whole_change.md` (`c037acf`, before any build or run): three visible patches move without a signal half way through a 60-minute run; the spark is survival (A1), recovery of intake after the move (A2) and extinction of visits to the old places (A3). Code `734262f`; pilot `4516030` (`docs/data/whole/change/pilot/`, 363 s; the 27 configurations × seeds 1–12, from a clean tree, warnings as errors). The parts as they stand (G57 C1's tuning decision pending). A design probe before the draft (disclosed in it) ruled out hidden food: the base found 1–6 meals in 30 minutes.
+
+### A. Measured
+
+| configuration | survived | intake per tick ×10⁴: before → after the move | near the old places: first 5 min after / last 15 min (bound 0.141) | first meal at a new patch (ticks) | ground covered (bins): 5 min before → after | noradrenaline: before → after | spark |
+|---|---|---|---|---|---|---|---|
+| base | **0** (starves at tick 7,026 on average, before the move) | 0.71 → 0 | 0.12 / — | 73 | 158 → 74 | 0.50 → 0.50 (legacy trace) | no |
+| **whole** | 12 | 1.22 → 1.28 | 0.08 / 0.09 | 243 | 259 → 253 | **0.04 → 0.03** | **yes** |
+| whole, memory unread | 12 | 1.17 → 1.30 | 0.11 / 0.10 | 226 | 283 → 271 | 0.03 → 0.04 | yes |
+| whole minus any one part | 12 each | 1.05–1.76 → 1.06–1.69 | 0.08–0.56 / 0.05–0.11 | 101–805 | | | **yes, all twelve** |
+| base + dopamine | 12 | 2.23 → 2.24 | 0.10 / 0.03 | 47 | 504 → 603 | | **yes** |
+| base + acetylcholine | 12 | 2.17 → 2.00 | 0.11 / 0.02 | 64 | 501 → 563 | | **yes** |
+| base + orienting | 12 | 2.53 → 2.55 | 0.11 / 0.02 | 31 | 469 → 564 | | **yes** |
+| base + the body | 10 | 1.81 → 1.83 | 0.11 / 0.06 | 115 | 690 → 697 | | no (A1) |
+| base + any other one part | 0–3 | | | | | | no |
+
+The verdict: **condition 1 holds** (the whole adapts), **condition 2 fails** (dopamine, acetylcholine and orienting each make the base adapt on their own) and **condition 3 fails** (no removal breaks it). By the decision table: one mechanism suffices, and three different ones do. My predictions failed wherever they said a part would matter.
+
+### B. Reading
+1. **The task did not test what it was built to test.** With the food visible, adapting to its move is a matter of seeing it. The base starves before the move (three patches are too few for its wall-following walk), and any single part that makes it see more (acetylcholine's sharper vision), reach what it sees (orienting) or leave the walls (dopamine's low vigour turns it away from them) lets it survive, overeating, and "adapt" at once. Memory unread changes nothing.
+2. **The whole shows none of the signatures of an expectation violated.** It never returns to the old places, even in the first five minutes after the move; it covers no more ground after the move than before; its noradrenaline does not move. With visible food and rewards on G57's small scale, an empty site is no surprise: there is nothing for noradrenaline, acetylcholine's encoding or replay to do.
+3. **Both causes are mine.** Choosing visible food after the hidden-food probe removed the demand on memory; the reward-scale mismatch found in G57 mutes the prediction errors that surprise would run on.
+
+### C. Decisions this surfaces (the owner's)
+1. **The joint-tuning decision (G57 C1) now has two tasks behind it.** Recommended as there: put interoception's reward on the scale the other parts were built for, written as a dated amendment, and re-run both parts' pilots.
+2. **Part 2 redesigned so that memory is needed and a move is a surprise.** Recommended: food the agent can smell at close range but not see from afar (a short-range olfactory sense: a new sensor, and the sense rats forage by), so that finding food again from across the arena takes memory, and an emptied place is an expectation violated. Built opt-in and preregistered, after the tuning decision.
+3. **Not recommended:** rescuing this pilot by redefining its measures. The task, not the measures, was wrong.
+
+**Impact:** this entry; `docs/prereg/whole_change.md` (new, and the record that the pilot ran); `experiments/whole_change.py` (new); `docs/data/whole/change/pilot/` (new); `docs/whole.md`, `README.md`; tests in `tests/experiments/test_whole_change.py` (new).

@@ -14,3 +14,9 @@ emergence verdict as preregistered (the whole does not show the spark as defined
 
 The same runs read tick by tick (post hoc, no bounds) are `tools/whole_probes/need_activity.py`, with its output
 beside it.
+
+`confirm/` (at `9756bba`, 1,005 s; amendment A1): the 27 configurations on fresh seeds 13–42 in the pilot's arena
+(`full`) and the held-out one with half the food, moved (`half`). `runs.csv`: the pilot's columns plus the arena and
+A1's measures (the level and within-run spread of the reserve over the second half, the within-run hunger contrast,
+the share of awake ticks moving); `energy_trace.csv`: every 150 ticks; `summary.json`: A1's scores and the verdict
+(the whole fails R1′(c): its level falls 0.22 from `full` to `half`). Read in `docs/decisions.md` G57.
