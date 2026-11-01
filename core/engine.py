@@ -349,7 +349,8 @@ class Engine:
         if c.neuromod.model == "biological":
             from brain.systems.neuromodulators import BiologicalNeuromodulators
 
-            self.bio_neuromod = BiologicalNeuromodulators(c.neuromod)
+            self.bio_neuromod = BiologicalNeuromodulators(
+                c.neuromod, energy_ref=c.metabolism.basal_cost * (1.0 + c.metabolism.locomotion_factor) if c.metabolism.enabled else 0.0)
         self.sleep = None
         if c.sleep.enabled:
             from brain.systems.sleep import SleepHomeostat
@@ -1115,7 +1116,7 @@ class Engine:
             ctx.neuromodulators = self.bio_neuromod.update(
                 delta=delta, reward=ctx.map_reward, pain=ctx.observation.pain_signal,
                 novelty=(1.0 - ctx.familiarity) if self.history is not None else 0.0,
-                moving=self.last_action.name != "REST", asleep=ctx.asleep, satiety=sat)
+                moving=self.last_action.name != "REST", asleep=ctx.asleep, satiety=sat, energy=ctx.ingested)
         ctx.td_error = delta
         # Plasticity: TD-learn the map from the map reward (primary outcomes by default).
         # The extinction cost is passed from the config on every call, so it can be

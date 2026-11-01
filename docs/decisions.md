@@ -2375,3 +2375,73 @@ The verdict, read after the validity checks: **condition 1 fails** (the whole do
 4. Not recommended: reading this pilot's bracket for or against emergence. The whole does not show the spark, and the task does not test memory.
 
 **Impact:** this entry; `docs/prereg/whole_smell.md` (P1, the feasibility rule's outcome, and the record that the pilot ran); `core/config.py`, `core/sensors.py`, `brain/contracts.py`, `brain/systems/basal_ganglia.py` (olfaction, opt-in), `ui/sim_session.py`, `ui/static/js/brain.js`; `experiments/whole_change.py` (the design and smell phases); `tools/whole_probes/smell_budget.py` (new) and its output; `docs/data/whole/change/smell_design/`, `smell_pilot/` (new); `docs/whole.md`, `README.md`; tests in `tests/brain/test_olfaction.py` (new), `tests/experiments/test_whole_change.py`, `tests/sensors/test_heading_oracle_and_contacts.py`.
+
+## G61 — Dopamine's tonic level as a rate: the reward rate raises vigour in scarcity, as drive-reduction reward implies; the energy rate lowers it a little; neither is the lever for the level in scarcity (G59 C1 corrected)
+
+**Date:** 2026-10-31  
+**Why:** the owner's go at G60 C2 ("go on all"): dopamine's tonic level as an average rate of reward, first. Before building, G59's own numbers were checked against the premise of G59 C1 (a lower rate of reward lowers vigour in scarcity): with reward as drive reduction a hungry meal is worth more, and the whole's reward per tick was about six times higher in the half-food arena (24.1 meals at 4.62) than in the familiar one (19.9 at 0.96). Built opt-in anyway, with the variant that check pointed to (`c62b8c7`: `neuromod.tonic_model` "peak", as built and the default; "reward_rate", a leaky mean of the reward per tick over 10 minutes; "energy_rate", a leaky mean of the energy eaten per tick over the cost of moving at full speed; every hash unchanged). Tested by an exploratory design probe before any registration, `tools/whole_probes/tonic_rate.py`, on fresh design seeds 3001–3012: the whole (part 1's parts, A2's scale) in both of part 1's arenas. The reward rate's reference (0.0042 a tick, twice the whole's familiar-arena rate in G59, so that vigour there starts near the held peak's) is a probe setting; the energy rate has none.
+
+### A. Measured
+
+| tonic model | arena | survived (of 12) | level, second half | awake ticks moving | vigour | meals | efficiency | meal reward |
+|---|---|---|---|---|---|---|---|---|
+| peak (as built) | familiar | 12 | 0.673 | 0.25 | 0.75 | 19.6 | 5.58 | 1.08 |
+| peak | half food | 12 | 0.298 | 0.95 | 0.85 | 24.5 | 1.68 | 4.46 |
+| reward rate | familiar | 12 | 0.679 | 0.25 | 0.71 | 19.7 | 6.07 | 1.08 |
+| reward rate | half food | 11 | 0.297 | 0.86 | **0.92** | 22.9 | 1.94 | 4.37 |
+| energy rate | familiar | 12 | 0.682 | 0.25 | 0.66 | 19.7 | **6.28** | 1.09 |
+| energy rate | half food | 12 | **0.352** | 0.88 | **0.67** | 23.2 | 1.94 | 3.96 |
+
+The level's drop from the familiar arena to the half-food one: 0.375 (peak), 0.383 (reward rate), 0.330 (energy rate); A1's registered bound is 0.10.
+
+### B. Reading
+1. **The reward rate does what drive-reduction reward implies:** vigour is higher in scarcity (0.92 against the held peak's 0.85), the level no better, and one run starves. G59 C1's premise was wrong, and the error is mine: I read Niv's average rate in objective terms, while this reward is in drive units, where hunger raises the rate (the energizing effect of hunger in the same account; Niv, Joel & Dayan 2006).
+2. **The energy rate, income against the cost of running, lowers vigour in scarcity** (0.67 against 0.85) and movement a little (0.88 against 0.95), raises the level there by 0.05 and efficiency in both arenas (6.28 against 5.58 in the familiar one). Of the three it is the better founded: the agent moves as hard as its income pays for.
+3. **Vigour is not the lever for the level in scarcity.** Under every model the whole moves on 86–95% of awake ticks in the half-food arena: whether to move is hunger's decision (motivation), and vigour only scales the push forward. With two patches that regrow every two minutes and the arena to cross between them, the whole settles lower where food is scarce, as animals lose weight when food is scarce; the registered bound asks for a defended level this economy may not allow. G57's reading stands: the whole compensates by foraging three to four times as much and survives.
+4. **Predictions (written in the probe before the run):** the reward rate raises vigour in scarcity ✓; the energy rate, uncertain: it lowered vigour.
+
+### C. Decisions this surfaces (the owner's)
+1. **No registered re-pilot of part 1 under a rate model:** the measure it was for is already known from the probe (a drop of 0.33–0.38 against 0.10). The whole keeps the held peak; "energy_rate" stays available opt-in. Adopting it, as the better-founded model, would need a registered bracket run; recommended only together with C2.
+2. **A1's level-drop bound** (at most 0.10 in scarcity) is recommended for reconsideration in any future registration: judge compensation by survival and the change in effort, not by a fixed level the economy may not allow.
+3. **Part 2's third design goes ahead with the parts as built** (G60 C1), the tonic level the held peak.
+
+**Impact:** this entry; `core/config.py` (`neuromod.tonic_model`, `rate_time`, `rate_ref`), `brain/systems/neuromodulators.py`, `core/engine.py`; `tools/whole_probes/tonic_rate.py` (new) and its output; tests in `tests/brain/test_tonic_rate.py` (new).
+
+## G62 — The whole, part 2, third design: in balance, any agent with the rodent body adapts; memory saves effort but is not needed, and validity fails a third time
+
+**Date:** 2026-10-31  
+**Why:** the owner's go at G60 C1 ("go on all"): part 2 redesigned with a short odour reach and an economy in balance. Draft preregistration `docs/prereg/whole_smell_short.md` (`56205d9`, before any build or run): the odour's length 0.5 units by a rule on geometry alone (three patches mark 12% of the floor at the encounter threshold, against 66% in G60); the food's energy the smallest rung of a ladder at which the whole is in balance before the move; the reward scale following it (9.7 × 0.065 / K). Code `3406cb4`; the economy rule on design seeds 4001–4004 (`5761933`, `docs/data/whole/change/short_design/`): **K = 0.08** (the reserve 0.63 over the ten minutes before the move; predicted 0.10 or 0.125), scale 7.88. Pilot `77fb035` (`docs/data/whole/change/short_pilot/`, 275 s: the 29 configurations × seeds 1–12, from a clean tree, warnings as errors). The parts as in G60; dopamine's tonic level the held peak (G61).
+
+### A. Measured
+**Validity, read first: both checks fail again.** V1: the whole's intake in the quarter-hour before the move is **0.91 times** the whole's with memory unread (1.38 against 1.51 ×10⁻⁴ a tick; the bound 1.25). V2: 347 bins covered in the five minutes after the move against 343 before (+4, BCa 95% [−67, +89]).
+
+| configuration | survived (of 12) | intake ×10⁴ a tick: quarter-hour before → last quarter-hour | near the old places: first 5 min after / last 15 min (chance 0.094, bound 0.141) | first meal at a new patch (ticks) | ground covered (bins): 5 min before → after | efficiency before the move | asleep | spark |
+|---|---|---|---|---|---|---|---|---|
+| base | 0 (0.6 meals a run) | 0 → 0 | — | — | — | — | 0 | no |
+| **whole** | **12** | 1.38 → 1.54 | 0.12 / 0.08 | 284 | 343 → 347 | **4.98** | 0.14 | **yes** |
+| whole, memory unread | 12 | 1.51 → 1.47 | 0.14 / 0.13 | 386 | 410 → 403 | 3.75 | 0.10 | yes |
+| whole without olfaction | 12 | 1.44 → 1.60 | 0.16 / 0.09 | 422 | 364 → 364 | 4.79 | 0.12 | yes |
+| whole without interoception | 12 | 1.76 → 1.96 | 0.15 / 0.07 | 185 | 483 → 631 | 2.71 | 0.22 | yes |
+| whole without the rodent body | **6** | 0.89 → 0.81 | **0.47** / 0.09 | 1,018 | **18 → 108** | (barely moves) | 0.12 | **no** (A1) |
+| whole without orienting | 12: the whole's runs bit for bit | | | | | | | yes |
+| whole without any other one part | 12 each | 1.27–1.56 → 1.47–1.76 | | 264–573 | | | | yes, all ten |
+| **base + the rodent body** | **12** | **2.16 → 2.10** | 0.09 / 0.06 | 253 | 673 → 742 | 2.11 | 0 | **yes** |
+| base + any other one part, olfaction included | 0 | 0–0.28 → 0 | | | | | | no |
+
+The verdict: **condition 1 holds** (the whole adapts; its lowest reserve after the move 0.33–0.56); **condition 2 fails** (the base with the rodent body alone adapts); **condition 3 fails** (only removing the body breaks it).
+
+### B. Reading
+1. **The task now tests the body.** With food enough, any agent with the rodent body survives the move and recovers: its noisy sweep finds hidden patches by contact, smell or no smell. The base with that body alone eats more than the whole (2.16 against 1.38), because it never stops. Without the rodent body the whole barely moves (18 bins in five minutes), sits at a patch, and after the move stays near the old place for 47% of the first five minutes, the strongest return to an old place in the three designs; half those runs starve. *(Withdrawn as a return, 2026-11-01: see the correction below C.)*
+2. **V1 failed as registered, and the measure was wrong for this design (my error).** An agent in balance eats what it spends, so memory cannot raise its intake; its benefit shows as effort. Read post hoc: the whole gets 4.98 units of food per unit spent moving against 3.75 with memory unread (1.33 times). Memory is useful here, not needed.
+3. **The move is still no surprise.** The whole goes back to the old places in the first five minutes little more than by chance (0.12 against 0.094; memory unread 0.14), covers no more ground after the move, and its noradrenaline does not rise (0.09 → 0.07).
+4. **The three designs together:** in this 2 m arena, food that is seen, smelled from afar or hidden is found at least as well by a sweep as by memory; memory has saved effort at most. The bracket cannot show emergence on adaptation here, because one part, the body, carries it. In this project memory has been needed only where a sweep cannot reach (the memory maze, G15–G16; G19: "only the memory maze showed memory doing anything").
+5. **Predictions (§4):** K 0.10 or 0.125 ✗ (0.08); V1 ✗; V2 ✗; the whole shows the spark ✓, but it does not return to the old places more than by chance ✗; the base starves ✓; the base with the rodent body survives and fails condition 2 ✓; removing interoception, motivation or olfaction breaks it ✗ (none does); removing the body breaks it ✓; orienting changes nothing ✓ (bit for bit); memory unread fails V1's margin ✓ (as registered), recovers more slowly ✗ (0.97 against 1.12, but first meal at a new patch later: 386 against 284 ticks).
+
+### C. Decisions this surfaces (the owner's)
+1. **Whether part 2 continues in this form** (§5's table). Recommended: stop varying the food in this arena. Adapting to a move needs memory only where a sweep is costly. If part 2 continues, the next design should make the world, not the food, the constraint: a larger arena (four times the floor, the same patches), with the economy rule applied again, after a check that the place code and the SR's map work at that scale. The alternative is a different second behaviour.
+2. **For any agent in balance, a memory check should be effort per meal (efficiency), not intake.** Recommended for every future validity check of memory.
+3. **The research body's perseveration** (47% near the old place after the move) is the clearest expectation-driven return seen in part 2, in a configuration the bracket counts as a failure. It is worth a look on its own if the owner wants the surprise signature studied.
+
+**Correction (2026-11-01), C3 and B1's last sentence withdrawn.** The owner asked whether "without the body" meant without sensors; it does not (every configuration has the same sensors and brain; without the rodent body the agent moves with the discrete body every result before G44 used: fixed steps, no noise, no momentum). Checking the claim on the pilot's runs (an ad hoc re-run of that configuration, seeds 1–12, matching the pilot's survival): before the move that agent sat at a patch, choosing REST on 91–100% of ticks and eating as the patch regrew; three of its runs had starved before the move. Of the nine alive at the move, six left within minutes and found the new food (1–4 meals in the first five minutes); three never moved again (REST on every tick for five minutes), and two of those starved there. The 47% near the old place is agents that stayed put, not agents that went back: it is no sign of an expectation violated. Unexplained and worth checking before that body is used with the whole's parts again: starving agents resting on every tick, and partly asleep although hunger blocks sleep's onset.
+
+**Impact:** this entry; `docs/prereg/whole_smell_short.md` (new: the draft, the design probe's outcome and the record that the pilot ran); `experiments/whole_change.py` (the design3 and smell3 phases, `smell_parts(odour_length, food_energy)`, `economy_rule`); `docs/data/whole/change/short_design/`, `short_pilot/` (new); `docs/whole.md`, `README.md`; tests in `tests/experiments/test_whole_change.py`.

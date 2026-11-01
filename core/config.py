@@ -251,6 +251,7 @@ class AstrocyteConfig:
 
 
 NEUROMOD_MODELS: Tuple[str, ...] = ("legacy", "biological")
+TONIC_MODELS: Tuple[str, ...] = ("peak", "reward_rate", "energy_rate")  # G61
 
 
 @dataclass
@@ -276,10 +277,25 @@ class NeuromodConfig:
     ach_motion_weight: float = 0.5
     ach_replay_threshold: float = 0.3  # awake replay only at or below this ACh
     satiety_band: float = 0.2  # 5HT's satiety rises from setpoint - band to the setpoint
+    # tonic_model (G61; the owner's go at G60 C2): what dopamine's tonic level, and so vigour, tracks. "peak" (G56, every
+    # run before G61): the last meal's reward, held and falling over tonic_fall. "reward_rate": a leaky mean of the
+    # reward per tick over rate_time ticks, over rate_ref (Niv, Daw, Joel & Dayan 2007's average reward rate, the reward
+    # in interoception's drive units). "energy_rate": a leaky mean of the energy eaten per tick over rate_time ticks,
+    # over what moving at full speed costs a tick (metabolism's basal cost x (1 + locomotion factor)): the agent moves
+    # as hard as its income pays for.
+    tonic_model: str = "peak"
+    rate_time: float = 3000.0  # ticks: the rates' memory, 10 minutes
+    rate_ref: float = 0.0  # "reward_rate" only: the reward per tick at which vigour is full
 
     def __post_init__(self) -> None:
         if self.model not in NEUROMOD_MODELS:
             raise ValueError(f"neuromod.model must be one of {NEUROMOD_MODELS}, got {self.model!r}")
+        if self.tonic_model not in TONIC_MODELS:
+            raise ValueError(f"neuromod.tonic_model must be one of {TONIC_MODELS}, got {self.tonic_model!r}")
+        if not self.rate_time > 0.0:
+            raise ValueError("neuromod.rate_time must be > 0")
+        if self.tonic_model == "reward_rate" and not self.rate_ref > 0.0:
+            raise ValueError("neuromod.tonic_model 'reward_rate' needs neuromod.rate_ref > 0")
         parts = (self.dopamine, self.serotonin, self.noradrenaline, self.acetylcholine)
         if any(parts) and self.model != "biological":
             raise ValueError("a neuromodulator part needs neuromod.model = 'biological'")

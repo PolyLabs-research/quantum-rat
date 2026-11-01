@@ -4,6 +4,8 @@ design, by smell (docs/prereg/whole_smell.md; G60).
     python3 -m experiments.whole_change --phase pilot --workers 28         # 27 configurations x seeds 1-12 (G58)
     python3 -m experiments.whole_change --phase design --workers 4         # the second design's feasibility rule
     python3 -m experiments.whole_change --phase smell --workers 28         # 29 configurations x seeds 1-12 (G60)
+    python3 -m experiments.whole_change --phase design3 --workers 24       # the third design's economy rule
+    python3 -m experiments.whole_change --phase smell3 --workers 28        # its pilot (G62)
     python3 -m experiments.whole_change --phase pilot --quick --out /tmp/wc  # the smoke test's run
 
 Part 1's arena, cues, body physics, food (K = 0.065) and 27 configurations (``experiments.whole_resource``). Three
@@ -17,6 +19,10 @@ olfaction the thirteenth (29 configurations), and two validity checks come befor
 the move is a surprise (more ground covered in the five minutes after it than in the five before, paired by seed).
 ``--phase design`` checks the feasibility rule (§2) on seeds 2001-2004: the whole's mean meals before the move, the
 run stopped there, so nothing after the move is seen before the pilot.
+
+The third design (docs/prereg/whole_smell_short.md; G62): the odour's length 0.5 units (three patches mark 12% of the
+floor at the encounter threshold, against the second design's 66%), and the food's energy K the smallest on a ladder
+at which the whole is in balance before the move (``--phase design3``, seeds 4001-4004), the reward scale following K.
 """
 
 from __future__ import annotations
@@ -73,11 +79,25 @@ FEASIBLE_MEALS = 6.0
 FOURTH_PATCH: Optional[bool] = False
 SMELL_BREAKS_MIN = 7
 V1_MARGIN = 1.25
+# The third design (docs/prereg/whole_smell_short.md; G62): the odour's length (§1.1: three patches mark at most 15% of
+# the floor at C >= 0.05; 0.5 marks 12%); the economy rule's ladder and bound (§1.2: the reserve over the ten minutes
+# before the move, on average over the design seeds, none starving); K as the rule set it
+SHORT_LENGTH = 0.5
+K_LADDER: Tuple[float, ...] = (0.065, 0.08, 0.10, 0.125, 0.15, 0.20)
+BALANCE_MIN = 0.6
+# set by --phase design3 (§1.2); None: the rule not yet applied. 0.08: the smallest rung in balance (the reserve 0.63
+# over the ten minutes before the move; docs/data/whole/change/short_design)
+SHORT_K: Optional[float] = 0.08
+QUICK_K = 0.10  # a quick run's K while SHORT_K is unset (the smoke test)
 PHASES: Dict[str, Dict[str, Any]] = {
     "pilot": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/change/pilot"), "prereg": "docs/prereg/whole_change.md"},
     "design": {"seeds": (2001, 2002, 2003, 2004), "out": Path("docs/data/whole/change/smell_design"),
                "prereg": "docs/prereg/whole_smell.md"},
     "smell": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/change/smell_pilot"), "prereg": "docs/prereg/whole_smell.md"},
+    "design3": {"seeds": (4001, 4002, 4003, 4004), "out": Path("docs/data/whole/change/short_design"),
+                "prereg": "docs/prereg/whole_smell_short.md"},
+    "smell3": {"seeds": tuple(range(1, 13)), "out": Path("docs/data/whole/change/short_pilot"),
+               "prereg": "docs/prereg/whole_smell_short.md"},
 }
 QUICK_SEEDS = (1,)
 QUICK_TICKS = 1200
@@ -88,12 +108,16 @@ COLUMNS = ("config", "seed", "survived", "survival_ticks", "final_energy", "min_
            "sleep_share", "replay_events")
 SMELL_COLUMNS = COLUMNS + ("meals_pre_move",)
 DESIGN_COLUMNS = ("config", "seed", "survived", "survival_ticks", "meals_pre_move", "final_energy", "sleep_share")
+DESIGN3_COLUMNS = ("config", "seed", "food_energy", "survived", "survival_ticks", "meals_pre_move", "reserve_pre10", "final_energy",
+                   "sleep_share")
 
 
-def smell_parts() -> Dict[str, Dict[str, Any]]:
-    """The second design's thirteen parts (§5): part 1's twelve on amendment A2's reward scale, and olfaction."""
-    parts = wr.scaled_parts(wr.REWARD_SCALE)
-    parts["olfaction"] = dict(OLFACTION)
+def smell_parts(odour_length: Optional[float] = None, food_energy: Optional[float] = None) -> Dict[str, Dict[str, Any]]:
+    """The second design's thirteen parts (§5): part 1's twelve on amendment A2's reward scale, and olfaction. The third
+    design's: the odour's ``odour_length``, and the scale following ``food_energy`` (9.7 x 0.065 / K, §1.3)."""
+    scale = wr.REWARD_SCALE if food_energy is None else wr.REWARD_SCALE * wr.FOOD_ENERGY / food_energy
+    parts = wr.scaled_parts(scale)
+    parts["olfaction"] = dict(OLFACTION) if odour_length is None else {**OLFACTION, "sensors.odour_length": odour_length}
     return parts
 
 
@@ -115,12 +139,14 @@ def _share(values: Sequence[float]) -> float:
 
 def run_task(job: Tuple[Any, ...]) -> Dict[str, Any]:
     """One run: ``(name, overrides, seed, ticks)``, part 2's visible patches in ``FIRST`` then ``SECOND``; or with
-    ``(kind, first, second, until)`` appended, patches of ``kind`` in the given layouts, the run stopped at ``until``."""
+    ``(kind, first, second, until)`` appended, patches of ``kind`` in the given layouts, the run stopped at ``until``;
+    and a food energy after those (part 1's K unless given)."""
     name, overrides, seed, ticks, *task = job
-    kind, first, second, until = task if task else ("target", FIRST, SECOND, ticks)
+    kind, first, second, until, *rest = task if task else ("target", FIRST, SECOND, ticks)
+    food = rest[0] if rest else wr.FOOD_ENERGY
     w = windows(ticks)
     change = w["change"][0]
-    cfg = wr.engine_config(overrides, wr.FOOD_ENERGY)
+    cfg = wr.engine_config(overrides, food)
     eng = Engine(seed=seed, config=cfg)
     eng.world.cues.extend(CUES)
     patches = [WorldObject(x, y, wr.PATCH_RADIUS, kind) for (x, y) in first]
@@ -209,8 +235,14 @@ def run_task(job: Tuple[Any, ...]) -> Dict[str, Any]:
         "temperature_post5": _share(temps[w["post5"][0]:min(w["post5"][1], n)]),
         "sleep_share": (n - sum(awake)) / until, "replay_events": len(eng.replay_log),
         "meals_pre_move": sum(1 for m in meal_ticks if m < change),
+        "food_energy": food, "reserve_pre10": _reserve_before(energy, change, ticks // 6),
     }
     return {"row": row, "trace": trace}
+
+
+def _reserve_before(energy: Sequence[float], change: int, span: int) -> float:
+    """The mean reserve over the ``span`` ticks before ``change``; ticks after a starvation count 0."""
+    return sum(energy[max(0, change - span):min(change, len(energy))]) / span
 
 
 def _mean(values: Sequence[float]) -> float:
@@ -272,6 +304,20 @@ def design_rule(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
             "starved_before_move": sum(1 for r in rows if not r["survived"])}
 
 
+def economy_rule(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """The third design's economy rule (§1.2): per rung of the ladder, the mean reserve over the ten minutes before the
+    move and the runs that starved; K is the smallest rung in balance (at least BALANCE_MIN, none starved), else None."""
+    rungs = {}
+    for k in sorted({r["food_energy"] for r in rows}):
+        rr = [r for r in rows if r["food_energy"] == k]
+        reserve = statistics.mean(r["reserve_pre10"] for r in rr)
+        starved = sum(1 for r in rr if not r["survived"])
+        rungs[k] = {"reserve_pre10": reserve, "starved": starved, "meals_pre_move": statistics.mean(r["meals_pre_move"] for r in rr),
+                    "in_balance": reserve >= BALANCE_MIN and starved == 0}
+    chosen = next((k for k, v in rungs.items() if v["in_balance"]), None)
+    return {"rungs": rungs, "bound": BALANCE_MIN, "K": chosen}
+
+
 def _pool(jobs, workers):
     if workers == 1:
         return [run_task(j) for j in jobs]
@@ -294,35 +340,56 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     ticks = QUICK_TICKS if args.quick else TICKS
     if args.phase == "smell" and FOURTH_PATCH is None and not args.quick:
         parser.error("the feasibility rule has not been checked: run --phase design and set FOURTH_PATCH (§2)")
+    if args.phase == "smell3" and SHORT_K is None and not args.quick:
+        parser.error("the economy rule has not been applied: run --phase design3 and set SHORT_K (§1.2)")
     smell = args.phase != "pilot"
-    first, second = layouts(bool(FOURTH_PATCH)) if smell else (FIRST, SECOND)
+    first, second = layouts(bool(FOURTH_PATCH)) if args.phase in ("design", "smell") else (FIRST, SECOND)
     chance_share = chance(first)
+    food = wr.FOOD_ENERGY
     if args.phase == "pilot":
-        configs, columns, task = wr.configurations(), COLUMNS, ()
+        configs, columns = wr.configurations(), COLUMNS
+        jobs = [(c, ov, s, ticks) for c, ov in configs.items() for s in seeds]
     elif args.phase == "design":  # the whole only, stopped at the move: nothing after it is seen before the pilot
-        configs, columns, task = {"whole": wr.configurations(smell_parts())["whole"]}, DESIGN_COLUMNS, ("hidden", first, second, ticks // 2)
+        configs, columns = {"whole": wr.configurations(smell_parts())["whole"]}, DESIGN_COLUMNS
+        jobs = [("whole", configs["whole"], s, ticks, "hidden", first, second, ticks // 2) for s in seeds]
+    elif args.phase == "design3":  # every rung of the ladder, the whole only, stopped at the move
+        configs = {f"whole K={k:g}": wr.configurations(smell_parts(SHORT_LENGTH, k))["whole"] for k in K_LADDER}
+        columns = DESIGN3_COLUMNS
+        jobs = [(f"whole K={k:g}", configs[f"whole K={k:g}"], s, ticks, "hidden", first, second, ticks // 2, k)
+                for k in K_LADDER for s in seeds]
+    elif args.phase == "smell3":
+        food = SHORT_K if SHORT_K is not None else QUICK_K
+        configs, columns = wr.configurations(smell_parts(SHORT_LENGTH, food)), SMELL_COLUMNS
+        jobs = [(c, ov, s, ticks, "hidden", first, second, ticks, food) for c, ov in configs.items() for s in seeds]
     else:
-        configs, columns, task = wr.configurations(smell_parts()), SMELL_COLUMNS, ("hidden", first, second, ticks)
+        configs, columns = wr.configurations(smell_parts()), SMELL_COLUMNS
+        jobs = [(c, ov, s, ticks, "hidden", first, second, ticks) for c, ov in configs.items() for s in seeds]
     started = time.perf_counter()
-    results = _pool([(c, ov, s, ticks) + task for c, ov in configs.items() for s in seeds], args.workers)
+    results = _pool(jobs, args.workers)
     rows = [r["row"] for r in results]
     out.mkdir(parents=True, exist_ok=True)
     write_csv(out / "runs.csv", columns, rows)
     write_csv(out / "energy_trace.csv", ("config", "seed", "tick", "energy", "gut", "asleep"), [t for r in results for t in r["trace"]])
-    summary: Dict[str, Any] = {"phase": args.phase, "seeds": list(seeds), "ticks": ticks, "food_energy": wr.FOOD_ENERGY,
+    summary: Dict[str, Any] = {"phase": args.phase, "seeds": list(seeds), "ticks": ticks, "food_energy": food,
                                "quick": args.quick, "windows": windows(ticks), "configs": configs}
     if smell:
         summary.update({"kind": "hidden", "first": first, "second": second, "fourth_patch": FOURTH_PATCH,
                         "reward_scale": wr.REWARD_SCALE})
+    if args.phase in ("design3", "smell3"):
+        summary.update({"odour_length": SHORT_LENGTH, "fourth_patch": None, "food_energy": None if args.phase == "design3" else food,
+                        "reward_scale": None if args.phase == "design3" else wr.REWARD_SCALE * wr.FOOD_ENERGY / food})
     if args.phase == "design":
         summary["rule"] = design_rule(rows)
+        print(json.dumps(summary["rule"], indent=1))
+    elif args.phase == "design3":
+        summary["rule"] = economy_rule(rows)
         print(json.dumps(summary["rule"], indent=1))
     else:
         scores = {c: score([r for r in rows if r["config"] == c], chance_share) for c in configs}
         summary.update({"chance": chance_share, "scores": scores})
         if smell:
             summary["validity"] = validity([r for r in rows if r["config"] == "whole"], [r for r in rows if r["config"] == "whole_nomemory"])
-            summary["verdict"] = verdict(scores, smell_parts(), SMELL_BREAKS_MIN)
+            summary["verdict"] = verdict(scores, smell_parts(), SMELL_BREAKS_MIN)  # the part names, the same in either design
         else:
             summary["verdict"] = verdict(scores)
         print(f"{'config':24s} surv  intake b->a (recov)   old zone after(bound)  first new meal  cover pre->post  NE pre->post  A1 A2 A3 spark")
@@ -335,9 +402,9 @@ def main(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
             print(json.dumps(summary["validity"], indent=1, default=str))
         print(json.dumps(summary["verdict"], indent=1, default=str))
     (out / "summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True, default=str))
-    manifest = build_manifest(wr.engine_config(wr.BASE, wr.FOOD_ENERGY), protocol=f"whole_change:{args.phase}", seeds=list(seeds),
+    manifest = build_manifest(wr.engine_config(wr.BASE, food), protocol=f"whole_change:{args.phase}", seeds=list(seeds),
                               ticks_requested=ticks, extra={"configs": configs, "phase": args.phase, "quick": args.quick,
-                                                            "prereg": f"{spec['prereg']} (draft)", "food_energy": wr.FOOD_ENERGY,
+                                                            "prereg": f"{spec['prereg']} (draft)", "food_energy": summary["food_energy"],
                                                             "dependencies": _dependency_versions(),
                                                             "command": "python3 -m experiments.whole_change " + " ".join(list(argv) if argv is not None else sys.argv[1:])})
     finish_manifest(manifest, ticks_run=sum(r["survival_ticks"] for r in rows), wall_seconds=time.perf_counter() - started)
